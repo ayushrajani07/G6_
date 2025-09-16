@@ -12,6 +12,7 @@ param(
   # Prometheus
   [string]$PrometheusDir = 'C:\Prometheus',
   [string]$PromConfig = 'C:\Users\ASUS\Documents\G6\qq\g6_reorganized\prometheus.yml',
+  [switch]$AutoDetectPrometheus,
   # Grafana
   [string]$GrafanaHome = 'C:\Program Files\GrafanaLabs\grafana\grafana-12.1.1',
   [switch]$ForegroundGrafana,
@@ -36,7 +37,23 @@ Write-Host '=== Starting Observability Stack (Prometheus / Grafana / Influx) ===
 
 # 1. Prometheus
 $promExe = Join-Path $PrometheusDir 'prometheus.exe'
-if (-not (Test-Path $promExe)) { Write-Host 'Prometheus not found - skipping (install to enable).' -ForegroundColor Yellow } else {
+if (-not (Test-Path $promExe)) {
+  if ($AutoDetectPrometheus) {
+    $promCandidates = @(
+      'C:\Prometheus\prometheus.exe',
+      'C:\Program Files\Prometheus\prometheus.exe',
+      'C:\ProgramData\Prometheus\prometheus.exe'
+    )
+    foreach ($p in $promCandidates) { if (Test-Path $p) { $promExe = $p; break } }
+    if (Test-Path $promExe) {
+      Write-Host "Auto-detected Prometheus at: $promExe" -ForegroundColor Green
+    } else {
+      Write-Host 'Prometheus not found - skipping (install to enable).' -ForegroundColor Yellow
+    }
+  } else {
+    Write-Host 'Prometheus not found - skipping (install to enable).' -ForegroundColor Yellow
+  }
+} else {
   Write-Host 'Launching Prometheus...' -ForegroundColor Green
   Start-Process -FilePath $promExe -ArgumentList "--config.file=$PromConfig" -WorkingDirectory $PrometheusDir
 }
