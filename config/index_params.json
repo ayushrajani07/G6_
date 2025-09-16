@@ -1,0 +1,32 @@
+{
+  "NIFTY": {
+    "symbol": "NIFTY 50",
+    "expiry_days": [ "THURSDAY" ],
+    "offset_rules": {
+      "ATM": 0,
+      "OTM1": 1,
+      "OTM2": 2
+    },
+    "whitelist": [ ".*" ]
+  },
+  "BANKNIFTY": {
+    "symbol": "NIFTY BANK",
+    "expiry_days": [ "WEDNESDAY" ],
+    "offset_rules": {
+      "ATM": 0,
+      "OTM1": 1,
+      "OTM2": 2
+    },
+    "whitelist": [ ".*" ]
+  },
+  "FINNIFTY": {
+    "symbol": "NIFTY FIN SERVICE",
+    "expiry_days": [ "TUESDAY" ],
+    "offset_rules": {
+      "ATM": 0,
+      "OTM1": 1,
+      "OTM2": 2
+    },
+    "whitelist": [ ".*" ]
+  }
+}

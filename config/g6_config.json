@@ -1,0 +1,61 @@
+{
+  "version": "2.0",
+  "application": "G6 Options Trading Platform",
+  "metrics": {
+    "port": 9108,
+    "host": "0.0.0.0"
+  },
+  "collection": {
+    "interval_seconds": 60
+  },
+  "storage": {
+    "csv_dir": "data/g6_data",
+    "influx": {
+      "enabled": false,
+      "url": "http://localhost:8086",
+      "org": "g6",
+      "bucket": "g6_data"
+    }
+  },
+  "overlays": {
+    "weekday": {
+      "alpha": 0.5,
+      "output_dir": "data/weekday_master"
+    }
+  },
+  "indices": {
+    "NIFTY": {
+      "enable": true,
+      "strikes_itm": 10,
+      "strikes_otm": 10,
+      "expiries": ["this_week", "next_week", "this_month", "next_month"]
+    },
+    "BANKNIFTY": {
+      "enable": true,
+      "strikes_itm": 10,
+      "strikes_otm": 10,
+      "expiries": ["this_month", "next_month"]
+    },
+    "FINNIFTY": {
+      "enable": true,
+      "strikes_itm": 5,
+      "strikes_otm": 5,
+      "expiries": ["this_month", "next_month"]
+    },
+    "SENSEX": {
+      "enable": true,
+      "strikes_itm": 10,
+      "strikes_otm": 10,
+      "expiries": ["this_week", "next_week", "this_month", "next_month"]
+    }
+  },
+  "features": {
+    "analytics_startup": true
+  },
+  "console": {
+    "fancy_startup": true,
+    "live_panel": true,
+    "startup_banner": true,
+    "force_ascii": true
+  }
+}

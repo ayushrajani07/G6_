@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>{% block title %}G6 Dashboard{% endblock %}</title>
+<link rel="stylesheet" href="/static/css/main.css" />
+<script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+<nav class="nav">
+  <a href="/">Overview</a>
+  <a href="/metrics/raw" target="_blank">Raw Metrics</a>
+</nav>
+<main>
+{% block body %}{% endblock %}
+</main>
+</body>
+</html>

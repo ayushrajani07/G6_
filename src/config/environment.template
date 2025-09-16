@@ -1,0 +1,15 @@
+# G6 Platform Environment Variables
+# Authentication secrets only - all other config in JSON files
+
+# Kite Connect API (Required)
+KITE_API_KEY=j9f5yixi8xarailr
+KITE_API_SECRET=5a4eirccm51upuogwm63dhis3a3p6h09
+KITE_ACCESS_TOKEN=your_access_token_here
+
+# InfluxDB Authentication (Required if using InfluxDB)  
+INFLUX_TOKEN=VFEhioeCi2vFCtv-dH_7Fe6gEgNtO-Tu7qcQW4WvIbAFQIdKGa_hDu4dxatOgwskZcva4CHkeOPbjkQwAvPyVg==
+
+# Optional runtime overrides (usually not needed)
+# RUN_INTERVAL_SEC=60
+# RUN_OFFSET_SEC=0
+# LOG_LEVEL=INFO

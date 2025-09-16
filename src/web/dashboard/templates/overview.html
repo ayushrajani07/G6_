@@ -1,0 +1,30 @@
+{% extends 'layout.html' %}
+{% block title %}G6 Overview{% endblock %}
+{% block body %}
+<div class="container">
+  <h1>G6 Platform Dashboard</h1>
+  <div class="layout-grid">
+    <div class="col stream-col" id="stream-fragment" hx-get="/stream/fragment" hx-trigger="load, every 6s" hx-swap="innerHTML">
+      <p>Loading stream...</p>
+    </div>
+    <div class="col mid-col">
+      <div id="metrics-fragment" hx-get="/metrics/fragment" hx-trigger="load, every 5s" hx-swap="innerHTML">
+        <p>Loading metrics...</p>
+      </div>
+      <div id="storage-fragment" hx-get="/storage/fragment" hx-trigger="load, every 9s" hx-swap="innerHTML" style="margin-top:10px;">
+        <p>Loading storage...</p>
+      </div>
+      <div id="errors-fragment" hx-get="/errors/fragment" hx-trigger="load, every 7s" hx-swap="innerHTML" style="margin-top:10px;">
+        <p>Loading errors...</p>
+      </div>
+    </div>
+    <div class="col logs-col">
+      <h2 style="margin-top:0;">Logs</h2>
+      <div id="logs-fragment" hx-get="/logs/fragment" hx-trigger="load, every 7s" hx-swap="innerHTML">
+        <p>Loading logs...</p>
+      </div>
+    </div>
+  </div>
+  <div id="footer-fragment" hx-get="/footer/fragment" hx-trigger="load, every 8s" hx-swap="innerHTML"></div>
+</div>
+{% endblock %}

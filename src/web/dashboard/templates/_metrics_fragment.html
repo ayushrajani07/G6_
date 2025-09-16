@@ -1,0 +1,98 @@
+{% if snapshot %}
+{% if snapshot.missing_core and snapshot.missing_core|length > 0 %}
+<!-- DEBUG_CLEANUP_BEGIN: temporary missing core metrics banner -->
+<div class="alert warn">
+  <strong>Missing Core Metrics:</strong>
+  {{ ', '.join(snapshot.missing_core) }}
+  <span style="float:right; font-size:0.85em;">(debug banner)</span>
+</div>
+<!-- DEBUG_CLEANUP_END -->
+{% endif %}
+{% set uptime = snapshot.raw.get('g6_uptime_seconds')[0].value if snapshot.raw.get('g6_uptime_seconds') else None %}
+{% set cycle = snapshot.raw.get('g6_collection_cycle_time_seconds')[0].value if snapshot.raw.get('g6_collection_cycle_time_seconds') else None %}
+{% set optionspm = snapshot.raw.get('g6_options_processed_per_minute')[0].value if snapshot.raw.get('g6_options_processed_per_minute') else None %}
+{% set success = snapshot.raw.get('g6_collection_success_rate_percent')[0].value if snapshot.raw.get('g6_collection_success_rate_percent') else None %}
+{% set apisuccess = snapshot.raw.get('g6_api_success_rate_percent')[0].value if snapshot.raw.get('g6_api_success_rate_percent') else None %}
+{% set api_latency = snapshot.raw.get('g6_api_response_time_ms')[0].value if snapshot.raw.get('g6_api_response_time_ms') else None %}
+{% set dataqual = snapshot.raw.get('g6_data_quality_score_percent')[0].value if snapshot.raw.get('g6_data_quality_score_percent') else None %}
+{% set cpu = snapshot.raw.get('g6_cpu_usage_percent')[0].value if snapshot.raw.get('g6_cpu_usage_percent') else None %}
+{% set mem = snapshot.raw.get('g6_memory_usage_mb')[0].value if snapshot.raw.get('g6_memory_usage_mb') else None %}
+{% set mp_level = snapshot.raw.get('g6_memory_pressure_level')[0].value if snapshot.raw.get('g6_memory_pressure_level') else None %}
+{% set depth_scale = snapshot.raw.get('g6_memory_depth_scale')[0].value if snapshot.raw.get('g6_memory_depth_scale') else None %}
+<div class="grid metrics-panels">
+  <div class="card">
+    <h3>System & Performance</h3>
+    <ul>
+      <li>Uptime: {{ uptime|round|int if uptime is not none else '-' }} s</li>
+      <li>Avg Cycle: {{ '%.2f' % cycle if cycle is not none else '-' }} s</li>
+      <li>Options/min: {{ '%.1f' % optionspm if optionspm is not none else '-' }}</li>
+      <li>API Latency: {{ '%.1f' % api_latency if api_latency is not none else '-' }} ms</li>
+      <li>Success %: {{ '%.1f' % success if success is not none else '-' }}</li>
+      <li>API Success %: {{ '%.1f' % apisuccess if apisuccess is not none else '-' }}</li>
+      <li>Data Qual %: {{ '%.1f' % dataqual if dataqual is not none else '-' }}</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Resources</h3>
+    <ul>
+      <li>CPU: {{ '%.1f' % cpu if cpu is not none else '-' }} %</li>
+      <li>Memory: {{ '%.1f' % mem if mem is not none else '-' }} MB</li>
+      <li>Mem Pressure Lvl: {{ mp_level if mp_level is not none else '-' }}</li>
+      <li>Depth Scale: {{ depth_scale if depth_scale is not none else '-' }}</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>Status</h3>
+    <ul>
+      <li>Snapshot Age: {{ '%.1f' % snapshot.age_seconds }} s</li>
+      <li>Stale: {{ 'yes' if snapshot.stale else 'no' }}</li>
+      <li>Updated: {{ snapshot.ts | int }}</li>
+    </ul>
+  </div>
+</div>
+<h2>Indices</h2>
+{% set idxmap = {} %}
+{% for s in snapshot.raw.get('g6_index_options_processed', []) %}
+  {% set _ = idxmap.setdefault(s.labels.get('index'), {}).update({'options_processed': s.value}) %}
+{% endfor %}
+{% for s in snapshot.raw.get('g6_index_last_collection_unixtime', []) %}
+  {% set _ = idxmap.setdefault(s.labels.get('index'), {}).update({'last_collection': s.value}) %}
+{% endfor %}
+{# Use new cycle success percent metric (per latest cycle) #}
+{% for s in snapshot.raw.get('g6_index_cycle_success_percent', []) %}
+  {% set _ = idxmap.setdefault(s.labels.get('index'), {}).update({'success_pct': s.value}) %}
+{% endfor %}
+{% for s in snapshot.raw.get('g6_put_call_ratio', []) %}
+  {% set idx = s.labels.get('index') %}
+  {% set exp = s.labels.get('expiry') %}
+  {% if idx and exp %}
+    {% set entry = idxmap.setdefault(idx, {}) %}
+    {% set pcrs = entry.setdefault('pcr', {}) %}
+    {% set _ = pcrs.update({exp: s.value}) %}
+  {% endif %}
+{% endfor %}
+<table class="table">
+  <thead>
+    <tr><th>Index</th><th>Options</th><th>Last Collection</th><th>Success %</th><th>PCR</th></tr>
+  </thead>
+  <tbody>
+  {% for idx, vals in idxmap.items()|sort %}
+    <tr>
+      <td>{{ idx }}</td>
+      <td>{{ vals.get('options_processed','-') }}</td>
+      <td>{{ vals.get('last_collection','-') }}</td>
+      <td>{{ '%.1f' % vals.get('success_pct') if vals.get('success_pct') is not none else '-' }}</td>
+      <td>
+        {% if vals.get('pcr') %}
+          {% for exp, p in vals.get('pcr').items() %}
+            <span class="tag">{{ exp }}={{ '%.2f' % p }}</span>
+          {% endfor %}
+        {% else %}-{% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No metrics yet...</p>
+{% endif %}

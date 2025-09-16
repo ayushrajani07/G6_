@@ -1,0 +1,22 @@
+{% if snapshot and snapshot.error_events %}
+<div class="panel errors-panel">
+  <h3>Error Events</h3>
+  <table class="error-events">
+    <thead>
+      <tr><th>When</th><th>Index</th><th>Type</th><th>Count</th></tr>
+    </thead>
+    <tbody>
+      {% for ev in snapshot.error_events %}
+      <tr class="err-row">
+        <td>{{ '%.0f'|format(ev.ago) }}s ago</td>
+        <td>{{ ev.index }}</td>
+        <td>{{ ev.error_type }}</td>
+        <td>{{ ev.delta }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="panel errors-panel"><h3>Error Events</h3><p>No recent errors.</p></div>
+{% endif %}

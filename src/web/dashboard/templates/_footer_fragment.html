@@ -1,0 +1,11 @@
+{% if snapshot %}
+<div class="footer-bar">
+  {% set total_legs = snapshot.footer.get('total_legs') if snapshot.footer else None %}
+  {% set overall_success = snapshot.footer.get('overall_success') if snapshot.footer else None %}
+  {% set indices = snapshot.footer.get('indices') if snapshot.footer else None %}
+  <span>Total Legs: <strong>{{ total_legs if total_legs is not none else '-' }}</strong></span>
+  <span>Overall Success %: <strong>{{ '%.1f' % overall_success if overall_success is not none else '-' }}</strong></span>
+  <span>Indices: <strong>{{ indices if indices is not none else '-' }}</strong></span>
+  <span>Snapshot Age: {{ '%.1f' % snapshot.age_seconds }}s {% if snapshot.stale %}<span class="stale">STALE</span>{% endif %}</span>
+</div>
+{% endif %}

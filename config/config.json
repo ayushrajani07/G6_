@@ -1,0 +1,103 @@
+{
+  "storage": {
+    "csv_dir": "data/csv",
+    "influx_url": "http://localhost:8086",
+    "influx_org": "your-org",
+    "influx_bucket": "your-bucket",
+    "influx_enabled": false
+  },
+  "kite": {
+    "instrument_cache_path": ".cache/kite_instruments.json",
+    "instrument_ttl_hours": 6,
+    "rate_limit_per_sec": 5.0,
+    "max_retries": 5,
+    "http_timeout": 10,
+    "default_exchanges": [
+      "NSE",
+      "NFO",
+	  "BSE",
+      "BFO"
+    ]
+  },
+  "orchestration": {
+    "run_interval_sec": 60,
+    "run_offset_sec": 0,
+    "log_level": "INFO",
+    "prometheus_port": 9108,
+    "redis_enabled": false,
+    "redis_host": "localhost",
+    "redis_port": 6379,
+    "market_start_time": "09:15",
+    "market_end_time": "15:30"
+  },
+  "index_params": {
+    "NIFTY": {
+      "strike_step": 50,
+      "segment": "NFO-OPT",
+      "exchange": "NSE",
+      "expiry_rules": [
+        "this_week",
+        "next_week",
+        "this_month",
+        "next_month"
+      ],
+      "offsets": [
+        0,
+        1,
+        -1,
+        2,
+        -2
+      ]
+    },
+    "BANKNIFTY": {
+      "strike_step": 100,
+      "segment": "NFO-OPT",
+      "exchange": "NSE",
+      "expiry_rules": [
+        "this_month",
+        "next_month"
+      ],
+      "offsets": [
+        0,
+        1,
+        -1,
+        2,
+        -2
+      ]
+    },
+    "FINNIFTY": {
+      "strike_step": 50,
+      "segment": "NFO-OPT",
+      "exchange": "NSE",
+      "expiry_rules": [
+        "this_month",
+        "next_month"
+      ],
+      "offsets": [
+        0,
+        1,
+        -1,
+        2,
+        -2
+      ]
+    },
+	"SENSEX": {
+      "strike_step": 100,
+      "segment": "BFO-OPT",
+      "exchange": "BSE",
+      "expiry_rules": [
+        "this_week",
+        "next_week",
+        "this_month",
+        "next_month"
+      ],
+      "offsets": [
+        0,
+        1,
+        -1,
+        2,
+        -2
+      ]
+    }
+  }
+}

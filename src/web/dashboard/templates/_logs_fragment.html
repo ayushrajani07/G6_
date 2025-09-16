@@ -1,0 +1,5 @@
+<div class="log-panel">
+  <div class="log-header">Recent Logs ({{ lines|length }})</div>
+  <pre class="log-body">{% for ln in lines %}{% set sev = 'INFO' %}{% if ' ERROR ' in ln %}{% set sev='ERROR' %}{% elif ' WARNING ' in ln %}{% set sev='WARNING' %}{% elif ' CRITICAL ' in ln %}{% set sev='CRITICAL' %}{% elif ' DEBUG ' in ln %}{% set sev='DEBUG' %}{% endif %}<span class="log-line sev-{{ sev|lower }}">{{ ln }}</span>
+{% endfor %}</pre>
+</div>

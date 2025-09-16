@@ -1,0 +1,63 @@
+groups:
+  - name: g6_memory_pressure.alerts
+    interval: 30s
+    rules:
+      - alert: G6ChronicHighMemoryPressure
+        expr: max_over_time(g6_memory_pressure_level[15m]) >= 2 and min_over_time(g6_memory_pressure_level[15m]) >= 2
+        for: 5m
+        labels:
+          severity: warning
+          category: memory
+        annotations:
+          summary: "Chronic high memory pressure (level >=2 for 15m)"
+          description: "Memory pressure has remained at high or critical for at least 15 minutes. Consider scaling memory or tuning strike depth thresholds."
+
+      - alert: G6CriticalMemorySustained
+        expr: avg_over_time(g6_memory_pressure_level[5m]) >= 2.8
+        for: 2m
+        labels:
+          severity: critical
+          category: memory
+        annotations:
+          summary: "Critical memory pressure sustained"
+          description: "Average pressure level ~critical for 5m. Risk of OOM or severe degradation."
+
+      - alert: G6DepthScaleSeverelyReduced
+        expr: avg_over_time(g6_memory_depth_scale[10m]) < 0.5
+        for: 3m
+        labels:
+          severity: warning
+          category: adaptive
+        annotations:
+          summary: "Depth scale persistently <50%"
+          description: "Strike depth scaling factor under 0.5 for 10m indicating aggressive degradation is active."
+
+      - alert: G6GreeksDisabledTooLong
+        expr: (time() - max_over_time(g6_memory_greeks_enabled[30m])*0) > 1800
+        for: 1m
+        labels:
+          severity: info
+          category: adaptive
+        annotations:
+          summary: "Greeks disabled >30m"
+          description: "Greeks / IV computation have not re-enabled for over 30 minutes. Investigate sustained pressure or rollback cooldowns."
+
+      - alert: G6MetricSuppression
+        expr: (g6_memory_per_option_metrics_enabled == 0)
+        for: 10m
+        labels:
+          severity: info
+          category: observability
+        annotations:
+          summary: "Per-option metrics suppressed"
+          description: "High cardinality option metrics suppressed for 10m. Observability detail reduced."
+
+      - alert: G6RapidPressureFlapping
+        expr: sum(increase(g6_memory_pressure_transition[15m])) + sum(increase(g6_memory_pressure_downgrade[15m])) > 6
+        for: 0m
+        labels:
+          severity: warning
+          category: stability
+        annotations:
+          summary: "Memory pressure flapping (>6 transitions/15m)"
+          description: "Frequent pressure level oscillations detected. Adjust hysteresis or thresholds to stabilize."

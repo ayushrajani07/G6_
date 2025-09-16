@@ -1,0 +1,13 @@
+{
+  "version": "2.0",
+  "application": "G6 Options Trading Platform (Dummy)",
+  "metrics": { "port": 9108, "host": "0.0.0.0" },
+  "collection": { "interval_seconds": 5 },
+  "storage": { "csv_dir": "data/g6_data", "influx": { "enabled": false } },
+  "indices": {
+    "NIFTY": { "enable": true, "strikes_itm": 2, "strikes_otm": 2, "expiries": ["this_week"] }
+  },
+  "providers": { "primary": { "type": "dummy" } },
+  "features": { "analytics_startup": true },
+  "console": { "fancy_startup": true, "live_panel": true, "startup_banner": true }
+}

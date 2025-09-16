@@ -1,0 +1,45 @@
+groups:
+  - name: g6_memory_pressure.rules
+    interval: 15s
+    rules:
+      # Record instantaneous level as separate series per level for simpler Grafana annotations
+      - record: g6_memory_pressure_is_level
+        expr: g6_memory_pressure_level
+        labels:
+          job: g6_platform
+      # Transition detection using increase over scrape windows (0->1 upgrade, etc.)
+      - record: g6_memory_pressure_transition
+        expr: |
+          clamp_min(
+            g6_memory_pressure_level - (g6_memory_pressure_level offset 30s), 0
+          )
+      # Downgrade detection (positive value when level decreased)
+      - record: g6_memory_pressure_downgrade
+        expr: |
+          clamp_min(
+            (g6_memory_pressure_level offset 30s) - g6_memory_pressure_level, 0
+          )
+      # Seconds in current level (mirrors raw gauge but keep for more evaluation granularity)
+      - record: g6_memory_pressure_time_in_level
+        expr: g6_memory_pressure_seconds_in_level
+      # Count of actions per tier over 5m
+      - record: g6_memory_pressure_actions_5m
+        expr: sum by (action, tier)(increase(g6_memory_pressure_actions_total[5m]))
+      # Upgrade rate (per minute) last 10m
+      - record: g6_memory_pressure_upgrade_rate_per_min
+        expr: sum(increase(g6_memory_pressure_transition[10m])) / 10
+      # Downgrade rate (per minute) last 10m
+      - record: g6_memory_pressure_downgrade_rate_per_min
+        expr: sum(increase(g6_memory_pressure_downgrade[10m])) / 10
+      # Current depth scale summarized (can apply functions later)
+      - record: g6_memory_depth_scale_current
+        expr: g6_memory_depth_scale
+      # Flags as binary (already 1/0) but record to tag job
+      - record: g6_memory_greeks_enabled_flag
+        expr: g6_memory_greeks_enabled
+        labels:
+          job: g6_platform
+      - record: g6_memory_per_option_metrics_enabled_flag
+        expr: g6_memory_per_option_metrics_enabled
+        labels:
+          job: g6_platform

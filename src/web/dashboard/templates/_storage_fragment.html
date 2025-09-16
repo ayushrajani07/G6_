@@ -1,0 +1,36 @@
+{% if snapshot and snapshot.storage %}
+<div class="panel storage-panel">
+  <h3>Storage & Backup</h3>
+  <div class="storage-sections">
+    <div class="storage-block">
+      <h4>CSV</h4>
+      <ul>
+        <li>Files: {{ snapshot.storage.csv.files_total or '-' }}</li>
+        <li>Records: {{ snapshot.storage.csv.records_total or '-' }} {% if snapshot.storage.csv.records_delta is not none %}<span class="delta">(+{{ snapshot.storage.csv.records_delta }})</span>{% endif %}</li>
+        <li>Errors: <span class="{% if snapshot.storage.csv.errors_total and snapshot.storage.csv.errors_total > 0 %}bad{% else %}ok{% endif %}">{{ snapshot.storage.csv.errors_total or 0 }}</span></li>
+        <li>Disk MB: {{ '%.1f'|format(snapshot.storage.csv.disk_mb) if snapshot.storage.csv.disk_mb is not none else '-' }}</li>
+      </ul>
+    </div>
+    <div class="storage-block">
+      <h4>InfluxDB</h4>
+      <ul>
+        <li>Points: {{ snapshot.storage.influx.points_total or '-' }} {% if snapshot.storage.influx.points_delta is not none %}<span class="delta">(+{{ snapshot.storage.influx.points_delta }})</span>{% endif %}</li>
+        <li>Write %: {{ '%.1f'|format(snapshot.storage.influx.write_success_pct) if snapshot.storage.influx.write_success_pct is not none else '-' }}</li>
+        <li>Conn: <span class="{% if snapshot.storage.influx.connection == 1 %}ok{% else %}bad{% endif %}">{{ snapshot.storage.influx.connection }}</span></li>
+        <li>Latency ms: {{ '%.1f'|format(snapshot.storage.influx.query_latency_ms) if snapshot.storage.influx.query_latency_ms is not none else '-' }}</li>
+      </ul>
+    </div>
+    <div class="storage-block">
+      <h4>Backup</h4>
+      <ul>
+        <li>Files: {{ snapshot.storage.backup.files_total or '-' }}</li>
+        <li>Size MB: {{ '%.1f'|format(snapshot.storage.backup.size_mb) if snapshot.storage.backup.size_mb is not none else '-' }}</li>
+        <li>Last: {% if snapshot.storage.backup.last_backup_unixtime %}{{ snapshot.storage.backup.last_backup_unixtime|int }}{% else %}-{% endif %}</li>
+        <li>Age: {% if snapshot.storage.backup.age_seconds %}{{ (snapshot.storage.backup.age_seconds/60)|int }}m{% else %}-{% endif %}</li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% else %}
+<div class="panel storage-panel"><h3>Storage & Backup</h3><p>No data.</p></div>
+{% endif %}

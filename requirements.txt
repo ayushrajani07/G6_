@@ -1,0 +1,32 @@
+# G6 Platform Dependencies
+
+# Core dependencies
+kiteconnect>=4.0.0
+orjson>=3.8.0
+tenacity>=8.2.0
+filelock>=3.12.0
+pytz>=2023.3
+
+# Storage
+influxdb-client>=1.36.0
+
+# Monitoring
+prometheus-client>=0.17.0
+
+# Caching (optional)
+redis>=4.5.0
+
+# Resource monitoring (optional)
+psutil>=5.9.0
+
+# Development/Testing (optional)
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.11.0
+plotly>=5.22.0
+pandas>=2.0.0
+kaleido>=0.2.1
+rich>=13.7.0
+python-dotenv>=1.0.0
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0

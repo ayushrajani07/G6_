@@ -1,0 +1,87 @@
+############################################################
+# G6 Platform Git Ignore                                     #
+# Purpose: keep repository lean (code, configs, docs)        #
+# while excluding transient artifacts, large raw data,       #
+# local environments and machine-specific files.             #
+############################################################
+
+# --- Python build/cache ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.dll
+*.egg-info/
+.eggs/
+build/
+dist/
+pip-wheel-metadata/
+
+# --- Virtual environments ---
+.env
+.venv/
+venv/
+env/
+
+# --- Tooling / cache ---
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+coverage.xml
+.coverage*
+htmlcov/
+
+# --- Logs & runtime artifacts ---
+logs/
+*.log
+g6_platform.log
+
+# --- Editor / OS junk ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/
+
+# --- Notebooks checkpoints ---
+.ipynb_checkpoints/
+
+# --- Local data (raw / regenerated) ---
+# NOTE: If you intend to version a small sample for tests or docs,
+# place it under data/samples/ and remove that path from ignore.
+data/g6_data/
+data/g6_indices_test/
+data/real_api_test/
+data/g6_direct_data/
+data/csv/
+
+# --- Generated visualization / scratch outputs ---
+dash_out.txt
+dash_output.txt
+sample_by_index.html
+sample_grid.html
+weekday_overlays_meta.json
+
+# --- Prometheus / Grafana runtime state (keep configs) ---
+prometheus/
+!prometheus.yml
+!prometheus_rules.yml
+!prometheus_alerts.yml
+grafana/
+
+# --- Security: never commit tokens (pattern safeguard) ---
+*token*.json
+*secret*.json
+*credentials*.json
+
+# --- Allowlist important config templates ---
+!config/environment.template
+
+# --- Windows specific ---
+*.bat~
+*.tmp
+
+# End of file
