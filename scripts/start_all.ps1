@@ -48,7 +48,9 @@ else {
   if ($ForegroundGrafana) { $grafArgs += '-Foreground' }
   if ($AltGrafanaPort) { $grafArgs += '-AltPort' }
   Write-Host 'Launching Grafana...' -ForegroundColor Green
-  Start-Process -FilePath 'powershell.exe' -ArgumentList '-ExecutionPolicy','Bypass','-File',$startGraf,@($grafArgs) -WindowStyle Minimized
+  # Flatten argument list (previous version passed nested array causing conversion error)
+  $flatArgs = @('-ExecutionPolicy','Bypass','-File', $startGraf) + $grafArgs
+  Start-Process -FilePath 'powershell.exe' -ArgumentList $flatArgs -WindowStyle Minimized
 }
 
 # 3. InfluxDB (optional)
