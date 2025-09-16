@@ -19,6 +19,7 @@ param(
   # InfluxDB (optional)
   [switch]$StartInflux,
   [switch]$SetupInflux,
+  [switch]$AutoDetectInflux,
   [string]$InfluxdExe = 'C:\InfluxDB\influxd.exe',
   [string]$InfluxCliExe = 'C:\InfluxDB\influx.exe',
   [string]$InfluxDataDir = 'C:\InfluxDB\data',
@@ -56,7 +57,21 @@ else {
 # 3. InfluxDB (optional)
 if ($StartInflux -or $SetupInflux) {
   if (-not (Test-Path $InfluxdExe)) {
-    Write-Host "Influxd executable not found at $InfluxdExe" -ForegroundColor Yellow
+    if ($AutoDetectInflux) {
+      $candidates = @(
+        'C:\influxdata\influxdb2\influxd.exe',
+        'C:\Program Files\InfluxData\influxdb2\influxd.exe',
+        'C:\Program Files\InfluxData\influxdb\influxd.exe'
+      )
+      foreach ($c in $candidates) { if (Test-Path $c) { $InfluxdExe = $c; break } }
+      if (Test-Path $InfluxdExe) {
+        Write-Host "Auto-detected influxd at: $InfluxdExe" -ForegroundColor Green
+      } else {
+        Write-Host "Influxd executable not found (tried provided path and candidates)." -ForegroundColor Yellow
+      }
+    } else {
+      Write-Host "Influxd executable not found at $InfluxdExe" -ForegroundColor Yellow
+    }
   }
   else {
     if ($StartInflux) {
