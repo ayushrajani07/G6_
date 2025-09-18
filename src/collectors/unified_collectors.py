@@ -17,6 +17,7 @@ import sys  # retained for potential future CLI usage
 from src.utils.market_hours import is_market_open, get_next_market_open
 from src.utils.data_quality import DataQualityChecker
 from src.utils.memory_pressure import MemoryPressureManager
+from src.utils.memory_trace import get_tracer
 
 
 
@@ -107,6 +108,15 @@ def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metri
         mp_manager = MemoryPressureManager(metrics=metrics)
     except Exception:
         logger.debug("MemoryPressureManager init failed", exc_info=True)
+    # Initialize optional memory tracer
+    mem_tracer = None
+    try:
+        mem_tracer = get_tracer()
+        if mem_tracer.ensure_started():
+            # Take an initial sample to warm up
+            mem_tracer.sample(metrics=metrics)
+    except Exception:
+        logger.debug("Memory tracer init failed", exc_info=True)
 
     # Determine concise mode (reuse provider concise flag)
     concise_mode = False
@@ -634,6 +644,12 @@ def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metri
                     overall_fail_total += per_index_failures
             except Exception:
                 logger.debug("Failed to emit index stream line", exc_info=True)
+            # Sample tracemalloc between indices when enabled
+            try:
+                if mem_tracer and mem_tracer.enabled:
+                    mem_tracer.sample(metrics=metrics)
+            except Exception:
+                logger.debug("Memory tracer sample failed (per-index)", exc_info=True)
         except Exception as e:
             logger.error(f"Error processing index {index_symbol}: {e}")
     
@@ -660,6 +676,12 @@ def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metri
                     pass
         except Exception as e:
             logger.error(f"Failed to update collection metrics: {e}")
+    # Final memory tracer sample at cycle end
+    try:
+        if 'mem_tracer' in locals() and mem_tracer and mem_tracer.enabled:
+            mem_tracer.sample(metrics=metrics)
+    except Exception:
+        logger.debug("Memory tracer sample failed (cycle-end)", exc_info=True)
     # Emit accumulated human summary before structured cycle line
     if concise_mode and human_blocks:
         try:

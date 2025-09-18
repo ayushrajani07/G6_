@@ -191,6 +191,15 @@ class MetricsRegistry:
         self.memory_depth_scale = Gauge('g6_memory_depth_scale', 'Current strike depth scaling factor (0-1)')
         self.memory_per_option_metrics_enabled = Gauge('g6_memory_per_option_metrics_enabled', 'Per-option metrics enabled flag (1=yes,0=no)')
         self.memory_greeks_enabled = Gauge('g6_memory_greeks_enabled', 'Greek & IV computation enabled flag (1=yes,0=no)')
+        # Optional tracemalloc gauges (populated when enabled)
+        try:
+            self.tracemalloc_total_kb = Gauge('g6_tracemalloc_total_kb', 'Total allocated size reported by tracemalloc (KiB)')
+        except ValueError:
+            logger.debug("Metric already exists: g6_tracemalloc_total_kb")
+        try:
+            self.tracemalloc_topn_kb = Gauge('g6_tracemalloc_topn_kb', 'Aggregated size of top-N allocation groups (KiB)')
+        except ValueError:
+            logger.debug("Metric already exists: g6_tracemalloc_topn_kb")
 
         # -------------------------------------------------------------
         # Index Specific Aggregates (on-demand; labels reused)
