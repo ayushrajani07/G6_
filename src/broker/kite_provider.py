@@ -10,6 +10,7 @@ import datetime
 from datetime import date, timedelta
 from typing import Dict, List, Optional, Set, Tuple, Any
 import json
+from src.utils.retry import call_with_retry
 from src.utils.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
@@ -116,7 +117,9 @@ class KiteProvider:
         # If real kite client exists attempt fetch, otherwise fallback
         try:
             if self.kite is not None and hasattr(self.kite, 'instruments'):
-                all_instr = self.kite.instruments()  # type: ignore[attr-defined]
+                def _fetch_instruments():
+                    return self.kite.instruments()  # type: ignore[attr-defined]
+                all_instr = call_with_retry(_fetch_instruments)
                 # Filter by exchange if provided
                 if exchange:
                     filtered = [i for i in all_instr if str(i.get('exchange')) == exchange]
@@ -162,7 +165,9 @@ class KiteProvider:
                 for exch, ts in instruments:
                     formatted.append(f"{exch}:{ts}")
                 if formatted:
-                    raw = self.kite.ltp(formatted)  # type: ignore[attr-defined]
+                    def _fetch_ltp():
+                        return self.kite.ltp(formatted)  # type: ignore[attr-defined]
+                    raw = call_with_retry(_fetch_ltp)
                     return raw
         except Exception as e:
             logger.debug(f"LTP real fetch failed, using synthetic: {e}")
@@ -196,7 +201,9 @@ class KiteProvider:
             if self.kite is not None and hasattr(self.kite, 'quote'):
                 formatted = [f"{exch}:{sym}" for exch, sym in instruments]
                 if formatted:
-                    raw = self.kite.quote(formatted)  # type: ignore[attr-defined]
+                    def _fetch_quote():
+                        return self.kite.quote(formatted)  # type: ignore[attr-defined]
+                    raw = call_with_retry(_fetch_quote)
                     return raw
         except Exception as e:
             if self._rl_quote_fallback():

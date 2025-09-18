@@ -1,6 +1,7 @@
 """Unified logging utilities for G6 Platform."""
 from __future__ import annotations
 import logging, os, sys
+from datetime import datetime
 from typing import Optional
 
 DEFAULT_FORMAT = '%(asctime)s - %(threadName)s - %(name)s - %(levelname)s - %(message)s'
@@ -31,6 +32,7 @@ def setup_logging(level: str = 'INFO', log_file: Optional[str] = None, fmt: str 
     # Decide console format precedence: explicit fmt parameter beats env toggles.
     verbose_console_env = os.environ.get('G6_VERBOSE_CONSOLE', '').lower() in ('1','true','yes','on')
     minimal_disabled_env = os.environ.get('G6_DISABLE_MINIMAL_CONSOLE', '').lower() in ('1','true','yes','on')
+    json_console_env = os.environ.get('G6_JSON_LOGS', '').lower() in ('1','true','yes','on')
     # If caller passed a custom fmt different from DEFAULT_FORMAT, honor it.
     if fmt != DEFAULT_FORMAT:
         console_fmt = fmt
@@ -42,7 +44,43 @@ def setup_logging(level: str = 'INFO', log_file: Optional[str] = None, fmt: str 
 
     console = logging.StreamHandler(sys.stdout)
     console.setLevel(log_level)
-    console.setFormatter(logging.Formatter(console_fmt))
+    if json_console_env:
+        try:
+            try:
+                import orjson as _orjson  # type: ignore
+                _json_dumps = _orjson.dumps
+                _is_orjson = True
+            except Exception:  # pragma: no cover
+                import json as _json  # type: ignore
+                _json_dumps = _json.dumps
+                _is_orjson = False
+
+            class _JsonFormatter(logging.Formatter):
+                def format(self, record: logging.LogRecord) -> str:  # type: ignore[override]
+                    # Use record.created or fall back to time.time() to avoid naive datetime usage
+                    import time as _time
+                    payload = {
+                        'ts': getattr(record, 'created', _time.time()),
+                        'level': record.levelname,
+                        'logger': record.name,
+                        'thread': record.threadName,
+                        'msg': record.getMessage(),
+                    }
+                    if record.exc_info:
+                        payload['exc_info'] = self.formatException(record.exc_info)
+                    try:
+                        if _is_orjson:
+                            return _json_dumps(payload).decode('utf-8')  # type: ignore[call-arg]
+                        else:
+                            s = _json_dumps(payload)  # type: ignore[call-arg]
+                            return s if isinstance(s, str) else str(s)
+                    except Exception:
+                        return str(payload)
+            console.setFormatter(_JsonFormatter())
+        except Exception:
+            console.setFormatter(logging.Formatter(console_fmt))
+    else:
+        console.setFormatter(logging.Formatter(console_fmt))
     try:
         enc = getattr(sys.stdout, 'encoding', '') or ''
         if enc.lower() not in ('utf-8','utf8','utf_8'):

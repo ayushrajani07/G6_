@@ -37,10 +37,11 @@ def compute_cadence_defaults() -> Dict[str, float]:
         try:
             unified_v = max(1.0, float(unified))
         except Exception:
-            unified_v = 1.0
+            # On invalid unified value, fall back to legacy default 15s
+            unified_v = 15.0
     else:
-        # Default to a snappy 1s so the UI doesn't appear empty/stale on startup
-        unified_v = 1.0
+        # Default refresh cadence if not set: 15s (as per tests and docs)
+        unified_v = 15.0
     meta = max(1.0, float(os.getenv("G6_SUMMARY_META_REFRESH_SEC", str(unified_v))))
     res = max(1.0, float(os.getenv("G6_SUMMARY_RES_REFRESH_SEC", str(unified_v))))
     return {"meta": meta, "res": res}
