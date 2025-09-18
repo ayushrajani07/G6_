@@ -56,6 +56,7 @@
     "fancy_startup": true,
     "live_panel": true,
     "startup_banner": true,
-    "force_ascii": true
+    "force_ascii": true,
+    "runtime_status_file": "data/runtime_status.json"
   }
 }

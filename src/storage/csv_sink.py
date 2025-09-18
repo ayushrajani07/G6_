@@ -55,6 +55,9 @@ class CsvSink:
         self._agg_pcr_snapshot: Dict[str, Dict[str, float]] = {}
         self._agg_day_width: Dict[str, float] = {}
         self._suppression_active: Dict[Tuple[str,str], bool] = {}
+        # Last write tracking for summarizer/runtime status
+        self.last_write_ts = None
+        self.last_write_per_index = {}
 
     def attach_metrics(self, metrics_registry):
         """Attach metrics registry after initialization to avoid circular imports."""
@@ -253,6 +256,13 @@ class CsvSink:
         # Aggregation snapshot update (only update if not suppressed to avoid skew)
         self._update_aggregation_state(index, expiry_code, pcr, day_width, timestamp)
         self._maybe_write_aggregated_overview(index, timestamp)
+
+        # Update last write tracking
+        try:
+            self.last_write_ts = timestamp if isinstance(timestamp, datetime.datetime) else datetime.datetime.now(datetime.timezone.utc)
+            self.last_write_per_index[index] = self.last_write_ts
+        except Exception:
+            pass
 
         # Optionally return metrics for aggregation mode
         if return_metrics:

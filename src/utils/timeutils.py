@@ -30,6 +30,31 @@ def get_utc_now() -> datetime:
     """Get current time in UTC.""" 
     return datetime.now(UTC)
 
+def utc_now() -> datetime:
+    """Return an aware UTC datetime using modern API pathway.
+
+    Wrapper to allow future migration from pytz to zoneinfo seamlessly.
+    """
+    return datetime.now(UTC)
+
+def isoformat_z(dt: datetime) -> str:
+    """Return RFC3339/ISO8601 style string with 'Z' suffix for UTC datetimes.
+
+    If dt is naive it is assumed to already represent UTC.
+    """
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=UTC).isoformat().replace('+00:00','Z')
+    return dt.astimezone(UTC).isoformat().replace('+00:00','Z')
+
+def ensure_utc_helpers():
+    """Return (utc_now_fn, isoformat_z_fn) always available.
+
+    Intended for early bootstrap contexts where importing this module may be
+    wrapped in try/except. Provides a consistent interface so callers no
+    longer need to duplicate fallback lambdas.
+    """
+    return utc_now, isoformat_z
+
 def ist_to_utc(ist_dt: datetime) -> datetime:
     """Convert IST datetime to UTC."""
     if ist_dt.tzinfo is None:

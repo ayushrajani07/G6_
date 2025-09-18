@@ -1,0 +1,22 @@
+{
+  "panel": "storage",
+  "updated_at": "2025-09-18T06:56:56.658691Z",
+  "kind": null,
+  "data": {
+    "csv_sink": {
+      "metric": "last_write",
+      "value": "2025-09-18T06:56:56.658668Z",
+      "status": "OK"
+    },
+    "jsonl_sink": {
+      "metric": "last_write",
+      "value": "2025-09-18T06:56:56.658679Z",
+      "status": "OK"
+    },
+    "backup": {
+      "metric": "last_snapshot",
+      "value": "2025-09-18T06:56:56.658683Z",
+      "status": "WARN"
+    }
+  }
+}

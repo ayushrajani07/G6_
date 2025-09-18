@@ -229,9 +229,17 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
     # Create Kite connect instance
     kite = KiteConnect(api_key=api_key)
     
+    # Determine callback host/port/path from environment
+    cb_host = os.environ.get("KITE_REDIRECT_HOST", "127.0.0.1")
+    try:
+        cb_port = int(os.environ.get("KITE_REDIRECT_PORT", "5000"))
+    except Exception:
+        cb_port = 5000
+    cb_path = os.environ.get("KITE_REDIRECT_PATH", "success").lstrip("/") or "success"
+
     # Define the registered redirect URI path
     # IMPORTANT: This must match exactly what's registered in your Kite Connect API console
-    @app.route('/success')  # Default redirect path
+    @app.route(f'/{cb_path}')  # Default redirect path
     def success_route():
         """Handle the callback at /success path."""
         return handle_callback()
@@ -246,9 +254,17 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
     def root_route():
         """Handle the callback at root path."""
         return handle_callback()
+
+    @app.route('/favicon.ico')
+    def favicon_route():
+        return ("", 204)
     
     def handle_callback():
         """Common handler for all callback routes."""
+        try:
+            logger.info(f"Callback hit: path={request.path} args={dict(request.args)}")
+        except Exception:
+            pass
         status = request.args.get('status')
         request_token = request.args.get('request_token')
         
@@ -298,7 +314,7 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
     
     # Start Flask server in a separate thread
     def run_flask():
-        app.run(port=5000, debug=False)
+        app.run(host=cb_host, port=cb_port, debug=False)
     
     server_thread = threading.Thread(target=run_flask)
     server_thread.daemon = True
@@ -308,7 +324,7 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
     time.sleep(1)
     
     # Generate login URL - specify the correct redirect URI
-    redirect_uri = "http://localhost:5000/success"  # This should match what's registered in Kite
+    redirect_uri = f"http://{cb_host}:{cb_port}/{cb_path}"  # Must match registered URL in Kite console
     
     # Obtain login URL (omit redirect kwarg for broad compatibility)
     try:
@@ -323,6 +339,8 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
     print("\n🔑 Opening browser for Kite login...")
     print("If it doesn't auto-open, copy/paste this URL into your browser:\n")
     print(f"{login_url}\n")
+    print("Configured redirect (must match in Kite console):")
+    print(f"{redirect_uri}\n")
     
     # Open browser to login URL
     try:
@@ -333,13 +351,28 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
     # Wait for callback to complete
     print("Waiting for authentication to complete...\n")
     
-    timeout = 180  # 3 minutes
+    timeout = int(os.environ.get("KITE_LOGIN_TIMEOUT", "180"))  # seconds
     start_time = time.time()
     
     while not access_token_container['received'] and time.time() - start_time < timeout:
         time.sleep(0.5)
         sys.stdout.write(".")
         sys.stdout.flush()
+        # Allow manual override via env if user pasted request token externally
+        if not access_token_container['received']:
+            manual_rt = os.environ.get("KITE_REQUEST_TOKEN")
+            if manual_rt:
+                try:
+                    raw_session = kite.generate_session(manual_rt, api_secret=api_secret)
+                    session_data = cast(SessionDict, _to_dict(raw_session))
+                    access_token = session_data.get('access_token')
+                    if access_token:
+                        access_token_container['token'] = access_token
+                        access_token_container['received'] = True
+                        logger.info("Token acquired using KITE_REQUEST_TOKEN from environment")
+                        break
+                except Exception as e:
+                    logger.error(f"Error using KITE_REQUEST_TOKEN: {e}")
     
     print("\n")
     
@@ -348,14 +381,16 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
         logger.info("Authentication completed successfully!")
         # Update .env file
         update_env_file("KITE_ACCESS_TOKEN", access_token_container['token'])
-        
+
         # Run main application automatically if requested
         if auto_run_app:
             run_main_application()
-            
+
         return access_token_container['token']
     else:
         logger.error("Authentication timed out")
+        print("Tip: Ensure your Redirect URL in Kite developer console EXACTLY matches the above 'Configured redirect'.")
+        print("Alternatively, run 'python -m src.tools.token_manager' and choose guided manual refresh to paste the request_token.")
         return None
 
 def guided_token_refresh(api_key, api_secret, auto_run_app=True):

@@ -1,0 +1,13 @@
+{
+  "panel": "loop",
+  "updated_at": "2025-09-18T08:01:09.180728Z",
+  "kind": null,
+  "data": {
+    "cycle": 905,
+    "last_start": "2025-09-18T08:01:09.145671Z",
+    "last_duration": null,
+    "success_rate": null,
+    "avg": 0,
+    "p95": 0
+  }
+}

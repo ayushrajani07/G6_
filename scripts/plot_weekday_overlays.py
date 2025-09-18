@@ -52,6 +52,20 @@ if TYPE_CHECKING:  # hinting only
     import plotly.subplots as sp  # noqa: F401
 from typing import Optional
 
+# Time helpers for UTC metadata stamps
+try:
+    from src.utils.timeutils import ensure_utc_helpers  # type: ignore
+    utc_now, isoformat_z = ensure_utc_helpers()
+except Exception:
+    from datetime import datetime, timezone
+    def utc_now():  # type: ignore
+        return datetime.now(timezone.utc)
+    def isoformat_z(ts):  # type: ignore
+        try:
+            return ts.isoformat().replace('+00:00','Z')
+        except Exception:
+            return str(ts)
+
 # Global flags for static export handling
 _STATIC_EXPORT_AVAILABLE = True
 _STATIC_EXPORT_WARNED = False
@@ -191,7 +205,7 @@ def _annotate_alpha(fig, alpha: float, weekday_name: str, trade_date: date):
         'ema': {
             'alpha': alpha,
             'effective_window_buckets': eff,
-            'generated_utc': datetime.utcnow().isoformat()+'Z'
+            'generated_utc': isoformat_z(utc_now())
         }
     })
     fig.update_layout(meta=meta)

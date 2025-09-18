@@ -92,7 +92,7 @@ Error Handling / Resilience:
 | `scripts/memory_watchdog.ps1` | Windows memory guard | Proactive restart or logging for memory leaks |
 | `scripts/plot_weekday_overlays.py` | Visualization helper | Exploratory analytics on weekday option overlays |
 | `scripts/quick_provider_check.py` | Smoke provider connectivity | Fast readiness check before full orchestration |
-| `scripts/smoke_dummy.py` | Dummy cycle runner | Validate pipeline without external API risk |
+| `scripts/dev_tools.py summary` | Terminal summary | Preferred entrypoint for live view |
 | `scripts/start_all.ps1` | Convenience orchestrator | One-shot start Prometheus + Grafana + platform |
 | `src/tools/token_manager.py` | Manage auth tokens | Centralizes refresh logic to avoid scattered scripts |
 | `src/tools/check_kite_file.py` | Validate instruments file | Prevent mismatches between provider metadata & runtime |

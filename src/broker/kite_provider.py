@@ -655,7 +655,7 @@ class DummyKiteProvider:
     
     def __init__(self):
         """Initialize DummyKiteProvider."""
-        self.current_time = datetime.datetime.now()
+        self.current_time = datetime.datetime.now()  # local-ok
         logger.info("DummyKiteProvider initialized")
     
     def close(self):

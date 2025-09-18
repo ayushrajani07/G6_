@@ -1,0 +1,8 @@
+{
+  "panel": "links",
+  "updated_at": "2025-09-18T08:01:08.602032Z",
+  "kind": null,
+  "data": {
+    "metrics": "http://127.0.0.1:9108/metrics"
+  }
+}

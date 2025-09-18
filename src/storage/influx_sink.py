@@ -79,7 +79,12 @@ class InfluxSink:
         
         # Use current time if timestamp not provided
         if timestamp is None:
-            timestamp = datetime.now()
+            try:
+                from src.utils.timeutils import utc_now
+                timestamp = utc_now()
+            except Exception:
+                from datetime import timezone
+                timestamp = datetime.now(timezone.utc)
         
         # Convert expiry_date to string if it's a date object
         if hasattr(expiry_date, 'strftime'):
@@ -228,6 +233,59 @@ class InfluxSink:
         except Exception as e:
             logger.error(f"Error writing overview snapshot to InfluxDB: {e}")
 
+    def write_cycle_stats(self, cycle:int, elapsed: float, success_rate: float | None, options_last:int | None, per_index: dict[str,int] | None, timestamp=None):
+        """Write a single cycle summary point.
+
+        Measurement: g6_cycle
+        Tags: none (could add host later)
+        Fields:
+          cycle (int), elapsed_seconds (float), success_rate_pct (float), options_last_cycle (int), per-index option counts as fields: options_<INDEX>
+        """
+        if not self.client or not self.write_api:
+            return
+        try:
+            from influxdb_client.client.write.point import Point
+            if timestamp is None:
+                try:
+                    from src.utils.timeutils import ensure_utc_helpers  # type: ignore
+                    utc_now, _iso = ensure_utc_helpers()
+                except Exception:
+                    from datetime import datetime, timezone
+                    def utc_now():  # type: ignore
+                        return datetime.now(timezone.utc)
+                timestamp = utc_now()
+            point = Point("g6_cycle") \
+                .field("cycle", int(cycle)) \
+                .field("elapsed_seconds", float(elapsed))
+            if success_rate is not None:
+                point = point.field("success_rate_pct", float(success_rate))
+            if options_last is not None:
+                point = point.field("options_last_cycle", int(options_last))
+            if per_index:
+                for k,v in per_index.items():
+                    try:
+                        point = point.field(f"options_{k}", int(v))
+                    except Exception:
+                        pass
+            point = point.time(timestamp)
+            success = False
+            for attempt in range(self.max_retries):
+                try:
+                    self.write_api.write(bucket=self.bucket, record=point)
+                    success = True
+                    break
+                except Exception as e:  # noqa
+                    wait = self.backoff_base * (2 ** attempt)
+                    logger.warning(f"Influx cycle write attempt {attempt+1}/{self.max_retries} failed: {e}; retrying in {wait:.2f}s")
+                    time.sleep(wait)
+            if success and self.metrics:
+                try:
+                    self.metrics.influxdb_points_written.inc()
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.debug(f"Failed to write cycle stats: {e}")
+
 class NullInfluxSink:
     """Null implementation of InfluxDB sink that does nothing."""
     
@@ -245,4 +303,8 @@ class NullInfluxSink:
 
     def write_overview_snapshot(self, index_symbol, pcr_snapshot, timestamp, day_width=0):
         """Write aggregated overview snapshot (no-op)."""
+        pass
+
+    def write_cycle_stats(self, cycle:int, elapsed: float, success_rate: float | None, options_last:int | None, per_index: dict[str,int] | None, timestamp=None):
+        """Write cycle stats (no-op)."""
         pass

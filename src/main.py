@@ -131,9 +131,10 @@ class AppState:
     
     def save_state(self, filename="data/state/app_state.json"):
         """Save application state to file."""
+        from src.utils.timeutils import utc_now, isoformat_z
         state = {
             'version': __version__,
-            'timestamp': datetime.datetime.now().isoformat(),
+            'timestamp': isoformat_z(utc_now()),
             'running': self.running,
             'metrics': self.metrics is not None
         }

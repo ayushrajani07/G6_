@@ -1,0 +1,11 @@
+{
+  "mode": "attach",
+  "refresh_hz": 4,
+  "log_tail_lines": 120,
+  "status_file": "runtime_status.json",
+  "log_patterns": [
+    {"name": "error", "regex": "(?i)(error|exception|failed)", "color": "red"},
+    {"name": "warn", "regex": "(?i)(warn|warning)", "color": "yellow"},
+    {"name": "cycle", "regex": "(?i)(cycle completed|cycle start)", "color": "cyan"}
+  ]
+}

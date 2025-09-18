@@ -13,3 +13,81 @@ INFLUX_TOKEN=VFEhioeCi2vFCtv-dH_7Fe6gEgNtO-Tu7qcQW4WvIbAFQIdKGa_hDu4dxatOgwskZcv
 # RUN_INTERVAL_SEC=60
 # RUN_OFFSET_SEC=0
 # LOG_LEVEL=INFO
+
+# ---- Summarizer UI (Rich) ----
+# Clip long text to this many characters in certain panels (market, loop, provider, health, sinks, analytics, links)
+# Default: 60
+# G6_PANEL_CLIP=60
+
+# Auto-fit layout to content. When enabled, panels use tighter minimum sizes
+# and column/row ratios are derived more directly from content estimates.
+# Default: off
+# G6_PANEL_AUTO_FIT=false
+
+# When true, arrange footer blocks (Indices/Analytics/Alerts/Links) freely across
+# two columns without a single "Summary" wrapper; otherwise keep under one Summary panel.
+# Default: off (auto-fit implies true at runtime)
+# G6_SUMMARY_FREE_FOOTER=false
+
+# When true, arrange body panels freely across columns as well (auto-fit implies true)
+# G6_SUMMARY_FREE_BODY=false
+
+# Max number of columns for body/footer when free layout is enabled (1-3). Default: 3 in auto-fit, else 2
+# G6_SUMMARY_MAX_COLS=3
+
+# Minimum column width when splitting into multiple columns (characters)
+# Default derived from G6_PANEL_CLIP + 4, clamped to [30,80]
+# G6_PANEL_MIN_COL_W=40
+
+# Refresh throttling
+# Refresh metadata / status snapshot at most once per this many seconds (default 10)
+# G6_SUMMARY_META_REFRESH_SEC=10
+# Refresh resources overlay (CPU/mem) this often, independent of snapshot cycle (default 15)
+# G6_SUMMARY_RES_REFRESH_SEC=15
+
+# Panel JSON files sink (for summarizer streaming)
+# Add 'panels' to G6_OUTPUT_SINKS to enable writing per-panel JSON files that
+# the summarizer can later pick up. Files are written to G6_PANELS_DIR/<panel>.json
+# with atomic replace on Windows by default.
+# G6_PANELS_DIR=data/panels
+# G6_PANELS_INCLUDE=indices,market,loop,health,sinks,resources,analytics,alerts,links
+# G6_PANELS_ATOMIC=true
+
+# Prefer per-panel JSON over status (default: true)
+# When enabled, the summarizer will first read data/panels/*.json files for
+# each panel (market, loop, provider, health, sinks, resources, analytics,
+# alerts, links, indices) if present and fall back to fields in the status
+# snapshot. Disable to ignore panel files.
+# G6_SUMMARY_READ_PANELS=true
+
+# Per-panel widths (characters). Leave unset to let Rich auto-size.
+# Examples:
+# G6_PANEL_W_MARKET=60
+# G6_PANEL_W_LOOP=60
+# G6_PANEL_W_PROVIDER=60
+# G6_PANEL_W_HEALTH=60
+# G6_PANEL_W_SINKS=60
+# G6_PANEL_W_ANALYTICS=60
+# G6_PANEL_W_LINKS=60
+
+# Per-panel heights (relative weights/min sizes). Leave unset for auto.
+# Header/body/footer wrappers
+# G6_PANEL_H_HEADER=3
+# G6_PANEL_H_BODY=6
+# G6_PANEL_H_FOOTER=10
+# Body sub-panels
+# G6_PANEL_H_MARKET=6
+# G6_PANEL_H_LOOP=7
+# G6_PANEL_H_PROVIDER=7
+# G6_PANEL_H_HEALTH=9
+# G6_PANEL_H_SINKS=6
+# G6_PANEL_H_RESOURCES=7
+# Footer sub-panels
+# G6_PANEL_H_ANALYTICS=6
+# G6_PANEL_H_ALERTS=3
+# G6_PANEL_H_LINKS=3
+
+# Indices panel terminal log source (optional)
+# If set, summarizer will parse lines like "NIFTY TOTAL LEGS: 272 | FAILS: 0 | STATUS: OK"
+# from the given file and show Legs/Fails/Status alongside LTP/Age.
+# G6_INDICES_PANEL_LOG=C:\\path\\to\\your\\daily_options_log.txt

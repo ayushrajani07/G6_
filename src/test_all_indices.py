@@ -130,7 +130,7 @@ def main():
                             options_data[symbol] = entry
                 
                 # Write test data
-                timestamp = datetime.datetime.now()
+                timestamp = datetime.datetime.now()  # local-ok
                 logger.info(f"Writing sample data for {index}")
                 csv_sink.write_options_data(index, expiry, options_data, timestamp)
                 

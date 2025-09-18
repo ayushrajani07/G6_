@@ -10,6 +10,7 @@ import os
 import threading
 from prometheus_client import start_http_server, Summary, Counter, Gauge, Histogram, CollectorRegistry, REGISTRY
 import time
+from contextlib import contextmanager
 
 # Add this before launching the subprocess
 import sys  # noqa: F401
@@ -222,6 +223,8 @@ class MetricsRegistry:
         self._ema_alpha = 0.2
         self._last_cycle_options = 0
         self._last_cycle_option_seconds = 0.0
+        # Per-index last cycle option counts (populated by collectors; NOT a Prometheus metric)
+        self._per_index_last_cycle_options = {}
         # Previous samples for resource deltas (initialized with ints; not strict literal types)
         self._prev_net_bytes = (0, 0)  # (sent, recv)
         self._prev_disk_ops = 0  # total read+write ops
@@ -550,3 +553,46 @@ def setup_metrics_server(port=9108, host="0.0.0.0", enable_resource_sampler: boo
 def get_metrics_metadata() -> dict | None:
     """Return metrics server metadata collected at setup (for fancy console panel)."""
     return _METRICS_META
+
+
+# ---------------------------------------------------------------------------
+# Testing / Isolation Utilities
+# ---------------------------------------------------------------------------
+@contextmanager
+def isolated_metrics_registry():  # pragma: no cover - thin helper, exercised indirectly in tests
+    """Context manager to isolate Prometheus default registry within a block.
+
+    Usage (primarily in tests):
+        with isolated_metrics_registry():
+            setup_metrics_server(reset=True, use_custom_registry=False)
+
+    Ensures that any collectors registered inside the context are removed
+    afterwards to prevent cross-test contamination / duplicate time-series
+    errors when using the global registry. Threads started inside remain
+    daemonized but their gauges/counters become unreachable after collectors
+    are unregistered.
+    """
+    original = {}
+    try:
+        original = dict(getattr(REGISTRY, '_names_to_collectors', {}))  # type: ignore[attr-defined]
+    except Exception:
+        original = {}
+    try:
+        yield
+    finally:
+        try:  # pragma: no cover - defensive cleanup
+            current = dict(getattr(REGISTRY, '_names_to_collectors', {}))  # type: ignore[attr-defined]
+            for name, collector in current.items():
+                if name not in original:
+                    try:
+                        REGISTRY.unregister(collector)  # type: ignore[arg-type]
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+# Export helper for external import
+try:
+    __all__.append('isolated_metrics_registry')  # type: ignore[name-defined]
+except Exception:  # pragma: no cover
+    __all__ = ['isolated_metrics_registry']

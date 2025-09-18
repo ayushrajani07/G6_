@@ -99,7 +99,7 @@ def main():
     logger.info(f"CSV sink initialized with base_dir: {csv_sink.base_dir}")
     
     # Get current timestamp
-    now = datetime.datetime.now()
+    now = datetime.datetime.now()  # local-ok
     logger.info(f"Current timestamp: {now}")
     
     # Collect NIFTY data

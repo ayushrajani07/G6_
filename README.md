@@ -141,7 +141,9 @@ The legacy embedded terminal dashboard script and the experimental FastAPI web d
 
 Retained: Prometheus metrics exposure (unchanged) & any Grafana provisioning you already use.
 
-Removed code & deps: `scripts/terminal_dashboard.py`, `scripts/run_platform_with_dashboard.py`, `src/web/dashboard/*`, `fastapi`, `uvicorn`, `jinja2`.
+Removed code & deps: legacy terminal/web dashboards and helpers have been retired in favor of the modular summary pipeline.
+Deleted scripts: `scripts/terminal_dashboard.py`, `scripts/dashboard_live.py`, `scripts/run_platform_with_dashboard.py`, `scripts/run_mock_dashboard.py`, `scripts/status_viewer.py`, `scripts/panels_simulator.py`, `scripts/start_both.py`, `scripts/mock_run_once.py`, `scripts/smoke_dummy.py`.
+If you still see references in old notes, prefer `scripts/dev_tools.py summary` and `scripts/status_to_panels.py` instead.
 
 ### New / Relevant Environment Flags
 | Variable | Effect | Default |

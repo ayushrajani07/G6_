@@ -1,0 +1,457 @@
+{
+  "panel": "indices_stream",
+  "updated_at": "2025-09-18T08:01:08.652218Z",
+  "kind": "stream",
+  "data": [
+    {
+      "time": "2025-09-18T08:00:57.355094Z",
+      "index": "FINNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 893
+    },
+    {
+      "time": "2025-09-18T08:00:57.368071Z",
+      "index": "SENSEX",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 893
+    },
+    {
+      "time": "2025-09-18T08:00:57.989199Z",
+      "index": "NIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 759
+    },
+    {
+      "time": "2025-09-18T08:00:58.004918Z",
+      "index": "BANKNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 759
+    },
+    {
+      "time": "2025-09-18T08:00:58.022864Z",
+      "index": "FINNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 759
+    },
+    {
+      "time": "2025-09-18T08:00:58.039003Z",
+      "index": "SENSEX",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 759
+    },
+    {
+      "time": "2025-09-18T08:00:58.627038Z",
+      "index": "NIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 894
+    },
+    {
+      "time": "2025-09-18T08:00:58.638832Z",
+      "index": "BANKNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 894
+    },
+    {
+      "time": "2025-09-18T08:00:58.656877Z",
+      "index": "FINNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 894
+    },
+    {
+      "time": "2025-09-18T08:00:58.668854Z",
+      "index": "SENSEX",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 894
+    },
+    {
+      "time": "2025-09-18T08:00:59.293315Z",
+      "index": "NIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 895
+    },
+    {
+      "time": "2025-09-18T08:00:59.312316Z",
+      "index": "BANKNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 895
+    },
+    {
+      "time": "2025-09-18T08:00:59.324173Z",
+      "index": "FINNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 895
+    },
+    {
+      "time": "2025-09-18T08:00:59.341071Z",
+      "index": "SENSEX",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 895
+    },
+    {
+      "time": "2025-09-18T08:01:00.464202Z",
+      "index": "NIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 896
+    },
+    {
+      "time": "2025-09-18T08:01:00.476363Z",
+      "index": "BANKNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 896
+    },
+    {
+      "time": "2025-09-18T08:01:00.494012Z",
+      "index": "FINNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 896
+    },
+    {
+      "time": "2025-09-18T08:01:00.507465Z",
+      "index": "SENSEX",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 896
+    },
+    {
+      "time": "2025-09-18T08:01:01.590270Z",
+      "index": "NIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 897
+    },
+    {
+      "time": "2025-09-18T08:01:01.603009Z",
+      "index": "BANKNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 897
+    },
+    {
+      "time": "2025-09-18T08:01:01.617219Z",
+      "index": "FINNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 897
+    },
+    {
+      "time": "2025-09-18T08:01:01.629703Z",
+      "index": "SENSEX",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 897
+    },
+    {
+      "time": "2025-09-18T08:01:02.706568Z",
+      "index": "NIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 898
+    },
+    {
+      "time": "2025-09-18T08:01:02.719351Z",
+      "index": "BANKNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 898
+    },
+    {
+      "time": "2025-09-18T08:01:02.731351Z",
+      "index": "FINNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 898
+    },
+    {
+      "time": "2025-09-18T08:01:02.743416Z",
+      "index": "SENSEX",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 898
+    },
+    {
+      "time": "2025-09-18T08:01:03.320359Z",
+      "index": "NIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 899
+    },
+    {
+      "time": "2025-09-18T08:01:03.331902Z",
+      "index": "BANKNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 899
+    },
+    {
+      "time": "2025-09-18T08:01:03.343514Z",
+      "index": "FINNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 899
+    },
+    {
+      "time": "2025-09-18T08:01:03.360988Z",
+      "index": "SENSEX",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 899
+    },
+    {
+      "time": "2025-09-18T08:01:04.487183Z",
+      "index": "NIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 900
+    },
+    {
+      "time": "2025-09-18T08:01:04.503179Z",
+      "index": "BANKNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 900
+    },
+    {
+      "time": "2025-09-18T08:01:04.521199Z",
+      "index": "FINNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 900
+    },
+    {
+      "time": "2025-09-18T08:01:04.537203Z",
+      "index": "SENSEX",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 900
+    },
+    {
+      "time": "2025-09-18T08:01:05.670317Z",
+      "index": "NIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 901
+    },
+    {
+      "time": "2025-09-18T08:01:05.688585Z",
+      "index": "BANKNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 901
+    },
+    {
+      "time": "2025-09-18T08:01:05.700370Z",
+      "index": "FINNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 901
+    },
+    {
+      "time": "2025-09-18T08:01:05.714362Z",
+      "index": "SENSEX",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 901
+    },
+    {
+      "time": "2025-09-18T08:01:06.345328Z",
+      "index": "NIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 902
+    },
+    {
+      "time": "2025-09-18T08:01:06.361114Z",
+      "index": "BANKNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 902
+    },
+    {
+      "time": "2025-09-18T08:01:06.379353Z",
+      "index": "FINNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 902
+    },
+    {
+      "time": "2025-09-18T08:01:06.391501Z",
+      "index": "SENSEX",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 902
+    },
+    {
+      "time": "2025-09-18T08:01:07.493978Z",
+      "index": "NIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 903
+    },
+    {
+      "time": "2025-09-18T08:01:07.507700Z",
+      "index": "BANKNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 903
+    },
+    {
+      "time": "2025-09-18T08:01:07.520113Z",
+      "index": "FINNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 903
+    },
+    {
+      "time": "2025-09-18T08:01:07.533669Z",
+      "index": "SENSEX",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 903
+    },
+    {
+      "time": "2025-09-18T08:01:08.612735Z",
+      "index": "NIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 904
+    },
+    {
+      "time": "2025-09-18T08:01:08.624931Z",
+      "index": "BANKNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 904
+    },
+    {
+      "time": "2025-09-18T08:01:08.638505Z",
+      "index": "FINNIFTY",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 904
+    },
+    {
+      "time": "2025-09-18T08:01:08.652193Z",
+      "index": "SENSEX",
+      "legs": null,
+      "avg": null,
+      "success": null,
+      "status": "OK",
+      "cycle": 904
+    }
+  ]
+}

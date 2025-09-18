@@ -1,0 +1,27 @@
+{
+  "panel": "indices",
+  "updated_at": "2025-09-18T08:01:08.607405Z",
+  "kind": null,
+  "data": {
+    "NIFTY": {
+      "legs": null,
+      "fails": null,
+      "status": "OK"
+    },
+    "BANKNIFTY": {
+      "legs": null,
+      "fails": null,
+      "status": "OK"
+    },
+    "FINNIFTY": {
+      "legs": null,
+      "fails": null,
+      "status": "OK"
+    },
+    "SENSEX": {
+      "legs": null,
+      "fails": null,
+      "status": "OK"
+    }
+  }
+}

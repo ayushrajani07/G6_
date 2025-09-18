@@ -89,7 +89,7 @@ def build_startup_panel(*, version: str, indices: Iterable[str], interval: int, 
                         metrics_meta: Dict[str, Any] | None = None) -> str:
     """Return a rich multi-line panel summarizing startup state."""
     indices_list = ', '.join(indices) if indices else 'NONE'
-    now_disp = datetime.datetime.now().strftime('%d-%b-%Y %H:%M:%S')
+    now_disp = datetime.datetime.now().strftime('%d-%b-%Y %H:%M:%S')  # local-ok
 
     # Sections
     core_lines = [

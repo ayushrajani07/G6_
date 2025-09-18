@@ -11,6 +11,20 @@ import logging
 from typing import Any, Dict, List, Optional, Union
 from datetime import datetime, timedelta
 
+# Central time helpers (UTC aware)
+try:
+    from src.utils.timeutils import ensure_utc_helpers  # type: ignore
+    utc_now, isoformat_z = ensure_utc_helpers()
+except Exception:  # fallback if utilities unavailable early
+    from datetime import datetime, timezone
+    def utc_now():  # type: ignore
+        return datetime.now(timezone.utc)
+    def isoformat_z(ts):  # type: ignore
+        try:
+            return ts.isoformat().replace('+00:00','Z')
+        except Exception:
+            return str(ts)
+
 try:
     import redis
     REDIS_AVAILABLE = True
@@ -96,7 +110,7 @@ class RedisCache:
             elif self.fallback_to_memory:
                 self._memory_cache[key] = {
                     'value': value,
-                    'expires': datetime.utcnow() + timedelta(seconds=ttl) if ttl else None
+                    'expires': utc_now() + timedelta(seconds=ttl) if ttl else None
                 }
                 return True
             return False
@@ -117,7 +131,7 @@ class RedisCache:
             elif self.fallback_to_memory:
                 cached = self._memory_cache.get(key)
                 if cached:
-                    if cached['expires'] and datetime.utcnow() > cached['expires']:
+                    if cached['expires'] and utc_now() > cached['expires']:
                         del self._memory_cache[key]
                         return None
                     return cached['value']
@@ -152,7 +166,7 @@ class RedisCache:
                 return bool(self._client.exists(key))
             elif self.fallback_to_memory:
                 cached = self._memory_cache.get(key)
-                if cached and cached['expires'] and datetime.utcnow() > cached['expires']:
+                if cached and cached['expires'] and utc_now() > cached['expires']:
                     del self._memory_cache[key]
                     return False
                 return key in self._memory_cache
@@ -240,7 +254,7 @@ class RedisCache:
         """Check cache health."""
         try:
             test_key = "g6:health_check"
-            test_value = {"timestamp": datetime.utcnow().isoformat()}
+            test_value = {"timestamp": isoformat_z(utc_now())}
             
             if self.set(test_key, test_value, 10):
                 retrieved = self.get(test_key)

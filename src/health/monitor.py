@@ -121,7 +121,7 @@ class HealthMonitor:
                         message = 'Check failed' if not check_result else 'OK'
                 
                 # Update component status
-                self.components[name]['last_check'] = datetime.datetime.now()
+                self.components[name]['last_check'] = datetime.datetime.now()  # local-ok
                 self.components[name]['status'] = status
                 self.components[name]['message'] = message
                 
@@ -134,7 +134,7 @@ class HealthMonitor:
                     
             except Exception as e:
                 self.logger.error(f"Error checking component {name}: {e}")
-                self.components[name]['last_check'] = datetime.datetime.now()
+                self.components[name]['last_check'] = datetime.datetime.now()  # local-ok
                 self.components[name]['status'] = 'error'
                 self.components[name]['message'] = str(e)
     
@@ -143,7 +143,7 @@ class HealthMonitor:
         for check in self.health_checks:
             try:
                 result = check['function']()
-                check['last_check'] = datetime.datetime.now()
+                check['last_check'] = datetime.datetime.now()  # local-ok
                 
                 if isinstance(result, dict):
                     check['status'] = result.get('status', 'unknown')
@@ -160,14 +160,20 @@ class HealthMonitor:
                 
             except Exception as e:
                 self.logger.error(f"Error in health check {check['name']}: {e}")
-                check['last_check'] = datetime.datetime.now()
+                check['last_check'] = datetime.datetime.now()  # local-ok
                 check['status'] = 'error'
                 check['message'] = str(e)
     
     def _save_health_status(self):
         """Save current health status to file."""
+        try:
+            from src.utils.timeutils import utc_now, isoformat_z  # type: ignore
+            ts = isoformat_z(utc_now())
+        except Exception:
+            # Fallback: still produce an aware UTC ISO8601 with Z while avoiding forbidden utcnow
+            ts = datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z')  # fallback aware
         status = {
-            'timestamp': datetime.datetime.now().isoformat(),
+            'timestamp': ts,
             'components': {},
             'health_checks': {}
         }
@@ -190,7 +196,7 @@ class HealthMonitor:
             }
             
         # Save to file
-        health_file = f"data/health/status_{datetime.datetime.now().strftime('%Y-%m-%d')}.json"
+        health_file = f"data/health/status_{datetime.datetime.now().strftime('%Y-%m-%d')}.json"  # local-ok
         try:
             with open(health_file, 'w') as f:
                 json.dump(status, f, indent=2)

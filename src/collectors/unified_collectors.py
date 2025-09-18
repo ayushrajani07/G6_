@@ -57,13 +57,13 @@ def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metri
             pass
     # Track the collection timestamp
     start_cycle_wall = time.time()
-    now = datetime.datetime.now()
+    now = datetime.datetime.now()  # local-ok
     
     # Initialize data quality checker
     data_quality = DataQualityChecker()
     
     # Track the collection timestamp
-    now = datetime.datetime.now()
+    now = datetime.datetime.now()  # local-ok
     
     # Check if equity market is open
     if not is_market_open(market_type="equity", session_type="regular"):
@@ -120,7 +120,7 @@ def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metri
     overall_legs_total = 0
     overall_fail_total = 0
     if concise_mode:
-        today_str = datetime.datetime.now().strftime('%d-%b-%Y')
+        today_str = datetime.datetime.now().strftime('%d-%b-%Y')  # local-ok
         header = ("\n" + "=" * 70 + f"\n        DAILY OPTIONS COLLECTION LOG — {today_str}\n" + "=" * 70 + "\n")
         logger.info(header)
 
@@ -178,7 +178,7 @@ def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metri
             # Prepare aggregation containers
             pcr_snapshot = {}
             representative_day_width = 0
-            snapshot_base_time = datetime.datetime.now()
+            snapshot_base_time = datetime.datetime.now()  # local-ok
             expected_expiries = params.get('expiries', ['this_week'])
 
             # Evaluate memory pressure once per index (can inform strategy)
@@ -387,7 +387,7 @@ def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metri
                     
                     # Write data to storage with the index price and OHLC
                     # Use the current timestamp when writing data
-                    collection_time = datetime.datetime.now()
+                    collection_time = datetime.datetime.now()  # local-ok
                     if not concise_mode:
                         logger.info(f"Writing {len(enriched_data)} records to CSV sink")
                     else:
@@ -481,7 +481,7 @@ def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metri
                         logger.debug(f"Collected {len(enriched_data)} options for {index_symbol} {expiry_rule}")
                     # Capture human row if concise
                     if concise_mode:
-                        ts_local = datetime.datetime.now().strftime('%H:%M')
+                        ts_local = datetime.datetime.now().strftime('%H:%M')  # local-ok
                         price_disp = f"{index_price:.2f}" if isinstance(index_price,(int,float)) else "-"
                         atm_disp = f"{int(atm_strike)}" if isinstance(atm_strike,(int,float)) else "-"
                         legs = len(enriched_data)
@@ -534,6 +534,12 @@ def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metri
                     if per_index_option_count > 0:
                         metrics.index_options_processed.labels(index=index_symbol).set(per_index_option_count)
                         metrics.index_avg_processing_time.labels(index=index_symbol).set(per_index_option_processing_seconds / max(per_index_option_count,1))
+                        # Populate internal per-index last cycle options map for runtime status file
+                        try:
+                            if hasattr(metrics, '_per_index_last_cycle_options'):
+                                metrics._per_index_last_cycle_options[index_symbol] = per_index_option_count
+                        except Exception:
+                            pass
                     else:
                         # Soft failure condition: zero options gathered across all expiries counted as failure increment for visibility
                         try:
@@ -606,7 +612,7 @@ def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metri
     total_elapsed = time.time() - start_cycle_wall  # define early for logging fallback
     if metrics:
         try:
-            collection_time = (datetime.datetime.now() - now).total_seconds()
+            collection_time = (datetime.datetime.now() - now).total_seconds()  # local-ok
             metrics.collection_duration.observe(collection_time)
             metrics.collection_cycles.inc()
             # Derived helper method marks cycle; supply per-option timing aggregate (sum across indices)

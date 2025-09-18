@@ -1,0 +1,36 @@
+{
+  "timestamp": "2025-09-17T18:23:15.465077Z",
+  "components": {
+    "providers": {
+      "status": "healthy",
+      "message": "OK",
+      "last_check": "2025-09-17T23:53:15.168034"
+    },
+    "csv_sink": {
+      "status": "healthy",
+      "message": "OK",
+      "last_check": "2025-09-17T23:53:15.217654"
+    },
+    "influx_sink": {
+      "status": "healthy",
+      "message": "OK",
+      "last_check": "2025-09-17T23:53:15.218745"
+    }
+  },
+  "health_checks": {
+    "csv_storage": {
+      "status": "unhealthy",
+      "message": "Cannot write to data directory: [WinError 32] The process cannot access the file because it is being used by another process: 'C:\\\\Users\\\\ASUS\\\\Documents\\\\G6\\\\qq\\\\g6_reorganized\\\\data\\\\g6_data\\\\.health_check'",
+      "last_check": "2025-09-17T23:53:15.421495",
+      "data": {}
+    },
+    "primary_provider_responsive": {
+      "status": "healthy",
+      "message": "Provider responsive",
+      "last_check": "2025-09-17T23:53:15.464390",
+      "data": {
+        "ltp": 24800
+      }
+    }
+  }
+}

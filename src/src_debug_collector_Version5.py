@@ -43,7 +43,7 @@ def main():
     logger.info("CSV storage initialized")
     
     # Get current time
-    timestamp = datetime.datetime.now()
+    timestamp = datetime.datetime.now()  # local-ok
     
     # Test indices
     indices = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'SENSEX']

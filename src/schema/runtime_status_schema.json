@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "G6 Runtime Status",
+  "type": "object",
+  "required": [
+    "timestamp", "cycle", "elapsed", "interval", "sleep_sec", "indices", "indices_info"
+  ],
+  "properties": {
+    "timestamp": {"type": "string", "pattern": "Z$"},
+    "cycle": {"type": "integer", "minimum": 0},
+    "elapsed": {"type": "number", "minimum": 0},
+    "interval": {"type": "number", "minimum": 0},
+    "sleep_sec": {"type": "number", "minimum": 0},
+    "success_rate_pct": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+    "options_last_cycle": {"type": ["integer", "null"], "minimum": 0},
+    "options_per_minute": {"type": ["number", "null"], "minimum": 0},
+    "api_success_rate": {"type": ["number", "null"], "minimum": 0, "maximum": 100},
+    "memory_mb": {"type": ["number", "null"], "minimum": 0},
+    "cpu_pct": {"type": ["number", "null"], "minimum": 0},
+    "readiness_ok": {"type": ["boolean", "null"]},
+    "readiness_reason": {"type": ["string", "null"]},
+    "indices": {"type": "array", "items": {"type": "string"}},
+    "indices_info": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "ltp": {"type": ["number", "null"]},
+          "options": {"type": ["integer", "null"]}
+        },
+        "required": ["ltp", "options"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": true
+}

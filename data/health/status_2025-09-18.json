@@ -1,0 +1,36 @@
+{
+  "timestamp": "2025-09-18T10:20:58.280461Z",
+  "components": {
+    "providers": {
+      "status": "healthy",
+      "message": "OK",
+      "last_check": "2025-09-18T15:50:58.230364"
+    },
+    "csv_sink": {
+      "status": "healthy",
+      "message": "OK",
+      "last_check": "2025-09-18T15:50:58.230706"
+    },
+    "influx_sink": {
+      "status": "healthy",
+      "message": "OK",
+      "last_check": "2025-09-18T15:50:58.231024"
+    }
+  },
+  "health_checks": {
+    "csv_storage": {
+      "status": "healthy",
+      "message": "CSV sink is healthy",
+      "last_check": "2025-09-18T15:50:58.232683",
+      "data": {}
+    },
+    "primary_provider_responsive": {
+      "status": "healthy",
+      "message": "Provider responsive",
+      "last_check": "2025-09-18T15:50:58.280175",
+      "data": {
+        "ltp": 25400
+      }
+    }
+  }
+}

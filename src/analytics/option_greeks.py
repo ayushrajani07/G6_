@@ -43,7 +43,7 @@ class OptionGreeks:
     def _calculate_dte(expiry_date: Union[date, datetime], current_date: Optional[Union[date, datetime]] = None) -> float:
         """Calculate days to expiry, accounting for trading days."""
         if current_date is None:
-            current_date = datetime.now().date()
+            current_date = datetime.now().date()  # local-ok
             
         # Convert to date if datetime
         if isinstance(expiry_date, datetime):

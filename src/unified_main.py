@@ -18,8 +18,9 @@ import json
 import signal
 import logging
 import argparse
-import datetime
+import datetime as _dt
 import threading
+import math
 from typing import Any, Dict, Optional
 
 from src.utils.path_utils import ensure_sys_path, data_subdir, resolve_path
@@ -126,6 +127,73 @@ def create_default_config(save_path: Optional[str] = None) -> Dict[str, Any]:
 # ---------------- Providers -----------------
 
 def init_providers(config: ConfigWrapper) -> Providers:
+    """Initialize providers.
+
+    Supports native providers plus an environment-gated synthetic mock provider for
+    off-market development / demos. To enable mock provider WITHOUT modifying JSON
+    config set either CLI flag --mock-data (preferred) or export G6_USE_MOCK_PROVIDER=1.
+    """
+    # Synthetic mock provider (env override) ---------------------------------
+    if os.environ.get('G6_USE_MOCK_PROVIDER'):
+        import random
+        class MockProvider:  # minimal facade-compatible surface
+            def __init__(self):
+                self._start = time.time()
+                random.seed(int(self._start))
+                # Base levels approximating spot values
+                self._bases = {
+                    'NIFTY': 20000.0,
+                    'BANKNIFTY': 45000.0,
+                    'FINNIFTY': 21000.0,
+                    'SENSEX': 66000.0,
+                }
+                # Maintain a mutable price map for random walk
+                self._prices = dict(self._bases)
+            def _tick(self, symbol: str):
+                base = self._bases.get(symbol, 10000.0)
+                cur = self._prices.get(symbol, base)
+                # Random walk with gentle drift using sin for smooth wave + random noise
+                t = time.time() - self._start
+                wave = math.sin(t / 30.0) * base * 0.0015  # ±0.15%
+                noise = random.uniform(-1, 1) * base * 0.0005  # ±0.05%
+                # Mean-reverting pull towards base
+                pull = (base - cur) * 0.01
+                new_price = cur + pull + (wave + noise)
+                # Clamp within ±1% band just in case
+                low, high = base * 0.99, base * 1.01
+                if new_price < low: new_price = low
+                if new_price > high: new_price = high
+                self._prices[symbol] = new_price
+                return new_price
+            # Legacy collector expects .get_ltp(symbol)
+            def get_ltp(self, symbol: str):  # pragma: no cover (dev utility)
+                return round(self._tick(symbol), 2)
+            # Some code paths may ask for quote
+            def get_quote(self, symbol: str):  # pragma: no cover
+                ltp = self.get_ltp(symbol)
+                now_iso = _dt.datetime.now(_dt.UTC).isoformat()
+                # Provide minimal fields some analytics might introspect
+                return {
+                    "last_price": ltp,
+                    "instrument_token": 0,
+                    "timestamp": now_iso,
+                    "depth": {"buy": [], "sell": []},
+                }
+            # Expiry resolution helper (very rough)
+            def resolve_expiry(self, symbol: str, rule: str):  # pragma: no cover
+                today = _dt.date.today()
+                # Next Thursday for weekly style rules
+                for i in range(1, 8):
+                    d = today + _dt.timedelta(days=i)
+                    if d.weekday() == 3:  # Thursday
+                        return d
+                return today + _dt.timedelta(days=7)
+            def close(self):  # pragma: no cover
+                pass
+        logging.warning("[MOCK] Using synthetic MockProvider (no external API calls / auth).")
+        return Providers(primary_provider=MockProvider())
+
+    # Real providers ---------------------------------------------------------
     pconf = config.get('providers', {}).get('primary', {})  # type: ignore[index]
     ptype = pconf.get('type', 'kite').lower()
     if ptype == 'kite':
@@ -200,10 +268,10 @@ def run_analytics_block(providers: Providers, config: ConfigWrapper):
                         resolved_expiry = providers.primary_provider.resolve_expiry(index_symbol, expiry_rule)  # type: ignore
                         logging.debug(f"Analytics expiry resolved: index={index_symbol} rule={expiry_rule} -> {resolved_expiry}")
                     else:
-                        resolved_expiry = datetime.date.today()
+                        resolved_expiry = _dt.date.today()
                 except Exception as e:
                     logging.warning(f"Analytics expiry resolution failed for {index_symbol} {expiry_rule}: {e}")
-                    resolved_expiry = datetime.date.today()
+                    resolved_expiry = _dt.date.today()
                 pcr = oc.calculate_pcr(index_symbol, expiry)
                 logging.info(f"Analytics {index_symbol} PCR: OI={pcr['oi_pcr']:.2f} Vol={pcr['volume_pcr']:.2f}")
                 mp = oc.calculate_max_pain(index_symbol, expiry)
@@ -245,7 +313,7 @@ def run_collection_cycle(config: ConfigWrapper, providers: Providers, csv_sink: 
 
 # ---------------- Market Hours Wrapper -----------------
 
-def collection_loop(config: ConfigWrapper, providers: Providers, csv_sink: CsvSink, influx_sink: Any, metrics: Any, use_enhanced: bool, market_hours_only: bool, run_once: bool, index_params: Dict[str, Any]):
+def collection_loop(config: ConfigWrapper, providers: Providers, csv_sink: CsvSink, influx_sink: Any, metrics: Any, use_enhanced: bool, market_hours_only: bool, run_once: bool, index_params: Dict[str, Any], runtime_status_file: Optional[str] = None, readiness_ok: Optional[bool] = None, readiness_reason: str = "", health_monitor: Any = None):
     interval = (
         config.get('collection', {}).get('interval_seconds')  # type: ignore[index]
         or config.get('orchestration', {}).get('run_interval_sec', 60)  # type: ignore[index]
@@ -253,8 +321,8 @@ def collection_loop(config: ConfigWrapper, providers: Providers, csv_sink: CsvSi
 
     def wait_for_open():
         next_open = get_next_market_open()
-        wait = (next_open - datetime.datetime.now(datetime.timezone.utc)).total_seconds()
-        logging.info(f"Market closed. Waiting {wait/60:.1f} minutes until {next_open}")
+        wait_secs = (next_open - _dt.datetime.now(_dt.timezone.utc)).total_seconds()
+        logging.info(f"Market closed. Waiting {wait_secs/60:.1f} minutes until {next_open}")
         sleep_until_market_open(
             market_type="equity",
             session_type="regular",
@@ -273,13 +341,18 @@ def collection_loop(config: ConfigWrapper, providers: Providers, csv_sink: CsvSi
     live_panel_enabled = live_panel_env or live_panel_cfg
     panel_builder = None
     if live_panel_enabled:
-        try:  # dynamic import (optional)
+        try:
             from src.logstream.live_panel import build_live_panel  # type: ignore
             panel_builder = build_live_panel
         except Exception:
             live_panel_enabled = False
 
     cycle_count = 0
+    # Allow test/dev environment to bound cycles without --run-once by setting G6_MAX_CYCLES
+    try:
+        _max_cycles_env = int(os.environ.get('G6_MAX_CYCLES','0'))
+    except Exception:  # pragma: no cover
+        _max_cycles_env = 0
     while True:
         if market_hours_only and not is_market_open():
             wait_for_open()
@@ -342,6 +415,7 @@ def collection_loop(config: ConfigWrapper, providers: Providers, csv_sink: CsvSi
                         index_data[idx] = {'attempts': attempts, 'failures': failures, 'options': options_last, 'atm': None}
                 except Exception:
                     pass
+                # Build kwargs based on builder signature (duck-type for enhanced vs legacy)
                 panel_text = panel_builder(
                     cycle=cycle_count,
                     cycle_time=elapsed,
@@ -368,10 +442,265 @@ def collection_loop(config: ConfigWrapper, providers: Providers, csv_sink: CsvSi
                 logging.info(f"Cycle completed in {elapsed:.2f}s")
         except Exception:
             logging.info(f"Cycle completed in {elapsed:.2f}s")
+        # Write runtime status snapshot (atomic) for attach-mode terminal UI
+        # Predefine variables reused by optional sinks
+        success_rate = None
+        options_last = None
+        if runtime_status_file:
+            try:
+                # Import time helpers early so names are defined for status dict
+                try:
+                    from src.utils.timeutils import ensure_utc_helpers  # type: ignore
+                    utc_now, isoformat_z = ensure_utc_helpers()  # type: ignore[misc]
+                except Exception:
+                    from datetime import datetime, timezone
+                    def utc_now():  # type: ignore
+                        return datetime.now(timezone.utc)
+                    def isoformat_z(d):  # type: ignore
+                        return d.isoformat().replace('+00:00','Z')
+                # Metrics derived values (best-effort)
+                per_min = None
+                api_success = None
+                mem_mb = None
+                cpu_pct = None
+                if metrics:
+                    try:
+                        total = getattr(metrics, '_cycle_total', 0)
+                        succ = getattr(metrics, '_cycle_success', 0)
+                        if total > 0:
+                            success_rate = round((succ / total) * 100.0, 2)
+                    except Exception:  # pragma: no cover
+                        pass
+                    options_last = getattr(metrics, '_last_cycle_options', None)
+                    try:
+                        per_min = getattr(metrics, 'options_per_minute')._value.get() if hasattr(metrics.options_per_minute, '_value') else None  # type: ignore[attr-defined]
+                    except Exception:
+                        per_min = None
+                    try:
+                        api_success = getattr(metrics, 'api_success_rate')._value.get() if hasattr(metrics.api_success_rate, '_value') else None  # type: ignore[attr-defined]
+                    except Exception:
+                        api_success = None
+                    try:
+                        if hasattr(metrics, 'memory_usage_mb') and hasattr(metrics.memory_usage_mb, '_value'):
+                            mem_mb = metrics.memory_usage_mb._value.get()  # type: ignore[attr-defined]
+                        if hasattr(metrics, 'cpu_usage_percent') and hasattr(metrics.cpu_usage_percent, '_value'):
+                            cpu_pct = metrics.cpu_usage_percent._value.get()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                # Per-index quick snapshot (best-effort LTP)
+                indices_info = {}
+                indices_detail = {}
+                try:
+                    for idx in index_params.keys():
+                        ltp_val = None
+                        options_ct = None
+                        try:
+                            ltp_val = providers.get_ltp(idx)  # type: ignore[union-attr]
+                        except Exception:
+                            pass
+                        # Fetch per-index last-cycle option count from internal map if available
+                        try:
+                            if metrics and hasattr(metrics, '_per_index_last_cycle_options'):
+                                options_ct = metrics._per_index_last_cycle_options.get(idx)
+                            if options_ct is None:
+                                # Fallback to aggregate if specific not yet populated
+                                options_ct = getattr(metrics, '_last_cycle_options', None)
+                        except Exception:
+                            pass
+                        # Age calculation using csv sink last write (if available)
+                        age_sec = None
+                        try:
+                            per_idx = getattr(csv_sink, 'last_write_per_index', {}) or {}
+                            ts = per_idx.get(idx)
+                            if ts:
+                                age_sec = (_dt.datetime.now(_dt.timezone.utc) - ts).total_seconds()
+                        except Exception:
+                            pass
+                        indices_info[idx] = {"ltp": ltp_val, "options": options_ct}
+                        indices_detail[idx] = {"status": "OK" if ltp_val is not None else "STALE", "ltp": ltp_val, "age": age_sec, "age_sec": age_sec}
+                except Exception:
+                    pass
+                # Health summary snapshot
+                health_snapshot = {}
+                try:
+                    components = getattr(health_monitor, 'components', {}) if health_monitor else {}
+                    for cname, cdata in components.items():
+                        hw = {"status": cdata.get('status','unknown')}
+                        try:
+                            last = cdata.get('last_check')
+                            hw['last_check'] = last.isoformat() if last else None
+                        except Exception:
+                            pass
+                        # Augment with last_write if sink components
+                        try:
+                            if cname == 'csv_sink':
+                                ts = getattr(csv_sink, 'last_write_ts', None)
+                                hw['last_write'] = ts.isoformat() if ts else None
+                            if cname == 'influx_sink':
+                                ts = getattr(influx_sink, 'last_write_ts', None)
+                                hw['last_write'] = ts.isoformat() if ts else None
+                        except Exception:
+                            pass
+                        health_snapshot[cname] = hw
+                except Exception:
+                    pass
+                # Provider info best-effort
+                provider_info = {"name": None, "auth": {"valid": None, "expiry": None}, "latency_ms": None}
+                try:
+                    pname = type(providers.primary_provider).__name__ if providers and providers.primary_provider else None
+                    provider_info["name"] = pname
+                    # Latency estimate from metrics if exposed
+                    try:
+                        provider_info["latency_ms"] = getattr(metrics, '_api_latency_ema', None)
+                    except Exception:
+                        pass
+                    # No direct expiry unless provider exposes; leave None
+                except Exception:
+                    pass
+                # Sinks last_write snapshot
+                sinks_snapshot = {}
+                try:
+                    ts_csv = getattr(csv_sink, 'last_write_ts', None)
+                    sinks_snapshot['csv_sink'] = {"last_write": ts_csv.isoformat() if ts_csv else None}
+                    ts_influx = getattr(influx_sink, 'last_write_ts', None)
+                    if ts_influx is not None:
+                        sinks_snapshot['influx_sink'] = {"last_write": ts_influx.isoformat() if hasattr(ts_influx, 'isoformat') else str(ts_influx)}
+                except Exception:
+                    pass
+                # Market and loop blocks for richer summary
+                market_block = {"status": "OPEN" if is_market_open() else "CLOSED"}
+                loop_block = {
+                    "cycle": cycle_count,
+                    "last_run": isoformat_z(utc_now()),
+                    "last_duration": round(elapsed, 3),
+                    "next_run_in_sec": max(0, interval - elapsed),
+                    "target_interval": interval,
+                }
+                resources_block = {}
+                if cpu_pct is not None or mem_mb is not None:
+                    try:
+                        rss_bytes = int(mem_mb * 1024 * 1024) if isinstance(mem_mb, (int, float)) else None
+                    except Exception:
+                        rss_bytes = None
+                    resources_block = {k: v for k, v in {
+                        "cpu": cpu_pct,
+                        "rss": rss_bytes,
+                    }.items() if v is not None}
+                app_block = {"name": "G6 Unified", "version": __version__}
+
+                status = {
+                    # Use aware UTC timestamp helper for consistency
+                    "timestamp": isoformat_z(utc_now()),
+                    "cycle": cycle_count,
+                    "elapsed": round(elapsed, 3),
+                    "interval": interval,
+                    "sleep_sec": max(0, interval - elapsed),
+                    "app": app_block,
+                    "market": market_block,
+                    "loop": loop_block,
+                    "resources": resources_block,
+                    "success_rate_pct": success_rate,
+                    "options_last_cycle": options_last,
+                    "options_per_minute": per_min,
+                    "api_success_rate": api_success,
+                    "memory_mb": mem_mb,
+                    "cpu_pct": cpu_pct,
+                    "readiness_ok": bool(readiness_ok) if readiness_ok is not None else None,
+                    "readiness_reason": readiness_reason,
+                    "indices": list(index_params.keys()),
+                    "indices_info": indices_info,
+                    "indices_detail": indices_detail,
+                    "health": health_snapshot,
+                    "provider": provider_info,
+                    "analytics": {},
+                    "sinks": sinks_snapshot,
+                }
+                # Atomic write
+                os.makedirs(os.path.dirname(runtime_status_file), exist_ok=True)
+                tmp_path = runtime_status_file + '.tmp'
+                with open(tmp_path, 'w') as f:
+                    json.dump(status, f)
+                os.replace(tmp_path, runtime_status_file)
+            except Exception:  # pragma: no cover
+                pass
+        # Publish per-panel JSON for Summary View (best-effort, env-gated)
+        try:
+            if os.environ.get('G6_ENABLE_PANEL_PUBLISH','').lower() in ('1','true','yes','on'):
+                try:
+                    from src.summary.publisher import publish_cycle_panels  # type: ignore
+                    publish_cycle_panels(
+                        indices=index_params.keys() if index_params else [],
+                        cycle=cycle_count,
+                        elapsed_sec=elapsed,
+                        interval_sec=interval,
+                        success_rate_pct=success_rate,
+                        metrics=metrics,
+                        csv_sink=csv_sink,
+                        influx_sink=influx_sink,
+                        providers=providers,
+                    )
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # Influx cycle stats (best-effort / optional)
+        try:
+            if influx_sink and hasattr(influx_sink, 'write_cycle_stats'):
+                per_index_counts = None
+                try:
+                    if metrics and hasattr(metrics, '_per_index_last_cycle_options'):
+                        per_index_counts = dict(metrics._per_index_last_cycle_options)
+                except Exception:
+                    per_index_counts = None
+                # reuse success_rate/options_last gathered above if available
+                influx_sink.write_cycle_stats(
+                    cycle=cycle_count,
+                    elapsed=elapsed,
+                    success_rate=success_rate,
+                    options_last=options_last,
+                    per_index=per_index_counts,
+                )
+        except Exception:
+            pass
         if run_once:
+            break
+        if _max_cycles_env and cycle_count >= _max_cycles_env:
             break
         sleep_time = max(0, interval - elapsed)
         time.sleep(sleep_time)
+    # Fallback: if run_once and status file requested but never written (e.g., early failures), emit minimal status
+    if run_once and runtime_status_file and not os.path.exists(runtime_status_file):
+        try:
+            from src.utils.timeutils import ensure_utc_helpers  # type: ignore
+            utc_now, isoformat_z = ensure_utc_helpers()  # type: ignore[misc]
+        except Exception:
+            from datetime import datetime, timezone
+            def utc_now():  # type: ignore
+                return datetime.now(timezone.utc)
+            def isoformat_z(d):  # type: ignore
+                return d.isoformat().replace('+00:00','Z')
+        minimal = {
+            "timestamp": isoformat_z(utc_now()),
+            "cycle": cycle_count,
+            "elapsed": 0.0,
+            "interval": interval,
+            "sleep_sec": 0,
+            "success_rate_pct": None,
+            "options_last_cycle": None,
+            "indices": list(index_params.keys()),
+            "indices_info": {i: {"ltp": None, "options": None} for i in index_params.keys()},
+            "readiness_ok": bool(readiness_ok) if readiness_ok is not None else None,
+            "readiness_reason": readiness_reason,
+        }
+        try:
+            os.makedirs(os.path.dirname(runtime_status_file), exist_ok=True)
+            tmp_path = runtime_status_file + '.tmp'
+            with open(tmp_path, 'w') as f:
+                json.dump(minimal, f)
+            os.replace(tmp_path, runtime_status_file)
+            logging.debug("Fallback minimal runtime status written")
+        except Exception:
+            pass
 
 # ---------------- CLI -----------------
 
@@ -389,6 +718,8 @@ def parse_args():
     p.add_argument('--validate-auth', action='store_true', help='Fail fast if provider auth/quotes unavailable')
     p.add_argument('--auto-refresh-token', action='store_true', help='Attempt automatic token refresh via token_manager if auth invalid')
     p.add_argument('--interactive-token', action='store_true', help='Allow interactive/manual token acquisition if automated refresh fails')
+    p.add_argument('--runtime-status-file', help='Write per-cycle runtime status JSON (for terminal attach UI)')
+    p.add_argument('--mock-data', action='store_true', help='Use synthetic mock data provider (skips external API auth)')
     p.add_argument('--version', action='version', version=f'G6 Unified {__version__}')
     # Deprecated: greeks/IV runtime tuning now must come from JSON config 'greeks' block.
     p.add_argument('--compute-greeks', action='store_true', help='[DEPRECATED] Previously toggled local Greek computation (use config.greek.enabled)')
@@ -401,12 +732,32 @@ def parse_args():
     p.add_argument('--metrics-custom-registry', action='store_true', help='Use an isolated custom CollectorRegistry (avoids global collisions)')
     p.add_argument('--concise-logs', action='store_true', help='Enable concise option chain logging (single-line summaries)')
     p.add_argument('--verbose-logs', action='store_true', help='Force legacy verbose option/expiry logging (overrides default concise)')
+    p.add_argument('--status-poll', type=float, default=0.0, help='If >0, poll the runtime status file internally every N seconds and log a concise summary (requires --runtime-status-file)')
     return p.parse_args()
 
 # ---------------- Main -----------------
 
 def main():
     args = parse_args()
+    # No enhanced UI feature flags; pure legacy behavior
+
+    # Mock provider opt-in (before bootstrap to skip auth flow later)
+    if args.mock_data:
+        os.environ['G6_USE_MOCK_PROVIDER'] = '1'
+
+    # Rich logging hook for attach terminal mode (opt-in via env)
+    # Must be before heavy startup logs for best effect
+    try:
+        if os.environ.get('G6_TERMINAL_MODE', '').lower() == 'attach':
+            from rich.logging import RichHandler  # type: ignore
+            root = logging.getLogger()
+            if not any(isinstance(h, RichHandler) for h in root.handlers):
+                rich_handler = RichHandler(rich_tracebacks=False, show_time=False, markup=False)
+                rich_handler.setLevel(logging.getLevelName(args.log_level.upper()))
+                root.addHandler(rich_handler)
+    except Exception:  # pragma: no cover
+        pass
+
     boot = bootstrap(
         config_path=args.config,
         log_level=args.log_level,
@@ -445,9 +796,12 @@ def main():
     if deprecated_flags_used:
         logging.warning("Greeks/IV CLI flags are deprecated and ignored; update your JSON config 'greeks' block instead.")
 
-    # --- Mandatory Kite token acquisition (before ANY provider init) ---
     # Determine intended provider type from raw config (default kite)
     provider_type = config.get('providers', {}).get('primary', {}).get('type', 'kite')  # type: ignore[index]
+    if os.environ.get('G6_USE_MOCK_PROVIDER'):
+        provider_type = 'mock'
+
+    # --- Mandatory Kite token acquisition (before ANY provider init) ---
     if str(provider_type).lower() == 'kite':
         try:
             from src.tools.token_manager import acquire_or_refresh_token  # type: ignore
@@ -510,29 +864,38 @@ def main():
 
     readiness_ok = False
     readiness_reason = ''
+    skip_readiness = os.environ.get('G6_SKIP_PROVIDER_READINESS','').lower() in ('1','true','yes','on')
+    # Prepare optional internal status polling (thread started later once runtime_status_file known)
+    status_poll_thread = None
+    status_poll_stop = None
     probe_attempt = 0
     max_probe_attempts = 3  # inclusive attempts
     refresh_used = False  # retained for metrics logic; token already validated earlier
-    while probe_attempt < max_probe_attempts and not readiness_ok:
-        readiness_ok, readiness_reason = _provider_readiness()
-        if readiness_ok:
-            break
-        probe_attempt += 1
-        logging.warning(
-            f"Provider readiness probe failed ({readiness_reason}) attempt {probe_attempt}/{max_probe_attempts}" )
-        # Try a one-off token refresh if allowed and not yet tried
-        if args.auto_refresh_token and not refresh_used:
-            try:
-                from src.tools.token_manager import acquire_or_refresh_token  # type: ignore
-                logging.info("Attempting token refresh due to failed readiness probe...")
-                if acquire_or_refresh_token(auto_open_browser=True, interactive=args.interactive_token):
-                    refresh_used = True
-                    # Reprobe immediately without sleeping
-                    continue
-            except Exception as te:  # pragma: no cover
-                logging.error(f"Token refresh during readiness probe failed: {te}")
-        if probe_attempt < max_probe_attempts:
-            time.sleep(2)
+    if skip_readiness:
+        readiness_ok = True
+        readiness_reason = 'skip-env'
+        logging.info("Provider readiness probe skipped via G6_SKIP_PROVIDER_READINESS")
+    else:
+        while probe_attempt < max_probe_attempts and not readiness_ok:
+            readiness_ok, readiness_reason = _provider_readiness()
+            if readiness_ok:
+                break
+            probe_attempt += 1
+            logging.warning(
+                f"Provider readiness probe failed ({readiness_reason}) attempt {probe_attempt}/{max_probe_attempts}" )
+            # Try a one-off token refresh if allowed and not yet tried
+            if args.auto_refresh_token and not refresh_used:
+                try:
+                    from src.tools.token_manager import acquire_or_refresh_token  # type: ignore
+                    logging.info("Attempting token refresh due to failed readiness probe...")
+                    if acquire_or_refresh_token(auto_open_browser=True, interactive=args.interactive_token):
+                        refresh_used = True
+                        # Reprobe immediately without sleeping
+                        continue
+                except Exception as te:  # pragma: no cover
+                    logging.error(f"Token refresh during readiness probe failed: {te}")
+            if probe_attempt < max_probe_attempts:
+                time.sleep(2)
 
     # Metrics gauge update (safe guarded)
     try:
@@ -643,6 +1006,21 @@ def main():
             pass
         fancy_env = os.environ.get('G6_FANCY_CONSOLE','').lower() in ('1','true','yes','on')
         fancy = fancy_env or fancy_cfg
+        # Unicode / ASCII fallback: if stdout encoding not UTF and unicode not forced, disable fancy & enforce ASCII
+        force_unicode = os.environ.get('G6_FORCE_UNICODE','').lower() in ('1','true','yes','on')
+        if not force_unicode:
+            try:
+                _enc = (getattr(sys.stdout, 'encoding', '') or '').lower()
+            except Exception:  # pragma: no cover
+                _enc = ''
+            if _enc and 'utf' not in _enc:
+                os.environ.setdefault('G6_FORCE_ASCII','1')
+                if fancy:
+                    logging.info("Console encoding %s not UTF; disabling fancy Unicode banner", _enc)
+                fancy = False
+        # Explicit ASCII env wins unless unicode forced
+        if os.environ.get('G6_FORCE_ASCII','').lower() in ('1','true','yes','on') and not force_unicode:
+            fancy = False
         # If config requests fancy but env not set, export env for downstream modules expecting it
         if fancy_cfg and not fancy_env:
             os.environ['G6_FANCY_CONSOLE'] = '1'
@@ -715,7 +1093,7 @@ def main():
                     col = FG_GREEN if status == 'healthy' else FG_RED
                     checks_summary.append(colorize(cname, col, bold=(status!='healthy')))
                 concise_flag = 'on' if concise_active else 'off'
-                now_disp = datetime.datetime.now().strftime('%d-%b-%Y %H:%M:%S')
+                now_disp = _dt.datetime.now().strftime('%d-%b-%Y %H:%M:%S')  # local-ok
                 indices_list = ', '.join(index_params.keys()) if index_params else 'NONE'
                 lines = []
                 border = '=' * 70
@@ -737,6 +1115,49 @@ def main():
     except Exception as be:  # pragma: no cover
         logging.debug(f"Startup banner failed: {be}")
     try:
+        # Resolve runtime status file path precedence: CLI > ENV > config.console.runtime_status_file
+        runtime_status_file = args.runtime_status_file or os.environ.get('G6_RUNTIME_STATUS')
+        if not runtime_status_file:
+            try:
+                runtime_status_file = config.get('console', {}).get('runtime_status_file')  # type: ignore[index]
+            except Exception:
+                runtime_status_file = None
+        if runtime_status_file:
+            try:
+                os.makedirs(os.path.dirname(runtime_status_file), exist_ok=True)
+                logging.info(f"Runtime status file enabled: {runtime_status_file}")
+            except Exception as e:
+                logging.warning(f"Could not prepare runtime status file directory: {e}")
+                runtime_status_file = None
+        # Start status poll thread if requested and file path defined
+        if args.status_poll and args.status_poll > 0 and runtime_status_file:
+            status_poll_stop = threading.Event()
+            interval_poll = float(args.status_poll)
+            def _status_poll_loop():  # pragma: no cover
+                last_cycle_seen = None
+                local_stop = status_poll_stop  # capture to avoid closure on mutable
+                path = runtime_status_file  # local alias for type narrowing
+                while local_stop is not None and not local_stop.is_set():
+                    try:
+                        if path and os.path.exists(path):
+                            import json as _json
+                            with open(path,'r') as f:
+                                data = _json.load(f)
+                            cyc = data.get('cycle')
+                            if cyc != last_cycle_seen:
+                                last_cycle_seen = cyc
+                                ts = data.get('timestamp')
+                                sr = data.get('success_rate_pct')
+                                opt = data.get('options_last_cycle')
+                                elapsed_c = data.get('elapsed')
+                                logging.info(f"[status-poll] cycle={cyc} elapsed={elapsed_c}s success={sr}% options={opt} ts={ts}")
+                    except Exception:
+                        pass
+                    if local_stop is not None:
+                        local_stop.wait(interval_poll)
+            status_poll_thread = threading.Thread(target=_status_poll_loop, name='status-poll', daemon=True)
+            status_poll_thread.start()
+
         collection_loop(
             config,
             providers,  # type: ignore[arg-type]
@@ -746,7 +1167,11 @@ def main():
             use_enhanced=args.use_enhanced,
             market_hours_only=args.market_hours_only,
             run_once=args.run_once,
-            index_params=index_params
+            index_params=index_params,
+            runtime_status_file=runtime_status_file,
+            readiness_ok=readiness_ok,
+            readiness_reason=readiness_reason,
+            health_monitor=health,
         )
     except KeyboardInterrupt:
         logging.info("Interrupted by user")
@@ -762,6 +1187,14 @@ def main():
             pass
         if callable(stop_metrics):
             stop_metrics()
+        # Stop status poll thread
+        try:
+            if status_poll_stop:
+                status_poll_stop.set()
+            if status_poll_thread:
+                status_poll_thread.join(timeout=1.0)
+        except Exception:
+            pass
         logging.info("Shutdown complete")
 
 if __name__ == "__main__":  # pragma: no cover
