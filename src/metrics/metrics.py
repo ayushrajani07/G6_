@@ -115,6 +115,16 @@ class MetricsRegistry:
         self.api_success_rate = Gauge('g6_api_success_rate_percent', 'Successful API call percentage (rolling window)')
         self.collection_success_rate = Gauge('g6_collection_success_rate_percent', 'Successful collection cycle percentage (rolling window)')
         self.data_quality_score = Gauge('g6_data_quality_score_percent', 'Composite data quality score (validation completeness)')
+        # Per-index data quality score (0-100). Use try/except to avoid duplicate registration if re-initialized.
+        try:
+            self.index_data_quality_score = Gauge('g6_index_data_quality_score_percent', 'Per-index data quality score percent', ['index'])
+        except ValueError:
+            logger.debug("Metric already exists: g6_index_data_quality_score_percent")
+        # Count of data quality issues observed per index (monotonic counter)
+        try:
+            self.index_dq_issues_total = Counter('g6_index_dq_issues_total', 'Total data quality issues observed', ['index'])
+        except ValueError:
+            logger.debug("Metric already exists: g6_index_dq_issues_total")
         # Cycle state flag (1=in progress collecting, 0=idle between cycles)
         self.collection_cycle_in_progress = Gauge('g6_collection_cycle_in_progress', 'Current collection cycle execution flag (1=in-progress,0=idle)')
         # Timestamp of last fully successful collection cycle (unix seconds)

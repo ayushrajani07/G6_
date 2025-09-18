@@ -272,6 +272,35 @@ def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metri
                         logger.warning(f"No quote data available for {index_symbol} expiry {expiry_date}")
                         continue
 
+                    # --- Data Quality validation and metrics ---
+                    try:
+                        valid_data, dq_issues = data_quality.validate_options_data(enriched_data)
+                        # Basic DQ score: percentage of valid vs total
+                        total_items = len(enriched_data) if isinstance(enriched_data, dict) else 0
+                        score_pct = 100.0
+                        if total_items > 0:
+                            score_pct = max(0.0, min(100.0, (len(valid_data) / total_items) * 100.0))
+                        if metrics:
+                            # Global score (single gauge) and per-index gauge
+                            try:
+                                metrics.data_quality_score.set(score_pct)
+                            except Exception:
+                                pass
+                            try:
+                                if hasattr(metrics, 'index_data_quality_score'):
+                                    metrics.index_data_quality_score.labels(index=index_symbol).set(score_pct)
+                            except Exception:
+                                pass
+                            try:
+                                if dq_issues and hasattr(metrics, 'index_dq_issues_total'):
+                                    metrics.index_dq_issues_total.labels(index=index_symbol).inc(len(dq_issues))
+                            except Exception:
+                                pass
+                        # Replace enriched_data with valid subset for downstream processing/persistence
+                        enriched_data = valid_data or enriched_data
+                    except Exception:
+                        logger.debug("Data quality validation failed", exc_info=True)
+
                     # --- Optional IV estimation (before greek computation) ---
                     if local_estimate_iv and greeks_calculator:
                         try:
