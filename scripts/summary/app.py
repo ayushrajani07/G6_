@@ -24,7 +24,7 @@ from scripts.summary.layout import build_layout, refresh_layout
 from scripts.summary.derive import derive_cycle
 from scripts.summary_view import StatusCache, plain_fallback
 from scripts.summary.unified_loop import UnifiedLoop
-from scripts.summary.plugins.base import TerminalRenderer, PanelsWriter, OutputPlugin
+from scripts.summary.plugins.base import TerminalRenderer, PanelsWriter, OutputPlugin, SummarySnapshot
 from src.error_handling import handle_ui_error
 from typing import Protocol, Callable, Union
 
@@ -154,6 +154,9 @@ def run(argv: Optional[List[str]] = None) -> int:
     except Exception:
         pass
 
+    # Rewrite flag (Phase 1): activates new domain + plain renderer path
+    rewrite_active = os.getenv("G6_SUMMARY_REWRITE", "0").lower() in ("1","true","yes","on")
+
     # --- Unified loop fast-path (default unless --no-unified) ---
     if not args.no_unified:
         panels_dir = os.getenv("G6_PANELS_DIR", "data/panels")
@@ -163,8 +166,17 @@ def run(argv: Optional[List[str]] = None) -> int:
                 os.makedirs(panels_dir, exist_ok=True)
         except Exception:
             write_panels = False
-        # NOTE: Legacy gating removed; dossier plugin activates directly when path provided.
-        plugins: List[OutputPlugin] = [TerminalRenderer(rich_enabled=not args.no_rich)]
+        # Plugin assembly: if rewrite flag + no-rich => PlainRenderer, else traditional TerminalRenderer
+        plugins: List[OutputPlugin] = []
+        if rewrite_active and args.no_rich:
+            try:
+                from scripts.summary.plain_renderer import PlainRenderer  # lazy import
+                plugins.append(PlainRenderer())
+            except Exception:
+                # Fallback to legacy terminal renderer if plain renderer import fails
+                plugins.append(TerminalRenderer(rich_enabled=not args.no_rich))
+        else:
+            plugins.append(TerminalRenderer(rich_enabled=not args.no_rich))
         if write_panels:
             # Legacy bridge removed; always enable PanelsWriter when write_panels is true.
             plugins.append(PanelsWriter(panels_dir=panels_dir))
@@ -206,7 +218,27 @@ def run(argv: Optional[List[str]] = None) -> int:
     except Exception:
         RICH_AVAILABLE = False
     if not RICH_AVAILABLE or args.no_rich:
-        print(plain_fallback(status, args.status_file, args.metrics_url))
+        if rewrite_active:
+            # One-shot plain render using domain + panel registry (no loop)
+            try:
+                from scripts.summary.plain_renderer import PlainRenderer
+                renderer = PlainRenderer()
+                snap = SummarySnapshot(
+                    status=status or {},
+                    derived={},
+                    panels={},
+                    ts_read=time.time(),
+                    ts_built=time.time(),
+                    cycle=0,
+                    errors=tuple(),
+                    model=None,
+                )
+                renderer.process(snap)
+            except Exception:
+                # Fallback to legacy plain_fallback if anything goes wrong
+                print(plain_fallback(status, args.status_file, args.metrics_url))
+        else:
+            print(plain_fallback(status, args.status_file, args.metrics_url))
         # One-shot dossier write in plain mode when a dossier path is provided
         try:
             dossier_path = os.getenv("G6_SUMMARY_DOSSIER_PATH")

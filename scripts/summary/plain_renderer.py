@@ -1,0 +1,45 @@
+"""Plain terminal renderer using the new domain + panel registry (Phase 1).
+
+Activated when the rewrite flag is enabled and rich mode is disabled.
+"""
+from __future__ import annotations
+from typing import Mapping, Any
+import sys
+
+from .panel_registry import build_all_panels
+from .domain import build_domain_snapshot
+
+from .plugins.base import OutputPlugin, SummarySnapshot  # reuse existing snapshot container
+
+class PlainRenderer(OutputPlugin):
+    name = "plain_renderer"
+
+    def __init__(self, *, max_width: int = 160) -> None:
+        self._max_width = max_width
+
+    def setup(self, context: Mapping[str, Any]) -> None:  # pragma: no cover - trivial
+        pass
+
+    def process(self, snap: SummarySnapshot) -> None:  # pragma: no cover - exercised via tests
+        # Build domain snapshot from raw status (Phase 1 bridge)
+        domain = build_domain_snapshot(snap.status, ts_read=snap.ts_read)
+        panels = build_all_panels(domain)
+        out_lines = []
+        for p in panels:
+            out_lines.append(f"[{p.title}]")
+            for line in p.lines:
+                # Simple width clamp; richer formatting can follow
+                clipped = (line[: self._max_width - 1] + '…') if len(line) > self._max_width else line
+                out_lines.append(clipped)
+            out_lines.append("")
+        stream = sys.stdout
+        try:
+            stream.write("\n".join(out_lines).rstrip() + "\n")
+        except Exception:
+            # Best-effort; swallow write errors to avoid crashing loop
+            pass
+
+    def teardown(self) -> None:  # pragma: no cover - trivial
+        pass
+
+__all__ = ["PlainRenderer"]
