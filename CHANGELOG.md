@@ -3,11 +3,24 @@
 All notable changes to this project will be documented in this file. Dates use ISO format (YYYY-MM-DD).
 
 ## [Unreleased]
+### Cleanup
+- Pruned deprecated `scripts/run_live.py` (fully removed) and consolidated logging env var documentation block to eliminate duplicate governance warnings.
+- Tombstoned legacy README variants (`README_COMPREHENSIVE.md`, `README_CONSOLIDATED_DRAFT.md`, `README_web_dashboard.md`) pending final deletion after external reference audit.
+ - Removed legacy README variants (2025-10-03) after confirming no test/external references.
 ### Added
 - ANSI colorized logging (non-Rich) via new env vars: G6_LOG_COLOR_MODE (auto|on|off) and G6_LOG_COLOR_FORCE for CI/Windows forcing. Includes keyword highlighting for success/pass/fail/warning tokens.
 - G6_STRUCT_EVENTS_FORMAT env flag (json|human|both) enabling concise human-readable summaries for structured collector events alongside or instead of raw JSON lines.
 - G6_SUPPRESS_GROUPED_METRICS_BANNER to fully silence grouped metrics registration banner.
 - G6_SUPPRESS_DUPLICATE_METRICS_WARN and G6_DUPLICATES_LOG_LEVEL for fine-grained duplicate metrics warning control.
+### Documentation / Governance
+- Documentation consolidation: unified environment variable reference now exclusively in `docs/env_dict.md`; converted `docs/ENVIRONMENT.md` into archival stub to eliminate duplication.
+- Added metrics facade modularization note to `docs/METRICS.md` (Phase 3.x) and config duplication policy update in `docs/config_dict.md`.
+- Inserted logging & structured events formatting variable consolidation note in `env_dict.md`; added duplication policy (single authoritative source for env vars).
+- Added Module & Workflow Status Matrix (Section 3.1) to `README.md` with status markers [C]/[IP]/[P]/[E]/[D].
+### Removed / Deprecated
+- Removed deprecated script `scripts/run_live.py` (test assertion now passes); update any external automation to invoke orchestrator or `g6 summary`.
+### CLI
+- Added `retention-scan` subcommand to `scripts/g6.py` providing basic CSV storage footprint metrics (pre-retention engine observability). See README Section 17.1.
 ### Added (Provider Efficiency & Resilience Phase 1)
 - Kite quote path Phase 1 rate limiting: introduced lightweight token-bucket + cooldown limiter (`src/broker/kite/rate_limit.py`). Env flags:
   - `G6_KITE_LIMITER=1` enables limiter (opt-in)

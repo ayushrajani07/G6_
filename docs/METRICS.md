@@ -5,6 +5,8 @@ Authoritative list of Prometheus metrics exported by the G6 options collection p
 > Legend: Type abbreviations — C=Counter, G=Gauge, H=Histogram, S=Summary, R=Recording (derived in Prometheus rules).
 >
 > Naming conventions: All application metrics are prefixed with `g6_`. Counters end in `_total` when monotonic. Timestamps end in `_unixtime` and are seconds since epoch.
+>
+> Modularization Note (2025-10): The metrics system is mid-refactor (Phase 3.x). Public import surface is via `from src.metrics import ...`. Deep imports of `src.metrics.metrics` will remain functional for one release window after completion. This document is agnostic to module boundaries; metric names & semantics are stable unless explicitly marked experimental. Always register new metrics through the facade/group registry to ensure governance tests detect them.
 
 ---
 ## 1. Core Cycle & Uptime

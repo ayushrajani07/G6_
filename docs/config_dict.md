@@ -1,6 +1,6 @@
 # G6 Configuration Dictionary
 
-_Last generated: 2025-09-26_
+_Last generated: 2025-09-26 (doc consolidation refresh 2025-10-03: added metrics facade modularization note & clarified schema governance)_
 
 This document catalogs all known configuration options and relevant environment variable overrides for the G6 platform. It merges current (v2 style) configuration (`g6_config.json`) with legacy/compat files (`_config.json`, `_g6_config.json`) and runtime feature/env flags. Use this as the authoritative reference when introducing schema validation or deprecating legacy keys.
 
@@ -180,6 +180,8 @@ Future configuration will likely introduce `indices_defaults` + adaptive scaling
 3. `g6_config_deprecated_keys_total{key}` metric reserved for future soft deprecation phases; currently no deprecated keys are allowed past schema so this counter will not increment.
 4. Provide migration doc updates in `MIGRATION.md` when introducing a soft-deprecation window before removal (if reintroducing transitional acceptance).
 5. `G6_CONFIG_LEGACY_SOFT=1`: Accepts (and strips) deprecated keys while incrementing the counter to measure remaining usage.
+ 6. Metrics Facade Modularization: as of 2025-10 Phase 3.x the legacy monolith `metrics/metrics.py` is being decomposed (see `README.md` Section 3.1). Config references SHOULD avoid deep imports; no config keys are required for modularization (purely internal), but any future `metrics.*` subtree keys MUST appear in this file concurrently with code.
+ 7. Duplication Policy: Do not duplicate config key definitions in ancillary markdown (e.g. `README.md`) beyond high-level summaries; this file remains authoritative for key path documentation.
 
 ---
 ## 13. Quick Reference (Most Common Runtime Knobs)

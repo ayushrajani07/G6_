@@ -26,8 +26,8 @@
   "indices": {
     "NIFTY": {
       "enable": true,
-      "strikes_itm": 10,
-      "strikes_otm": 10,
+      "strikes_itm": 6,
+      "strikes_otm": 6,
       "expiries": ["this_week", "next_week", "this_month", "next_month"]
     },
     "BANKNIFTY": {

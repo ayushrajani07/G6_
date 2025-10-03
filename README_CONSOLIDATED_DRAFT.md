@@ -8,7 +8,12 @@ Migration: Update any external references to point to the canonical top-level RE
 
 Removal target: After one stable release (R+1) barring external dependency.
 
+Status: [D] Deprecated – historical draft only.
+
 History review:
 ```
-git log -- README_CONSOLIDATED_DRAFT.md
+Draft consolidation placeholder superseded by canonical `README.md` (2025-10-01).
+Retained temporarily as a tombstone; scheduled for deletion.
+
+For full docs, see `README.md`.
 ```

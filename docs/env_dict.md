@@ -1,12 +1,14 @@
 # G6 Environment Variable Dictionary
 
-_Last updated: 2025-10-01 (added test runtime budget variables & consolidation note)_
+_Last updated: 2025-10-03 (logging colorization & structured events formatting notes; header adjusted to avoid duplicate token enumeration)_
 
-This catalog enumerates environment variables that influence runtime behavior. It complements `docs/config_dict.md` (JSON keys) and `docs/CONFIG_FEATURE_TOGGLES.md` (narrative feature toggle guidance).
+This catalog enumerates environment variables that influence runtime behavior. It complements `docs/config_dict.md` (JSON keys) and `docs/CONFIG_FEATURE_TOGGLES.md` (narrative feature toggle guidance). Recent logging & structured events toggles are documented in the Quiet / Logging Enhancements section below (audit complete). Token names intentionally NOT repeated in this header to prevent duplicate doc detection.
 
 Quick Start: A curated, commented template for common local/dev toggles lives at the repository root as `.env.example`. Copy it to `.env` (or `.env.local` if your tooling differentiates) and uncomment variables you wish to override. This dictionary remains the authoritative exhaustive reference.
 
-Note: Metrics documentation is now unified in `docs/METRICS.md` (the former `metrics_dict.md` content was merged). Update only that file when adding or modifying metrics.
+Note: Metrics documentation is now unified in `docs/METRICS.md` (the former `metrics_dict.md` content was merged). Update only that file when adding or modifying metrics. Do NOT replicate full metric variable descriptions here—link instead.
+
+Duplication Policy: Environment variable definitions appear exactly once (authoritative here). High-level summaries in `README.md` may reference variables but must not attempt to redefine defaults or types; discrepancies are treated as documentation drift.
 
 Format: NAME – Type – Default – Description / Effect (Notes / Examples)
 
@@ -40,12 +42,14 @@ Legend: bool accepts (1,true,yes,on) case-insensitive; unset implies default.
  - G6_QUIET_MODE – bool – off – Quiet mode: elevate root log level and suppress verbose trace chatter (implies concise logs).
  - G6_SUMMARY_DEBUG_LOG – bool – off – High-volume summary internals logging (loop timings, panel store metadata).
 - G6_LOOP_HEARTBEAT_INTERVAL – float – 0 – When >0 emits a concise `hb.loop.heartbeat` line at most every N seconds containing cycle count, last options processed, and (best-effort) rate limiter & batching stats. 0/unset disables.
- - G6_SUPPRESS_GROUPED_METRICS_BANNER – bool – off – When enabled, fully suppresses the one-time "Grouped metrics registration complete" INFO banner (in addition to generic repeat suppression). Useful for ultra‑minimal startup logs.
- - G6_SUPPRESS_DUPLICATE_METRICS_WARN – bool – off – Suppress the `metrics.duplicates.detected` warning emitted when multiple registry attributes reference the same collector object. Use only after investigating root cause to avoid masking genuine duplication drift.
- - G6_DUPLICATES_LOG_LEVEL – enum(warning|info|debug|error|critical) – warning – Override severity for the duplicate metrics summary line (ignored when suppression flag set). Lower to `info` to keep it out of WARNING-level filtered consoles; raise to `error`/`critical` to surface aggressively in strict CI.
- - G6_LOG_COLOR_MODE – enum(auto|on|off) – auto – ANSI colorization mode for standard logging output (non-Rich). auto enables colors when stdout is a TTY; on forces; off disables.
- - G6_LOG_COLOR_FORCE – bool – off – Force-enable ANSI colors even if TTY not detected (useful in some CI terminals or Windows shells that support colors after initialization).
- - G6_STRUCT_EVENTS_FORMAT – enum(json|human|both) – json – Controls formatting of structured collector events (cycle_status_summary, option_match_stats, instrument_prefilter_summary, etc.). json: original `STRUCT <name> | {json}` only. human: concise single-line human readable summaries (`STRUCT_H <name> key=val ...`). both: emit both forms for side-by-side log + machine parsing.
+<!-- BEGIN logging_env_block (authoritative single entries) -->
+- `G6_SUPPRESS_GROUPED_METRICS_BANNER` – bool – off – Fully suppress the one-time "Grouped metrics registration complete" INFO banner (on top of repeat suppression). For ultra‑minimal startup logs.
+- `G6_SUPPRESS_DUPLICATE_METRICS_WARN` – bool – off – Suppress the `metrics.duplicates.detected` warning when multiple registry attributes reference the same collector. Investigate root cause first to avoid masking drift.
+- `G6_DUPLICATES_LOG_LEVEL` – enum(warning|info|debug|error|critical) – warning – Override severity for duplicate metrics summary line (ignored if suppression flag set). Lower to info to hide from WARNING-filtered consoles; raise to error/critical for stricter CI surfacing.
+- `G6_LOG_COLOR_MODE` – enum(auto|on|off) – auto – ANSI colorization for standard logging (non-Rich). auto enables when stdout is a TTY; on forces; off disables.
+- `G6_LOG_COLOR_FORCE` – bool – off – Force-enable ANSI colors even when TTY not detected (CI/Windows fallback cases).
+- `G6_STRUCT_EVENTS_FORMAT` – enum(json|human|both) – json – Formatting of structured collector events (cycle_status_summary, option_match_stats, instrument_prefilter_summary, etc.). json: legacy `STRUCT <name> | {json}` line only; human: concise one-line human summary (`STRUCT_H <name> key=val ...`); both: emit both forms.
+<!-- END logging_env_block -->
 
 ### Risk Aggregation Persistence
  - G6_RISK_AGG_PERSIST – bool – off – Persist latest risk aggregation artifact (risk_agg.latest.json[.gz]) to analytics directory.

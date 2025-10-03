@@ -2,9 +2,7 @@
   CANONICAL README
   This unified README consolidates content previously spread across:
     * README.md (original core overview)
-    * README_COMPREHENSIVE.md (architecture & operations guide)
-    * README_CONSOLIDATED_DRAFT.md (draft merger)
-    * README_web_dashboard.md (deprecated web dashboard)
+  * (Former variants removed: README_COMPREHENSIVE.md, README_CONSOLIDATED_DRAFT.md, README_web_dashboard.md – unified here)
     * scripts/README.md (init menu & simulator quick start)
   The auxiliary README_* files are now archival stubs and will be removed after one stable release window (R+1) unless external references require a longer grace period.
 -->
@@ -60,6 +58,48 @@ VS Code Tasks (recommended):
 | Health & Resilience | `src/health/*`, `src/utils/*` | Circuit breakers, retries, memory pressure, symbol hygiene |
 | Token / Auth | `src/tools/token_manager.py`, `src/tools/token_providers/*` | Provider token acquisition (headless & interactive) |
 | Config & Docs Governance | `src/config/*`, tests in `tests/` | Schema validation, doc coverage enforcement |
+
+### 3.1 Module & Workflow Status Matrix
+Legend: [C] Completed & stable  |  [P] Planned / design accepted  |  [IP] In Progress / partial refactor  |  [E] Experimental (behind flag)  |  [D] Deprecated (pending removal)
+
+| Domain | Key Paths (Representative) | Purpose / Workflow Role | Current Status | Notes / Next Steps |
+|--------|---------------------------|-------------------------|----------------|--------------------|
+| Orchestrator | `unified_main.py`, `orchestrator/` | Bootstrap, interval loop, graceful shutdown, feature flag wiring | [C] | Heartbeat & rate-limit stats recently added; monitor for noise tuning |
+| Collectors Core | `collectors/unified_collectors.py`, `collectors/pipeline.py` | Per-index cycle coordination, invoke providers, analytics, persistence | [C] | Future: fine-grained concurrency controls (P) |
+| Collector Modules | `collectors/modules/*.py` | Strike depth calc, aggregation, synthetic fallbacks, status finalization | [C] | Evaluate adaptive strike window (P) |
+| Providers Facade | `collectors/providers_interface.py`, `providers/` | Abstract live / mock provider, expiry + instrument resolution | [IP] | Multi-provider fallback design drafted; implementation pending |
+| Token Management | `tools/token_manager.py`, `tools/token_providers/*` | Acquire / validate auth tokens (kite, fake) | [C] | Add secret sanitization (P) |
+| Analytics (Greeks/IV) | `analytics/option_greeks.py`, `analytics/iv_solver.py` | Newton-Raphson IV, Greeks, PCR, breadth | [C] | Vol surface interpolation (P); risk aggregation (E) |
+| Adaptive / Cardinality | `adaptive/`, `metrics/cardinality_manager.py` | Dynamic emission gating & adaptive detail modes | [IP] | Additional feedback loops & band window tuning (P) |
+| Storage CSV | `storage/csv_sink.py` | Durable per-option & overview rows | [C] | Retention / pruning engine (P) |
+| Storage Influx | `storage/influx_sink.py` | Optional time-series writes | [C] | Evaluate migration to client batching (P) |
+| Panels Writer & Summary | `panels/`, `scripts/summary_view.py`, `summary/` | Real-time textual + JSON panels emission | [C] | Per-index enrichment additions (P) |
+| Panel Integrity | `panels/validate.py`, `panels/integrity_monitor.py` | Hash manifest, integrity verification loop | [C] | Consider checksum streaming API (P) |
+| Metrics Facade | `metrics/__init__.py`, `metrics/metrics.py` | Registry acquisition, grouped registration, placeholders | [IP] | Continued modular extraction (Phase 3.x) |
+| Metrics Group Registry | `metrics/group_registry.py`, `metrics/placeholders.py` | Controlled families, always-on safety sets | [C] | Monitor for alias deprecation removals (D: `perf_cache` soon) |
+| Resilience Utilities | `utils/resilience.py`, `utils/circuit_breaker.py` | Retry/backoff, circuit breaking | [C] | Jitter parameterization exposure (P) |
+| Rate Limiter & Batching | `utils/rate_limiter.py`, `collectors/helpers/` | Token bucket, micro-batching, quote cache | [C] | Telemetry tuning if provider limits shift |
+| Health Checks | `health/health_checker.py` | Component readiness & liveness registry | [C] | Expand with latency percentiles (P) |
+| Data Quality Filters | `utils/data_quality.py` | Sanitize abnormal quotes / OI | [C] | Add statistical anomaly detection (P) |
+| Symbol Hygiene | `utils/symbol_root.py` | Root / strict matching gating | [C] | Remove legacy matching mode when usage < threshold (D planned) |
+| Config Schema & Docs | `config/`, `schema/`, tests | JSON schema v2, doc coverage enforcement | [C] | Evaluate schema v3 (P) |
+| Governance Tests | `tests/` (env & config coverage, timing guard) | Prevent drift & performance regression | [C] | Add placeholder metrics order regression (C) |
+| Logging Enhancements | `utils/output.py`, structured event formatters | Colorization, suppression, human struct events | [C] | Evaluate JSON lines audit sink (P) |
+| Web (Legacy) | `web/` | Deprecated FastAPI dashboard | [D] | Removal target R+1 unless blockers |
+| Archived Artifacts | `archived/`, `archive/` | Historical snapshots, retired modules | [C] | Periodic pruning script (P) |
+| Security / Supply Chain | `scripts/gen_sbom.py`, `scripts/pip_audit_gate.py` | SBOM + dependency audit | [C] | Automated PR gating (P) |
+| Automation / CI | `.github/workflows/auto-maintenance.yml` | Docs regeneration, dependency scans (main only) | [C] | Add lint & type gates (P) |
+| Roadmap Tracking | `WAVE*_TRACKING.md` | Phased feature tracking | [C] | Consolidate into issue tracker (P) |
+
+Status Rationale Snapshots:
+- Providers Facade [IP]: groundwork for multi-provider orchestrator present; failover logic not integrated.
+- Metrics Facade [IP]: modular extraction mid-way; deep imports still supported (shim) until completion.
+- Adaptive / Cardinality [IP]: Band rejection & placeholder counters live; advanced feedback heuristics pending.
+- Web (Legacy) [D]: Replaced by panels + Grafana; retained for short-term reference only.
+
+Planned (P) High-Impact Upcoming Items (see Section 14 Roadmap also): retention/pruning engine, multi-provider fallback, vol surface interpolation, expiry calendar service, schema v3, lint/type CI gates.
+
+Experimental (E) surfaces remain behind environment flags and are intentionally excluded from strict governance tests to allow iteration without churn.
 
 ## 4. Collection Cycle Flow
 ```
@@ -368,6 +408,26 @@ Deprecated Launcher Shim: `start_live_dashboard_v2.ps1` → canonical `scripts/s
 * SBOM: `scripts/gen_sbom.py`
 * Dependency audit: `scripts/pip_audit_gate.py`
 * Avoid logging secrets (sanitization planned for expanded patterns)
+
+## 17.1 Retention Scan (Pre-Retention Engine Tool)
+`g6 retention-scan` provides a lightweight on-demand snapshot of CSV storage footprint before a formal pruning/retention service is implemented.
+
+Outputs (text mode): total files, aggregate size (MB), oldest/newest file timestamps, count of distinct index subdirectories.
+
+JSON mode:
+```
+g6 retention-scan --json
+{
+  "csv_dir": "data/g6_data",
+  "total_files": 1234,
+  "total_size_mb": 456.789,
+  "oldest_file_utc": "2025-09-15T09:15:00",
+  "newest_file_utc": "2025-10-03T10:25:30",
+  "per_index_counts": {"NIFTY": 400, "BANKNIFTY": 410, "FINNIFTY": 220, "SENSEX": 204}
+}
+```
+
+Heuristic index detection: first path component under `--csv-dir` (default `data/g6_data`). This tool is read‑only and safe to run in production. Integrate results into dashboards or external alerting until automatic retention (Roadmap: Section 14) lands.
 
 ## 18. Glossary
 | Term | Meaning |

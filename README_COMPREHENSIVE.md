@@ -11,10 +11,16 @@ Canonical source: see top-level `README.md`.
 
 History / diff review:
 ```
-git log -- README_COMPREHENSIVE.md
+This file was consolidated into the canonical `README.md` on 2025-10-01.
+It will be deleted in a subsequent cleanup commit after confirming no external automation references it.
+See `README.md` for all architecture, operations, and dashboard documentation.
+
+Historical git history preserved; run:
+	git log -- README_COMPREHENSIVE.md
+if you need prior revision context.
 ```
 
-Deprecation Timeline: First archived 2025-10-01 (R). Target removal: R+1 unless external references still point here.
+Deprecation Timeline: First archived 2025-10-01 (Release R). Planned removal after R+1 unless external references still point here.
 
 If you reached this file via an outdated link, update bookmarks / docs to reference the canonical README instead.
 - Level 3: reduce strike depth / expiry breadth (planned extension)

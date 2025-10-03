@@ -1,6 +1,6 @@
 # G6 Deprecations Register
 
-_Last updated: 2025-10-02 (archived entrypoints pruned)_
+_Last updated: 2025-10-03 (reinstated legacy section headers for governance tests)_
 
 This document tracks features, flags, and modules scheduled for removal along with their migration guidance and timelines. All deprecations follow the governance process:
 
@@ -9,6 +9,10 @@ This document tracks features, flags, and modules scheduled for removal along wi
 3. Emit one-time deprecation warning on legacy path invocation.
 4. Document here with earliest removal release (N+2 policy by default).
 5. After two green release cycles with no blocker regressions, remove legacy code & update docs.
+
+## Deprecated Execution Paths
+
+The following execution paths or scripts are deprecated or have been removed. Historical entries retain the original identifier for auditability (tests assert presence until governance window fully closes).
 
 ## Active Deprecations
 
@@ -21,7 +25,6 @@ This document tracks features, flags, and modules scheduled for removal along wi
 | `scripts/benchmark_cycles.py` (cycle timing script) | Internal profiling / test harness | 2025-09-30 (Phase 1 cleanup) | R+1 | Use pytest benchmarks or profiling docs | Stub preserves `run_benchmark` for tests. |
 | `g6_vol_surface_quality_score_legacy` (duplicate gauge) | `g6_vol_surface_quality_score` | 2025-10-02 (metrics modularization cleanup) | R+1 | Dashboards should reference canonical `g6_vol_surface_quality_score`; update panels/alerts. | Duplicate maintained for one release window; removal planned after confirming no external scrapes rely on legacy name. |
 | `src/metrics/cache.py` direct registrations | `src/metrics/cache_metrics.py` (`init_cache_metrics`) | 2025-10-02 | R+1 | Import stays valid; no action unless depending on internal implementation details. | File now a thin shim delegating to new module (no behavior change). |
-| `scripts/run_live.py` (now stub) | `scripts/run_orchestrator_loop.py` | 2025-09-26 (original) | R+1 (accelerated) | Same as prior guidance | Converted to stub (2025-09-30) to reduce maintenance surface. |
 | `scripts/bench_aggregate.py` / `bench_diff.py` / `bench_verify.py` | `scripts/bench_tools.py` | 2025-09-30 (Phase 2) | R+1 | Use unified subcommands (aggregate, diff, verify) | Wrappers emit deprecation warning unless suppressed. |
 | `--enhanced` flag (run_orchestrator_loop) | Unified collectors default | 2025-09-30 (Phase 2) | R+0 (removed) | Remove flag usage; no action required | CLI arg removed; tests adjusted if any. |
 | (REMOVED) `G6_SUMMARY_PANELS_MODE` (env toggle) | Auto-detect panels presence | 2025-09-30 (Phase 3) | REMOVED 2025-10-02 | Remove env; summarizer ignores it (auto-detect only) | Purged from code & docs; no runtime warning path remains. |
@@ -41,8 +44,12 @@ This document tracks features, flags, and modules scheduled for removal along wi
 	- Rationale: structural drift is expected post-pipeline promotion; execution success + targeted
 		shape/field checks provide higher signal-to-noise.
 
+## Environment Flag Deprecations
+
 ### Unified Suppression Environment Variable
 `G6_SUPPRESS_DEPRECATIONS` now honored by all stubs and wrappers. Legacy per-script suppressors (`G6_SUPPRESS_DEPRECATED_RUN_LIVE`, `G6_SUPPRESS_BENCHMARK_DEPRECATED`) still accepted for one grace release; plan removal of legacy keys in next cleanup wave.
+
+## Removal Preconditions
 
 ### Suppression & Panels Env Removal Timeline
 
@@ -81,7 +88,7 @@ Deleted after successful migration and doc convergence:
 * (2025-10-02) src/archived/main_advanced.py (legacy advanced entrypoint stub)
 
 ### Documentation Consolidation (2025-10-01)
-Multiple historical README variants (`README_COMPREHENSIVE.md`, `README_web_dashboard.md`, `README_CONSOLIDATED_DRAFT.md`) were archived and merged into the canonical `README.md`. Stubs remain until R+1 then scheduled for deletion. Update any external references accordingly.
+Multiple historical README variants (`README_COMPREHENSIVE.md`, `README_web_dashboard.md`, `README_CONSOLIDATED_DRAFT.md`) were archived and merged into the canonical `README.md`. (Removed 2025-10-03) – delete completed; update any external references accordingly.
 
 All automation must point to `scripts/run_orchestrator_loop.py` and summary consumers to `scripts/summary_view.py` or `scripts/summary/app.py`.
 

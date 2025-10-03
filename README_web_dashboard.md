@@ -9,9 +9,15 @@ Replacement surfaces:
 
 If you require the historical implementation details (endpoints, SSE diff mode, adaptive alerts UI) inspect git history:
 ```
-git log -- README_web_dashboard.md
+Legacy web dashboard README content merged into core `README.md` under dashboard sections.
+File retained briefly as tombstone; will be removed once external references updated.
+
+For any historical diff review:
+	git log -- README_web_dashboard.md
 ```
 
-Deprecation timeline: Archived 2025-10-01 (R). Planned removal after R+1.
+Deprecation timeline: Archived 2025-10-01 (Release R). Planned removal after R+1.
+
+Status: [D] Deprecated – superseded by panels JSON + summary + Grafana.
 
 Please update external links to point to the canonical README.

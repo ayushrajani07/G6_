@@ -7,7 +7,7 @@ Subcommands:
   panels-bridge    Run legacy status->panels bridge (wraps status_to_panels.py)
   integrity        Run one-shot panels integrity check (wraps panels_integrity_check.py)
   bench            Run a lightweight benchmark placeholder (stub)
-  retention-scan   Run retention scan (stub placeholder)
+    retention-scan   Scan CSV storage tree for basic retention metrics
   version          Show CLI + panel schema versions
 
 Environment:
@@ -149,6 +149,64 @@ def cmd_version(args: argparse.Namespace) -> int:  # noqa: ARG001
     return 0
 
 
+def cmd_retention_scan(args: argparse.Namespace) -> int:
+    """Scan CSV storage directory and emit size / file count metrics.
+
+    Provides a lightweight visibility tool ahead of full retention engine.
+    Output (text or JSON) includes:
+      total_files, total_size_mb, oldest_file_iso, newest_file_iso, per_index_counts
+    """
+    base = Path(args.csv_dir)
+    if not base.exists():
+        msg = {"error": "missing_path", "csv_dir": str(base)}
+        if args.json:
+            print(json.dumps(msg))
+        else:
+            print(f"[retention-scan] ERROR missing path: {base}")
+        return 2
+    total_size = 0
+    total_files = 0
+    oldest = None
+    newest = None
+    per_index: dict[str, int] = {}
+    for p in base.rglob('*.csv'):
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        total_files += 1
+        total_size += st.st_size
+        mtime = st.st_mtime
+        if oldest is None or mtime < oldest:
+            oldest = mtime
+        if newest is None or mtime > newest:
+            newest = mtime
+        # Index heuristic: first path component after base
+        rel = p.relative_to(base)
+        parts = rel.parts
+        if parts:
+            per_index[parts[0]] = per_index.get(parts[0], 0) + 1
+    import datetime as _dt
+    def _iso(ts: float | None) -> str | None:
+        return _dt.datetime.utcfromtimestamp(ts).isoformat() if ts else None
+    result = {
+        "csv_dir": str(base),
+        "total_files": total_files,
+        "total_size_mb": round(total_size / (1024 * 1024), 3),
+        "oldest_file_utc": _iso(oldest),
+        "newest_file_utc": _iso(newest),
+        "per_index_counts": per_index,
+    }
+    if args.json:
+        print(json.dumps(result, sort_keys=True))
+    else:
+        print(
+            f"[retention-scan] files={result['total_files']} size_mb={result['total_size_mb']} "
+            f"oldest={result['oldest_file_utc']} newest={result['newest_file_utc']} indices={len(per_index)}"
+        )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog='g6', description='Unified G6 operational CLI')
     sub = p.add_subparsers(dest='cmd', required=True)
@@ -188,6 +246,11 @@ def build_parser() -> argparse.ArgumentParser:
     bench = sub.add_parser('bench', help='Benchmark import + registry init timing')
     bench.add_argument('--json', action='store_true')
     bench.set_defaults(func=cmd_bench)
+
+    rs = sub.add_parser('retention-scan', help='Scan CSV storage for size & age statistics')
+    rs.add_argument('--csv-dir', default='data/g6_data')
+    rs.add_argument('--json', action='store_true')
+    rs.set_defaults(func=cmd_retention_scan)
 
     diag = sub.add_parser('diagnostics', help='Emit governance + version diagnostics JSON')
     diag.add_argument('--pretty', action='store_true')
