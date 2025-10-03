@@ -104,5 +104,27 @@ Phase | Goals
 3. Add tests
 4. Commit & push
 
+## Phase 1 Progress (2025-10-03)
+Implemented:
+- Panel intermediate types (`panel_types.py`).
+- Panel registry with cycle, indices, alerts, resources providers (`panel_registry.py`).
+- Plain renderer plugin (`plain_renderer.py`) producing stable text output from domain snapshot + registry.
+- Rewrite flag integration (`G6_SUMMARY_REWRITE`) in `scripts/summary/app.py` for:
+	- Unified loop: uses `PlainRenderer` when `--no-rich` and flag active.
+	- One-shot fallback path: domain snapshot + panel registry instead of legacy `plain_fallback`.
+- Tests:
+	- `test_panel_registry.py` (structure & error handling).
+	- `test_plain_renderer.py` (ordering, missing field resilience).
+
+Next (Phase 2 Targets):
+- Replace loop snapshot builder with domain snapshot + derived metrics consolidation.
+- Add diff hashing to skip unchanged panels.
+- Parity tests between legacy plain fallback and new plain renderer.
+
+Flag Usage:
+```
+G6_SUMMARY_REWRITE=1 python scripts/summary/app.py --no-rich --cycles 1
+```
+
 ---
 (End of Phase 0 planning document)
