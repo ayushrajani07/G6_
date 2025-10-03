@@ -7,6 +7,8 @@ All notable changes to this project will be documented in this file. Dates use I
 - Pruned deprecated `scripts/run_live.py` (fully removed) and consolidated logging env var documentation block to eliminate duplicate governance warnings.
 - Tombstoned legacy README variants (`README_COMPREHENSIVE.md`, `README_CONSOLIDATED_DRAFT.md`, `README_web_dashboard.md`) pending final deletion after external reference audit.
  - Removed legacy README variants (2025-10-03) after confirming no test/external references.
+### Maintenance
+- Squashed prior documentation/cleanup commits (run_live.py removal, legacy README tombstone + deletion, env var docs consolidation) into single commit `d5ebb30` for history hygiene (no functional changes). Original hashes consolidated: d049712, 7285c74, 01e0988.
 ### Added
 - ANSI colorized logging (non-Rich) via new env vars: G6_LOG_COLOR_MODE (auto|on|off) and G6_LOG_COLOR_FORCE for CI/Windows forcing. Includes keyword highlighting for success/pass/fail/warning tokens.
 - G6_STRUCT_EVENTS_FORMAT env flag (json|human|both) enabling concise human-readable summaries for structured collector events alongside or instead of raw JSON lines.
