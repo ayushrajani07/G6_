@@ -70,7 +70,7 @@ jobs:
           safety check -r requirements.txt || true
       - name: Create issue on findings
         if: failure()
-        uses: peter-evans/create-issue-from-file@v5
+        uses: peter-evans/create-issue-from-file@v6
         with:
           title: 'Dependency audit findings'
           content-filepath: audit_results.txt
