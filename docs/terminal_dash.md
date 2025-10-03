@@ -126,5 +126,25 @@ Flag Usage:
 G6_SUMMARY_REWRITE=1 python scripts/summary/app.py --no-rich --cycles 1
 ```
 
+## Phase 2 Progress (2025-10-03)
+Implemented:
+- Added `domain` field to `SummarySnapshot` dataclass.
+- Unified loop now builds domain snapshot first, then legacy derived map (transitional).
+- PanelsWriter prefers domain fields for `indices_count` and `alerts_total`.
+- Plain renderer gains diff suppression (hash-based) with env override `G6_SUMMARY_PLAIN_DIFF=0`.
+- New tests:
+	- `test_unified_loop_domain.py` (domain population & indices count parity).
+	- `test_plain_renderer_diff.py` (suppression and disabling).
+
+Notes:
+- Frame builder still used for memory/panels_mode; will migrate once those fields move into domain model.
+- No changes to existing rich renderer path yet (Phase 3 target).
+
+Next (Phase 3 Targets):
+- Integrate diff hashing into rich panels (panel-level invalidation).
+- Expose domain snapshot to TerminalRenderer for hybrid rendering.
+- Add parity fixture tests: legacy `plain_fallback` vs new plain renderer output lines.
+- Begin removing duplicated derive helpers from deprecated `summary_view.py`.
+
 ---
 (End of Phase 0 planning document)
