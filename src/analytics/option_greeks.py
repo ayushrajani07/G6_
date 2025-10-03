@@ -10,6 +10,7 @@ import logging
 import math
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Tuple, Union, Any
+from src.error_handling import handle_api_error, handle_critical_error
 
 try:  # Prefer scipy for accuracy
     from scipy.stats import norm  # type: ignore
@@ -143,6 +144,8 @@ class OptionGreeks:
             }
             
         except Exception as e:
+            # Route analytics calculation error centrally; keep log and fallback
+            handle_api_error(e, component="analytics.option_greeks", context={"fn": "black_scholes"})
             logger.error(f"Black-Scholes calculation error: {e}")
             return {
                 "price": 0.0,

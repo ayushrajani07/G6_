@@ -1,948 +1,504 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Kite Provider for G6 Options Trading Platform.
-"""
+"""Primary Kite provider facade (post modular Phases 1–8).
 
-import os
+Reconstructed after extraction phases:
+  * Expiry resolution -> src.broker.kite.expiries
+  * Option filtering  -> src.broker.kite.options
+  * Quote / LTP logic -> src.broker.kite.quotes
+  * Dummy provider    -> src.broker.kite.dummy_provider
+
+This module now focuses on light orchestration: wiring settings, state, client,
+rate limiting, caching, and delegating to specialized modules. Public API and
+behaviour are kept broadly backwards compatible for tests and existing code.
+"""
+from __future__ import annotations
+
+import datetime as _dt
 import logging
-import datetime
-from datetime import date, timedelta
-from typing import Dict, List, Optional, Set, Tuple, Any
-import json
-from src.utils.retry import call_with_retry
+import os
+import time
+import warnings
+from src.utils.deprecations import emit_deprecation  # type: ignore
+from typing import Set
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+from typing import Any, Iterable, Optional, Protocol, Dict, List
+
+from src.broker.kite.settings import load_settings, Settings
+from src.broker.kite.state import ProviderState
 from src.utils.rate_limiter import RateLimiter
+from src.utils.retry import call_with_retry
+from src.error_handling import handle_provider_error, handle_data_collection_error
+
+# Re-export DummyKiteProvider for backwards compatibility
+from src.broker.kite.dummy_provider import DummyKiteProvider  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
-# Global / env controlled concise logging toggle.
+# ----------------------------------------------------------------------------
+# Concise logging flag (legacy semantics: default ON unless explicit off)
+# ----------------------------------------------------------------------------
 CONCISE_ENV_VAR = "G6_CONCISE_LOGS"
-# Default: concise ON unless explicitly disabled via env var (e.g. 0/false/no/off)
 _raw_concise = os.environ.get(CONCISE_ENV_VAR)
 if _raw_concise is None:
     _CONCISE = True
 else:
     _CONCISE = _raw_concise.lower() not in ("0", "false", "no", "off")
 
-def enable_concise_logs(value: bool = True):  # lightweight helper
+# ----------------------------------------------------------------------------
+# Index + exchange pool mappings (minimal set used across modules/tests)
+# ----------------------------------------------------------------------------
+INDEX_MAPPING: Dict[str, tuple[str, str]] = {
+    "NIFTY": ("NSE", "NIFTY 50"),
+    "BANKNIFTY": ("NSE", "NIFTY BANK"),
+    "FINNIFTY": ("NSE", "NIFTY FIN SERVICE"),
+    "MIDCPNIFTY": ("NSE", "NIFTY MIDCAP SELECT"),
+    "SENSEX": ("BSE", "SENSEX"),
+}
+POOL_FOR: Dict[str, str] = {k: "NFO" for k in INDEX_MAPPING.keys()}
+
+# ----------------------------------------------------------------------------
+# Helpers
+# ----------------------------------------------------------------------------
+class _KiteLike(Protocol):  # minimal protocol for type hints
+    # Match KiteConnect signature (param name access_token)
+    def set_access_token(self, access_token: str) -> None: ...  # pragma: no cover
+    def instruments(self) -> list[dict[str, Any]] | Any: ...  # pragma: no cover
+    def ltp(self, *args: Any, **kwargs: Any) -> Any: ...  # pragma: no cover
+    def quote(self, *args: Any, **kwargs: Any) -> Any: ...  # pragma: no cover
+
+def _timed_call(fn, timeout: float) -> Any:
+    with ThreadPoolExecutor(max_workers=1) as exe:
+        fut = exe.submit(fn)
+        try:
+            return fut.result(timeout=timeout)
+        except FuturesTimeout:
+            raise TimeoutError(f"operation timed out after {timeout}s")
+
+def _is_auth_error(e: BaseException) -> bool:
+    msg = str(e).lower()
+    return any(k in msg for k in ("auth", "token", "unauthorized", "forbidden", "expired"))
+
+def enable_concise_logs(value: bool = True):
     global _CONCISE  # noqa: PLW0603
     _CONCISE = value
     logger.info(f"Concise logging {'ENABLED' if _CONCISE else 'DISABLED'} (runtime override)")
 
-# Indices and their exchange pools
-POOL_FOR = {
-    "NIFTY": "NFO",
-    "BANKNIFTY": "NFO", 
-    "FINNIFTY": "NFO",
-    "MIDCPNIFTY": "NFO",  # Added MidcpNifty
-    "SENSEX": "BFO",
-}
-
-# Index name mappings for LTP queries
-INDEX_MAPPING = {
-    "NIFTY": ("NSE", "NIFTY 50"),
-    "BANKNIFTY": ("NSE", "NIFTY BANK"),
-    "FINNIFTY": ("NSE", "NIFTY FIN SERVICE"),
-    "MIDCPNIFTY": ("NSE", "NIFTY MIDCAP SELECT"), 
-    "SENSEX": ("BSE", "SENSEX"),
-}
-
+# ----------------------------------------------------------------------------
+# Provider
+# ----------------------------------------------------------------------------
 class KiteProvider:
-    """Real Kite API provider."""
-    
+    """Thin orchestration facade around modular provider logic.
+
+    Phase 10 (cleanup & deprecation):
+      * Added deprecation shims for legacy direct attribute access (option cache metrics etc.).
+      * Added provider_diagnostics() helper for structured inspection instead of reaching into internals.
+      * Future removal notice: direct access to internal state attributes (e.g. ._state.option_instrument_cache) will be
+        discouraged and eventually removed; rely on public helpers.
+    """
+    def __init__(
+        self,
+        api_key: str | None = None,
+        access_token: str | None = None,
+        kite_client: Optional[_KiteLike] = None,
+        settings: Optional[Settings] = None,
+    ) -> None:
+        emit_deprecation(
+            'kite-provider-init',
+            'KiteProvider: direct use is stable but internal attribute access is deprecated; use provider_diagnostics() instead.',
+            force=True,
+        )
+        self._settings = settings or load_settings()
+        self._state = ProviderState()
+        self._api_key = api_key or os.environ.get("KITE_API_KEY") or os.environ.get("KITE_APIKEY")
+        self._access_token = access_token or os.environ.get("KITE_ACCESS_TOKEN") or os.environ.get("KITE_ACCESSTOKEN")
+        self.kite: Optional[_KiteLike] = kite_client
+        self._auth_failed = False
+
+        # Rate limiter
+        ms = getattr(self._settings, 'kite_throttle_ms', 0) or 0
+        self._api_rl = RateLimiter(ms / 1000.0) if ms > 0 else None
+        self._rl_last_log_ts = 0.0
+        self._rl_last_quote_log_ts = 0.0
+
+        # Synthetic / diagnostics counters (referenced by extracted modules)
+        self._synthetic_quotes_used = 0
+        self._last_quotes_synthetic = False
+        self._used_fallback = False
+
+        # Lazy create kite client if credentials supplied and not injected
+        if self.kite is None and self._api_key and self._access_token:
+            try:  # pragma: no cover - external dependency
+                from kiteconnect import KiteConnect  # external dependency
+                kc = KiteConnect(api_key=self._api_key)
+                kc.set_access_token(self._access_token)
+                self.kite = kc
+                logger.info("Kite client initialized (lazy)")
+            except Exception as e:  # pragma: no cover
+                logger.debug(f"Kite client init skipped: {e}")
+
+    # --- construction helpers ---------------------------------------------
     @classmethod
-    def from_env(cls):
-        """Create KiteProvider from environment variables."""
-        api_key = os.environ.get("KITE_API_KEY")
-        access_token = os.environ.get("KITE_ACCESS_TOKEN")
-        
-        if not api_key or not access_token:
-            raise ValueError("KITE_API_KEY or KITE_ACCESS_TOKEN not set")
-        
+    def from_env(cls):  # pragma: no cover - tiny wrapper, exercised by test
+        """Instantiate using environment variables (factory relies on this).
+
+        Looks for KITE_API_KEY / KITE_APIKEY and KITE_ACCESS_TOKEN / KITE_ACCESSTOKEN.
+        Missing values are tolerated; the provider will simply operate in synthetic
+        fallback mode when real calls are attempted.
+        """
+        api_key = os.environ.get("KITE_API_KEY") or os.environ.get("KITE_APIKEY")
+        access_token = os.environ.get("KITE_ACCESS_TOKEN") or os.environ.get("KITE_ACCESSTOKEN")
         return cls(api_key=api_key, access_token=access_token)
-    
-    def __init__(self, api_key=None, access_token=None):
-        """Initialize KiteProvider."""
-        self.api_key = api_key
-        self.access_token = access_token
-        self.kite = None
-        self._instruments_cache = {}  # Cache for instruments
-        self._expiry_dates_cache = {}  # Cache for expiry dates
-        self._used_fallback = False  # instrumentation flag
-        # Rate limiters to suppress repetitive fallback/info logs
-        self._rl_fallback = RateLimiter(min_interval=30)
-        self._rl_quote_fallback = RateLimiter(min_interval=30)
-        
-        if not api_key or not access_token:
-            logger.warning("API key or access token missing, trying to load from environment")
-            self.api_key = os.environ.get("KITE_API_KEY")
-            self.access_token = os.environ.get("KITE_ACCESS_TOKEN")
-        
-        self.initialize_kite()
-        # Log only the first few chars of API key for security
-        safe_api_key = f"{self.api_key[:4]}...{self.api_key[-4:]}" if self.api_key else "None"
-        logger.info(f"KiteProvider initialized with API key: {safe_api_key}")
-    
-    def initialize_kite(self):
-        """Initialize Kite Connect client."""
+
+    # --- lifecycle ---------------------------------------------------------
+    def close(self) -> None:  # pragma: no cover - graceful no-op
+        """Best-effort resource cleanup hook (kept for parity / tests)."""
         try:
-            from kiteconnect import KiteConnect
-            
-            # Initialize Kite
-            self.kite = KiteConnect(api_key=self.api_key)
-            
-            # Set access token
-            if self.access_token:
-                self.kite.set_access_token(self.access_token)
-                
+            kc = getattr(self, 'kite', None)
+            # kiteconnect does not expose explicit close; if future client exposes .close(), call it
+            if kc and hasattr(kc, 'close'):
+                try:
+                    kc.close()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    # --- context manager support -----------------------------------------
+    def __enter__(self):  # pragma: no cover - thin wrapper
+        return self
+
+    def __exit__(self, exc_type, exc, tb):  # pragma: no cover - thin wrapper
+        try:
+            self.close()
+        finally:
+            return False  # do not suppress exceptions
+
+    # --- internal RL helpers ------------------------------------------------
+    def _rl_fallback(self) -> bool:
+        now = time.time()
+        if now - self._rl_last_log_ts > 5.0:
+            self._rl_last_log_ts = now
             return True
-        except Exception as e:
-            logger.error(f"Failed to initialize Kite Connect: {e}")
-            return False
-    
-    def close(self):
-        """Clean up resources."""
-        logger.info("KiteProvider closed")
+        return False
 
-    # NOTE: Duplicate dummy method block removed below; authoritative implementations retained.
+    def _rl_quote_fallback(self) -> bool:
+        now = time.time()
+        if now - self._rl_last_quote_log_ts > 5.0:
+            self._rl_last_quote_log_ts = now
+            return True
+        return False
 
-    def get_instruments(self, exchange=None):
-        """Return instruments, using cache if available. If real API unavailable, return minimal synthetic list.
+    # --- token refresh stub -------------------------------------------------
+    def maybe_refresh_token_proactively(self) -> None:  # pragma: no cover
+        return
 
-        This is a simplified placeholder; production path should populate self._instruments_cache externally.
-        """
-        if exchange in self._instruments_cache:
-            return self._instruments_cache[exchange]
-
-        # If real kite client exists attempt fetch, otherwise fallback
+    # --- instruments --------------------------------------------------------
+    def get_instruments(self, exchange: str | None = None) -> list[dict[str, Any]]:
+        exch = exchange or "NFO"
+        ttl = getattr(self._settings, 'instrument_cache_ttl', 600.0)
+        now = time.time()
+        cached = self._state.instruments_cache.get(exch)
+        meta_ts = self._state.instruments_cache_meta.get(exch, 0.0)
+        if cached is not None and (now - meta_ts) < ttl:
+            return cached
         try:
-            if self.kite is not None and hasattr(self.kite, 'instruments'):
-                def _fetch_instruments():
-                    return self.kite.instruments()  # type: ignore[attr-defined]
-                all_instr = call_with_retry(_fetch_instruments)
-                # Filter by exchange if provided
-                if exchange:
-                    filtered = [i for i in all_instr if str(i.get('exchange')) == exchange]
-                else:
-                    filtered = all_instr
-                self._instruments_cache[exchange or '*'] = filtered
-                return filtered
+            if self._auth_failed:
+                raise RuntimeError("kite_auth_failed")
+            if self.kite is None:
+                raise RuntimeError("kite_client_unavailable")
+            def _fetch():
+                if self._api_rl:
+                    self._api_rl()
+                return _timed_call(lambda: self.kite.instruments(), getattr(self._settings, 'kite_timeout_sec', 5.0))  # type: ignore[arg-type]
+            raw = call_with_retry(_fetch)
+            if isinstance(raw, list):
+                self._state.instruments_cache[exch] = raw
+                self._state.instruments_cache_meta[exch] = now
+                return raw
+            raise ValueError("unexpected_instruments_shape")
         except Exception as e:
-            if self._rl_fallback():
-                logger.debug(f"Falling back to synthetic instruments: {e}")
-
-        # Synthetic minimal list (only enough for expiry detection)
-        today = datetime.date.today()
-        synthetic = [
-            {
-                "instrument_token": 1,
-                "tradingsymbol": "NIFTY25SEP24800CE",
-                "name": "NIFTY",
-                "expiry": today + datetime.timedelta(days=14),
-                "strike": 24800,
-                "segment": "NFO-OPT",
-                "exchange": "NFO"
-            },
-            {
-                "instrument_token": 2,
-                "tradingsymbol": "NIFTY25SEP24800PE",
-                "name": "NIFTY",
-                "expiry": today + datetime.timedelta(days=14),
-                "strike": 24800,
-                "segment": "NFO-OPT",
-                "exchange": "NFO"
-            },
-        ]
-        return synthetic
-
-    def get_ltp(self, instruments):
-        """Get last traded prices (real API or synthetic)."""
-        data = {}
-        # Real path
-        try:
-            if self.kite is not None and hasattr(self.kite, 'ltp'):
-                formatted = []
-                for exch, ts in instruments:
-                    formatted.append(f"{exch}:{ts}")
-                if formatted:
-                    def _fetch_ltp():
-                        return self.kite.ltp(formatted)  # type: ignore[attr-defined]
-                    raw = call_with_retry(_fetch_ltp)
-                    return raw
-        except Exception as e:
-            logger.debug(f"LTP real fetch failed, using synthetic: {e}")
-
-        # Synthetic prices by simple heuristics
-        for exch, ts in instruments:
-            if "NIFTY 50" in ts:
-                price = 24800
-            elif "NIFTY BANK" in ts:
-                price = 54000
-            elif "NIFTY FIN SERVICE" in ts:
-                price = 26000
-            elif "MIDCAP" in ts:
-                price = 12000
-            elif "SENSEX" in ts:
-                price = 81000
+            if _is_auth_error(e) or str(e) == 'kite_auth_failed':
+                self._auth_failed = True
+                if self._rl_fallback():
+                    logger.warning("Kite auth failed; using synthetic instruments. Set KITE_API_KEY/KITE_ACCESS_TOKEN for real API.")
             else:
-                price = 1000
-            data[f"{exch}:{ts}"] = {"last_price": price}
-        return data
+                if self._rl_fallback():
+                    logger.debug(f"Instrument fetch failed, using synthetic: {e}")
+            try:
+                handle_provider_error(e, component="kite_provider.get_instruments", context={"exchange": exch})
+            except Exception:
+                pass
+        try:
+            from src.broker.kite.synthetic import generate_synthetic_instruments  # type: ignore
+            synth = generate_synthetic_instruments()
+        except Exception:  # pragma: no cover
+            synth = []
+        self._state.instruments_cache[exch] = synth
+        self._state.instruments_cache_meta[exch] = now
+        self._used_fallback = True
+        return synth
 
-    def get_quote(self, instruments):
-        """Get full quotes (attempt real API, fallback to LTP structure).
+    # --- quotes / LTP -------------------------------------------------------
+    def get_ltp(self, instruments: Iterable[tuple[str, str]] | Iterable[str]):
+        try:
+            from src.broker.kite.quotes import get_ltp as _impl
+        except Exception:  # pragma: no cover
+            logger.error("quotes_module_import_failed", exc_info=True)
+            return {}
+        return _impl(self, instruments)
 
-        The interface expects a dict keyed by "EXCHANGE:TRADINGSYMBOL" with at least
-        'last_price' and optionally 'ohlc'. We try KiteConnect.quote first. If that
-        fails (network/auth issues) we downgrade to LTP synthetic values to avoid
-        readiness probe hard-failing with missing method errors.
+    def get_quote(self, instruments: Iterable[tuple[str, str]] | Iterable[str]):
+        try:
+            from src.broker.kite.quotes import get_quote as _impl
+        except Exception:  # pragma: no cover
+            logger.error("quotes_module_import_failed", exc_info=True)
+            return {}
+        return _impl(self, instruments)
+
+    # --- synthetic quote diagnostics ---------------------------------------
+    def pop_synthetic_quote_usage(self) -> tuple[int, bool]:
+        try:
+            cnt = int(self._synthetic_quotes_used)
+            last_flag = bool(self._last_quotes_synthetic)
+            self._synthetic_quotes_used = 0
+            return cnt, last_flag
+        except Exception:  # pragma: no cover
+            return 0, False
+
+    def last_quotes_were_synthetic(self) -> bool:
+        return bool(self._last_quotes_synthetic)
+
+    # --- diagnostics helper -------------------------------------------------
+    def provider_diagnostics(self) -> dict[str, Any]:
+        """Return a structured snapshot of key counters & cache stats.
+
+        This is the preferred replacement for ad-hoc access of internal
+        attributes. Keys kept stable for downstream tooling.
         """
         try:
-            if self.kite is not None and hasattr(self.kite, 'quote'):
-                formatted = [f"{exch}:{sym}" for exch, sym in instruments]
-                if formatted:
-                    def _fetch_quote():
-                        return self.kite.quote(formatted)  # type: ignore[attr-defined]
-                    raw = call_with_retry(_fetch_quote)
-                    return raw
-        except Exception as e:
-            if self._rl_quote_fallback():
-                logger.debug(f"Quote real fetch failed, falling back to LTP: {e}")
+            # Derive token age / expiry metadata if possible
+            token_age_sec = None
+            token_expiry = None
+            try:
+                # Some kiteconnect clients keep public attributes; we try common ones defensively
+                kc = getattr(self, 'kite', None)
+                issued = getattr(kc, 'api_token_issue_time', None)
+                exp = getattr(kc, 'api_token_expiry', None)
+                now_ts = time.time()
+                if isinstance(issued, (int, float)):
+                    token_age_sec = max(0, now_ts - float(issued))
+                if isinstance(exp, (int, float)):
+                    token_expiry = max(0, float(exp) - now_ts)
+            except Exception:
+                token_age_sec = None
+                token_expiry = None
+            return {
+                'option_cache_size': len(getattr(self._state, 'option_instrument_cache', {})),
+                'option_cache_hits': getattr(self._state, 'option_cache_hits', 0),
+                'option_cache_misses': getattr(self._state, 'option_cache_misses', 0),
+                'instruments_cached': {k: len(v or []) for k, v in getattr(self._state, 'instruments_cache', {}).items()},
+                'expiry_dates_cached': {k: len(v or []) for k, v in getattr(self._state, 'expiry_dates_cache', {}).items()},
+                'synthetic_quotes_used': int(self._synthetic_quotes_used),
+                'last_quotes_synthetic': bool(self._last_quotes_synthetic),
+                'used_instrument_fallback': bool(self._used_fallback),
+                'token_age_sec': token_age_sec,
+                'token_time_to_expiry_sec': token_expiry,
+            }
+        except Exception:
+            return {}
 
-        # Fallback: build quote-like dict from LTP data
-        ltp_data = self.get_ltp(instruments)
-        quotes = {}
-        if isinstance(ltp_data, dict):
-            for key, payload in ltp_data.items():  # type: ignore[assignment]
-                if not isinstance(payload, dict):  # defensive
-                    continue
-                lp = payload.get('last_price', 0)
-                quotes[key] = {
-                    'last_price': lp,
-                    'ohlc': {},  # unknown in fallback
-                }
-        return quotes
+    # --- deprecation property shims ----------------------------------------
+    def _warn_once(self, name: str):
+        if not hasattr(self, '_issued_deprecation_warnings'):
+            self._issued_deprecation_warnings: Set[str] = set()
+        if name not in self._issued_deprecation_warnings:
+            emit_deprecation(
+                f'kite-provider-attr-{name}',
+                f"Accessing '{name}' directly is deprecated; use provider_diagnostics() for a structured snapshot."
+            )
+            self._issued_deprecation_warnings.add(name)
 
-    def get_atm_strike(self, index_symbol):
-        """Derive ATM strike using current LTP or heuristic."""
-        instruments = [INDEX_MAPPING.get(index_symbol, ("NSE", index_symbol))]
-        ltp_data = self.get_ltp(instruments)
+    @property
+    def option_cache_hits(self) -> int:
+        self._warn_once('option_cache_hits')
+        return getattr(self._state, 'option_cache_hits', 0)
+
+    @property
+    def option_cache_misses(self) -> int:
+        self._warn_once('option_cache_misses')
+        return getattr(self._state, 'option_cache_misses', 0)
+
+    @property
+    def instruments_cache(self):  # shallow copy to avoid mutation
+        self._warn_once('instruments_cache')
+        try:
+            return dict(getattr(self._state, 'instruments_cache', {}))
+        except Exception:
+            return {}
+
+    @property
+    def expiry_dates_cache(self):
+        self._warn_once('expiry_dates_cache')
+        try:
+            return dict(getattr(self._state, 'expiry_dates_cache', {}))
+        except Exception:
+            return {}
+
+    @property
+    def synthetic_quotes_used(self) -> int:
+        self._warn_once('synthetic_quotes_used')
+        return int(self._synthetic_quotes_used)
+
+    @property
+    def last_quotes_synthetic_flag(self) -> bool:
+        self._warn_once('last_quotes_synthetic_flag')
+        return bool(self._last_quotes_synthetic)
+
+    # --- ATM strike heuristic -----------------------------------------------
+    def get_atm_strike(self, index_symbol: str) -> int:
+        ltp_data = self.get_ltp([INDEX_MAPPING.get(index_symbol, ("NSE", index_symbol))])
         if isinstance(ltp_data, dict):
             for v in ltp_data.values():
-                lp = v.get('last_price')
-                if lp:
-                    # Round to nearest 50/100 based on magnitude
-                    step = 100 if lp > 20000 else 50
-                    return int(round(lp / step) * step)
-        # Fallback heuristic
-        defaults = {
-            "NIFTY": 24800,
-            "BANKNIFTY": 54000,
-            "FINNIFTY": 26000,
-            "MIDCPNIFTY": 12000,
-            "SENSEX": 81000,
-        }
+                if isinstance(v, dict):
+                    lp = v.get('last_price')
+                    if isinstance(lp, (int, float)) and lp > 0:
+                        step = 100 if lp > 20000 else 50
+                        return int(round(lp / step) * step)
+        defaults = {"NIFTY": 24800, "BANKNIFTY": 54000, "FINNIFTY": 26000, "MIDCPNIFTY": 12000, "SENSEX": 81000}
         return defaults.get(index_symbol, 20000)
-    
-    def get_expiry_dates(self, index_symbol):
-        """
-        Get all available expiry dates for an index.
-        """
+
+    # --- expiry discovery ---------------------------------------------------
+    def get_expiry_dates(self, index_symbol: str) -> list[_dt.date]:
         try:
-            # Check cache first
-            if index_symbol in self._expiry_dates_cache:
-                logger.debug(f"Using cached expiry dates for {index_symbol}")
-                return self._expiry_dates_cache[index_symbol]
-            
-            # Get ATM strike for the index
-            atm_strike = self.get_atm_strike(index_symbol)
-            
-            # Get instruments based on the exchange pool
-            exchange_pool = POOL_FOR.get(index_symbol, "NFO")
-            instruments = self.get_instruments(exchange_pool)
-            
-            # Filter for options that match the index and are near the ATM strike
+            if self._auth_failed:
+                raise RuntimeError("kite_auth_failed")
+            cache = self._state.expiry_dates_cache.get(index_symbol)
+            if cache:
+                return cache
+            atm = self.get_atm_strike(index_symbol)
+            exch = POOL_FOR.get(index_symbol, "NFO")
+            instruments = self.get_instruments(exch)
+            today = _dt.date.today()
             opts = [
                 inst for inst in instruments
-                if str(inst.get("segment", "")).endswith("-OPT")  # Is an option
-                and abs(float(inst.get("strike", 0)) - atm_strike) <= 500  # Near ATM
-                and index_symbol in str(inst.get("tradingsymbol", ""))  # Matches index symbol
+                if isinstance(inst, dict)
+                and str(inst.get("segment", "")).endswith("-OPT")
+                and index_symbol in str(inst.get("tradingsymbol", ""))
+                and abs(float(inst.get("strike", 0) or 0) - atm) <= 500
             ]
-            
-            # Parse and dedupe expiries
-            today = datetime.date.today()
-            expiry_dates = set()
-            
-            for opt in opts:
-                expiry = opt.get("expiry")
-                
-                # Handle datetime.date object
-                if isinstance(expiry, datetime.date):
-                    if expiry >= today:
-                        expiry_dates.add(expiry)
-                # Handle string format
-                elif isinstance(expiry, str):
+            expiries: set[_dt.date] = set()
+            for inst in opts:
+                exp = inst.get('expiry')
+                if isinstance(exp, _dt.date):
+                    if exp >= today:
+                        expiries.add(exp)
+                elif isinstance(exp, str):
                     try:
-                        expiry_date = datetime.datetime.strptime(expiry, '%Y-%m-%d').date()
-                        if expiry_date >= today:
-                            expiry_dates.add(expiry_date)
-                    except ValueError:
+                        dtp = _dt.datetime.strptime(exp[:10], '%Y-%m-%d').date()
+                        if dtp >= today:
+                            expiries.add(dtp)
+                    except Exception:
                         pass
-            
-            # Sort dates
-            sorted_dates = sorted(list(expiry_dates))
-            
-            # Use ASCII-only framing (avoid box-drawing unicode for Windows cp1252 consoles)
-            if _CONCISE:
-                # Single line summary: EXPIRIES idx=... total=.. next=YYYY-MM-DD,YYYY-MM-DD monthlies=... sample=[...]
-                total = len(sorted_dates)
-                weeklies = []
-                if total:
-                    weeklies = sorted_dates[:2]
-                # Monthlies = last expiry per month
-                month_map = {}
-                for d in sorted_dates:
-                    mk = (d.year, d.month)
-                    month_map.setdefault(mk, []).append(d)
-                monthlies = [max(v) for _, v in sorted(month_map.items())]
-                sample = []
-                if sorted_dates:
-                    if total <= 4:
-                        sample = [sd.isoformat() for sd in sorted_dates]
-                    else:
-                        sample = [sorted_dates[0].isoformat(), sorted_dates[1].isoformat(), sorted_dates[-2].isoformat(), sorted_dates[-1].isoformat()]
-                # Demote to debug in concise mode to reduce high-frequency log noise
-                _exp_fn = logger.debug if _CONCISE else logger.info
-                _exp_fn(
-                    "EXPIRIES idx=%s total=%d weeklies=%s monthlies=%d next=%s sample=[%s]",
-                    index_symbol.upper(),
-                    total,
-                    ','.join(d.isoformat() for d in weeklies) if weeklies else '-',
-                    len(monthlies),
-                    ','.join(d.isoformat() for d in weeklies) if weeklies else '-',
-                    ','.join(sample)
-                )
-            else:
-                logger.info(f"+-- Expiry Dates for {index_symbol.upper()} --" + "-" * 40)
-                if sorted_dates:
-                    # Group by month for better readability
-                    by_month = {}
-                    for d in sorted_dates:
-                        month_key = f"{d.year}-{d:02d}"
-                        if month_key not in by_month:
-                            by_month[month_key] = []
-                        by_month[month_key].append(d)
-                        
-                    for month, dates in sorted(by_month.items()):
-                        logger.info(f"| {month}: {', '.join(d.strftime('%d') for d in dates)}")
-                        
-                    # Show weekly expiries
-                    weeklies = sorted_dates[:2] if len(sorted_dates) >= 2 else sorted_dates
-                    logger.info(f"| Next expiries: {', '.join(str(d) for d in weeklies)}")
-                else:
-                    logger.info(f"| No expiry dates found")
-                logger.info("+" + "-" * 52)
-            
-            # Cache the results
-            self._expiry_dates_cache[index_symbol] = sorted_dates
-            
+            sorted_dates = sorted(expiries)
             if not sorted_dates:
-                # Fallback: use current week's Thursday and next week's Thursday
-                today = datetime.date.today()
-                
-                # Find next Thursday (weekday 3)
-                days_until_thursday = (3 - today.weekday()) % 7
-                if days_until_thursday == 0:
-                    days_until_thursday = 7  # If today is Thursday, use next week
-                
-                this_week = today + datetime.timedelta(days=days_until_thursday)
-                next_week = this_week + datetime.timedelta(days=7)
-                
-                fallback_dates = [this_week, next_week]
-                logger.info(f"Using fallback expiry dates for {index_symbol}: {fallback_dates}")
-                
-                self._expiry_dates_cache[index_symbol] = fallback_dates
-                return fallback_dates
-                
+                days_until_thu = (3 - today.weekday()) % 7
+                if days_until_thu == 0:
+                    days_until_thu = 7
+                this_week = today + _dt.timedelta(days=days_until_thu)
+                next_week = this_week + _dt.timedelta(days=7)
+                sorted_dates = [this_week, next_week]
+            self._state.expiry_dates_cache[index_symbol] = sorted_dates
             return sorted_dates
-            
         except Exception as e:
+            if _is_auth_error(e) or str(e) == 'kite_auth_failed':
+                self._auth_failed = True
+                if self._rl_fallback():
+                    logger.warning("Kite auth failed; using synthetic expiry dates.")
+                today = _dt.date.today()
+                synth = [today + _dt.timedelta(days=14)]
+                self._state.expiry_dates_cache[index_symbol] = synth
+                return synth
             logger.error(f"Failed to get expiry dates: {e}", exc_info=True)
-            
-            # Fallback to calculated expiry dates
-            today = datetime.date.today()
-            days_until_thursday = (3 - today.weekday()) % 7
-            this_week = today + datetime.timedelta(days=days_until_thursday)
-            next_week = this_week + datetime.timedelta(days=7)
-            
-            fallback_dates = [this_week, next_week]
-            logger.info(f"Using emergency fallback expiry dates for {index_symbol}: {fallback_dates}")
-            return fallback_dates
-    
-    def get_weekly_expiries(self, index_symbol):
-        """
-        Get weekly expiry dates for an index.
-        Returns first two upcoming expiries.
-        """
+            try:
+                handle_data_collection_error(e, component="kite_provider.get_expiry_dates", index_name=index_symbol, data_type="expiries")
+            except Exception:
+                pass
+            today = _dt.date.today()
+            days_until_thu = (3 - today.weekday()) % 7
+            this_week = today + _dt.timedelta(days=days_until_thu)
+            next_week = this_week + _dt.timedelta(days=7)
+            return [this_week, next_week]
+
+    def get_weekly_expiries(self, index_symbol: str) -> list[_dt.date]:
         try:
-            # Get all expiry dates
-            all_expiries = self.get_expiry_dates(index_symbol)
-            
-            # Return first two (this week and next week)
-            weekly_expiries = all_expiries[:2] if len(all_expiries) >= 2 else all_expiries
-            return weekly_expiries
-        except Exception as e:
-            logger.error(f"Error getting weekly expiries: {e}")
+            all_exp = self.get_expiry_dates(index_symbol)
+            return all_exp[:2] if len(all_exp) >= 2 else all_exp
+        except Exception:
             return []
-    
-    def get_monthly_expiries(self, index_symbol):
-        """
-        Get monthly expiry dates for an index.
-        Groups expiries by month and returns the last expiry of each month.
-        """
+
+    def get_monthly_expiries(self, index_symbol: str) -> list[_dt.date]:
         try:
-            # Get all expiry dates
-            all_expiries = self.get_expiry_dates(index_symbol)
-            
-            # Group by month
-            by_month = {}
-            today = datetime.date.today()
-            
-            for expiry in all_expiries:
-                if expiry >= today:
-                    month_key = (expiry.year, expiry.month)
-                    if month_key not in by_month:
-                        by_month[month_key] = []
-                    by_month[month_key].append(expiry)
-            
-            # Get last expiry of each month
-            monthly_expiries = []
-            for _, expiries in sorted(by_month.items()):
-                monthly_expiries.append(max(expiries))
-            
-            return monthly_expiries
-        except Exception as e:
-            logger.error(f"Error getting monthly expiries: {e}")
+            all_exp = self.get_expiry_dates(index_symbol)
+            today = _dt.date.today()
+            by_month: Dict[tuple[int,int], List[_dt.date]] = {}
+            for d in all_exp:
+                if d >= today:
+                    by_month.setdefault((d.year, d.month), []).append(d)
+            out: list[_dt.date] = []
+            for _, vals in sorted(by_month.items()):
+                out.append(max(vals))
+            return out
+        except Exception:
             return []
-    
-    def resolve_expiry(self, index_symbol, expiry_rule):
-        """
-        Resolve expiry date based on rule.
-        
-        Valid rules:
-        - this_week: Next weekly expiry (for NIFTY, SENSEX)
-        - next_week: Following weekly expiry (for NIFTY, SENSEX)
-        - this_month: Current month's expiry (for all indices)
-        - next_month: Next month's expiry (for all indices)
-        """
+
+    def resolve_expiry(self, index_symbol: str, expiry_rule: str) -> _dt.date:
+        from src.broker.kite.expiries import resolve_expiry_rule  # local import
         try:
-            self._used_fallback = False
-            monthly_only_indices = ["BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"]
-            all_expiries = self.get_expiry_dates(index_symbol)
-            if not all_expiries:
-                logger.warning(f"No expiry dates found for {index_symbol}")
-                # Simple weekly fallback: today -> next standard weekday (Thursday for NFO / Thursday for BFO here simplified)
-                today = datetime.date.today()
-                weekday_target = 3  # Thursday
-                delta = (weekday_target - today.weekday()) % 7
-                if delta == 0:
-                    delta = 7
-                return today + datetime.timedelta(days=delta)
+            chosen = resolve_expiry_rule(self, index_symbol, expiry_rule)
+            (logger.debug if _CONCISE else logger.info)(f"Resolved '{expiry_rule}' for {index_symbol} -> {chosen}")
+            return chosen
+        except Exception:  # pragma: no cover
+            return _dt.date.today()
 
-            today = datetime.date.today()
-            by_month: dict[tuple[int,int], list[datetime.date]] = {}
-            for e in all_expiries:
-                if e >= today:
-                    by_month.setdefault((e.year, e.month), []).append(e)
-            if not by_month:
-                logger.warning(f"No future expiries found for {index_symbol}")
-                today = datetime.date.today()
-                weekday_target = 3
-                delta = (weekday_target - today.weekday()) % 7
-                if delta == 0:
-                    delta = 7
-                return today + datetime.timedelta(days=delta)
-            monthly_expiries = [max(v) for _, v in sorted(by_month.items())]
-
-            log_fn = (logger.debug if _CONCISE else logger.info)
-
-            # Normalize rule (accept variations like THIS_WEEK, thisWeek, current_week)
-            normalized = (expiry_rule or '').strip().lower().replace('-', '_')
-            if normalized in {'current_week'}:
-                normalized = 'this_week'
-            if normalized in {'current_month'}:
-                normalized = 'this_month'
-            if normalized in {'following_week'}:
-                normalized = 'next_week'
-            if normalized in {'following_month'}:
-                normalized = 'next_month'
-
-            if normalized == 'this_week' and index_symbol not in monthly_only_indices:
-                log_fn(f"Resolved 'this_week' for {index_symbol} to {all_expiries[0]}")
-                return all_expiries[0]
-            if normalized == 'next_week' and index_symbol not in monthly_only_indices:
-                if len(all_expiries) >= 2:
-                    log_fn(f"Resolved 'next_week' for {index_symbol} to {all_expiries[1]}")
-                    return all_expiries[1]
-                log_fn(f"Only one expiry available, using {all_expiries[0]} for 'next_week'")
-                return all_expiries[0]
-            if normalized == 'this_month':
-                if monthly_expiries:
-                    log_fn(f"Resolved 'this_month' for {index_symbol} to {monthly_expiries[0]}")
-                    return monthly_expiries[0]
-                log_fn(f"No monthly expiry found, using {all_expiries[0]} for 'this_month'")
-                return all_expiries[0]
-            if normalized == 'next_month':
-                if len(monthly_expiries) >= 2:
-                    log_fn(f"Resolved 'next_month' for {index_symbol} to {monthly_expiries[1]}")
-                    return monthly_expiries[1]
-                if monthly_expiries:
-                    log_fn(f"Only one monthly expiry available, using {monthly_expiries[0]} for 'next_month'")
-                    return monthly_expiries[0]
-                log_fn(f"No monthly expiries found, using {all_expiries[0]} for 'next_month'")
-                return all_expiries[0]
-            if expiry_rule != normalized:
-                logger.warning(f"Unknown expiry rule '{expiry_rule}' (normalized to '{normalized}'), using first available expiry")
-            else:
-                logger.warning(f"Unknown expiry rule '{expiry_rule}', using first available expiry")
-            log_fn(f"Using {all_expiries[0]} for unknown rule '{expiry_rule}' -> {normalized}")
-            return all_expiries[0]
-        except Exception as e:  # pragma: no cover
-            logger.error(f"Failed to resolve expiry: {e}", exc_info=True)
-            return datetime.date.today()
-    
-    # (Duplicate get_atm_strike removed; consolidated version earlier in class.)
-    
-    def option_instruments(self, index_symbol, expiry_date, strikes):
-        """
-        Get option instruments for specific expiry and strikes.
-        """
+    # --- options delegation -------------------------------------------------
+    def option_instruments(self, index_symbol: str, expiry_date: Any, strikes: Iterable[float]) -> list[dict[str, Any]]:
         try:
-            # Convert expiry_date to string format YYYY-MM-DD for comparison
-            if hasattr(expiry_date, 'strftime'):
-                expiry_str = expiry_date.strftime('%Y-%m-%d')
-                expiry_obj = expiry_date
-            else:
-                # Try to parse string to date
-                try:
-                    expiry_obj = datetime.datetime.strptime(str(expiry_date), '%Y-%m-%d').date()
-                    expiry_str = str(expiry_date)
-                except:
-                    logger.error(f"Could not parse expiry date: {expiry_date}")
-                    expiry_obj = datetime.date.today()
-                    expiry_str = expiry_obj.strftime('%Y-%m-%d')
-            
-            # Determine the appropriate exchange
-            exchange_pool = POOL_FOR.get(index_symbol, "NFO")
-            
-            # Get instruments
-            instruments = self.get_instruments(exchange_pool)
-            # Demote high-frequency search line under concise mode
-            (logger.debug if _CONCISE else logger.info)(
-                f"Searching for {index_symbol} options (expiry: {expiry_date}, exchange: {exchange_pool})"
-            )
-            
-            # Filter for matching instruments
-            matching_instruments = []
-            
-            for instrument in instruments:
-                # Check if it's a CE or PE option
-                is_option = (instrument.get('instrument_type') == 'CE' or 
-                             instrument.get('instrument_type') == 'PE')
-                
-                # Check if symbol matches our index
-                tradingsymbol = instrument.get('tradingsymbol', '')
-                symbol_matches = index_symbol in tradingsymbol
-                
-                # Check expiry match - handle both date objects and strings
-                instrument_expiry = instrument.get('expiry')
-                expiry_matches = False
-                
-                if isinstance(instrument_expiry, datetime.date):
-                    expiry_matches = instrument_expiry == expiry_obj
-                elif isinstance(instrument_expiry, str):
-                    expiry_matches = instrument_expiry == expiry_str
-                
-                # Check if strike is in our list
-                strike = float(instrument.get('strike', 0))
-                strike_matches = any(abs(strike - s) < 0.01 for s in strikes)
-                
-                if is_option and symbol_matches and expiry_matches and strike_matches:
-                    matching_instruments.append(instrument)
-            
-            # Group by strike and type for better reporting
-            strikes_summary = {}
-            for inst in matching_instruments:
-                strike = float(inst.get('strike', 0))
-                opt_type = inst.get('instrument_type', '')
-                
-                if strike not in strikes_summary:
-                    strikes_summary[strike] = {'CE': 0, 'PE': 0}
-                
-                strikes_summary[strike][opt_type] += 1
-            
-            # Log summary (concise vs verbose)
-            if _CONCISE:
-                # Single-line concise summary with richer aggregate context
-                total = len(matching_instruments)
-                strikes_sorted = sorted(strikes_summary.keys())
-                strike_count = len(strikes_sorted)
-                ce_total = sum(v.get('CE', 0) for v in strikes_summary.values())
-                pe_total = sum(v.get('PE', 0) for v in strikes_summary.values())
-                # Coverage ratios (how many CE/PE legs obtained vs number of strikes)
-                cov_denom = strike_count if strike_count else 1
-                cov_ce = ce_total / cov_denom
-                cov_pe = pe_total / cov_denom
-                # Range & step heuristics
-                if strike_count >= 2:
-                    strike_min = strikes_sorted[0]
-                    strike_max = strikes_sorted[-1]
-                    # Determine typical step by min diff
-                    diffs = [b - a for a, b in zip(strikes_sorted, strikes_sorted[1:]) if b - a > 0]
-                    step = min(diffs) if diffs else 0
-                elif strike_count == 1:
-                    strike_min = strike_max = strikes_sorted[0]
-                    step = 0
-                else:
-                    strike_min = strike_max = 0
-                    step = 0
-                # Provide first, middle, last few strikes as a compact footprint
-                sample: List[str] = []
-                if strikes_sorted:
-                    if strike_count <= 5:
-                        sample = [f"{s:.0f}" for s in strikes_sorted]
-                    else:
-                        head = [f"{s:.0f}" for s in strikes_sorted[:2]]
-                        mid = [f"{strikes_sorted[strike_count//2]:.0f}"]
-                        tail = [f"{s:.0f}" for s in strikes_sorted[-2:]]
-                        sample = head + mid + tail
-                sample_str = ",".join(sample)
-                _opt_fn = logger.debug if _CONCISE else logger.info
-                _opt_fn(
-                    "OPTIONS idx=%s expiry=%s instruments=%d strikes=%d ce_total=%d pe_total=%d range=%s step=%s coverage=CE:%.2f,PE:%.2f sample=[%s]",
-                    index_symbol,
-                    expiry_date,
-                    total,
-                    strike_count,
-                    ce_total,
-                    pe_total,
-                    f"{int(strike_min)}-{int(strike_max)}" if strike_count else "-",
-                    int(step) if step else 0,
-                    cov_ce,
-                    cov_pe,
-                    sample_str,
-                )
-            else:
-                # Verbose legacy multi-line table
-                logger.info(f"+ Options for {index_symbol} (Expiry: {expiry_date}) " + "-" * 30)
-                logger.info(f"| Found {len(matching_instruments)} matching instruments")
-                if strikes_summary:
-                    logger.info("| Strike    CE  PE")
-                    logger.info("| " + "-" * 15)
-                    for strike in sorted(strikes_summary.keys()):
-                        ce_count = strikes_summary[strike]['CE']
-                        pe_count = strikes_summary[strike]['PE']
-                        logger.info(f"| {strike:<8.1f} {ce_count:>2}  {pe_count:>2}")
-                logger.info("+" + "-" * 50)
-            
-            return matching_instruments
-        
-        except Exception as e:
-            logger.error(f"Failed to get option instruments: {e}", exc_info=True)
+            from src.broker.kite.options import option_instruments as _impl
+        except Exception:  # pragma: no cover
+            logger.error("options_module_import_failed", exc_info=True)
             return []
-    
-    # Add alias for compatibility
-    def get_option_instruments(self, index_symbol, expiry_date, strikes):
-        """Alias for option_instruments."""
+        return _impl(self, index_symbol, expiry_date, strikes)
+
+    def get_option_instruments(self, index_symbol: str, expiry_date: Any, strikes: Iterable[float]) -> list[dict[str, Any]]:
         return self.option_instruments(index_symbol, expiry_date, strikes)
-        
-        
-class DummyKiteProvider:
-    """Dummy Kite provider for testing and fallback purposes."""
-    
-    def __init__(self):
-        """Initialize DummyKiteProvider."""
-        self.current_time = datetime.datetime.now()  # local-ok
-        logger.info("DummyKiteProvider initialized")
-    
-    def close(self):
-        """Clean up resources."""
-        logger.info("DummyKiteProvider closed")
-    
-    
-    def get_instruments(self, exchange=None):
-        """Get dummy instruments."""
-        if exchange == "NFO":
-            return [
-                {
-                    "instrument_token": 1,
-                    "exchange_token": "1",
-                    "tradingsymbol": "NIFTY25SEP24800CE",
-                    "name": "NIFTY",
-                    "last_price": 100,
-                    "expiry": datetime.date(2025, 9, 30),
-                    "strike": 24800,
-                    "tick_size": 0.05,
-                    "lot_size": 50,
-                    "instrument_type": "CE",
-                    "segment": "NFO-OPT",
-                    "exchange": "NFO"
-                },
-                {
-                    "instrument_token": 2,
-                    "exchange_token": "2",
-                    "tradingsymbol": "NIFTY25SEP24800PE",
-                    "name": "NIFTY",
-                    "last_price": 100,
-                    "expiry": datetime.date(2025, 9, 30),
-                    "strike": 24800,
-                    "tick_size": 0.05,
-                    "lot_size": 50,
-                    "instrument_type": "PE",
-                    "segment": "NFO-OPT",
-                    "exchange": "NFO"
-                },
-                {
-                    "instrument_token": 3,
-                    "exchange_token": "3",
-                    "tradingsymbol": "BANKNIFTY25SEP54000CE",
-                    "name": "BANKNIFTY",
-                    "last_price": 100,
-                    "expiry": datetime.date(2025, 9, 30),
-                    "strike": 54000,
-                    "tick_size": 0.05,
-                    "lot_size": 25,
-                    "instrument_type": "CE",
-                    "segment": "NFO-OPT",
-                    "exchange": "NFO"
-                }
-            ]
-        return []
-    
-    def get_ltp(self, instruments):
-        """Get last traded price for instruments."""
-        ltp_data = {}
-        
-        for exchange, tradingsymbol in instruments:
-            # Generate LTP based on index
-            if "NIFTY 50" in tradingsymbol:
-                price = 24800.0
-            elif "NIFTY BANK" in tradingsymbol:
-                price = 54000.0
-            elif "NIFTY FIN SERVICE" in tradingsymbol:
-                price = 26000.0
-            elif "NIFTY MIDCAP SELECT" in tradingsymbol:
-                price = 12000.0
-            elif "SENSEX" in tradingsymbol:
-                price = 81000.0
-            else:
-                price = 1000.0
-                
-            ltp_data[f"{exchange}:{tradingsymbol}"] = {
-                "instrument_token": 1,
-                "last_price": price
-            }
-            
-        return ltp_data
 
-    def get_quote(self, instruments):
-        """Return quote-like structure using dummy LTP data.
-
-        Mirrors the real provider interface so higher layers can request quotes
-        without branching. Provides minimal fields: last_price + empty ohlc.
-        """
-        base = self.get_ltp(instruments)
-        quotes = {}
-        for key, payload in base.items():
-            quotes[key] = {
-                'last_price': payload.get('last_price', 0.0),
-                'ohlc': {},
-            }
-        return quotes
-    
-    def get_atm_strike(self, index_symbol):
-        """Get ATM strike for an index."""
-        if index_symbol == "NIFTY":
-            return 24800
-        elif index_symbol == "BANKNIFTY":
-            return 54000
-        elif index_symbol == "FINNIFTY":
-            return 26000
-        elif index_symbol == "MIDCPNIFTY":
-            return 12000
-        elif index_symbol == "SENSEX":
-            return 81000
-        else:
-            return 20000
-    
-    def get_expiry_dates(self, index_symbol):
-        """Get dummy expiry dates."""
-        today = datetime.date.today()
-        
-        # Generate weekly expiries (Thursdays)
-        days_to_thur = (3 - today.weekday()) % 7
-        if days_to_thur == 0:
-            days_to_thur = 7  # If today is Thursday, go to next week
-        
-        this_thur = today + datetime.timedelta(days=days_to_thur)
-        next_thur = this_thur + datetime.timedelta(days=7)
-        
-        # Generate monthly expiry (last Thursday of month)
-        if today.month == 12:
-            next_month = datetime.date(today.year + 1, 1, 1)
-        else:
-            next_month = datetime.date(today.year, today.month + 1, 1)
-        
-        last_day = next_month - datetime.timedelta(days=1)
-        days_to_last_thur = (last_day.weekday() - 3) % 7
-        monthly_expiry = last_day - datetime.timedelta(days=days_to_last_thur)
-        
-        # For next month's expiry
-        if next_month.month == 12:
-            month_after_next = datetime.date(next_month.year + 1, 1, 1)
-        else:
-            month_after_next = datetime.date(next_month.year, next_month.month + 1, 1)
-        
-        last_day_next = month_after_next - datetime.timedelta(days=1)
-        days_to_last_thur_next = (last_day_next.weekday() - 3) % 7
-        next_month_expiry = last_day_next - datetime.timedelta(days=days_to_last_thur_next)
-        
-        # Return appropriate expiries based on index
-        if index_symbol in ["NIFTY", "SENSEX"]:
-            # Weekly and monthly expiries
-            return [this_thur, next_thur, monthly_expiry, next_month_expiry]
-        else:
-            # Only monthly expiries
-            return [monthly_expiry, next_month_expiry]
-    
-    def resolve_expiry(self, index_symbol, expiry_rule):
-        """Resolve expiry date based on rule (duplicate simplified resolver - normalized)."""
-        expiry_dates = self.get_expiry_dates(index_symbol)
-        monthly_only_indices = ["BANKNIFTY", "FINNIFTY", "MIDCPNIFTY"]
-        norm = (expiry_rule or '').strip().lower().replace('-', '_')
-        if norm in {'current_week'}:
-            norm = 'this_week'
-        if norm in {'current_month'}:
-            norm = 'this_month'
-        if norm in {'following_week'}:
-            norm = 'next_week'
-        if norm in {'following_month'}:
-            norm = 'next_month'
-        if norm == 'this_week' and index_symbol not in monthly_only_indices:
-            return expiry_dates[0]
-        if norm == 'next_week' and index_symbol not in monthly_only_indices:
-            return expiry_dates[min(1, len(expiry_dates)-1)]
-        if norm == 'this_month':
-            idx = 0 if index_symbol in monthly_only_indices else 2
-            return expiry_dates[min(idx, len(expiry_dates)-1)]
-        if norm == 'next_month':
-            idx = 1 if index_symbol in monthly_only_indices else 3
-            return expiry_dates[min(idx, len(expiry_dates)-1)]
-        return expiry_dates[0]
-    
-    def option_instruments(self, index_symbol, expiry_date, strikes):
-        """Get dummy option instruments."""
-        instruments = []
-        
-        # Format expiry for tradingsymbol
-        if isinstance(expiry_date, datetime.date):
-            expiry_str = expiry_date.strftime('%y%b').upper()
-        else:
-            expiry_str = "25SEP"  # Default
-        
-        for strike in strikes:
-            # Add CE instrument
-            ce_instrument = {
-                "instrument_token": int(strike * 10 + 1),
-                "exchange_token": str(int(strike * 10 + 1)),
-                "tradingsymbol": f"{index_symbol}{expiry_str}{int(strike)}CE",
-                "name": index_symbol,
-                "last_price": 100.0,
-                "expiry": expiry_date if isinstance(expiry_date, datetime.date) else datetime.date(2025, 9, 30),
-                "strike": float(strike),
-                "tick_size": 0.05,
-                "lot_size": 50 if index_symbol == "NIFTY" else 25,
-                "instrument_type": "CE",
-                "segment": "NFO-OPT",
-                "exchange": "NFO"
-            }
-            instruments.append(ce_instrument)
-            
-            # Add PE instrument
-            pe_instrument = {
-                "instrument_token": int(strike * 10 + 2),
-                "exchange_token": str(int(strike * 10 + 2)),
-                "tradingsymbol": f"{index_symbol}{expiry_str}{int(strike)}PE",
-                "name": index_symbol,
-                "last_price": 100.0,
-                "expiry": expiry_date if isinstance(expiry_date, datetime.date) else datetime.date(2025, 9, 30),
-                "strike": float(strike),
-                "tick_size": 0.05,
-                "lot_size": 50 if index_symbol == "NIFTY" else 25,
-                "instrument_type": "PE",
-                "segment": "NFO-OPT",
-                "exchange": "NFO"
-            }
-            instruments.append(pe_instrument)
-        
-        return instruments
-    
-    # Add alias for compatibility
-    def get_option_instruments(self, index_symbol, expiry_date, strikes):
-        """Alias for option_instruments."""
-        return self.option_instruments(index_symbol, expiry_date, strikes)
-        
-        
-    def check_health(self):
-        """
-        Check if the provider is healthy and connected.
-        
-        Returns:
-            Dict with health status information
-        """
+    # --- health check -------------------------------------------------------
+    def check_health(self) -> dict[str, Any]:
         try:
-            # Simple check - try to get NIFTY LTP
-            ltp_resp = self.get_ltp("NIFTY")
+            pair = INDEX_MAPPING.get("NIFTY", ("NSE", "NIFTY 50"))
+            ltp = self.get_ltp([pair])
             price_ok = False
-            if isinstance(ltp_resp, dict):
-                # Extract any numeric last_price
-                for _k, _v in ltp_resp.items():
-                    if isinstance(_v, dict) and isinstance(_v.get('last_price'), (int, float)):
-                        if _v['last_price'] > 0:
-                            price_ok = True
-                            break
-            # If we get a positive price, healthy
-            if price_ok:
-                return {
-                    'status': 'healthy',
-                    'message': 'Kite provider is connected'
-                }
-            else:
-                return {
-                    'status': 'degraded',
-                    'message': 'Kite provider returned invalid price'
-                }
+            if isinstance(ltp, dict):
+                for v in ltp.values():
+                    if isinstance(v, dict) and isinstance(v.get('last_price'), (int,float)) and v['last_price'] > 0:
+                        price_ok = True
+                        break
+            return {"status": "healthy" if price_ok else "degraded", "message": "Provider connected" if price_ok else "Invalid price"}
         except Exception as e:
-            # Check if we need to refresh the token
-            if "token expired" in str(e).lower() or "invalid token" in str(e).lower():
-                # Attempt refresh only if real kite client exposes it
-                try:
-                    kite_obj = getattr(self, 'kite', None)
-                    refresh_fn = getattr(self, 'refresh_access_token', None)
-                    if callable(refresh_fn):  # type: ignore
-                        refresh_fn()  # type: ignore
-                        logging.info("Token refreshed after expiration")
-                        return {
-                            'status': 'degraded',
-                            'message': 'Token refreshed, reconnecting'
-                        }
-                except Exception as refresh_error:
-                    return {
-                        'status': 'unhealthy',
-                        'message': f"Token refresh failed: {str(refresh_error)}"
-                    }
-            
-            return {
-                'status': 'unhealthy',
-                'message': f"Connection check failed: {str(e)}"
-            }
+            msg = str(e).lower()
+            if any(k in msg for k in ("token", "auth", "unauthor")):
+                return {"status": "unhealthy", "message": "Auth/token issue detected"}
+            return {"status": "unhealthy", "message": f"Health check failed: {e}"}
+
+# ----------------------------------------------------------------------------
+# Public exports
+# ----------------------------------------------------------------------------
+__all__ = [
+    "KiteProvider",
+    "DummyKiteProvider",  # re-export
+    "enable_concise_logs",
+    "_CONCISE",
+    "INDEX_MAPPING",
+    "POOL_FOR",
+]

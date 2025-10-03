@@ -4,61 +4,109 @@ import json
 import re
 from typing import Any, Dict, Optional
 
+"""Panels data source helpers (auto-detect only).
+
+Deprecated env vars `G6_SUMMARY_PANELS_MODE` / `G6_SUMMARY_READ_PANELS` fully purged.
+Panels mode now strictly determined by presence/freshness of panel JSON files.
+"""
+
+def _auto_detect_panels(threshold_secs: float = 30.0) -> bool:
+    """Heuristic: if panels dir exists and contains any recent *.json file, enable panels mode.
+
+    A file is considered recent if modified within threshold_secs. If no mtimes can
+    be read (permission errors), fall back to presence of at least one JSON.
+    """
+    panels_dir = _panels_dir()
+    try:
+        if not os.path.isdir(panels_dir):
+            return False
+        entries = [e for e in os.listdir(panels_dir) if e.endswith('.json')]
+        if not entries:
+            return False
+        import time
+        now = time.time()
+        for name in entries:
+            path = os.path.join(panels_dir, name)
+            try:
+                mtime = os.path.getmtime(path)
+                if now - mtime <= threshold_secs:
+                    return True
+            except Exception:
+                # Ignore and continue; if any readable file is found later we'll return True
+                continue
+        # No "recent" file; still treat as active panels source if at least one JSON exists
+        return True
+    except Exception:
+        return False
+
 # Panels JSON preference and readers
 
-def _use_panels_json() -> bool:
-    """
-    Decide whether to prefer data/panels/*.json over status fields.
-    Controls:
-      - G6_SUMMARY_PANELS_MODE: 'on' | 'off' | 'auto' (default 'auto')
-      - G6_SUMMARY_READ_PANELS: legacy boolean; respected when MODE isn't set
-    In 'auto' mode, if panels appear to come from a simulator (e.g., provider name 'sim'
-    or a 'simulator' flag under system), we return False.
-    """
-    mode = str(os.getenv("G6_SUMMARY_PANELS_MODE", "auto")).strip().lower()
-    if mode == "on":
-        return True
-    if mode == "off":
-        return False
-    # Legacy switch still honored in auto mode when explicitly provided
-    legacy = os.getenv("G6_SUMMARY_READ_PANELS")
-    if legacy is not None:
-        return str(legacy).strip().lower() in ("1", "true", "yes", "on")
-    # Heuristic: detect simulator
-    try:
-        prov = _read_panel_json("provider")
-        if isinstance(prov, dict):
-            name = str(prov.get("name", prov.get("provider", ""))).strip().lower()
-            if name == "sim":
-                return False
-        sys_pan = _read_panel_json("system")
-        if isinstance(sys_pan, dict):
-            sim_flag = sys_pan.get("simulator") or sys_pan.get("is_simulator")
-            if isinstance(sim_flag, bool) and sim_flag:
-                return False
-    except Exception:
-        pass
-    return True
+def detect_panels_mode() -> bool:
+    return _auto_detect_panels()
+
+
+def _use_panels_json() -> bool:  # backward compatibility internal name
+    return detect_panels_mode()
 
 
 def _panels_dir() -> str:
     return os.getenv("G6_PANELS_DIR", os.path.join("data", "panels"))
 
 
+def _read_json_with_retries(path: str, retries: int = 3, delay: float = 0.05) -> Optional[Any]:
+    """Read JSON file with small retry loop to avoid transient partial reads.
+
+    This is a defensive reader-side safeguard. Writers already use atomic
+    replace, but on some platforms readers can still see brief windows where
+    open/parse fails. We keep this light to avoid masking real errors.
+    """
+    for attempt in range(max(1, retries)):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            if attempt == retries - 1:
+                break
+            try:
+                import time
+                time.sleep(delay)
+            except Exception:
+                pass
+    return None
+
+
 def _read_panel_json(name: str) -> Optional[Any]:
     if not _use_panels_json():
         return None
-    path = os.path.join(_panels_dir(), f"{name}.json")
+    # Use centralized unified data source for caching + change detection
     try:
-        if not os.path.exists(path):
-            return None
-        with open(path, "r", encoding="utf-8") as f:
-            obj = json.load(f)
-        if isinstance(obj, dict) and "data" in obj:
-            return obj.get("data")
-        return obj
+        from src.data_access.unified_source import UnifiedDataSource, DataSourceConfig
+        uds = UnifiedDataSource()
+        cfg = DataSourceConfig(
+            panels_dir=_panels_dir(),
+            runtime_status_path=uds.config.runtime_status_path,
+            metrics_url=uds.config.metrics_url,
+            cache_ttl_seconds=uds.config.cache_ttl_seconds,
+            watch_files=getattr(uds.config, 'watch_files', True),
+            file_poll_interval=getattr(uds.config, 'file_poll_interval', 0.5),
+        )
+        uds.reconfigure(cfg)
+        data = uds.get_panel_data(name)
+        return data if data else None
     except Exception:
-        return None
+        # Fallback to local file read if unified source unavailable
+        path = os.path.join(_panels_dir(), f"{name}.json")
+        try:
+            if not os.path.exists(path):
+                return None
+            obj = _read_json_with_retries(path)
+            if obj is None:
+                return None
+            if isinstance(obj, dict) and "data" in obj:
+                return obj.get("data")
+            return obj
+        except Exception:
+            return None
 
 
 # Log parsing support for indices metrics
@@ -85,14 +133,16 @@ def _parse_indices_metrics_from_text(text: str) -> Dict[str, Dict[str, Any]]:
     pat = re.compile(r"(?P<idx>[A-Z]{3,10})\s+TOTAL\s+LEGS:\s+(?P<legs>\d+)\s*\|\s*FAILS:\s+(?P<fails>\d+)\s*\|\s*STATUS:\s*(?P<status>[A-Z_]+)")
     for m in pat.finditer(text):
         idx = m.group("idx").strip().upper()
+        legs: Optional[int]
         try:
             legs = int(m.group("legs"))
         except Exception:
-            legs = None  # type: ignore
+            legs = None
+        fails: Optional[int]
         try:
             fails = int(m.group("fails"))
         except Exception:
-            fails = None  # type: ignore
+            fails = None
         st = m.group("status").strip().upper()
         out[idx] = {"legs": legs, "fails": fails, "status": st}
     return out
@@ -112,13 +162,28 @@ def _get_indices_metrics_from_log() -> Dict[str, Dict[str, Any]]:
 
 
 def _get_indices_metrics() -> Dict[str, Dict[str, Any]]:
-    if _use_panels_json():
-        pj = _read_panel_json("indices")
-        if isinstance(pj, dict):
+    # Prefer unified data source to eliminate duplicate path logic
+    try:
+        from src.data_access.unified_source import data_source
+        data = data_source.get_indices_data()
+        if isinstance(data, dict) and data:
+            # Normalize to Dict[str, Dict[str, Any]]
             out: Dict[str, Dict[str, Any]] = {}
-            for k, v in pj.items():
+            for k, v in data.items():
                 if isinstance(v, dict):
                     out[str(k)] = {**v}
             if out:
                 return out
+    except Exception:
+        pass
+    # Legacy fallback: panels JSON (when explicitly enabled) then logs
+    if _use_panels_json():
+        pj = _read_panel_json("indices")
+        if isinstance(pj, dict) and pj:
+            out2: Dict[str, Dict[str, Any]] = {}
+            for k, v in pj.items():
+                if isinstance(v, dict):
+                    out2[str(k)] = {**v}
+            if out2:
+                return out2
     return _get_indices_metrics_from_log()

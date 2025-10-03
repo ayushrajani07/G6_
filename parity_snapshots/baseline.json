@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "captured_at": "2025-09-30T16:55:52.236042+00:00",
+  "indices": [
+    "NIFTY",
+    "BANKNIFTY"
+  ],
+  "expiries": [],
+  "options_total": 0,
+  "expiry_count": 0,
+  "phase_times": {
+    "init_greeks": 5.0067901611328125e-05,
+    "memory_pressure_eval": 0.0005605220794677734,
+    "index_get_data_fallback": 9.5367431640625e-07,
+    "resolve_expiry": 9.179115295410156e-05,
+    "fetch_instruments": 8.225440979003906e-05,
+    "enrich_quotes": 7.390975952148438e-05,
+    "preventive_validate": 0.0001316070556640625,
+    "coverage_metrics": 8.726119995117188e-05,
+    "field_coverage_metrics": 0.0001811981201171875,
+    "iv_estimation": 4.291534423828125e-06,
+    "greeks_compute": 9.775161743164062e-06,
+    "persist_and_metrics": 0.0001266002655029297,
+    "emit_phase_metrics": 2.5033950805664062e-05
+  },
+  "digest_sha256": "17a3dee71aa19c4fc9914d82b7677c23b6687785e229d5e537621f2ce78375d0"
+}

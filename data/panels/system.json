@@ -1,25 +1,10 @@
 {
   "panel": "system",
-  "updated_at": "2025-09-18T06:56:56.653888Z",
-  "kind": null,
-  "data": [
-    {
-      "category": "Loop",
-      "metric": "Avg duration",
-      "value": 1.061,
-      "status": "OK"
-    },
-    {
-      "category": "Provider",
-      "metric": "Latency ms",
-      "value": 55,
-      "status": "OK"
-    },
-    {
-      "category": "CPU",
-      "metric": "%",
-      "value": 23.6,
-      "status": "OK"
-    }
-  ]
+  "updated_at": "2025-10-01T14:41:00Z",
+  "data": {
+    "memory_rss_mb": null,
+    "cycle": 105030,
+    "last_duration": 0.977,
+    "interval": 60
+  }
 }

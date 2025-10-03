@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Tiny adaptive circuit breaker registry and decorators (opt-in).
+Safe-by-default: nothing changes unless explicitly used.
+"""
+from __future__ import annotations
+
+import os
+import threading
+from typing import Callable, Dict, Optional, Any, TypeVar, cast
+
+from .adaptive_circuit_breaker import AdaptiveCircuitBreaker, BreakerConfig, CircuitOpenError, CircuitState
+from src.health import runtime as health_runtime
+from src.health.models import HealthLevel, HealthState
+
+_REG_LOCK = threading.RLock()
+_REGISTRY: Dict[str, AdaptiveCircuitBreaker] = {}
+
+
+def get_breaker(name: str) -> AdaptiveCircuitBreaker:
+    with _REG_LOCK:
+        b = _REGISTRY.get(name)
+        if b is not None:
+            return b
+        # Build from env defaults
+        cfg = BreakerConfig(
+            name=name,
+            failure_threshold=int(os.environ.get("G6_CB_FAILURES", "5")),
+            min_reset_timeout=float(os.environ.get("G6_CB_MIN_RESET", "10")),
+            max_reset_timeout=float(os.environ.get("G6_CB_MAX_RESET", "300")),
+            backoff_factor=float(os.environ.get("G6_CB_BACKOFF", "2.0")),
+            jitter=float(os.environ.get("G6_CB_JITTER", "0.2")),
+            half_open_successes=int(os.environ.get("G6_CB_HALF_OPEN_SUCC", "1")),
+            persistence_dir=os.environ.get("G6_CB_STATE_DIR") or None,
+        )
+        b = AdaptiveCircuitBreaker(cfg)
+        _REGISTRY[name] = b
+        return b
+
+
+F = TypeVar("F")
+
+
+def circuit_protected(name: Optional[str] = None, fallback: Optional[Callable[..., Any]] = None):
+    def deco(func: Callable[..., Any]) -> Callable[..., Any]:
+        cb_name = name or f"cb:{func.__module__}.{func.__name__}"
+        def wrapper(*args, **kwargs):
+            br = get_breaker(cb_name)
+            try:
+                result = br.execute(func, *args, **kwargs)
+                # On success, update health based on current breaker state
+                try:
+                    if os.environ.get('G6_HEALTH_COMPONENTS', '').lower() in ('1','true','yes','on'):
+                        st = br.state
+                        if st == CircuitState.CLOSED:
+                            health_runtime.set_component(cb_name, HealthLevel.HEALTHY, HealthState.HEALTHY)
+                        elif st == CircuitState.HALF_OPEN:
+                            health_runtime.set_component(cb_name, HealthLevel.WARNING, HealthState.WARNING)
+                        # OPEN state on success is unlikely; ignore here
+                except Exception:
+                    pass
+                return result
+            except CircuitOpenError:
+                try:
+                    if os.environ.get('G6_HEALTH_COMPONENTS', '').lower() in ('1','true','yes','on'):
+                        health_runtime.set_component(cb_name, HealthLevel.CRITICAL, HealthState.CRITICAL)
+                except Exception:
+                    pass
+                if callable(fallback):
+                    return fallback(*args, **kwargs)
+                raise
+        return cast(Callable[..., Any], wrapper)
+    return deco
+
+
+__all__ = ["get_breaker", "circuit_protected"]

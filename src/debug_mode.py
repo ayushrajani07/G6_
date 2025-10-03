@@ -24,7 +24,7 @@ from src.collectors.providers_interface import Providers
 from src.collectors.unified_collectors import run_unified_collectors
 from src.storage.csv_sink import CsvSink
 from src.storage.influx_sink import NullInfluxSink
-from src.metrics.metrics import setup_metrics_server
+from src.metrics import setup_metrics_server  # facade import
 
 def main():
     """Debug mode main function."""

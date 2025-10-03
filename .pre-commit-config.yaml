@@ -1,0 +1,58 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.1
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.17.0
+    hooks:
+      - id: pyupgrade
+        args: ["--py313-plus"]
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+      - id: check-added-large-files
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]
+  # Optional flake8 (can be removed once ruff parity confirmed)
+  - repo: https://github.com/pycqa/flake8
+    rev: 7.1.0
+    hooks:
+      - id: flake8
+        additional_dependencies: []
+  # Local custom governance & policy hooks
+  - repo: local
+    hooks:
+      - id: forbid-datetime-utcnow
+        name: forbid datetime.utcnow usage
+        entry: python scripts/hooks/forbid_datetime_utcnow.py
+        language: system
+        types: [python]
+      - id: forbid-naive-datetime-now
+        name: forbid naive datetime.now usage (no tzinfo)
+        entry: python scripts/hooks/forbid_naive_datetime_now.py
+        language: system
+        types: [python]
+      - id: g6-env-doc-governance
+        name: G6 env var documentation governance
+        entry: python scripts/check_env_doc_governance.py
+        language: system
+        pass_filenames: false
+        stages: [commit]
+      - id: g6-config-doc-governance
+        name: G6 config documentation governance
+        entry: python scripts/check_config_doc_governance.py
+        language: system
+        pass_filenames: false
+        stages: [commit]
+
+# Optional black (disabled by default) – enable by adding its repo section if strict formatting desired.

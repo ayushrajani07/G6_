@@ -1,0 +1,30 @@
+{
+  "generated_at": "2025-09-26T18:32:51.300728+00:00",
+  "legacy": {
+    "NIFTY": {
+      "expiries": [
+        "2025-09-29",
+        "2025-10-06"
+      ],
+      "expiry_option_counts": {
+        "2025-09-29": 3,
+        "2025-10-06": 3
+      },
+      "total_options": 6
+    }
+  },
+  "new": {
+    "NIFTY": {
+      "expiries": [
+        "2025-09-29",
+        "2025-10-06"
+      ],
+      "expiry_option_counts": {
+        "2025-09-29": 3,
+        "2025-10-06": 3
+      },
+      "total_options": 6
+    }
+  },
+  "checksum": "e12ea75ace4f95a380a7069c64fe067a22cec4ce4c1afb850c07814fbb84b968"
+}

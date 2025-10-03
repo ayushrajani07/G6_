@@ -21,6 +21,8 @@ def test_no_naive_persisted_now():
             continue
         if 'tests' in low:
             continue
+        if '\\scripts\\hooks\\' in low or '/scripts/hooks/' in low:
+            continue
         if path.name in {'timeutils.py','ci_time_guard.py'}:
             continue
         text = path.read_text(encoding='utf-8', errors='ignore')

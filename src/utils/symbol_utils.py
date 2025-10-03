@@ -6,43 +6,37 @@ Standardized symbol handling.
 
 from __future__ import annotations
 
-from typing import Dict, Optional
+from typing import Dict, Optional, TypedDict, Union, Mapping, Any
 
-# Index information
-INDEX_INFO = {
-    "NIFTY": {
-        "display": "Nifty 50",
-        "strike_step": 50,
-        "segment": "NFO-OPT",
-        "exchange": "NSE"
-    },
-    "BANKNIFTY": {
-        "display": "Bank Nifty",
-        "strike_step": 100,
-        "segment": "NFO-OPT",
-        "exchange": "NSE"
-    },
-    "FINNIFTY": {
-        "display": "Fin Nifty",
-        "strike_step": 50,
-        "segment": "NFO-OPT",
-        "exchange": "NSE"
-    },
-    "MIDCPNIFTY": {
-        "display": "Midcap Nifty",
-        "strike_step": 25,
-        "segment": "NFO-OPT",
-        "exchange": "NSE"
-    },
-    "SENSEX": {
-        "display": "Sensex",
-        "strike_step": 100,
-        "segment": "BFO-OPT",
-        "exchange": "BSE"
-    }
+
+class _IndexInfo(TypedDict):
+    display: str
+    strike_step: int
+    segment: str
+    exchange: str
+
+# Keyed by root symbol
+INDEX_INFO: Dict[str, _IndexInfo] = {
+    # ... existing entries replaced below
 }
 
-def normalize_symbol(symbol: str) -> Dict[str, str]:
+INDEX_INFO.update({
+    "NIFTY": _IndexInfo(display="Nifty 50", strike_step=50, segment="NFO-OPT", exchange="NSE"),
+    "BANKNIFTY": _IndexInfo(display="Bank Nifty", strike_step=100, segment="NFO-OPT", exchange="NSE"),
+    "FINNIFTY": _IndexInfo(display="Fin Nifty", strike_step=50, segment="NFO-OPT", exchange="NSE"),
+    "MIDCPNIFTY": _IndexInfo(display="Midcap Nifty", strike_step=25, segment="NFO-OPT", exchange="NSE"),
+    "SENSEX": _IndexInfo(display="Sensex", strike_step=100, segment="BFO-OPT", exchange="BSE"),
+})
+
+class NormalizedSymbol(TypedDict):
+    root: str
+    display: str
+    strike_step: int
+    segment: str
+    exchange: str
+
+
+def normalize_symbol(symbol: str) -> NormalizedSymbol:
     """
     Normalize a trading symbol to canonical form.
     
@@ -53,40 +47,23 @@ def normalize_symbol(symbol: str) -> Dict[str, str]:
         Dictionary with normalized symbol information
     """
     if not symbol:
-        return {
-            "root": "UNKNOWN",
-            "display": "Unknown",
-            "strike_step": 50,
-            "segment": "NFO-OPT",
-            "exchange": "NSE"
-        }
+        return NormalizedSymbol(root="UNKNOWN", display="Unknown", strike_step=50, segment="NFO-OPT", exchange="NSE")
     
     # Convert to uppercase and remove whitespace
     clean = symbol.strip().upper()
     
     # Check for exact matches
     if clean in INDEX_INFO:
-        return {
-            "root": clean,
-            **INDEX_INFO[clean]
-        }
+        info = INDEX_INFO[clean]
+        return NormalizedSymbol(root=clean, display=info["display"], strike_step=info["strike_step"], segment=info["segment"], exchange=info["exchange"])
     
     # Check for partial matches
     for key, info in INDEX_INFO.items():
         if clean.startswith(key):
-            return {
-                "root": key,
-                **info
-            }
+            return NormalizedSymbol(root=key, display=info["display"], strike_step=info["strike_step"], segment=info["segment"], exchange=info["exchange"])
     
     # Default case
-    return {
-        "root": clean,
-        "display": clean,
-        "strike_step": 50,
-        "segment": "NFO-OPT",
-        "exchange": "NSE"
-    }
+    return NormalizedSymbol(root=clean, display=clean, strike_step=50, segment="NFO-OPT", exchange="NSE")
 
 def get_segment(symbol: str) -> Optional[str]:
     """Get segment for a symbol."""

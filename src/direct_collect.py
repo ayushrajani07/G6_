@@ -91,6 +91,11 @@ def main():
         logger.info("Kite provider initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize Kite provider: {e}", exc_info=True)
+        try:
+            from src.error_handling import handle_provider_error
+            handle_provider_error(e, component="direct_collect.init_kite", context={"phase": "init"})
+        except Exception:
+            pass
         return 1
     
     # Initialize CSV sink
@@ -212,6 +217,11 @@ def main():
                             logger.debug(f"File preview (first 5 lines): {preview}")
                         except Exception as read_err:
                             logger.error(f"Error reading written CSV: {read_err}")
+                            try:
+                                from src.error_handling import handle_data_collection_error
+                                handle_data_collection_error(read_err, component="direct_collect.verify_csv", data_type="csv_read", context={"file": expected_file})
+                            except Exception:
+                                pass
                     else:
                         logger.warning("Expected CSV file not found after write attempt")
                         if not os.path.exists(expected_dir):
@@ -224,6 +234,11 @@ def main():
                                 logger.info("Sentinel file created to confirm permissions")
                             except Exception as dir_err:
                                 logger.error(f"Failed creating directory or sentinel: {dir_err}", exc_info=True)
+                                try:
+                                    from src.error_handling import handle_data_collection_error
+                                    handle_data_collection_error(dir_err, component="direct_collect.ensure_dir", data_type="filesystem", context={"path": expected_dir})
+                                except Exception:
+                                    pass
                 else:
                     logger.warning("No normalized option data to write (all instruments skipped?)")
                 
@@ -234,6 +249,11 @@ def main():
     
     except Exception as e:
         logger.error(f"Error collecting data: {e}", exc_info=True)
+        try:
+            from src.error_handling import handle_collector_error
+            handle_collector_error(e, component="direct_collect.run", context={"stage": "collect"})
+        except Exception:
+            pass
     
     logger.info("===== DIRECT COLLECTION COMPLETED =====")
     return 0

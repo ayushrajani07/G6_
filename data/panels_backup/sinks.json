@@ -1,0 +1,10 @@
+{
+  "panel": "sinks",
+  "updated_at": "2025-09-19T04:34:22.173755Z",
+  "kind": "sinks",
+  "data": {
+    "csv": {
+      "last_write": "2025-09-18T08:22:25.374943Z"
+    }
+  }
+}

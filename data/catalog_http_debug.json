@@ -1,0 +1,13 @@
+{
+  "events_included": false,
+  "generated_at": "2025-09-30T17:46:58.291386Z",
+  "indices": {},
+  "integrity": {
+    "cycles_observed": 3,
+    "first_cycle": 1,
+    "last_cycle": 5,
+    "missing_count": 2,
+    "source": "http_inline",
+    "status": "GAPS"
+  }
+}

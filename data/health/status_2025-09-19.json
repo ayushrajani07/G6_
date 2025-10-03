@@ -1,0 +1,34 @@
+{
+  "timestamp": "2025-09-19T17:23:30.806523Z",
+  "components": {
+    "providers": {
+      "status": "healthy",
+      "message": "OK",
+      "last_check": "2025-09-19T22:53:30.800623"
+    },
+    "csv_sink": {
+      "status": "healthy",
+      "message": "OK",
+      "last_check": "2025-09-19T22:53:30.800801"
+    },
+    "influx_sink": {
+      "status": "healthy",
+      "message": "OK",
+      "last_check": "2025-09-19T22:53:30.801093"
+    }
+  },
+  "health_checks": {
+    "csv_storage": {
+      "status": "healthy",
+      "message": "CSV sink is healthy",
+      "last_check": "2025-09-19T22:53:30.804642",
+      "data": {}
+    },
+    "primary_provider_responsive": {
+      "status": "unhealthy",
+      "message": "Non-positive LTP for NIFTY",
+      "last_check": "2025-09-19T22:53:30.806340",
+      "data": {}
+    }
+  }
+}

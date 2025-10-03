@@ -1,7 +1,7 @@
 {
   "panel": "health",
-  "updated_at": "2025-09-18T08:01:09.190898Z",
-  "kind": null,
+  "updated_at": "2025-09-30T12:01:39.807470Z",
+  "kind": "health",
   "data": {
     "collector": "ok",
     "sinks": "ok",

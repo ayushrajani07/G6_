@@ -1,0 +1,3 @@
+timestamp,index,expiry_tag,expiry_date,offset,index_price,atm,strike,ce,pe,tp,avg_ce,avg_pe,avg_tp,ce_vol,pe_vol,ce_oi,pe_oi,ce_iv,pe_iv,ce_delta,pe_delta,ce_theta,pe_theta,ce_vega,pe_vega,ce_gamma,pe_gamma,ce_rho,pe_rho
+29-09-2025 12:22:30,SENSEX,this_week,2025-10-01,600,80383.98,80400,81000,141.85,588.35,730.2,224.13,421.38,645.51,11514940,5082520,1269860,348780,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+29-09-2025 12:33:30,SENSEX,this_week,2025-10-01,600,80381.92,80400,81000,141.4,585.25,726.65,222.11,424.35,646.46,11812740,5180020,1274980,344720,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0

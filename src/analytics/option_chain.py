@@ -12,6 +12,10 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, date, timedelta
 from typing import Dict, List, Optional, Tuple, Union, Any
+from src.error_handling import (
+    handle_provider_error,
+    handle_api_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,12 +39,16 @@ class OptionChainAnalytics:
         """
         min_strike, max_strike = strike_range
         
-        # Determine strike step if not provided
+        # Determine strike step from registry if not explicitly provided
         if strike_step is None:
-            if "BANK" in index_symbol.upper():
-                strike_step = 100.0
-            else:
-                strike_step = 50.0
+            try:
+                from src.utils.index_registry import get_index_meta
+                strike_step = float(get_index_meta(index_symbol).step)
+                if strike_step <= 0:
+                    strike_step = 50.0
+            except Exception:
+                # Fallback legacy heuristic
+                strike_step = 100.0 if "BANK" in index_symbol.upper() or "SENSEX" in index_symbol.upper() else 50.0
                 
         # Generate strikes within range
         strikes = []
@@ -61,10 +69,29 @@ class OptionChainAnalytics:
                 try:
                     instruments = self.provider.get_option_instruments(index_symbol, expiry_date, strikes)  # type: ignore
                 except Exception as e:  # pragma: no cover
+                    # Route provider error centrally, keep existing log for behavior
+                    handle_provider_error(
+                        e,
+                        component="analytics.option_chain",
+                        index_name=index_symbol,
+                        context={"expiry": str(expiry_date)},
+                    )
                     logger.error(f"Provider get_option_instruments failed: {e}")
             else:
+                # Provider capability missing -> configuration issue
+                handle_api_error(
+                    AttributeError("missing option instruments API"),
+                    component="analytics.option_chain",
+                    context={"index": index_symbol, "expiry": str(expiry_date)},
+                )
                 logger.error("Provider missing option_instruments / get_option_instruments; returning empty chain")
         except Exception as e:
+            handle_provider_error(
+                e,
+                component="analytics.option_chain",
+                index_name=index_symbol,
+                context={"expiry": str(expiry_date)},
+            )
             logger.error(f"Error fetching option instruments: {e}")
         
         # Get all option symbols
@@ -81,6 +108,12 @@ class OptionChainAnalytics:
             try:
                 quotes = self.provider.get_quote(option_keys)
             except Exception as e:
+                handle_provider_error(
+                    e,
+                    component="analytics.option_chain",
+                    index_name=index_symbol,
+                    context={"num_keys": len(option_keys)},
+                )
                 logger.error(f"Error fetching quotes for option chain: {e}")
         
         # Convert to DataFrame
@@ -148,6 +181,11 @@ class OptionChainAnalytics:
             try:
                 atm_strike = self.provider.get_ltp(index_symbol)
             except Exception:
+                handle_api_error(
+                    AttributeError("missing ATM strike capability"),
+                    component="analytics.option_chain",
+                    context={"index": index_symbol},
+                )
                 logger.error("Provider missing ATM strike capability; defaulting to 0")
                 atm_strike = 0
         
@@ -163,7 +201,7 @@ class OptionChainAnalytics:
         )
         
         if option_chain.empty:
-            logger.warning(f"Empty option chain for {index_symbol} {expiry_date}; PCR defaults to 0")
+            logger.debug(f"Empty option chain for {index_symbol} {expiry_date}; PCR defaults to 0")
             return {"oi_pcr": 0.0, "volume_pcr": 0.0}
             
         # Calculate PCR
@@ -198,6 +236,11 @@ class OptionChainAnalytics:
             try:
                 atm_strike = self.provider.get_ltp(index_symbol)
             except Exception:
+                handle_api_error(
+                    AttributeError("missing ATM strike capability"),
+                    component="analytics.option_chain",
+                    context={"index": index_symbol},
+                )
                 logger.error("Provider missing ATM strike capability; defaulting to 0")
                 atm_strike = 0
         
@@ -213,7 +256,7 @@ class OptionChainAnalytics:
         )
         
         if option_chain.empty:
-            logger.warning(f"Empty option chain for max pain calculation {index_symbol} {expiry_date}; returning ATM {atm_strike}")
+            logger.debug(f"Empty option chain for max pain calculation {index_symbol} {expiry_date}; returning ATM {atm_strike}")
             return atm_strike
         
         # Get unique strikes
@@ -269,6 +312,11 @@ class OptionChainAnalytics:
             try:
                 atm_strike = self.provider.get_ltp(index_symbol)
             except Exception:
+                handle_api_error(
+                    AttributeError("missing ATM strike capability"),
+                    component="analytics.option_chain",
+                    context={"index": index_symbol},
+                )
                 logger.error("Provider missing ATM strike capability; defaulting to 0")
                 atm_strike = 0
         

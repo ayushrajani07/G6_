@@ -1,0 +1,17 @@
+<div class="panel">
+  {% if snapshot %}
+  <div class="kvs">
+    <div><span>RSS (MB)</span><span>{{ snapshot.memory.rss_mb if snapshot.memory else '—' }}</span></div>
+    <div><span>Peak RSS (MB)</span><span>{{ snapshot.memory.peak_rss_mb if snapshot.memory else '—' }}</span></div>
+    <div><span>GC Collections</span><span>{{ snapshot.memory.gc_collections_total if snapshot.memory else '—' }}</span></div>
+    <div><span>Last GC (ms)</span><span>{{ snapshot.memory.gc_last_duration_ms if snapshot.memory else '—' }}</span></div>
+  </div>
+  {% else %}
+  <p>No snapshot</p>
+  {% endif %}
+  {% if debug %}
+  <div style="margin-top:8px;">
+    <button class="btn" hx-post="/api/memory/gc" hx-vals='{"aggressive":"1"}' hx-swap="none">Trigger GC (aggressive)</button>
+  </div>
+  {% endif %}
+</div>

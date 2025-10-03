@@ -1,4 +1,20 @@
 from __future__ import annotations
+# DEPRECATION NOTICE:
+# This module is deprecated in favor of `scripts/summary/app.py` (unified summary application).
+# It is retained only as a thin compatibility layer providing:
+#   * StatusCache
+#   * plain_fallback (used by some tests / plain mode)
+#   * Legacy wrapper functions (indices_panel, analytics_panel, alerts_panel, links_panel, build_layout)
+# New feature work should target the unified summary under scripts/summary/.* and NOT this file.
+try:  # Emit a one-time deprecation warning on first import (non-fatal)
+    import warnings as _warnings  # noqa: F401
+    _warnings.warn(
+        "scripts.summary_view is deprecated; use scripts.summary.app (unified summary). This shim will be removed in a future release.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+except Exception:  # pragma: no cover
+    pass
 # pyright: reportGeneralTypeIssues=false, reportUnknownMemberType=false, reportMissingImports=false
 
 import argparse
@@ -9,42 +25,81 @@ import time
 import re
 from dataclasses import dataclass
 
-# When executed as a script (python scripts/summary_view.py), ensure the project root is on sys.path
+# Ensure the project root is on sys.path using centralized helper
 try:
+    from src.utils.path_utils import ensure_sys_path
+    ensure_sys_path()
+except Exception:
+    # Minimal bootstrap fallback if imports fail
     _this_dir = os.path.dirname(os.path.abspath(__file__))
     _proj_root = os.path.dirname(_this_dir)
     if _proj_root and _proj_root not in sys.path:
         sys.path.insert(0, _proj_root)
-except Exception:
-    pass
-from typing import Any, Dict, List, Optional, Tuple
+    from src.utils.path_utils import ensure_sys_path
+    ensure_sys_path()
+from typing import Any, Dict, List, Optional, Tuple, Protocol, Callable
 from datetime import datetime, timezone, timedelta
 try:
-    from zoneinfo import ZoneInfo  # Python 3.9+
-    IST_TZ = ZoneInfo("Asia/Kolkata")
-except Exception:
-    # Fallback to fixed offset if zoneinfo unavailable
-    IST_TZ = timezone(timedelta(hours=5, minutes=30))
+    # Prefer canonical derive helpers from modular summary package
+    from scripts.summary.derive import (
+        fmt_hms_from_dt, fmt_hms, fmt_timedelta_secs, parse_iso,
+        derive_cycle, derive_health, derive_provider, estimate_next_run,
+    )  # noqa: F401
+except Exception:  # pragma: no cover
+    # Fallback: local minimal implementations retained (de-duplicated below if needed)
+    from src.utils.timeutils import format_any_to_ist_hms_30s as _fmt_ist_hms_30s  # type: ignore
+    def fmt_hms_from_dt(dt: datetime) -> str:  # type: ignore
+        try:
+            s = _fmt_ist_hms_30s(dt)
+            if isinstance(s, str):
+                return s
+        except Exception:
+            pass
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone(timedelta(hours=5, minutes=30))).strftime("%H:%M:%S")
+    def fmt_hms(ts: Any) -> Optional[str]:  # type: ignore
+        if isinstance(ts, datetime):
+            return fmt_hms_from_dt(ts)
+        return None
+    def fmt_timedelta_secs(secs: Optional[float]) -> str:  # type: ignore
+        if secs is None: return "—"
+        if secs < 0: secs = 0
+        if secs < 60: return f"{secs:.1f}s"
+        m, s = divmod(int(secs), 60); h, m = divmod(m, 60)
+        return f"{h}h {m}m {s}s" if h else f"{m}m {s}s"
+    def parse_iso(ts: Any) -> Optional[datetime]:  # type: ignore
+        try:
+            if isinstance(ts, (int,float)):
+                return datetime.fromtimestamp(float(ts), tz=timezone.utc)
+        except Exception:
+            return None
+        return None
     
 # Optional psutil for local resource collection helpers that still reference it
 try:
-    import psutil  # type: ignore
-except Exception:
-    psutil = None  # type: ignore
+    import psutil  # optional dependency
+except Exception:  # pragma: no cover
+    psutil = None  # psutil not available
+
+# Centralized metrics adapter (optional)
+class _MetricsAdapterLike(Protocol):  # minimal surface used here
+    def get_cpu_percent(self) -> Optional[float]: ...
+    def get_memory_usage_mb(self) -> Optional[float]: ...
+
+try:
+    from src.utils.metrics_adapter import get_metrics_adapter  # runtime import; returns adapter
+except Exception:  # pragma: no cover
+    get_metrics_adapter = None  # adapter not available
 
 # Import sizing helpers now provided by modular env
 try:
-    from scripts.summary.env import effective_panel_width, panel_height, _env_true, _env_min_col_width  # type: ignore
-except Exception:
-    # Fallback stubs if env module not available
-    def effective_panel_width(name: str) -> Optional[int]:
-        return None
-    def panel_height(name: str) -> Optional[int]:
-        return None
-    def _env_true(name: str) -> bool:
-        return False
-    def _env_min_col_width() -> int:
-        return 30
+    from scripts.summary.env import effective_panel_width, panel_height, _env_true as _env_true_env, _env_min_col_width as _env_min_col_width_env  # runtime import
+except Exception:  # pragma: no cover
+    effective_panel_width = lambda name: None  # noqa: E731
+    panel_height = lambda name: None  # noqa: E731
+    _env_true_env = lambda name: False  # noqa: E731
+    _env_min_col_width_env = lambda: 30  # noqa: E731
 
 def _env_int(name: str, default: Optional[int] = None) -> Optional[int]:
     try:
@@ -69,27 +124,6 @@ def _get_output_lazy():
             except Exception:
                 pass
     return _O()
-def fmt_hms_from_dt(dt: datetime) -> str:
-    # Format as HH:MM:SS in IST
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(IST_TZ).strftime("%H:%M:%S")
-
-
-def fmt_hms(ts: Any) -> Optional[str]:
-    if isinstance(ts, datetime):
-        return fmt_hms_from_dt(ts)
-    if isinstance(ts, (int, float)):
-        try:
-            return fmt_hms_from_dt(datetime.fromtimestamp(float(ts), tz=timezone.utc))
-        except Exception:
-            return None
-    if isinstance(ts, str):
-        dt = parse_iso(ts)
-        return fmt_hms_from_dt(dt) if dt else None
-    return None
-
-
 def _env_clip_len() -> int:
     try:
         return max(10, int(os.getenv("G6_PANEL_CLIP", "60")))
@@ -108,13 +142,22 @@ def clip(text: Any, max_len: Optional[int] = None) -> str:
 
 
 def _env_true(name: str) -> bool:
-    v = os.getenv(name, "").strip().lower()
-    return v in ("1", "true", "yes", "on")
+    """Local env true helper retained for backward compat; prefers env module version if present."""
+    try:
+        return bool(_env_true_env(name))  # type: ignore[misc]
+    except Exception:
+        v = os.getenv(name, "").strip().lower()
+        return v in ("1", "true", "yes", "on")
 
 
 def _env_min_col_width() -> int:
-    # Minimum width for a column when splitting rows into columns.
-    # Defaults to a compact but readable size derived from clip length.
+    """Local min col width helper (delegates to env module when available)."""
+    try:
+        val = _env_min_col_width_env()  # type: ignore[misc]
+        if isinstance(val, int) and val > 0:
+            return val
+    except Exception:
+        pass
     v = _env_int("G6_PANEL_MIN_COL_W")
     if v and v > 0:
         return v
@@ -123,7 +166,12 @@ def _env_min_col_width() -> int:
 
 # ---- Trading hours helpers (IST) ----
 def ist_now() -> datetime:
-    return datetime.now(IST_TZ)
+    try:
+        # Prefer system zoneinfo if available
+        from zoneinfo import ZoneInfo  # Python 3.9+ stdlib
+        return datetime.now(ZoneInfo("Asia/Kolkata"))
+    except Exception:
+        return datetime.now(timezone(timedelta(hours=5, minutes=30)))
 
 
 def is_market_hours_ist(dt: Optional[datetime] = None) -> bool:
@@ -161,6 +209,8 @@ class StatusCache:
     payload: Dict[str, Any] | None = None
 
     def refresh(self) -> Dict[str, Any] | None:
+        # Use centralized StatusReader for consistent IO; preserve previous
+        # behavior: on partial writes or decode errors, keep last payload.
         try:
             st = os.stat(self.path)
         except FileNotFoundError:
@@ -169,6 +219,21 @@ class StatusCache:
         if st.st_mtime <= self.last_mtime and self.payload is not None:
             return self.payload
         try:
+            from src.utils.status_reader import get_status_reader  # runtime import
+        except Exception:
+            get_status_reader = None  # type: ignore
+        try:
+            if get_status_reader is not None:
+                reader = get_status_reader(self.path)
+                data = reader.get_raw_status()
+                if isinstance(data, dict) and (data or self.payload is None):
+                    self.payload = data
+                    self.last_mtime = st.st_mtime
+                    return self.payload
+                # If empty dict while we have previous payload, treat as transient
+                # and keep last payload unchanged.
+                return self.payload
+            # Fallback to direct read if reader unavailable
             with open(self.path, "r", encoding="utf-8") as f:
                 self.payload = json.load(f)
             self.last_mtime = st.st_mtime
@@ -178,88 +243,34 @@ class StatusCache:
         return self.payload
 
 
-def fmt_timedelta_secs(secs: Optional[float]) -> str:
-    if secs is None:
-        return "—"
-    if secs < 0:
-        secs = 0
-    if secs < 60:
-        return f"{secs:.1f}s"
-    m, s = divmod(int(secs), 60)
-    h, m = divmod(m, 60)
-    if h:
-        return f"{h}h {m}m {s}s"
-    return f"{m}m {s}s"
+def derive_market_summary(status: Dict[str, Any] | None) -> Tuple[str, str]:  # backward compat shim
+    from scripts.summary.derive import derive_market_summary as _dms  # type: ignore
+    return _dms(status)
 
-
-def parse_iso(ts: Any) -> Optional[datetime]:
-    try:
-        if isinstance(ts, (int, float)):
-            return datetime.fromtimestamp(float(ts), tz=timezone.utc)
-        if isinstance(ts, str):
-            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-            # Normalize naive datetimes to UTC-aware
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            return dt
-    except Exception:
-        return None
-    return None
-
-
-def derive_market_summary(status: Dict[str, Any] | None) -> Tuple[str, str]:
-    if not status:
-        return ("unknown", "next open: —")
-    # Heuristics based on expected fields
-    open_flag = status.get("market_open") or status.get("equity_market_open")
-    # Support enriched schema: { "market": { "status": "OPEN"|"CLOSED" } }
-    if not open_flag and isinstance(status.get("market"), dict):
-        st = str(status["market"].get("status", "")).upper()
-        if st:
-            open_flag = st == "OPEN"
-    next_open = status.get("next_market_open")
-    state = "OPEN" if open_flag else "CLOSED"
-    extra = ""
-    if next_open:
-        try:
-            # Accept either ISO or epoch
-            if isinstance(next_open, (int, float)):
-                dt = datetime.fromtimestamp(float(next_open), tz=timezone.utc)
-            else:
-                dt = datetime.fromisoformat(str(next_open).replace("Z", "+00:00"))
-            delta = (dt - datetime.now(timezone.utc)).total_seconds()
-            extra = f"next open: {dt.isoformat().replace('+00:00','Z')} (in {fmt_timedelta_secs(delta)})"
-        except Exception:
-            extra = f"next open: {next_open}"
-    return (state, extra or "")
-
-
-def _estimate_lines_market(status: Dict[str, Any] | None, interval: Optional[float]) -> int:
-    state, extra = derive_market_summary(status)
-    lines = 1 + (1 if interval else 0) + (1 if extra else 0)
-    return max(1, lines)
+def _estimate_lines_market(status: Dict[str, Any] | None, interval: Optional[float]) -> int:  # relies on derive module
+    from scripts.summary.derive import derive_market_summary as _dms  # type: ignore
+    state, extra = _dms(status)
+    return max(1, 1 + (1 if interval else 0) + (1 if extra else 0))
 
 
 def _estimate_lines_loop(status: Dict[str, Any] | None, rolling: Optional[Dict[str, Any]], interval: Optional[float]) -> int:
-    cy = derive_cycle(status)
-    lines = 1  # cycle
-    if cy.get("last_start"):
-        lines += 1
-    if cy.get("last_duration") is not None:
-        lines += 1
-    if cy.get("success_rate") is not None:
-        lines += 1
+    from scripts.summary.derive import derive_cycle as _dc, estimate_next_run as _enr  # type: ignore
+    cy = _dc(status)
+    lines = 1
+    if cy.get("last_start"): lines += 1
+    if cy.get("last_duration") is not None: lines += 1
+    if cy.get("success_rate") is not None: lines += 1
     if rolling and (rolling.get("avg") is not None or rolling.get("p95") is not None):
         lines += (1 if rolling.get("avg") is not None else 0) + (1 if rolling.get("p95") is not None else 0)
-    if interval and estimate_next_run(status, interval) is not None:
+    if interval and _enr(status, interval) is not None:
         lines += 1
     return max(1, lines)
 
 
 def _estimate_lines_health(status: Dict[str, Any] | None, compact: bool) -> int:
-    _, _, items = derive_health(status)
-    limit = 3 if compact else 6
-    return 1 + min(len(items), limit)
+    from scripts.summary.derive import derive_health as _dh  # type: ignore
+    _, _, items = _dh(status)
+    return 1 + min(len(items), 3 if compact else 6)
 
 
 def _estimate_lines_sinks(status: Dict[str, Any] | None) -> int:
@@ -272,14 +283,12 @@ def _estimate_lines_sinks(status: Dict[str, Any] | None) -> int:
 
 
 def _estimate_lines_provider(status: Dict[str, Any] | None) -> int:
-    p = derive_provider(status)
-    lines = 1  # provider name
-    if p.get("auth") is not None:
-        lines += 1
-    if p.get("expiry"):
-        lines += 1
-    if p.get("latency_ms") is not None:
-        lines += 1
+    from scripts.summary.derive import derive_provider as _dp  # type: ignore
+    p = _dp(status)
+    lines = 1
+    if p.get("auth") is not None: lines += 1
+    if p.get("expiry"): lines += 1
+    if p.get("latency_ms") is not None: lines += 1
     return lines
 
 
@@ -308,7 +317,7 @@ def _estimate_lines_analytics(status: Dict[str, Any] | None, compact: bool) -> i
 
 
 def _estimate_lines_alerts(status: Dict[str, Any] | None, compact: bool) -> int:
-    alerts = []
+    alerts: List[Any] = []
     if status:
         alerts = status.get("alerts") or status.get("events") or []
     count = len(alerts) if isinstance(alerts, list) else 0
@@ -322,121 +331,96 @@ def _estimate_lines_links(metrics_url: Optional[str]) -> int:
 
 
 def derive_indices(status: Dict[str, Any] | None) -> List[str]:
-    if not status:
+    """Delegate to centralized derive. Kept for backward compatibility."""
+    try:
+        from scripts.summary.derive import derive_indices as _derive_indices
+        return _derive_indices(status)
+    except Exception:
+        # Fallback to local minimal logic if import fails
+        if not status:
+            return []
+        indices = status.get("indices") or status.get("symbols") or []
+        if isinstance(indices, str):
+            return [s.strip() for s in indices.split(",") if s.strip()]
+        if isinstance(indices, list):
+            return [str(s) for s in indices]
+        if isinstance(indices, dict):
+            return [str(k) for k in indices.keys()]
         return []
-    indices = status.get("indices") or status.get("symbols") or []
-    if isinstance(indices, str):
-        # e.g. "NIFTY, BANKNIFTY"
-        return [s.strip() for s in indices.split(",") if s.strip()]
-    if isinstance(indices, list):
-        return [str(s) for s in indices]
-    if isinstance(indices, dict):
-        return [str(k) for k in indices.keys()]
-    return []
 
 
 # ---- Optional per-panel JSON source (preferred over status when enabled) ----
 def _use_panels_json() -> bool:
-    # Default ON: prefer data/panels/*.json when available; can disable with env=false
-    v = os.getenv("G6_SUMMARY_READ_PANELS")
-    if v is None:
-        return True
-    return _env_true("G6_SUMMARY_READ_PANELS")
+    """Return whether panels JSON artifacts should be used (auto-detect).
+
+    Primary logic delegated to scripts.summary.data_source._use_panels_json. Deprecated
+    env vars (G6_SUMMARY_PANELS_MODE / G6_SUMMARY_READ_PANELS) are ignored globally.
+    If import fails (rare / minimal environment), fall back to False (status-only) to
+    avoid unexpected file IO assumptions in constrained test contexts.
+    """
+    try:
+        from scripts.summary.data_source import _use_panels_json as _use
+        return _use()
+    except Exception:
+        return False
 
 
 def _panels_dir() -> str:
     return os.getenv("G6_PANELS_DIR", os.path.join("data", "panels"))
 
 
+def _read_json_with_retries(path: str, retries: int = 3, delay: float = 0.05) -> Optional[Any]:
+    """Read JSON file with a brief retry loop to mitigate transient partial reads."""
+    for attempt in range(max(1, retries)):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            if attempt == retries - 1:
+                break
+            try:
+                import time
+                time.sleep(delay)
+            except Exception:
+                pass
+    return None
+
+
 def _read_panel_json(name: str) -> Optional[Any]:
-    if not _use_panels_json():
-        return None
-    path = os.path.join(_panels_dir(), f"{name}.json")
+    """Delegate to centralized data_source._read_panel_json to avoid duplication."""
     try:
-        if not os.path.exists(path):
+        from scripts.summary.data_source import _read_panel_json as _read
+        return _read(name)
+    except Exception:
+        if not _use_panels_json():
             return None
-        with open(path, "r", encoding="utf-8") as f:
-            obj = json.load(f)
-        # Some writers may wrap data under {"panel": name, "data": {...}}
-        if isinstance(obj, dict) and "data" in obj:
-            data = obj.get("data")
-            return data
-        return obj
-    except Exception:
-        # Ignore partial writes or parse errors
-        return None
-
-
-def _tail_read(path: str, max_bytes: int = 65536) -> Optional[str]:
-    try:
-        sz = os.path.getsize(path)
-        with open(path, "rb") as f:
-            if sz > max_bytes:
-                f.seek(-max_bytes, os.SEEK_END)
-            data = f.read()
+        # Conservative fallback to direct file read
+        path = os.path.join(_panels_dir(), f"{name}.json")
         try:
-            return data.decode("utf-8", errors="ignore")
+            if not os.path.exists(path):
+                return None
+            obj = _read_json_with_retries(path)
+            return obj if obj is not None else None
         except Exception:
-            return data.decode("latin-1", errors="ignore")
-    except Exception:
-        return None
+            return None
 
 
-def _parse_indices_metrics_from_text(text: str) -> Dict[str, Dict[str, Any]]:
-    """Parse terminal-style summary lines like:
-    "NIFTY TOTAL LEGS: 272 | FAILS: 0 | STATUS: OK"
-    Returns { index: {legs:int, fails:int, status:str} }
-    """
-    out: Dict[str, Dict[str, Any]] = {}
-    if not text:
-        return out
-    # Be generous with whitespace
-    pat = re.compile(r"(?P<idx>[A-Z]{3,10})\s+TOTAL\s+LEGS:\s+(?P<legs>\d+)\s*\|\s*FAILS:\s+(?P<fails>\d+)\s*\|\s*STATUS:\s*(?P<status>[A-Z_]+)")
-    for m in pat.finditer(text):
-        idx = m.group("idx").strip().upper()
-        try:
-            legs = int(m.group("legs"))
-        except Exception:
-            legs = None  # type: ignore
-        try:
-            fails = int(m.group("fails"))
-        except Exception:
-            fails = None  # type: ignore
-        st = m.group("status").strip().upper()
-        out[idx] = {"legs": legs, "fails": fails, "status": st}
-    return out
-
-
-def _get_indices_metrics_from_log() -> Dict[str, Dict[str, Any]]:
-    # Allow pointing to a file that contains the printed daily options log
-    p = os.getenv("G6_INDICES_PANEL_LOG")
-    if p and os.path.exists(p):
-        txt = _tail_read(p)
-        if txt:
-            return _parse_indices_metrics_from_text(txt)
-    # Weak fallback: try g6_platform.log if present
-    if os.path.exists("g6_platform.log"):
-        txt = _tail_read("g6_platform.log")
-        if txt:
-            return _parse_indices_metrics_from_text(txt)
-    return {}
-
-
-def _get_indices_metrics() -> Dict[str, Dict[str, Any]]:
-    # Prefer panel JSON when available, then fallback to logs
-    if _use_panels_json():
-        pj = _read_panel_json("indices")
-        if isinstance(pj, dict):
-            out: Dict[str, Dict[str, Any]] = {}
-            for k, v in pj.items():
-                if isinstance(v, dict):
-                    out[str(k)] = {**v}
-            if out:
-                return out
-    return _get_indices_metrics_from_log()
+"""
+UI builders previously lived here. The header panel has been moved to scripts.summary.panels.header.
+This module now primarily provides:
+ - Thin main() wrapper delegating to scripts.summary.app.run
+ - StatusCache and plain_fallback helpers
+ - Legacy wrappers used by callers (indices_panel, analytics_panel, alerts_panel, links_panel)
+"""
 
 
 def derive_cycle(status: Dict[str, Any] | None) -> Dict[str, Any]:
+    """DEPRECATED: Use scripts.summary.derive.derive_cycle.
+
+    This local implementation remains for backward compatibility with
+    external imports. It will be removed in a future release once callers
+    migrate to the centralized derive module.
+    """
     d: Dict[str, Any] = {
         "cycle": None,
         "last_start": None,
@@ -466,6 +450,7 @@ def derive_cycle(status: Dict[str, Any] | None) -> Dict[str, Any]:
 
 
 def estimate_next_run(status: Dict[str, Any] | None, interval: Optional[float]) -> Optional[float]:
+    """DEPRECATED: Use scripts.summary.derive.estimate_next_run"""
     if not status or not interval:
         return None
     # If enriched schema provides a countdown, prefer it
@@ -482,857 +467,91 @@ def estimate_next_run(status: Dict[str, Any] | None, interval: Optional[float]) 
     return max(0.0, next_dt - datetime.now(timezone.utc).timestamp())
 
 
+_DERIVE_WARNED = {"health": False, "provider": False}
+
 def derive_health(status: Dict[str, Any] | None) -> Tuple[int, int, List[Tuple[str, str]]]:
-    if not status:
-        return (0, 0, [])
-    comps = status.get("health") or status.get("components") or {}
-    if isinstance(comps, dict):
-        items = []
-        for k, v in comps.items():
-            if isinstance(v, dict):
-                val = v.get("status", v)
-            else:
-                val = v
-            items.append((k, str(val)))
-        healthy = sum(1 for _, s in items if s.lower() in ("ok", "healthy", "ready"))
-        return (healthy, len(items), items)
-    if isinstance(comps, list):
-        items2 = []
-        for c in comps:
-            if isinstance(c, dict):
-                items2.append((str(c.get("name", "?")), str(c.get("status", "?"))))
-        healthy = sum(1 for _, s in items2 if s.lower() in ("ok", "healthy", "ready"))
-        return (healthy, len(items2), items2)
-    return (0, 0, [])
+    """DEPRECATED shim. Use scripts.summary.derive.derive_health instead.
+
+    This wrapper will be removed after downstream callers migrate.
+    """
+    global _DERIVE_WARNED
+    if not _DERIVE_WARNED["health"]:
+        import warnings
+        warnings.warn("derive_health imported from summary_view is deprecated; use scripts.summary.derive", DeprecationWarning, stacklevel=2)
+        _DERIVE_WARNED["health"] = True
+    from scripts.summary.derive import derive_health as _h  # lazy import
+    return _h(status)
 
 
 def derive_provider(status: Dict[str, Any] | None) -> Dict[str, Any]:
-    p = {"name": None, "auth": None, "expiry": None, "latency_ms": None}
-    if not status:
-        return p
-    provider = status.get("provider") or status.get("providers")
-    if isinstance(provider, dict):
-        p["name"] = provider.get("name") or provider.get("primary")
-        auth = provider.get("auth") or provider.get("token") or {}
-        if isinstance(auth, dict):
-            p["auth"] = auth.get("valid")
-            p["expiry"] = auth.get("expiry")
-        p["latency_ms"] = provider.get("latency_ms")
-    return p
+    """DEPRECATED shim. Use scripts.summary.derive.derive_provider instead."""
+    global _DERIVE_WARNED
+    if not _DERIVE_WARNED["provider"]:
+        import warnings
+        warnings.warn("derive_provider imported from summary_view is deprecated; use scripts.summary.derive", DeprecationWarning, stacklevel=2)
+        _DERIVE_WARNED["provider"] = True
+    from scripts.summary.derive import derive_provider as _p
+    return _p(status)
 
 
 def collect_resources() -> Dict[str, Any]:
     out: Dict[str, Any] = {"cpu": None, "rss": None}
+    # Prefer centralized metrics adapter if available
+    try:
+        if get_metrics_adapter is not None:
+            ma = get_metrics_adapter()
+            cpu = ma.get_cpu_percent()
+            mem_mb = ma.get_memory_usage_mb()
+            if isinstance(cpu, (int, float)):
+                out["cpu"] = cpu
+            if isinstance(mem_mb, (int, float)):
+                out["rss"] = int(mem_mb * 1024 * 1024)
+    except Exception:
+        pass
     if psutil:
         try:
-            out["cpu"] = psutil.cpu_percent(interval=None)
-            proc = psutil.Process(os.getpid())
-            out["rss"] = proc.memory_info().rss
+            if out.get("cpu") is None:
+                out["cpu"] = psutil.cpu_percent(interval=None)
+            if out.get("rss") is None:
+                proc = psutil.Process(os.getpid())
+                out["rss"] = proc.memory_info().rss
         except Exception:
             pass
     return out
 
 
 """
-UI builders previously lived here. The header panel has been moved to scripts.summary.panels.header.
-This module now primarily provides:
- - Thin main() wrapper delegating to scripts.summary.app.run
- - StatusCache and plain_fallback helpers
- - Legacy helpers used by tests/panels (may be further reduced later)
+Note: Previously, this module also contained various UI builder helpers (sinks_panel, config_panel, resources_panel, provider_section, resources_section)
+and low-level log parsing helpers (_tail_read, _parse_indices_metrics_from_text, _get_indices_metrics).
+These have been removed to avoid duplication since the single source of truth lives under scripts.summary.panels.* and scripts.summary.data_source.
 """
 
 
-def market_panel(status: Dict[str, Any] | None, interval: Optional[float], *, low_contrast: bool = False) -> Any:
-    from rich.panel import Panel  # type: ignore
-    from rich.table import Table  # type: ignore
-    state, extra = derive_market_summary(status)
-    # Overlay from panels/market.json if present
-    if _use_panels_json():
-        pj = _read_panel_json("market")
-        if isinstance(pj, dict):
-            st = pj.get("status") or pj.get("state")
-            if isinstance(st, str) and st:
-                state = st.upper()
-            nx = pj.get("next_open")
-            if nx is not None:
-                try:
-                    if isinstance(nx, (int, float)):
-                        dt = datetime.fromtimestamp(float(nx), tz=timezone.utc)
-                    else:
-                        dt = datetime.fromisoformat(str(nx).replace("Z", "+00:00"))
-                    delta = (dt - datetime.now(timezone.utc)).total_seconds()
-                    extra = f"next open: {dt.isoformat().replace('+00:00','Z')} (in {fmt_timedelta_secs(delta)})"
-                except Exception:
-                    extra = f"next open: {nx}"
-    # Force OPEN during market hours (IST)
-    try:
-        if is_market_hours_ist():
-            state = "OPEN"
-            # When open, don't show next_open; otherwise compute a best-effort time
-            extra = ""
-        else:
-            # If closed and we don't have a next open, compute next weekday 09:15 IST
-            if not extra:
-                nxt = next_market_open_ist()
-                if nxt is not None:
-                    # Convert IST to UTC ISO for consistency then present
-                    nxt_utc = nxt.astimezone(timezone.utc)
-                    delta = (nxt_utc - datetime.now(timezone.utc)).total_seconds()
-                    extra = f"next open: {nxt_utc.isoformat().replace('+00:00','Z')} (in {fmt_timedelta_secs(delta)})"
-    except Exception:
-        pass
-    tbl = Table.grid()
-    tbl.add_row(clip(f"State: [bold]{state}[/]"))
-    if interval:
-        try:
-            tbl.add_row(clip(f"Cycle Interval: {int(float(interval))}s"))
-        except Exception:
-            tbl.add_row(clip(f"Cycle Interval: {interval}s"))
-    if extra:
-        tbl.add_row(clip(extra))
-    style = "white" if low_contrast else ("green" if state == "OPEN" else "yellow")
-    w = effective_panel_width("market")
-    return Panel(tbl, title="Market", border_style=style, width=w)
-
-
-def loop_panel(status: Dict[str, Any] | None, rolling: Optional[Dict[str, Any]] = None, interval: Optional[float] = None, *, low_contrast: bool = False) -> Any:
-    from rich.panel import Panel  # type: ignore
-    from rich.table import Table  # type: ignore
-    cy = derive_cycle(status)
-    if _use_panels_json():
-        pj = _read_panel_json("loop")
-        if isinstance(pj, dict):
-            if pj.get("cycle") is not None:
-                cy["cycle"] = pj.get("cycle")
-            if pj.get("last_start") is not None:
-                cy["last_start"] = pj.get("last_start")
-            if pj.get("last_duration") is not None:
-                cy["last_duration"] = pj.get("last_duration")
-            if pj.get("success_rate") is not None:
-                cy["success_rate"] = pj.get("success_rate")
-            if rolling is not None:
-                if pj.get("avg") is not None:
-                    rolling["avg"] = pj.get("avg")
-                if pj.get("p95") is not None:
-                    rolling["p95"] = pj.get("p95")
-    tbl = Table.grid()
-    tbl.add_row(clip(f"Cycle: {cy.get('cycle') or '—'}"))
-    ls = cy.get("last_start")
-    if ls:
-        short = fmt_hms(ls)
-        tbl.add_row(clip(f"Last start: {short or ls}"))
-    ld = cy.get("last_duration")
-    if ld is not None:
-        tbl.add_row(clip(f"Last duration: {fmt_timedelta_secs(float(ld))}"))
-    sr = cy.get("success_rate")
-    if sr is not None:
-        tbl.add_row(clip(f"Success (rolling): {sr}%"))
-    if rolling:
-        avg = rolling.get("avg")
-        p95 = rolling.get("p95")
-        if avg is not None:
-            tbl.add_row(clip(f"Avg duration: {fmt_timedelta_secs(float(avg))}"))
-        if p95 is not None:
-            tbl.add_row(clip(f"P95 duration: {fmt_timedelta_secs(float(p95))}"))
-    if interval:
-        nr = estimate_next_run(status, interval)
-        if nr is not None:
-            tbl.add_row(clip(f"Next run in: {fmt_timedelta_secs(nr)}"))
-    w = effective_panel_width("loop")
-    return Panel(tbl, title="Loop", border_style=("white" if low_contrast else "cyan"), width=w)
-
-
-def provider_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False) -> Any:
-    from rich.panel import Panel  # type: ignore
-    from rich.table import Table  # type: ignore
-    p = derive_provider(status)
-    if _use_panels_json():
-        pj = _read_panel_json("provider")
-        if isinstance(pj, dict):
-            if pj.get("name") is not None:
-                p["name"] = pj.get("name")
-            if pj.get("auth") is not None:
-                p["auth"] = pj.get("auth")
-            if pj.get("expiry") is not None:
-                p["expiry"] = pj.get("expiry")
-            if pj.get("latency_ms") is not None:
-                p["latency_ms"] = pj.get("latency_ms")
-    tbl = Table.grid()
-    tbl.add_row(clip(f"Provider: {p.get('name') or '—'}"))
-    auth = p.get("auth")
-    valid = None
-    if isinstance(auth, dict):
-        valid = auth.get("valid")
-    elif isinstance(auth, bool):
-        valid = auth
-    if valid is True:
-        tbl.add_row(clip("Auth: VALID"))
-    elif valid is False:
-        tbl.add_row(clip("Auth: INVALID"))
-    else:
-        tbl.add_row(clip("Auth: —"))
-    if p.get("expiry"):
-        short = fmt_hms(p["expiry"]) or str(p["expiry"])
-        tbl.add_row(clip(f"Token expiry: {short}"))
-    if p.get("latency_ms") is not None:
-        tbl.add_row(clip(f"Latency: {p['latency_ms']} ms"))
-    w = effective_panel_width("provider")
-    return Panel(tbl, title="Provider", border_style=("white" if low_contrast else "magenta"), width=w)
-
-
-def health_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, compact: bool = False) -> Any:
-    from rich.panel import Panel  # type: ignore
-    from rich.table import Table  # type: ignore
-    from rich import box  # type: ignore
-    from rich.console import Group  # type: ignore
-    def _dot(st: str) -> str:
-        s = (st or "").upper()
-        if s in ("OK", "HEALTHY", "READY", "SUCCESS"):
-            return "[green]●[/]"
-        if s in ("WARN", "WARNING", "DEGRADED"):
-            return "[yellow]●[/]"
-        if s:
-            return "[red]●[/]"
-        return "[dim]●[/]"
-    # Consolidate: if panels/system.json exists, render System & Performance Metrics
-    if _use_panels_json():
-        pj_sys = _read_panel_json("system")
-        if isinstance(pj_sys, (dict, list)):
-                # Attempt a rich table if dict/list of dicts
-            try:
-                from rich.table import Table as RTable  # type: ignore
-                rtbl = RTable(box=box.SIMPLE_HEAD)
-                rtbl.add_column("Category", style="bold")
-                rtbl.add_column("Metric")
-                rtbl.add_column("Value")
-                rtbl.add_column("Status")
-                rows_added = 0
-                if isinstance(pj_sys, dict):
-                    for k, v in pj_sys.items():
-                        if isinstance(v, dict):
-                            metric = str(v.get("metric", ""))
-                            val = str(v.get("value", v.get("val", "")))
-                            st = str(v.get("status", v.get("state", "")))
-                            rtbl.add_row(clip(str(k)), clip(metric), clip(val), _dot(st))
-                        else:
-                            rtbl.add_row(clip(str(k)), "", clip(str(v)), "")
-                        rows_added += 1
-                        if rows_added >= (8 if not compact else 4):
-                            break
-                elif isinstance(pj_sys, list):
-                    for it in pj_sys[: (8 if not compact else 4)]:
-                        if isinstance(it, dict):
-                            st = str(it.get("status", it.get("state", "")))
-                            rtbl.add_row(
-                                clip(str(it.get("category", it.get("name", "")))),
-                                clip(str(it.get("metric", ""))),
-                                clip(str(it.get("value", it.get("val", "")))),
-                                _dot(st),
-                            )
-                        else:
-                            rtbl.add_row("", "", clip(str(it)), "")
-                # Append Provider & Resources content as rows
-                # Provider
-                prov: Dict[str, Any] = {}
-                if _use_panels_json():
-                    pj_prov = _read_panel_json("provider")
-                    if isinstance(pj_prov, dict):
-                        prov = pj_prov
-                if not prov and status and isinstance(status, dict):
-                    p = status.get("provider")
-                    if isinstance(p, dict):
-                        prov = p
-                if prov:
-                    # Section header for Provider
-                    rtbl.add_section()
-                    rtbl.add_row("", "[dim]— Provider —[/]", "", "")
-                    name = prov.get("name") or prov.get("provider")
-                    if name:
-                        rtbl.add_row("", "Name", clip(str(name)), _dot("OK"))
-                    auth = prov.get("auth")
-                    valid = None
-                    if isinstance(auth, dict):
-                        valid = auth.get("valid")
-                    elif isinstance(auth, bool):
-                        valid = auth
-                    st = "OK" if valid is True else ("ERROR" if valid is False else "")
-                    if valid is not None:
-                        rtbl.add_row("", "Auth", ("VALID" if valid else "INVALID"), _dot(st))
-                    if prov.get("expiry"):
-                        short = fmt_hms(prov["expiry"]) or str(prov["expiry"]).split(".")[0]
-                        rtbl.add_row("", "Token Expiry", clip(short), _dot("OK"))
-                    if prov.get("latency_ms") is not None:
-                        rtbl.add_row("", "Latency", clip(f"{prov['latency_ms']} ms"), _dot("OK"))
-                # Resources
-                res: Dict[str, Any] = {}
-                if _use_panels_json():
-                    pj_res = _read_panel_json("resources")
-                    if isinstance(pj_res, dict):
-                        res = pj_res
-                if not res:
-                    if status and isinstance(status.get("resources"), dict):
-                        res = status["resources"]
-                    else:
-                        res = collect_resources()
-                if res:
-                    # Section header for Resources
-                    rtbl.add_section()
-                    rtbl.add_row("", "[dim]— Resources —[/]", "", "")
-                cpu = res.get("cpu")
-                if cpu is None and status:
-                    cpu = status.get("cpu_pct")
-                if isinstance(cpu, (int, float)):
-                    rtbl.add_row("", "CPU Usage", clip(f"{cpu:.1f}%"), _dot("OK"))
-                rss = res.get("rss")
-                if rss is None and status:
-                    mem_mb = status.get("memory_mb")
-                    if isinstance(mem_mb, (int, float)):
-                        rss = float(mem_mb) * 1024 * 1024
-                if isinstance(rss, (int, float)):
-                    gb = rss / (1024**3)
-                    rtbl.add_row("", "Memory RSS", clip(f"{gb:.2f} GB"), _dot("OK"))
-                # Footer strip: uptime and collections if available (no extra banner/header rows)
-                footer = Table.grid()
-                parts: list[str] = []
-                up = None
-                if status:
-                    up = status.get("uptime_sec") or status.get("uptime")
-                if isinstance(up, (int, float)):
-                    parts.append(f"Uptime: {fmt_timedelta_secs(float(up))}")
-                colls = None
-                if status:
-                    loop = status.get("loop") if isinstance(status, dict) else None
-                    if isinstance(loop, dict):
-                        colls = loop.get("count") or loop.get("iterations")
-                    if not colls:
-                        colls = status.get("collections")
-                if isinstance(colls, (int, float)):
-                    parts.append(f"Collections: {int(colls)}")
-                if parts:
-                    footer.add_row("[dim]" + clip(" | ".join(parts)) + "[/dim]")
-                    return Panel(Group(rtbl, footer), title="⚡ System & Performance Metrics", border_style=("white" if low_contrast else "green"), expand=True)
-                return Panel(rtbl, title="⚡ System & Performance Metrics", border_style=("white" if low_contrast else "green"), expand=True)
-            except Exception:
-                # Fallback to simple grid bullets
-                pass
-    # Default Health panel
-    healthy, total, items = derive_health(status)
-    # Allow overlay from panels/health.json
-    if _use_panels_json():
-        pj = _read_panel_json("health")
-        if isinstance(pj, dict):
-            its: List[Tuple[str, str]] = []
-            for k, v in pj.items():
-                if isinstance(v, dict):
-                    its.append((str(k), str(v.get("status", v))))
-                else:
-                    its.append((str(k), str(v)))
-            if its:
-                items = its
-                healthy = sum(1 for _, s in items if s.lower() in ("ok", "healthy", "ready"))
-                total = len(items)
-    tbl = Table.grid()
-    tbl.add_row(clip(f"Overall: {healthy}/{total} healthy"))
-    limit = 3 if compact else 6
-    for name, st in items[:limit]:
-        tbl.add_row(clip(f"• {name}: {st}"))
-    if len(items) > limit:
-        tbl.add_row(clip(f"… and {len(items)-limit} more"))
-    if low_contrast:
-        style = "white"
-    else:
-        style = "green" if healthy == total and total > 0 else "red"
-    return Panel(tbl, title="Health", border_style=style, expand=True)
-
-
-def sinks_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False) -> Any:
-    from rich.panel import Panel  # type: ignore
-    from rich.table import Table  # type: ignore
-    from rich import box  # type: ignore
-    from rich.console import Group  # type: ignore
-    def _dot(st: str) -> str:
-        s = (st or "").upper()
-        if s in ("OK", "HEALTHY", "READY", "SUCCESS"):
-            return "[green]●[/]"
-        if s in ("WARN", "WARNING", "DEGRADED"):
-            return "[yellow]●[/]"
-        if s:
-            return "[red]●[/]"
-        return "[dim]●[/]"
-    # Consolidate: if panels/storage.json exists, render Storage & Backup Metrics
-    if _use_panels_json():
-        pj_storage = _read_panel_json("storage")
-        if isinstance(pj_storage, (dict, list)):
-            try:
-                from rich.table import Table as RTable  # type: ignore
-                rtbl = RTable(box=box.SIMPLE_HEAD)
-                rtbl.add_column("Component", style="bold")
-                rtbl.add_column("Metric")
-                rtbl.add_column("Value")
-                rtbl.add_column("Status")
-                rows = 0
-                overall_status = "OK"
-                total_mb = 0.0
-                def parse_mb(v: Any) -> float:
-                    try:
-                        if isinstance(v, (int, float)):
-                            return float(v)
-                        s = str(v)
-                        if s.lower().endswith("mb"):
-                            return float(s.lower().replace("mb", "").strip())
-                        if s.lower().endswith("gb"):
-                            return float(s.lower().replace("gb", "").strip()) * 1024.0
-                        return 0.0
-                    except Exception:
-                        return 0.0
-                if isinstance(pj_storage, dict):
-                    for k, v in pj_storage.items():
-                        if isinstance(v, dict):
-                            metric = str(v.get("metric", ""))
-                            val = v.get("value", v.get("val", ""))
-                            st = str(v.get("status", v.get("state", "")))
-                            rtbl.add_row(clip(str(k)), clip(metric), clip(str(val)), _dot(st))
-                            # accumulate totals if value seems like size
-                            if any(t in metric.lower() for t in ["disk", "size", "storage", "usage"]):
-                                total_mb += parse_mb(val)
-                            if st.upper() in ("WARN", "WARNING") and overall_status == "OK":
-                                overall_status = "WARN"
-                            if st.upper() in ("ERR", "ERROR", "CRITICAL"):
-                                overall_status = "ERROR"
-                        else:
-                            rtbl.add_row(clip(str(k)), "", clip(str(v)), "")
-                        rows += 1
-                        if rows >= 6:
-                            break
-                else:
-                    for it in pj_storage[:6]:
-                        if isinstance(it, dict):
-                            metric = str(it.get("metric", ""))
-                            val = it.get("value", it.get("val", ""))
-                            st = str(it.get("status", it.get("state", "")))
-                            rtbl.add_row(clip(str(it.get("component", it.get("name", "")))), clip(metric), clip(str(val)), _dot(st))
-                            if any(t in metric.lower() for t in ["disk", "size", "storage", "usage"]):
-                                total_mb += parse_mb(val)
-                            if st.upper() in ("WARN", "WARNING") and overall_status == "OK":
-                                overall_status = "WARN"
-                            if st.upper() in ("ERR", "ERROR", "CRITICAL"):
-                                overall_status = "ERROR"
-                        else:
-                            rtbl.add_row("", "", clip(str(it)), "")
-                # Footer summary row
-                footer = Table.grid()
-                parts: list[str] = []
-                if total_mb > 0:
-                    parts.append(f"Total Storage: {total_mb:.1f} MB")
-                if overall_status:
-                    color = "green" if overall_status == "OK" else ("yellow" if overall_status.startswith("WARN") else "red")
-                    parts.append(f"Status: [{color}]{overall_status.lower()}[/]")
-                if parts:
-                    footer.add_row("[dim]" + clip(" | ".join(parts)) + "[/dim]")
-                    return Panel(Group(rtbl, footer), title="💾 Storage & Backup Metrics", border_style=("white" if low_contrast else "cyan"), expand=True)
-                return Panel(rtbl, title="💾 Storage & Backup Metrics", border_style=("white" if low_contrast else "cyan"), expand=True)
-            except Exception:
-                pass
-    sinks = status.get("sinks", {}) if status else {}
-    if _use_panels_json():
-        pj = _read_panel_json("sinks")
-        if isinstance(pj, dict):
-            sinks = pj
-    env_sinks = os.getenv("G6_OUTPUT_SINKS", "stdout,logging")
-    tbl = Table.grid()
-    tbl.add_row(clip(f"Configured: {env_sinks}"))
-    if isinstance(sinks, dict):
-        for k, v in list(sinks.items())[:4]:
-            last = v.get("last_write") if isinstance(v, dict) else None
-            age_str = ""
-            if last:
-                dt = parse_iso(last)
-                if dt:
-                    now_utc = datetime.now(timezone.utc)
-                    age = (now_utc - dt).total_seconds()
-                    age_str = f" ({fmt_timedelta_secs(age)} ago)"
-                    last = fmt_hms_from_dt(dt)
-            tbl.add_row(clip(f"• {k}: last write {last or '—'}{age_str}"))
-    return Panel(tbl, title="Sinks", border_style=("white" if low_contrast else "cyan"), expand=True)
-
-
-def config_panel(*, low_contrast: bool = False) -> Any:
-    from rich.panel import Panel  # type: ignore
-    from rich.table import Table  # type: ignore
-    defaults = {
-        "G6_OUTPUT_SINKS": "stdout,logging",
-        "G6_OUTPUT_LEVEL": "info",
-    }
-    interesting = [
-        "G6_MAX_CYCLES",
-        "G6_SKIP_PROVIDER_READINESS",
-        "G6_FANCY_CONSOLE",
-        "G6_FORCE_UNICODE",
-        "G6_FORCE_ASCII",
-        "G6_OUTPUT_SINKS",
-        "G6_OUTPUT_LEVEL",
-    ]
-    tbl = Table.grid()
-    shown = 0
-    for k in interesting:
-        v = os.getenv(k)
-        if v is None:
-            continue
-        if k in defaults and v == defaults[k]:
-            continue
-        tbl.add_row(f"{k} = {v}")
-        shown += 1
-    if shown == 0:
-        tbl.add_row("No overrides")
-    return Panel(tbl, title="Config", border_style=("white" if low_contrast else "dim"))
-
-
-def resources_panel(status: Dict[str, Any] | None = None, *, low_contrast: bool = False) -> Any:
-    from rich.panel import Panel  # type: ignore
-    from rich.table import Table  # type: ignore
-    # Prefer status-provided resources when available
-    r: Dict[str, Any] = {}
-    if _use_panels_json():
-        pj = _read_panel_json("resources")
-        if isinstance(pj, dict):
-            r = pj
-    if not r:
-        if status and isinstance(status.get("resources"), dict):
-            r = status["resources"]
-        else:
-            r = collect_resources()
-    tbl = Table.grid()
-    cpu = r.get("cpu") if isinstance(r, dict) else None
-    if cpu is None and status:
-        cpu = status.get("cpu_pct")
-    rss = r.get("rss") if isinstance(r, dict) else None
-    if rss is None and status:
-        mem_mb = status.get("memory_mb")
-        if isinstance(mem_mb, (int, float)):
-            rss = float(mem_mb) * 1024 * 1024
-    tbl.add_row(f"CPU: {cpu:.1f}%" if isinstance(cpu, (int, float)) else "CPU: —")
-    if isinstance(rss, (int, float)):
-        gb = rss / (1024**3)
-        tbl.add_row(f"Memory RSS: {gb:.2f} GB")
-    else:
-        tbl.add_row("Memory RSS: —")
-    return Panel(tbl, title="Resources", border_style=("white" if low_contrast else "blue"))
-
-
-def provider_section(status: Dict[str, Any] | None, *, low_contrast: bool = False) -> Any:
-    from rich.table import Table  # type: ignore
-    from rich.rule import Rule  # type: ignore
-    from rich.console import Group  # type: ignore
-    p = {}
-    if _use_panels_json():
-        pj = _read_panel_json("provider")
-        if isinstance(pj, dict):
-            p = pj
-    if not p and status:
-        p = status.get("provider", {}) if isinstance(status, dict) else {}
-    tbl = Table.grid()
-    name = p.get("name") or p.get("provider") or "provider"
-    if name:
-        tbl.add_row(clip(f"Provider: {name}"))
-    auth = p.get("auth")
-    valid = None
-    if isinstance(auth, dict):
-        valid = auth.get("valid")
-    elif isinstance(auth, bool):
-        valid = auth
-    if valid is True:
-        tbl.add_row(clip("Auth: VALID"))
-    elif valid is False:
-        tbl.add_row(clip("Auth: INVALID"))
-    if p.get("expiry"):
-        short = fmt_hms(p["expiry"]) or str(p["expiry"]).split(".")[0]
-        tbl.add_row(clip(f"Token expiry: {short}"))
-    if p.get("latency_ms") is not None:
-        tbl.add_row(clip(f"Latency: {p['latency_ms']} ms"))
-    return Group(Rule(style=("white" if low_contrast else "dim")), tbl)
-
-
-def resources_section(status: Dict[str, Any] | None = None, *, low_contrast: bool = False) -> Any:
-    from rich.table import Table  # type: ignore
-    from rich.rule import Rule  # type: ignore
-    from rich.console import Group  # type: ignore
-    r: Dict[str, Any] = {}
-    if _use_panels_json():
-        pj = _read_panel_json("resources")
-        if isinstance(pj, dict):
-            r = pj
-    if not r:
-        if status and isinstance(status.get("resources"), dict):
-            r = status["resources"]
-        else:
-            r = collect_resources()
-    tbl = Table.grid()
-    cpu = r.get("cpu") if isinstance(r, dict) else None
-    if cpu is None and status:
-        cpu = status.get("cpu_pct")
-    rss = r.get("rss") if isinstance(r, dict) else None
-    if rss is None and status:
-        mem_mb = status.get("memory_mb")
-        if isinstance(mem_mb, (int, float)):
-            rss = float(mem_mb) * 1024 * 1024
-    tbl.add_row(f"CPU: {cpu:.1f}%" if isinstance(cpu, (int, float)) else "CPU: —")
-    if isinstance(rss, (int, float)):
-        gb = rss / (1024**3)
-        tbl.add_row(f"Memory RSS: {gb:.2f} GB")
-    else:
-        tbl.add_row("Memory RSS: —")
-    return Group(Rule(style=("white" if low_contrast else "dim")), tbl)
-
-
 def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_contrast: bool = False, loop_for_footer: Optional[Dict[str, Any]] = None) -> Any:
-    from rich import box  # type: ignore
-    from rich.panel import Panel  # type: ignore
-    from rich.table import Table  # type: ignore
-    from rich.console import Group  # type: ignore
-    # Prefer a rolling live stream if available under panels/indices_stream.json
-    if _use_panels_json():
-        pj_stream = _read_panel_json("indices_stream")
-        stream_items: List[Dict[str, Any]] = []
-        if isinstance(pj_stream, list):
-            stream_items = pj_stream
-        elif isinstance(pj_stream, dict) and isinstance(pj_stream.get("items"), list):
-            stream_items = pj_stream.get("items")  # type: ignore
-        if stream_items:
-            tbl = Table(box=box.SIMPLE_HEAD)
-            tbl.add_column("Time")
-            tbl.add_column("Index", style="bold")
-            tbl.add_column("Legs")
-            tbl.add_column("AVG")
-            tbl.add_column("Success")
-            tbl.add_column("Status")
-            tbl.add_column("Description", overflow="fold")
-            # Show most recent first, cap to last 25
-            shown = 0
-            for itm in reversed(stream_items[-25:]):
-                if not isinstance(itm, dict):
-                    continue
-                ts = fmt_hms(itm.get("time") or itm.get("ts") or itm.get("timestamp")) or ""
-                idx = str(itm.get("index", itm.get("idx", "")))
-                legs = itm.get("legs")
-                avg = itm.get("avg") or itm.get("duration_avg") or itm.get("mean")
-                succ = itm.get("success") or itm.get("success_rate")
-                st = (itm.get("status") or itm.get("state") or "").upper()
-                # Description appears only when non-OK
-                raw_desc = itm.get("description") or itm.get("desc") or ""
-                desc = (raw_desc if st != "OK" else "")
-                # Color by cycle for visibility
-                cyc = itm.get("cycle")
-                row_style = None
-                if isinstance(cyc, int):
-                    palette = ["white", "cyan", "magenta", "yellow", "green", "blue"]
-                    row_style = palette[cyc % len(palette)]
-                # Status color
-                st_style = "green" if st == "OK" else ("yellow" if st in ("WARN", "WARNING") else "red")
-                tbl.add_row(ts, idx, str(legs if legs is not None else "—"), str(avg if avg is not None else "—"), str(succ if succ is not None else "—"), f"[{st_style}]{st}[/]", clip(desc), style=row_style)
-                shown += 1
-                if shown >= (10 if compact else 25):
-                    break
-            # Footer from loop metrics (cycle info)
-            footer = Table.grid()
-            cy = derive_cycle(status)
-            avg = p95 = None
-            if loop_for_footer:
-                avg = loop_for_footer.get("avg")
-                p95 = loop_for_footer.get("p95")
-            parts = []
-            if cy.get("cycle") is not None:
-                parts.append(f"Cycle: {cy.get('cycle')}")
-            if cy.get("last_duration") is not None:
-                try:
-                    ld_val = cy.get("last_duration")
-                    if isinstance(ld_val, (int, float)):
-                        parts.append(f"Last: {fmt_timedelta_secs(float(ld_val))}")
-                except Exception:
-                    pass
-            if avg is not None:
-                parts.append(f"Avg: {fmt_timedelta_secs(float(avg))}")
-            if p95 is not None:
-                parts.append(f"P95: {fmt_timedelta_secs(float(p95))}")
-            nr = None
-            try:
-                nr = estimate_next_run(status, (status or {}).get("interval"))
-            except Exception:
-                nr = None
-            if nr is not None:
-                parts.append(f"Next: {fmt_timedelta_secs(nr)}")
-            footer.add_row("[dim]" + clip(" | ".join(parts)) + "[/dim]")
-            return Panel(Group(tbl, footer), title="Indices", border_style=("white" if low_contrast else "white"), expand=True)
-    # Fallback to summary metrics table
-    metrics = _get_indices_metrics()
-    indices = derive_indices(status)
-    if not indices and metrics:
-        indices = list(metrics.keys())
-    tbl = Table(box=box.SIMPLE_HEAD)
-    tbl.add_column("Index", style="bold")
-    tbl.add_column("Status")
-    if metrics:
-        tbl.add_column("Legs")
-        tbl.add_column("Fails")
-    tbl.add_column("LTP")
-    tbl.add_column("Age")
-    if status and isinstance(status.get("indices_detail"), dict):
-        detail = status["indices_detail"]
-    else:
-        detail = {}
-    info_fallback = status.get("indices_info") if status and isinstance(status.get("indices_info"), dict) else {}
-    shown = 0
-    max_rows = 4 if compact else 12
-    for name in indices:
-        info = detail.get(name, {}) if isinstance(detail, dict) else {}
-        if not info and isinstance(info_fallback, dict):
-            fb = info_fallback.get(name, {})
-            if isinstance(fb, dict):
-                info = {"ltp": fb.get("ltp"), "status": ("OK" if fb.get("ltp") is not None else "STALE")}
-        # status priority: terminal metrics > indices_detail status
-        stat = info.get("status", "—")
-        if name in metrics and isinstance(metrics[name].get("status"), str):
-            stat = str(metrics[name]["status"]) or stat
-        ltp = info.get("ltp", "—")
-        age = info.get("age", None)
-        if age is None:
-            age = info.get("age_sec", None)
-        age_str = fmt_timedelta_secs(float(age)) if isinstance(age, (int, float)) else "—"
-        if metrics and name in metrics:
-            legs = metrics[name].get("legs")
-            fails = metrics[name].get("fails")
-            tbl.add_row(name, str(stat), ("—" if legs is None else str(legs)), ("—" if fails is None else str(fails)), str(ltp), age_str)
-        else:
-            tbl.add_row(name, str(stat), str(ltp), age_str)
-        shown += 1
-        if shown >= max_rows:
-            break
-    if not indices:
-        if metrics:
-            tbl.add_row("—", "—", "—", "—", "—", "—")
-        else:
-            tbl.add_row("—", "—", "—", "—")
-    # Footer from loop metrics (fallback scenario)
-    from rich.console import Group  # type: ignore
-    footer = Table.grid()
-    cy = derive_cycle(status)
-    parts = []
-    if cy.get("cycle") is not None:
-        parts.append(f"Cycle: {cy.get('cycle')}")
-    if cy.get("last_duration") is not None:
-        try:
-            ld_val = cy.get("last_duration")
-            if isinstance(ld_val, (int, float)):
-                parts.append(f"Last: {fmt_timedelta_secs(float(ld_val))}")
-        except Exception:
-            pass
-    footer.add_row("[dim]" + clip(" | ".join(parts)) + "[/dim]")
-    return Panel(Group(tbl, footer), title="Indices", border_style=("white" if low_contrast else "white"), expand=True)
+    """Legacy wrapper delegating to modular indices panel.
+
+    Kept for backward compatibility with imports from scripts.summary_view.
+    """
+    from scripts.summary.panels.indices import indices_panel as _indices_panel
+    return _indices_panel(status, compact=compact, low_contrast=low_contrast, loop_for_footer=loop_for_footer)
 
 
 def analytics_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_contrast: bool = False) -> Any:
-    from rich.panel import Panel  # type: ignore
-    from rich.table import Table  # type: ignore
-    from rich import box  # type: ignore
-    data = None
-    if _use_panels_json():
-        pj = _read_panel_json("analytics")
-        if isinstance(pj, dict):
-            data = pj
-    if data is None:
-        data = (status or {}).get("analytics") if status else None
-    tbl = Table(box=box.SIMPLE_HEAD)
-    tbl.add_column("Index", style="bold")
-    tbl.add_column("PCR")
-    tbl.add_column("Max Pain")
-    shown = 0
-    if isinstance(data, dict):
-        # Case 1: per-index dict mapping
-        for name, vals in data.items():
-            if isinstance(vals, dict):
-                pcr = vals.get("pcr", "—")
-                mp = vals.get("max_pain", "—")
-                tbl.add_row(clip(str(name)), clip(str(pcr)), clip(str(mp)))
-                shown += 1
-                if shown >= (3 if compact else 6):
-                    break
-        # Case 2: global metrics
-        if shown == 0:
-            if "max_pain" in data and isinstance(data["max_pain"], dict):
-                for name, mp in data["max_pain"].items():
-                    tbl.add_row(clip(str(name)), "—", clip(str(mp)))
-                    shown += 1
-                    if shown >= (3 if compact else 6):
-                        break
-            elif "pcr" in data:
-                tbl.add_row("—", clip(str(data["pcr"])), "—")
-                shown = 1
-    if shown == 0:
-        tbl.add_row("—", "—", "—")
-    return Panel(tbl, title="Analytics", border_style=("white" if low_contrast else "yellow"), expand=True)
+    """Legacy wrapper delegating to modular analytics panel."""
+    from scripts.summary.panels.analytics import analytics_panel as _analytics_panel
+    return _analytics_panel(status, compact=compact, low_contrast=low_contrast)
 
 
 def alerts_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_contrast: bool = False) -> Any:
-    from rich import box  # type: ignore
-    from rich.panel import Panel  # type: ignore
-    from rich.table import Table  # type: ignore
-    alerts = []
-    if _use_panels_json():
-        pj = _read_panel_json("alerts")
-        if isinstance(pj, list):
-            alerts = pj
-    if not alerts and status:
-        alerts = status.get("alerts") or status.get("events") or []
-    tbl = Table(box=box.SIMPLE_HEAD)
-    tbl.add_column("Time")
-    tbl.add_column("Level")
-    tbl.add_column("Component")
-    tbl.add_column("Message", overflow="fold")
-    count = 0
-    # Pre-compute counts over full list for header
-    nE = nW = nI = 0
-    if isinstance(alerts, list):
-        for a in alerts:
-            if not isinstance(a, dict):
-                continue
-            lv0 = str(a.get("level", "")).upper()
-            if lv0 in ("ERR", "ERROR", "CRITICAL"):
-                nE += 1
-            elif lv0 in ("WARN", "WARNING"):
-                nW += 1
-            else:
-                nI += 1
-        for a in reversed(alerts):  # most recent
-            if not isinstance(a, dict):
-                continue
-            t = a.get("time") or a.get("timestamp") or ""
-            lvl = a.get("level", "")
-            comp = a.get("component", "")
-            msg = a.get("message", "")
-            ts_short = fmt_hms(t) or (str(t) if t else "")
-            tbl.add_row(ts_short or "", str(lvl), str(comp), str(msg))
-            count += 1
-            if count >= (1 if compact else 3):
-                break
-    if count == 0:
-        tbl.add_row("—", "—", "—", "—")
-    w = effective_panel_width("alerts") or max(40, _env_min_col_width())
-    title = f"⚠️ Alerts (E:{nE} W:{nW} I:{nI})" if (nE or nW or nI) else "⚠️ Alerts"
-    return Panel(tbl, title=title, border_style=("white" if low_contrast else "red"), width=w)
+    """Legacy wrapper delegating to modular alerts panel."""
+    from scripts.summary.panels.alerts import alerts_panel as _alerts_panel
+    return _alerts_panel(status, compact=compact, low_contrast=low_contrast)
 
 
 def links_panel(status_file: str, metrics_url: Optional[str], *, low_contrast: bool = False) -> Any:
-    from rich.panel import Panel  # type: ignore
-    from rich.table import Table  # type: ignore
-    tbl = Table.grid()
-    if _use_panels_json():
-        pj = _read_panel_json("links")
-        if isinstance(pj, dict) and isinstance(pj.get("metrics"), str):
-            metrics_url = pj.get("metrics")
-    tbl.add_row(clip(f"Status: {status_file}"))
-    if metrics_url:
-        tbl.add_row(clip(f"Metrics: {metrics_url}"))
-    w = effective_panel_width("links")
-    return Panel(tbl, title="🔗 Links", border_style=("white" if low_contrast else "dim"), width=w)
+    """Legacy wrapper delegating to modular links panel."""
+    from scripts.summary.panels.links import links_panel as _links_panel
+    return _links_panel(status_file, metrics_url, low_contrast=low_contrast)
 
 
 def build_layout(status: Dict[str, Any] | None, status_file: str, metrics_url: Optional[str], rolling: Optional[Dict[str, Any]] = None, *, compact: bool = False, low_contrast: bool = False) -> Any:
@@ -1340,27 +559,148 @@ def build_layout(status: Dict[str, Any] | None, status_file: str, metrics_url: O
     Legacy shim retained temporarily for callers importing from scripts.summary_view.
     Delegates to the modular implementation in scripts.summary.layout.
     """
-    from scripts.summary.layout import build_layout as _build_layout  # type: ignore
+    from scripts.summary.layout import build_layout as _build_layout
     return _build_layout(status, status_file, metrics_url, rolling=rolling, compact=compact, low_contrast=low_contrast)
 
 
 def plain_fallback(status: Dict[str, Any] | None, status_file: str, metrics_url: Optional[str]) -> str:
-    indices = ", ".join(derive_indices(status)) or "—"
-    market_state, market_extra = derive_market_summary(status)
-    cy = derive_cycle(status)
-    healthy, total, _ = derive_health(status)
-    r = collect_resources()
-    lines = [
-        f"G6 Unified | IST {fmt_hms_from_dt(datetime.now(timezone.utc))}",
-        f"Indices: {indices}",
-        f"Market: {market_state} {market_extra}",
-        f"Cycle: {cy.get('cycle') or '—'} | Last duration: {fmt_timedelta_secs(cy.get('last_duration'))}",
-        f"Health: {healthy}/{total} healthy",
-        f"CPU: {r.get('cpu')}% | RSS: {r.get('rss')}",
-        f"Status file: {status_file}",
-        f"Metrics: {metrics_url or '—'}",
-    ]
-    return "\n".join(lines)
+    # Unified path: leverage model assembler as single derivation source.
+    # Curated layout short-circuit retained. Legacy raw fallbacks reduced to
+    # only adaptive/detail lines (provider/resources now always sourced via model).
+    # The broad "G6 Unified (fallback)" legacy string is deprecated; retained
+    # only as a last-resort safety net (tests no longer rely on it).
+    try:
+        if 'os' in globals() and os.getenv("G6_SUMMARY_CURATED_MODE", "").strip().lower() in {"1","true","yes","on"}:
+            try:
+                from src.summary.curated_layout import CuratedLayout, collect_state
+                st = collect_state(status)
+                renderer = CuratedLayout()
+                return renderer.render(st)
+            except Exception:
+                pass
+        # Assemble model snapshot (preferred stable representation)
+        from src.summary.unified.model import assemble_model_snapshot
+        model, _diag = assemble_model_snapshot(runtime_status=status or {}, panels_dir=os.getenv("G6_PANELS_DIR"), include_panels=True)
+        # Build concise lines from model
+        indices_names = ", ".join([i.name for i in model.indices]) or "—"
+        dq_line = None
+        try:
+            if (model.dq.green + model.dq.warn + model.dq.error) > 0:
+                dq_line = f"DQ: G/Y/R {model.dq.green}/{model.dq.warn}/{model.dq.error} (thr {int(model.dq.warn_threshold)}/{int(model.dq.error_threshold)})"
+        except Exception:
+            dq_line = None
+        # Adaptive alerts summary (stable 'Adaptive alerts:' token for tests)
+        adaptive_line = None
+        try:
+            total_alerts = int(getattr(model.adaptive, 'alerts_total', 0) or 0)
+            if total_alerts > 0:
+                pairs = []
+                try:
+                    pairs = sorted(list((model.adaptive.alerts_by_type or {}).items()), key=lambda kv: kv[1], reverse=True)
+                except Exception:
+                    pairs = []
+                top = ", ".join(f"{k}:{v}" for k, v in pairs[:2]) if pairs else ""
+                adaptive_line = f"Adaptive alerts: {total_alerts}" + (f" ({top})" if top else "")
+                try:
+                    sev = model.adaptive.severity_counts or {}
+                    c = sev.get('critical') or 0
+                    w = sev.get('warn') or 0
+                    if c or w:
+                        adaptive_line += f" [C:{c} W:{w}]"
+                except Exception:
+                    pass
+        except Exception:
+            adaptive_line = None
+        # Fallback: derive from raw status 'adaptive_alerts' list if model had none OR model reported zero but raw has items
+        if adaptive_line is None or (adaptive_line is None and isinstance(status, dict) and status.get('adaptive_alerts')):
+            try:
+                raw_alerts: List[Dict[str, Any]] = []
+                if isinstance(status, dict):
+                    ra = status.get('adaptive_alerts')
+                    if isinstance(ra, list):
+                        raw_alerts = [a for a in ra if isinstance(a, dict)]
+                if raw_alerts:
+                    total_alerts = len(raw_alerts)
+                    counts: Dict[str,int] = {}
+                    for a in raw_alerts:
+                        t = a.get('type') if isinstance(a, dict) else None
+                        if isinstance(t, str):
+                            counts[t] = counts.get(t,0)+1
+                    pairs = sorted(counts.items(), key=lambda kv: kv[1], reverse=True)
+                    top = ", ".join(f"{k}:{v}" for k,v in pairs[:2]) if pairs else ""
+                    adaptive_line = f"Adaptive alerts: {total_alerts}" + (f" ({top})" if top else "")
+            except Exception:
+                pass
+
+        # Detail mode line (option detail / adaptive band/agg context) pulled from raw status fallbacks if not in model
+        detail_line = None
+        try:
+            raw = status or {}
+            dm = raw.get('option_detail_mode') or raw.get('detail_mode')
+            dm_str = raw.get('option_detail_mode_str') or raw.get('detail_mode_str')
+            band_win = raw.get('option_detail_band_window') or raw.get('detail_band_window')
+            if dm is not None or dm_str or band_win is not None:
+                core = f"Detail mode: {dm_str or dm or 'unknown'}"
+                if dm_str == 'band' and band_win is not None:
+                    # Represent +/- window consistently (tests allow ± or +-)
+                    core += f" (±{band_win})"
+                elif dm_str and band_win is not None:
+                    core += f" ({band_win})"
+                detail_line = core
+        except Exception:
+            detail_line = None
+        # Provider & resources always via model; no raw duplication fallback needed
+        provider_name = model.provider.get('name') if isinstance(model.provider, dict) else None
+        health_line = f"Provider: {provider_name}" if provider_name else None
+        cpu = model.resources.get('cpu') if isinstance(model.resources, dict) else None
+        rss = model.resources.get('rss') if isinstance(model.resources, dict) else None
+        res_line = f"CPU: {cpu}% | RSS: {rss}" if (cpu is not None or rss is not None) else None
+        cycle_line = None
+        try:
+            if model.cycle.number is not None:
+                cycle_line = f"Cycle: {model.cycle.number} | Last duration: {model.cycle.last_duration_sec}s"
+        except Exception:
+            pass
+        # Ensure adaptive/detail lines from raw status if still missing
+        if adaptive_line is None and isinstance(status, dict):
+            try:
+                ra = status.get('adaptive_alerts')
+                if isinstance(ra, list) and ra:
+                    adaptive_line = f"Adaptive alerts: {len(ra)}"
+            except Exception:
+                pass
+        if detail_line is None and isinstance(status, dict):
+            try:
+                dm = status.get('option_detail_mode') or status.get('detail_mode')
+                dm_str = status.get('option_detail_mode_str') or status.get('detail_mode_str')
+                band_win = status.get('option_detail_band_window') or status.get('detail_band_window')
+                if dm is not None or dm_str or band_win is not None:
+                    core = f"Detail mode: {dm_str or dm or 'unknown'}"
+                    if (dm_str == 'band' or dm == 1) and band_win is not None:
+                        core += f" (±{band_win})"
+                    detail_line = core
+            except Exception:
+                pass
+        lines: List[str] = [
+            f"G6 Unified | IST {fmt_hms_from_dt(datetime.now(timezone.utc))}",
+            f"Indices: {indices_names}",
+            *( [dq_line] if dq_line else [] ),
+            f"Market: {model.market_status}",
+            *( [adaptive_line] if adaptive_line else [] ),
+            *( [detail_line] if detail_line else [] ),
+            *( [cycle_line] if cycle_line else [] ),
+            *( [health_line] if health_line else [] ),
+            *( [res_line] if res_line else [] ),
+            f"Status file: {status_file}",
+            f"Metrics: {metrics_url or '—'}",
+        ]
+        return "\n".join(lines)
+    except Exception:
+        # Fall back to legacy behavior if any part fails (safety net)
+        try:
+            return f"G6 Unified (fallback) | Status file: {status_file}\nMetrics: {metrics_url or '—'}"
+        except Exception:
+            return "G6 Unified (fallback)"
 
 
 def main(argv: Optional[List[str]] = None) -> int:

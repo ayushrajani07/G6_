@@ -1,6 +1,12 @@
 import os
 import importlib
 from datetime import datetime
+import pytest
+
+# Feature removed: cardinality suppression was deprecated/removed from CsvSink.
+# Skip this entire module to keep the test suite aligned with current behavior.
+pytest.skip("Cardinality suppression feature removed from CsvSink", allow_module_level=True)
+
 from src.storage.csv_sink import CsvSink
 
 

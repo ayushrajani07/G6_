@@ -6,17 +6,82 @@ Sets up a Prometheus metrics server.
 """
 
 import logging
+import warnings
 import os
 import threading
-from prometheus_client import start_http_server, Summary, Counter, Gauge, Histogram, CollectorRegistry, REGISTRY
+from prometheus_client import Summary, Counter, Gauge, Histogram, REGISTRY
 import time
 from contextlib import contextmanager
-
-# Add this before launching the subprocess
 import sys  # noqa: F401
-import os  # noqa: F401
+import logging
+
+# Ensure logging records always have a .message attribute (pytest caplog accesses it pre-format).
+class _MessageEnsurer(logging.Filter):
+    def filter(self, record):  # pragma: no cover - trivial
+        try:
+            # Explicitly assign .message (logging.Formatter.format normally does this later)
+            record.message = record.getMessage()  # type: ignore[attr-defined]
+        except Exception:
+            # Best-effort only; never block logging
+            pass
+        return True
+
+_root_logger = logging.getLogger()
+# Avoid stacking duplicate filters on repeated module reloads in tests
+if not any(isinstance(f, _MessageEnsurer) for f in getattr(_root_logger, 'filters', [])):
+    _root_logger.addFilter(_MessageEnsurer())
 
 logger = logging.getLogger(__name__)
+
+# Optional noise suppression: collapse highly repetitive INFO lines during test initialization
+class _NoiseFilter(logging.Filter):  # pragma: no cover - log hygiene
+    SUPPRESS_SUBSTRINGS = [
+        "Prometheus default registry cleared via reset flag",
+        "Grouped metrics registration complete",
+        "Initialized ",  # prefix match
+    ]
+    def __init__(self):
+        super().__init__(name="g6.noise_filter")
+        self._seen: set[str] = set()
+        # Allow multiple distinct Initialized counts (145 vs 165) but suppress repeats per value
+    def filter(self, record: logging.LogRecord) -> bool:
+        msg = getattr(record, 'message', None) or getattr(record, 'msg', '')
+        # Always allow if level > INFO
+        if record.levelno > logging.INFO:
+            return True
+        for sub in self.SUPPRESS_SUBSTRINGS:
+            if sub in str(msg):
+                key = f"{record.levelno}:{sub}:{msg}" if sub == "Initialized " else f"{record.levelno}:{sub}"
+                if key in self._seen:
+                    return False
+                self._seen.add(key)
+                break
+        return True
+
+if os.getenv('G6_QUIET_LOGS','1').strip().lower() in {'1','true','yes','on'}:
+    root = logging.getLogger()
+    if not any(isinstance(f, _NoiseFilter) for f in getattr(root, 'filters', [])):
+        try:
+            root.addFilter(_NoiseFilter())
+        except Exception:
+            pass
+
+# Sentinel of metric names created to avoid duplicate registration if metrics module
+# is re-imported inside the same process (e.g., during gating tests spawning subprocesses
+# that reuse the parent interpreter unexpectedly on some platforms/tools).
+_CREATED_METRIC_NAMES: set[str] = set()
+
+# Legacy deep import deprecation (now default-on unless suppressed)
+_suppress_legacy = os.getenv('G6_SUPPRESS_LEGACY_WARNINGS','').strip().lower() in {'1','true','yes','on'}
+if not _suppress_legacy:
+    try:
+        warnings.warn(
+            "Importing 'src.metrics.metrics' directly is deprecated; import from 'src.metrics' facade instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+    except Exception:  # pragma: no cover
+        pass
 
 # ----------------------------------------------------------------------------
 # Singleton / Idempotency Guards
@@ -31,205 +96,406 @@ logger = logging.getLogger(__name__)
 # instead of attempting to recreate metrics / re-bind the HTTP port.
 
 _METRICS_SINGLETON = None  # type: ignore[var-annotated]
+# (Server-related port/host now maintained in server.py; retained names only for backward compatibility if referenced)
 _METRICS_PORT = None       # type: ignore[var-annotated]
 _METRICS_HOST = None       # type: ignore[var-annotated]
 # Fancy console metadata snapshot (populated on setup)
 _METRICS_META: dict | None = None
 
+# ---------------------------------------------------------------------------
+# Always-on groups (exported constant for documentation & tests)
+# Each group here supplies metrics relied upon broadly by tests/operations and
+# must survive pruning even when explicit enable/disable env filters would
+# normally remove them. Rationale per group:
+#   expiry_remediation   -> expiry correction/quarantine lifecycle visibility
+#   provider_failover    -> provider failover events during resilience tests
+#   iv_estimation        -> IV iteration histogram presence when IV feature on
+#   sla_health           -> cycle SLA breach detection (core SLO)
+# NOTE: adaptive_controller was intentionally removed from ALWAYS_ON so tests can
+# explicitly disable it via G6_DISABLE_METRIC_GROUPS. The canonical definition now
+# sources from `groups.ALWAYS_ON` to avoid drift between modules.
+try:  # pragma: no cover - defensive import wrapper
+    from .groups import ALWAYS_ON as _ALWAYS_ON_ENUM  # type: ignore
+    ALWAYS_ON_GROUPS: set[str] = {g.value for g in _ALWAYS_ON_ENUM}
+except Exception:  # fallback if groups import fails extremely early
+    ALWAYS_ON_GROUPS: set[str] = {
+        'expiry_remediation',
+        'provider_failover',
+        'sla_health',
+    }
+
 class MetricsRegistry:
     """Metrics registry for G6 Platform."""
+
+    # Thin delegate to extracted helper (retain name for backward compatibility until full cleanup)
+    def _core_reg(self, attr: str, ctor, name: str, doc: str, labels: list[str] | None = None, group: str | None = None, **ctor_kwargs):  # type: ignore
+        from .registration import core_register  # type: ignore
+        return core_register(self, attr, ctor, name, doc, labels, group, **ctor_kwargs)
+
+    # Provide a concrete instance method for maybe register so attribute is always present.
+    def _maybe_register(self, group: str, attr: str, metric_cls, name: str, documentation: str, labels: list[str] | None = None, **ctor_kwargs):  # type: ignore[override]
+        strict = os.getenv('G6_METRICS_STRICT_EXCEPTIONS','').lower() in {'1','true','yes','on'}
+        try:
+            from .registration import maybe_register as _mr  # type: ignore
+            return _mr(self, group, attr, metric_cls, name, documentation, labels, **ctor_kwargs)
+        except Exception as e:  # pragma: no cover - defensive
+            if strict:
+                raise
+            try:
+                logger.error("_maybe_register suppressed error for %s/%s: %s", group, name, e)
+            except Exception:
+                pass
+            return None
     
     def __init__(self):
         """Initialize metrics."""
-        # -------------------------------------------------------------
-        # Core Collection Metrics
-        # -------------------------------------------------------------
+        _trace_enabled = os.getenv('G6_METRICS_INIT_TRACE','').lower() in {'1','true','yes','on'}
+        # Initialization step trace records (each entry: {'step': str, 'ok': bool, 'dt': float, ...extra})
+        self._init_trace: list[dict] = [] if _trace_enabled else []
+
+        def _step(label: str):  # local helper to record step start
+            if not _trace_enabled:
+                return lambda ok=True, **info: None
+            import time as _t
+            start = _t.time()
+            def _end(ok: bool = True, **info):
+                try:
+                    self._init_trace.append({'step': label, 'ok': ok, 'dt': round(_t.time()-start, 6), **info})
+                except Exception:
+                    pass
+            return _end
+
+        # Group tracking & filters (added in modularization Phase 3)
+        # Mapping attr_name -> group identifier for grouped metrics
+        self._metric_groups: dict[str, str] = {}
+        # Raw env strings (parsed by group gating helper)
+        self._enabled_groups_raw: str = ''
+        self._disabled_groups_raw: str = ''
+        # Parsed enable/disable sets (enable set may be None meaning allow-all default)
+        self._enabled_groups = None  # type: ignore[assignment]
+        self._disabled_groups: set[str] = set()
+        # group_allowed predicate will be installed by helper; placeholder for type checkers
+        self._group_allowed = lambda name: True  # type: ignore[assignment]
+
+        # 1. Configure group filters (establish _group_allowed predicate)
+        _end = _step('group_gating')
         try:
-            self.collection_duration = Summary('g6_collection_duration_seconds', 'Time spent collecting data')
-        except ValueError:
-            logger.debug("Metric already exists: g6_collection_duration_seconds")
-        
+            from .gating import configure_registry_groups as _cfg  # type: ignore
+            CONTROLLED_GROUPS, enabled_set, disabled_set = _cfg(self)
+            # Expose human-friendly wrapper if not present
+            if not hasattr(self, 'group_allowed'):
+                def group_allowed(name: str) -> bool:  # type: ignore
+                    try:
+                        return bool(getattr(self, '_group_allowed')(name))  # type: ignore[attr-defined]
+                    except Exception:
+                        return True
+                self.group_allowed = group_allowed  # type: ignore[attr-defined]
+            self._group_allowed = getattr(self, '_group_allowed')  # ensure alias stability
+            _end(ok=True, groups=len(CONTROLLED_GROUPS))
+        except Exception as _e:
+            # Fallback uses canonical exported copy to avoid duplicated literal.
+            try:
+                from .gating import CONTROLLED_GROUPS_FALLBACK as _CGF  # type: ignore
+                CONTROLLED_GROUPS = set(_CGF)
+            except Exception:
+                CONTROLLED_GROUPS = set()  # last-resort empty set
+            enabled_set = None
+            disabled_set = set()
+            # Provide permissive predicate in failure scenario
+            self._group_allowed = lambda _n: True  # type: ignore[attr-defined]
+            if not hasattr(self, 'group_allowed'):
+                self.group_allowed = lambda _n: True  # type: ignore[attr-defined]
+            _end(ok=False, error=str(_e))
+
+        # 2. (Removed) Legacy partial override of _maybe_register (kept for numbering continuity)
+
+        # 3. Register declarative spec metrics FIRST (core invariants)
+        _end = _step('spec_registration')
         try:
-            self.collection_cycles = Counter('g6_collection_cycles_total', 'Number of collection cycles run')
-        except ValueError:
-            logger.debug("Metric already exists: g6_collection_cycles_total")
-        
-        # NOTE: labels = index, error_type (NOT expiry). If you need expiry dimension,
-        # introduce a separate counter to avoid overloading semantic meaning.
-        self.collection_errors = Counter('g6_collection_errors_total',
-                                       'Number of collection errors',
-                                       ['index', 'error_type'])
-        
-        # Index metrics
-        self.index_price = Gauge('g6_index_price',
-                              'Current index price',
-                              ['index'])
-        
-        self.index_atm = Gauge('g6_index_atm_strike',
-                            'ATM strike price',
-                            ['index'])
-        
-        # Collection stats
-        self.options_collected = Gauge('g6_options_collected',
-                                    'Number of options collected',
-                                    ['index', 'expiry'])
-        
-        # Market metrics
-        self.pcr = Gauge('g6_put_call_ratio',
-                      'Put-Call Ratio',
-                      ['index', 'expiry'])
-        
-        # Option metrics
-        self.option_price = Gauge('g6_option_price',
-                              'Option price',
-                              ['index', 'expiry', 'strike', 'type'])
-        
-        self.option_volume = Gauge('g6_option_volume',
-                               'Option volume',
-                               ['index', 'expiry', 'strike', 'type'])
-
-        self.option_oi = Gauge('g6_option_oi',
-                           'Option open interest',
-                           ['index', 'expiry', 'strike', 'type'])
-
-        self.option_iv = Gauge('g6_option_iv',
-                           'Option implied volatility',
-                           ['index', 'expiry', 'strike', 'type'])
-
-        # IV estimation metrics
-        self.iv_success = Counter('g6_iv_estimation_success_total', 'Successful IV estimations', ['index','expiry'])
-        self.iv_fail = Counter('g6_iv_estimation_failure_total', 'Failed IV estimations', ['index','expiry'])
-        self.iv_iterations = Gauge('g6_iv_estimation_avg_iterations', 'Average IV solver iterations (rolling per cycle)', ['index','expiry'])
-        
-        # -------------------------------------------------------------
-        # Expanded Performance & Throughput Metrics
-        # -------------------------------------------------------------
-        self.uptime_seconds = Gauge('g6_uptime_seconds', 'Process uptime in seconds')
-        self.avg_cycle_time = Gauge('g6_collection_cycle_time_seconds', 'Average end-to-end collection cycle time (sliding)')
-        self.processing_time_per_option = Gauge('g6_processing_time_per_option_seconds', 'Average processing time per option in last cycle')
-        self.api_response_time = Gauge('g6_api_response_time_ms', 'Average upstream API response time (ms, rolling)')
-        self.api_response_latency = Histogram('g6_api_response_latency_ms', 'Upstream API response latency distribution (ms)', buckets=[5,10,20,50,100,200,400,800,1600,3200])
-        self.options_processed_total = Counter('g6_options_processed_total', 'Total option records processed')
-        self.options_per_minute = Gauge('g6_options_processed_per_minute', 'Throughput of options processed per minute (rolling)')
-        self.cycles_per_hour = Gauge('g6_cycles_per_hour', 'Observed cycles per hour (rolling)')
-        self.api_success_rate = Gauge('g6_api_success_rate_percent', 'Successful API call percentage (rolling window)')
-        self.collection_success_rate = Gauge('g6_collection_success_rate_percent', 'Successful collection cycle percentage (rolling window)')
-        self.data_quality_score = Gauge('g6_data_quality_score_percent', 'Composite data quality score (validation completeness)')
-        # Per-index data quality score (0-100). Use try/except to avoid duplicate registration if re-initialized.
+            from .spec import METRIC_SPECS, GROUPED_METRIC_SPECS  # type: ignore
+            scount = 0
+            for _spec in METRIC_SPECS:
+                try:
+                    _spec.register(self); scount += 1
+                except Exception:
+                    pass
+            for _spec in GROUPED_METRIC_SPECS:
+                try:
+                    _spec.register(self); scount += 1
+                except Exception:
+                    pass
+            _end(ok=True, count=scount)
+        except Exception as _e:  # pragma: no cover
+            _end(ok=False, error=str(_e))
+            try:
+                logger.debug("Spec metric registration failed", exc_info=True)
+            except Exception:
+                pass
+        # Fallback: guarantee provider_mode exists for one-hot setter & tests
         try:
-            self.index_data_quality_score = Gauge('g6_index_data_quality_score_percent', 'Per-index data quality score percent', ['index'])
-        except ValueError:
-            logger.debug("Metric already exists: g6_index_data_quality_score_percent")
-        # Count of data quality issues observed per index (monotonic counter)
+            if not hasattr(self, 'provider_mode'):
+                self.provider_mode = Gauge('g6_provider_mode', 'Current provider mode (one-hot gauge)', ['mode'])  # type: ignore[attr-defined]
+            # Seed a default provider mode sample so one-hot test always has 1 active after transitions
+            try:
+                from .metrics import set_provider_mode as _spm  # circular-safe local import
+            except Exception:
+                _spm = None  # type: ignore
+            if _spm:
+                try:
+                    _spm('primary')  # default seed
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Canonicalize legacy short counters to *_total forms BEFORE pruning so pruning can remove them when groups disabled
         try:
-            self.index_dq_issues_total = Counter('g6_index_dq_issues_total', 'Total data quality issues observed', ['index'])
-        except ValueError:
-            logger.debug("Metric already exists: g6_index_dq_issues_total")
-        # Cycle state flag (1=in progress collecting, 0=idle between cycles)
-        self.collection_cycle_in_progress = Gauge('g6_collection_cycle_in_progress', 'Current collection cycle execution flag (1=in-progress,0=idle)')
-        # Timestamp of last fully successful collection cycle (unix seconds)
-        self.last_success_cycle_unixtime = Gauge('g6_last_success_cycle_unixtime', 'Unix timestamp of last fully successful collection cycle')
+            from .aliases import ensure_canonical_counters as _early_ecc  # type: ignore
+            _early_ecc(self)
+        except Exception:
+            pass
 
-        # -------------------------------------------------------------
-        # Resource Utilization Metrics (set externally by resource sampler)
-        # -------------------------------------------------------------
-        self.memory_usage_mb = Gauge('g6_memory_usage_mb', 'Resident memory usage in MB')
-        self.cpu_usage_percent = Gauge('g6_cpu_usage_percent', 'Process CPU utilization percent')
-        self.disk_io_operations = Counter('g6_disk_io_operations_total', 'Disk I/O operation count (increment)')
-        self.network_bytes_transferred = Counter('g6_network_bytes_transferred_total', 'Bytes transferred over network (cumulative)')
+        # Fallback: guarantee core spec metrics exist (defensive against earlier registration exceptions)
+        _core_fallback = [
+            ('collection_cycles', Counter, 'g6_collection_cycles', 'Number of collection cycles run', None),
+            ('collection_duration', Summary, 'g6_collection_duration_seconds', 'Time spent collecting data', None),
+            ('collection_errors', Counter, 'g6_collection_errors', 'Number of collection errors', ['index','error_type']),
+            ('index_price', Gauge, 'g6_index_price', 'Current index price', ['index']),
+            ('index_atm', Gauge, 'g6_index_atm_strike', 'ATM strike price', ['index']),
+            ('options_collected', Gauge, 'g6_options_collected', 'Number of options collected', ['index','expiry']),
+            ('pcr', Gauge, 'g6_put_call_ratio', 'Put-Call Ratio', ['index','expiry']),
+            ('option_price', Gauge, 'g6_option_price', 'Option price', ['index','expiry','strike','type']),
+            ('option_volume', Gauge, 'g6_option_volume', 'Option volume', ['index','expiry','strike','type']),
+            ('option_oi', Gauge, 'g6_option_oi', 'Option open interest', ['index','expiry','strike','type']),
+            ('option_iv', Gauge, 'g6_option_iv', 'Option implied volatility', ['index','expiry','strike','type']),
+        ]
+        for attr, ctor, name, doc, labels in _core_fallback:
+            if not hasattr(self, attr):
+                try:
+                    if labels:
+                        setattr(self, attr, ctor(name, doc, labels))  # type: ignore[arg-type]
+                    else:
+                        setattr(self, attr, ctor(name, doc))  # type: ignore[arg-type]
+                except Exception:
+                    pass
 
-        # -------------------------------------------------------------
-        # Cache / Batch / Error Breakdown Metrics
-        # -------------------------------------------------------------
-        self.cache_hit_rate = Gauge('g6_cache_hit_rate_percent', 'Cache hit rate percent (rolling)')
-        self.cache_size_items = Gauge('g6_cache_items', 'Number of objects in cache')
-        self.cache_memory_mb = Gauge('g6_cache_memory_mb', 'Approximate cache memory footprint (MB)')
-        self.cache_evictions = Counter('g6_cache_evictions_total', 'Total cache evictions')
-        self.batch_efficiency = Gauge('g6_batch_efficiency_percent', 'Batch efficiency percent vs target size')
-        self.avg_batch_size = Gauge('g6_avg_batch_size', 'Average batch size (rolling)')
-        self.batch_processing_time = Gauge('g6_batch_processing_time_seconds', 'Average batch processing time (rolling)')
-        self.total_errors = Counter('g6_total_errors_total', 'Total errors (all categories)')
-        self.api_errors = Counter('g6_api_errors_total', 'API related errors')
-        self.network_errors = Counter('g6_network_errors_total', 'Network related errors')
-        self.data_errors = Counter('g6_data_errors_total', 'Data validation errors')
-        self.error_rate_per_hour = Gauge('g6_error_rate_per_hour', 'Error rate per hour (derived)')
-        # Watchdog / liveness counters & gauges
-        # DEBUG_CLEANUP_BEGIN: These diagnostic metrics are provisional and can be
-        # removed or consolidated once stall detection is production-grade.
-        self.metric_stall_events = Counter('g6_metric_stall_events_total', 'Metric stall detection events', ['metric'])
-        # Removed legacy dashboard parser metrics (dashboard_snapshot_age, dashboard_last_parse_unixtime, parser_unknown_lines)
-        # DEBUG_CLEANUP_END
+        # Provide legacy alias _register (after spec to avoid attribute shadowing)
+        if not hasattr(self, '_register'):
+            try:
+                def _legacy_register(metric_cls, name: str, documentation: str, labelnames=None, **kw):  # noqa: ANN001
+                    base = name
+                    if base.startswith('g6_'):
+                        base = base[3:]
+                    for suf in ('_total','_seconds','_percent','_ms'):
+                        if base.endswith(suf):
+                            base = base[: -len(suf)]
+                    attr = base.replace('-', '_')
+                    if hasattr(self, attr):
+                        return getattr(self, attr)
+                    return self._core_reg(attr, metric_cls, name, documentation, labelnames, None, **kw)  # type: ignore[attr-defined]
+                self._register = _legacy_register  # type: ignore[attr-defined]
+            except Exception:
+                pass
 
-        # -------------------------------------------------------------
-        # Storage Metrics
-        # -------------------------------------------------------------
-        self.csv_files_created = Counter('g6_csv_files_created_total', 'CSV files created')
-        self.csv_records_written = Counter('g6_csv_records_written_total', 'CSV records written')
-        self.csv_write_errors = Counter('g6_csv_write_errors_total', 'CSV write errors')
-        self.csv_disk_usage_mb = Gauge('g6_csv_disk_usage_mb', 'Disk usage attributed to CSV outputs (MB)')
-        self.csv_cardinality_unique_strikes = Gauge('g6_csv_cardinality_unique_strikes', 'Unique strikes encountered in last write cycle', ['index','expiry'])
-        self.csv_cardinality_suppressed = Gauge('g6_csv_cardinality_suppressed', 'Flag: 1 if cardinality suppression active for index/expiry, else 0', ['index','expiry'])
-        self.csv_cardinality_events = Counter('g6_csv_cardinality_events_total', 'Cardinality suppression events', ['index','expiry','event'])
-        self.csv_overview_writes = Counter('g6_csv_overview_writes_total', 'Overview snapshot rows written', ['index'])
-        self.csv_overview_aggregate_writes = Counter('g6_csv_overview_aggregate_writes_total', 'Aggregated overview snapshot writes', ['index'])
-        self.influxdb_points_written = Counter('g6_influxdb_points_written_total', 'InfluxDB points written')
-        self.influxdb_write_success_rate = Gauge('g6_influxdb_write_success_rate_percent', 'InfluxDB write success rate percent')
-        self.influxdb_connection_status = Gauge('g6_influxdb_connection_status', 'InfluxDB connection status (1=healthy,0=down)')
-        self.influxdb_query_performance = Gauge('g6_influxdb_query_time_ms', 'InfluxDB representative query latency (ms)')
-        self.backup_files_created = Counter('g6_backup_files_created_total', 'Backup files created')
-        self.last_backup_unixtime = Gauge('g6_last_backup_unixtime', 'Timestamp of last backup (unix seconds)')
-        self.backup_size_mb = Gauge('g6_backup_size_mb', 'Total size of last backup (MB)')
-
-        # -------------------------------------------------------------
-        # Memory Pressure / Adaptive Degradation
-        # -------------------------------------------------------------
-        # 0=normal,1=elevated,2=high,3=critical
-        self.memory_pressure_level = Gauge('g6_memory_pressure_level', 'Memory pressure ordinal level (0=normal,1=elevated,2=high,3=critical)')
-        self.memory_pressure_actions = Counter('g6_memory_pressure_actions_total', 'Count of mitigation actions taken due to memory pressure', ['action','tier'])
-        self.memory_pressure_seconds_in_level = Gauge('g6_memory_pressure_seconds_in_level', 'Seconds spent in current memory pressure level')
-        self.memory_pressure_downgrade_pending = Gauge('g6_memory_pressure_downgrade_pending', 'Downgrade pending flag (1=yes,0=no)')
-        self.memory_depth_scale = Gauge('g6_memory_depth_scale', 'Current strike depth scaling factor (0-1)')
-        self.memory_per_option_metrics_enabled = Gauge('g6_memory_per_option_metrics_enabled', 'Per-option metrics enabled flag (1=yes,0=no)')
-        self.memory_greeks_enabled = Gauge('g6_memory_greeks_enabled', 'Greek & IV computation enabled flag (1=yes,0=no)')
-        # Optional tracemalloc gauges (populated when enabled)
+        # 4. Early create metric_group_state gauge (index_aggregate)
+        _end = _step('index_aggregate')
         try:
-            self.tracemalloc_total_kb = Gauge('g6_tracemalloc_total_kb', 'Total allocated size reported by tracemalloc (KiB)')
-        except ValueError:
-            logger.debug("Metric already exists: g6_tracemalloc_total_kb")
-        try:
-            self.tracemalloc_topn_kb = Gauge('g6_tracemalloc_topn_kb', 'Aggregated size of top-N allocation groups (KiB)')
-        except ValueError:
-            logger.debug("Metric already exists: g6_tracemalloc_topn_kb")
+            from .index_aggregate import init_index_aggregate_metrics as _idx  # type: ignore
+            _idx(self); _end()
+        except Exception as _e:
+            _end(ok=False, error=str(_e))
+        # If index aggregate path failed to create metric_group_state (e.g., import error), create it directly now
+        if not hasattr(self, 'metric_group_state'):
+            try:
+                from prometheus_client import Gauge as _Gmgs
+                self.metric_group_state = _Gmgs('g6_metric_group_state', 'Metric group activation flag', ['group'])  # type: ignore[attr-defined]
+            except Exception:
+                pass
 
-        # -------------------------------------------------------------
-        # Index Specific Aggregates (on-demand; labels reused)
-        # -------------------------------------------------------------
+        # 5. Always-on placeholders (may set metric_group_state labels)
         try:
-            self.index_options_processed = Gauge('g6_index_options_processed', 'Options processed for index last cycle', ['index'])
-        except ValueError:
-            logger.debug("Metric already exists: g6_index_options_processed")
-        # New cumulative counter (monotonic) to help detect actual progress and drive error/stall detection
+            from .placeholders import init_always_on_placeholders as _init_placeholders  # type: ignore
+            _init_placeholders(self, self._group_allowed)
+            try:
+                from .sla import init_sla_placeholders as _init_sla  # type: ignore
+                _init_sla(self, self._group_allowed)
+            except Exception:
+                pass
+            # Initialize fault budget tracker immediately after SLA placeholder if enabled (ensures availability for early tests)
+            try:
+                from .fault_budget import init_fault_budget as _ifb  # type: ignore
+                _ifb(self)
+            except Exception:
+                pass
+            try:
+                from .provider_failover import init_provider_failover_placeholders as _init_pf  # type: ignore
+                _init_pf(self, self._group_allowed)
+            except Exception:
+                pass
+            try:
+                from .scheduler import init_scheduler_placeholders as _init_sched  # type: ignore
+                _init_sched(self, self._group_allowed)
+            except Exception:
+                pass
+            try:
+                from .adaptive import init_adaptive_placeholders as _init_adap  # type: ignore
+                _init_adap(self, self._group_allowed)
+            except Exception:
+                pass
+        except Exception:  # pragma: no cover
+            try:
+                logger.debug("init_always_on_placeholders failed", exc_info=True)
+            except Exception:
+                pass
+
+        # 6. Category initialization (performance, api, resources, cache...)
+        _end = _step('perf_metrics')
         try:
-            self.index_options_processed_total = Counter('g6_index_options_processed_total', 'Cumulative options processed per index (monotonic)', ['index'])
-        except ValueError:
-            logger.debug("Metric already exists: g6_index_options_processed_total")
-        self.index_avg_processing_time = Gauge('g6_index_avg_processing_time_seconds', 'Average per-option processing time last cycle', ['index'])
-        self.index_success_rate = Gauge('g6_index_success_rate_percent', 'Per-index success rate percent', ['index'])
-        self.index_last_collection_unixtime = Gauge('g6_index_last_collection_unixtime', 'Last successful collection timestamp (unix)', ['index'])
-        self.index_current_atm = Gauge('g6_index_current_atm_strike', 'Current ATM strike (redundant but stable label set)', ['index'])
-        self.index_current_volatility = Gauge('g6_index_current_volatility', 'Current representative IV (e.g., ATM option)', ['index'])
-        # New explicit attempt/failure metrics (principled success calculations)
-        self.index_attempts_total = Counter('g6_index_attempts_total', 'Total index collection attempts (per index, resets never)', ['index'])
-        self.index_failures_total = Counter('g6_index_failures_total', 'Total index collection failures (per index, labeled by error_type)', ['index','error_type'])
-        self.index_cycle_attempts = Gauge('g6_index_cycle_attempts', 'Attempts in the most recent completed cycle (per index)', ['index'])
-        self.index_cycle_success_percent = Gauge('g6_index_cycle_success_percent', 'Success percent for the most recent completed cycle (per index)', ['index'])
+            from .performance import init_performance_metrics as _perf  # type: ignore
+            _perf(self); _end()
+        except Exception as _e:
+            _end(ok=False, error=str(_e))
+        _end = _step('api_metrics')
+        try:
+            from .api_call import init_api_call_metrics as _init_api  # type: ignore
+            _init_api(self); _end()
+        except Exception as _e:
+            _end(ok=False, error=str(_e))
+        # Early fallback for API metrics if init_api_call_metrics path failed (ensures presence before pruning)
+        try:
+            if not hasattr(self, 'api_response_time') or not hasattr(self, 'api_success_rate') or not hasattr(self, 'api_response_latency'):
+                from prometheus_client import Gauge as _Gf, Histogram as _Hf
+                if not hasattr(self, 'api_response_time'):
+                    self.api_response_time = _Gf('g6_api_response_time_ms', 'Average upstream API response time (ms, rolling)')  # type: ignore[attr-defined]
+                if not hasattr(self, 'api_success_rate'):
+                    self.api_success_rate = _Gf('g6_api_success_rate_percent', 'Successful API call percentage (rolling window)')  # type: ignore[attr-defined]
+                if not hasattr(self, 'api_response_latency'):
+                    self.api_response_latency = _Hf('g6_api_response_latency_ms', 'Upstream API response latency distribution (ms)', buckets=[5,10,20,50,100,200,400,800,1600,3200])  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
+            from .resource_category import init_resource_metrics as _res  # type: ignore
+            _res(self)
+        except Exception:
+            pass
+        try:
+            from .cache_error import init_cache_error_metrics as _cache  # type: ignore
+            _cache(self)
+        except Exception:
+            pass
+        try:
+            from .storage_category import init_storage_metrics as _stor  # type: ignore
+            _stor(self)
+        except Exception:
+            pass
+        try:
+            from .memory_pressure import init_memory_pressure_metrics as _mem  # type: ignore
+            _mem(self)
+        except Exception:
+            pass
+        try:
+            from .atm import init_atm_metrics as _atm  # type: ignore
+            _atm(self)
+        except Exception:
+            pass
 
-        # -------------------------------------------------------------
-        # ATM Collection Metrics
-        # -------------------------------------------------------------
-        self.atm_batch_time = Gauge('g6_atm_batch_time_seconds', 'Elapsed wall time to collect ATM option batch', ['index'])
-        self.atm_avg_option_time = Gauge('g6_atm_avg_option_time_seconds', 'Average per-option processing time within ATM batch', ['index'])
+        # 7. Greeks (after core specs & categories)
+        try:
+            from .greeks import init_greek_metrics as _init_greeks  # type: ignore
+            _init_greeks(self)
+        except Exception:
+            try:
+                logger.debug("init_greek_metrics external module failed", exc_info=True)
+            except Exception:
+                pass
 
+        # 8. Backward compatible group_registry invocation (may add extras)
+        try:
+            from .group_registry import register_group_metrics as _rgm  # type: ignore
+            _rgm(self)
+            try:
+                logger.debug("group_registry invoked; groups now: %s", sorted(set(self._metric_groups.values())))
+            except Exception:
+                pass
+        except Exception:
+            try:
+                logger.warning("group_registry invocation failed", exc_info=True)
+            except Exception:
+                pass
+
+        # 9. Apply pruning (after all registrations)
+        try:
+            from .gating import apply_pruning as _apply_pruning  # type: ignore
+            _apply_pruning(self, CONTROLLED_GROUPS, enabled_set, disabled_set)
+        except Exception:
+            try:
+                self._apply_group_filters(CONTROLLED_GROUPS, enabled_set, disabled_set)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+
+        # 10. Spec minimum / recovery
+        try:
+            from .spec_fallback import ensure_spec_minimum as _esm  # type: ignore
+            _esm(self)
+        except Exception:
+            try:
+                logger.debug("ensure_spec_minimum external call failed", exc_info=True)
+            except Exception:
+                pass
+
+        # Diagnostic warning if no controlled groups survived
+        if not any(g in CONTROLLED_GROUPS for g in self._metric_groups.values()):
+            try:
+                logger.warning("No controlled metric groups registered; check _maybe_register flow")
+            except Exception:
+                pass
+
+        # 11. Populate metric_group_state gauge samples
+        try:
+            mgs = getattr(self, 'metric_group_state', None)
+            if mgs is not None:
+                for grp in sorted(CONTROLLED_GROUPS):
+                    try:
+                        val = 1 if any(g == grp for g in self._metric_groups.values()) else 0
+                        if hasattr(mgs, 'labels'):
+                            try:
+                                mgs.labels(group=grp).set(val)  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
+                        else:
+                            if val:
+                                try:
+                                    mgs.set(1)
+                                except Exception:
+                                    pass
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # Removed safety net re-binding of _maybe_register; instance method is stable
+        # and not subject to pruning (only metric attributes tied to groups).
+
+        # Pruned redundant performance/API/metric_group_state fallbacks: early initialization now guarantees presence.
+
+        # Minimal post-initialization recovery (panel_diff_truncated, vol_surface_quality_score, events gauge)
+        try:
+            from .recovery import post_init_recovery as _post_recover  # type: ignore
+            _post_recover(self)
+        except Exception:
+            pass
+        # Removed late_bind_lazy_metrics automatic invocation: it bypassed gating by
+        # reintroducing grouped metrics (panel_diff, cache, panels_integrity) after pruning,
+        # causing enable/disable tests and prune tests to fail. Spec + initial registration
+        # now authoritative; explicit recovery should be done via targeted fallback modules
+        # if ever needed (not blanket re-add).
+        # provider_mode & config_deprecated_keys moved to spec
+        # NOTE: Option delta (g6_option_delta) will be registered in _init_greek_metrics().
+        # Previous duplicate pre-registration block removed to avoid ValueError collisions.
+        # (IV estimation metrics & aliases now spec-driven; legacy inline block removed.)
+        # ---------------- Grouped Metrics (delegated to group_registry) ----------------
+        # Grouped metrics now registered centrally in group_registry.register_group_metrics.
+        # Group gating configuration (delegated to gating module)
         # -------------------------------------------------------------
         # Internal rolling state (not exported) for derived gauges
         # -------------------------------------------------------------
@@ -248,330 +514,619 @@ class MetricsRegistry:
         self._prev_net_bytes = (0, 0)  # (sent, recv)
         self._prev_disk_ops = 0  # total read+write ops
 
-        # Generate Greek metrics at end
-        self._init_greek_metrics()
+        # (Group pruning + spec fallback + group state population already performed earlier in ordered init above.)
         logger.info(f"Initialized {len(self.__dict__)} metrics for g6_platform")
+        # Introspection inventory may be built lazily unless eager flag or dump requested
+        eager_introspection = os.getenv("G6_METRICS_EAGER_INTROSPECTION", "").strip().lower() in {"1","true","yes","on"}
+        dump_requested = bool(os.getenv('G6_METRICS_INTROSPECTION_DUMP','').strip())
+        if eager_introspection or dump_requested:
+            try:
+                from .introspection import build_introspection_inventory as _bii  # type: ignore
+                self._metrics_introspection = _bii(self)
+            except Exception as _e:  # pragma: no cover - defensive
+                logger.debug(f"Failed to build metrics introspection inventory: {_e}")
+                self._metrics_introspection = []  # type: ignore[attr-defined]
+        else:
+            # Sentinel None indicates lazy-unbuilt state; accessor will populate on demand
+            self._metrics_introspection = None  # type: ignore[attr-defined]
+        # Post-init dumps delegated (introspection + init trace) unless suppressed.
+        suppress_auto = os.getenv("G6_METRICS_SUPPRESS_AUTO_DUMPS", "").strip().lower() in {"1","true","yes","on"}
+        if not suppress_auto:
+            try:  # pragma: no cover - defensive wrapper
+                from .introspection_dump import run_post_init_dumps as _rp
+                _rp(self)
+            except Exception:
+                pass
+        else:  # structured log for observability of suppression
+            try:
+                # Emit plain message containing the marker expected by tests. Avoid relying on .mes field.
+                logger.info("metrics.dumps.suppressed reason=G6_METRICS_SUPPRESS_AUTO_DUMPS")
+            except Exception:
+                pass
+
+        # Optional cardinality guard (snapshot or compare) invoked last so full registry is visible
+        try:
+            if any(os.getenv(k) for k in ("G6_CARDINALITY_SNAPSHOT", "G6_CARDINALITY_BASELINE")):
+                from .cardinality_guard import check_cardinality as _cc  # type: ignore
+                try:
+                    summary = _cc(self)
+                    if summary is not None:
+                        self._cardinality_guard_summary = summary  # type: ignore[attr-defined]
+                except RuntimeError:
+                    # propagate failure after attaching summary for test inspection
+                    self._cardinality_guard_summary = getattr(self, '_cardinality_guard_summary', {})  # type: ignore[attr-defined]
+                    raise
+        except Exception:
+            pass
+
+        # Duplicate metric guard – detect multiple attributes referencing same collector
+        try:
+            from .duplicate_guard import check_duplicates as _cd  # type: ignore
+            try:
+                dup_summary = _cd(self)
+                if dup_summary is not None:
+                    self._duplicate_metrics_summary = dup_summary  # type: ignore[attr-defined]
+            except RuntimeError:
+                # Attach summary if present then re-raise
+                self._duplicate_metrics_summary = getattr(self, '_duplicate_metrics_summary', {})  # type: ignore[attr-defined]
+                raise
+        except Exception:
+            pass
+
+        # (Fault budget tracker already initialized earlier if env enabled.)
+
+        # (Removed duplicated init/log/introspection/dump block – original earlier block retained.)
     
-    def _init_greek_metrics(self):
-        """Initialize metrics for option Greeks."""
-        greek_names = ['delta', 'theta', 'gamma', 'vega', 'rho']
-        
-        for greek in greek_names:
-            metric_name = f"option_{greek}"
-            setattr(self, metric_name, Gauge(
-                f'g6_option_{greek}',
-                f'Option {greek}',
-                ['index', 'expiry', 'strike', 'type']
-            ))
+    # ---------------- Category Init Helpers (extracted) -----------------
+    # Category initializer methods removed (extracted to modules under src/metrics/)
+
+    # _init_greek_metrics method removed (migrated to src/metrics/greeks.py)
 
     # ---------------- Helper Methods For Derived Metrics -----------------
     def mark_cycle(self, success: bool, cycle_seconds: float, options_processed: int, option_processing_seconds: float):
-        """Update rolling cycle statistics and derived gauges.
+        """Delegate to derived.update_cycle_metrics (extracted refactor)."""
+        try:
+            from .derived import update_cycle_metrics as _ucm  # type: ignore
+            _ucm(self, success, cycle_seconds, options_processed, option_processing_seconds)  # type: ignore[arg-type]
+        except Exception:
+            # Fail silent to preserve previous resilience semantics
+            pass
+        # Invoke fault budget tracker (after cycle metrics so breach counter may have been incremented)
+        try:
+            from .fault_budget import fault_budget_on_cycle as _fb_cycle  # type: ignore
+            _fb_cycle(self)
+        except Exception:
+            pass
 
-        Parameters
-        ----------
-        success : bool
-            Whether the cycle completed without fatal errors.
-        cycle_seconds : float
-            Total wall time for the cycle.
-        options_processed : int
-            Number of option rows processed in the cycle.
-        option_processing_seconds : float
-            Time spent specifically in per-option processing (subset of cycle_seconds).
+    # _apply_group_filters extracted to src/metrics/gating.py (apply_pruning)
+
+    # _ensure_spec_minimum migrated to src/metrics/spec_fallback.py
+
+    # ---------------- Introspection Helpers -----------------
+    # Introspection builder extracted to src/metrics/introspection.py (build_introspection_inventory)
+
+    def get_metrics_introspection(self):  # pragma: no cover - thin accessor
+        """Return cached metrics introspection inventory (delegates to module)."""
+        try:
+            from .introspection import get_metrics_introspection as _gmi  # type: ignore
+            return _gmi(self)  # type: ignore[return-value]
+        except Exception:
+            # Fallback: if cache already exists return copy; else empty list
+            inv = getattr(self, '_metrics_introspection', [])
+            try:
+                return list(inv)
+            except Exception:
+                return []
+
+    # ---------------- Governance Summary Helper -----------------
+    def governance_summary(self):  # pragma: no cover - aggregation helper
+        """Return unified snapshot of governance layer state.
+
+        Combines (if present):
+          - Duplicate guard summary (_duplicate_metrics_summary)
+          - Cardinality guard summary (_cardinality_guard_summary)
+          - Fault budget tracker window state (_fault_budget_tracker)
+
+        Shape:
+        {
+          'duplicates': {...} | None,
+          'cardinality': {...} | None,
+          'fault_budget': {
+              'window_sec': float,
+              'allowed': int,
+              'within': int,
+              'remaining': int,
+              'consumed_percent': float,
+              'exhausted': bool,
+          } | None
+        }
         """
-        self._cycle_total += 1
-        if success:
-            self._cycle_success += 1
-            # Record last successful cycle timestamp
-            try:
-                self.last_success_cycle_unixtime.set(time.time())
-            except Exception:
-                pass
-        # Exponential moving average for cycle time
-        if self._ema_cycle_time is None:
-            self._ema_cycle_time = cycle_seconds
-        else:
-            self._ema_cycle_time = (self._ema_alpha * cycle_seconds) + (1 - self._ema_alpha) * self._ema_cycle_time
-        # Derived gauges
-        if self._ema_cycle_time:
-            try:
-                self.avg_cycle_time.set(self._ema_cycle_time)
-                if self._ema_cycle_time > 0:
-                    self.cycles_per_hour.set(3600.0 / self._ema_cycle_time)
-            except Exception:
-                pass
-        # Success rate
+        # Use a loose typing container; governance summaries are optional dicts.
+        out: dict = {  # type: ignore[typeddict-item]
+            'duplicates': None,
+            'cardinality': None,
+            'fault_budget': None,
+        }
         try:
-            if self._cycle_total > 0:
-                rate = (self._cycle_success / self._cycle_total) * 100.0
-                self.collection_success_rate.set(rate)
+            dup = getattr(self, '_duplicate_metrics_summary', None)
+            if isinstance(dup, dict):
+                out['duplicates'] = dup  # type: ignore[assignment]
         except Exception:
             pass
-        # Options throughput
-        self._last_cycle_options = options_processed
-        self._last_cycle_option_seconds = option_processing_seconds
         try:
-            if cycle_seconds > 0:
-                per_min = (options_processed / cycle_seconds) * 60.0
-                self.options_per_minute.set(per_min)
-            if options_processed > 0 and option_processing_seconds > 0:
-                self.processing_time_per_option.set(option_processing_seconds / options_processed)
+            card = getattr(self, '_cardinality_guard_summary', None)
+            if isinstance(card, dict):
+                out['cardinality'] = card  # type: ignore[assignment]
         except Exception:
             pass
-        # Uptime refresh
         try:
-            self.uptime_seconds.set(time.time() - self._process_start_time)
+            fb = getattr(self, '_fault_budget_tracker', None)
+            if fb is not None:
+                # Derive rolling window stats directly from tracker
+                within = len(getattr(fb, 'breaches', []))
+                allowed = getattr(fb, 'allowed', 0)
+                remaining = max(allowed - within, 0)
+                consumed = 0.0
+                if allowed > 0:
+                    try:
+                        consumed = min(100.0, (within / allowed) * 100.0)
+                    except Exception:
+                        consumed = 0.0
+                out['fault_budget'] = {  # type: ignore[assignment]
+                    'window_sec': getattr(fb, 'window_sec', None),
+                    'allowed': allowed,
+                    'within': within,
+                    'remaining': remaining,
+                    'consumed_percent': round(consumed, 2),
+                    'exhausted': bool(getattr(fb, 'exhausted', False)),
+                }
         except Exception:
             pass
+        return out
+
+    # ---------------- Metric Group & Metadata Facade (Phase 3 extraction) -----------------
+    def reload_group_filters(self) -> None:  # pragma: no cover - thin shim
+        """Reload enable/disable env-based group filters (delegates to metadata module)."""
+        try:
+            from .metadata import reload_group_filters as _rgf
+            _rgf(self)
+        except Exception:
+            pass
+
+    def dump_metrics_metadata(self) -> dict:  # pragma: no cover - thin shim
+        """Return metadata structure describing current metrics (delegates)."""
+        try:
+            from .metadata import dump_metrics_metadata as _dmm
+            return _dmm(self)  # type: ignore[return-value]
+        except Exception:
+            return {}
+
+    # ---------------- Group Mapping Accessor (for tests) -----------------
+    def get_metric_groups(self) -> dict[str,str]:  # pragma: no cover - simple accessor
+        return dict(self._metric_groups)
+
+    # ---------------- Minimal registration helpers (legacy compatibility) -----------------
+    # Removed obsolete _get_or_create_collector helper (collector creation now inlined in early _core_maybe_register)
+
+    # Compatibility shim now delegated to registration_compat. Kept for backward compatibility.
+    def _register(self, metric_cls, name: str, documentation: str, labelnames: list[str] | None = None, **kwargs: object):  # pragma: no cover
+        try:
+            from .registration_compat import legacy_register as _lr  # type: ignore
+            return _lr(metric_cls, name, documentation, labelnames, **kwargs)
+        except Exception:
+            return None
+    # Public method intentionally left referencing early core function; no redefinition needed here.
 
     def mark_api_call(self, success: bool, latency_ms: float | None = None):
-        """Track API call statistics for success rate and latency EMA."""
-        self._api_calls += 1
-        if not success:
-            self._api_failures += 1
+        """Delegate to api_call.mark_api_call (extracted module)."""
         try:
-            if self._api_calls > 0:
-                success_rate = (1 - (self._api_failures / self._api_calls)) * 100.0
-                self.api_success_rate.set(success_rate)
-            if latency_ms is not None and latency_ms >= 0:
-                # Simple moving update (EMA based gauge) plus histogram observation
-                current = getattr(self, '_api_latency_ema', None)
-                alpha = 0.3
-                if current is None:
-                    current = latency_ms
-                else:
-                    current = alpha * latency_ms + (1 - alpha) * current
-                self._api_latency_ema = current
-                try:
-                    self.api_response_time.set(current)
-                except Exception:
-                    pass
-                try:
-                    self.api_response_latency.observe(latency_ms)
-                except Exception:
-                    pass
+            from .api_call import mark_api_call as _mac  # type: ignore
+            _mac(self, success, latency_ms)
         except Exception:
             pass
 
     # ---------------- Per-Index Cycle Attempts / Success -----------------
     def mark_index_cycle(self, index: str, attempts: int, failures: int):
-        """Record per-index cycle attempts/failures and update success metrics.
+        """Delegate to derived.update_index_cycle_metrics (extracted refactor)."""
+        try:
+            from .derived import update_index_cycle_metrics as _uicm  # type: ignore
+            _uicm(self, index, attempts, failures)
+        except Exception:
+            pass
+
+    # Explicit method for clarity (helper sets alias _group_allowed)
+    def group_allowed(self, name: str) -> bool:  # pragma: no cover - thin wrapper
+        try:
+            return self._group_allowed(name)  # type: ignore[attr-defined]
+        except Exception:
+            return True
+
+    # ---------------- Init Trace Accessor (public) -----------------
+    def get_init_trace(self, copy: bool = True):  # pragma: no cover - minimal wrapper
+        """Return the initialization trace list.
 
         Parameters
         ----------
-        index : str
-            Index symbol.
-        attempts : int
-            Number of collection attempts for this index in the cycle.
-        failures : int
-            Number of failed attempts within those attempts.
+        copy : bool, default True
+            When True returns a shallow copy to prevent accidental mutation of
+            the internal list by callers. Set False only in controlled debug
+            scenarios where in-place inspection (append, etc.) is desired.
         """
-        if attempts < 0 or failures < 0:
-            return
-        # Update cumulative counters
-        try:
-            if attempts > 0:
-                self.index_attempts_total.labels(index=index).inc(attempts)
-            if failures > 0:
-                # Use generic error_type 'cycle' for aggregate failures (more granular increments should also be emitted where they occur)
-                self.index_failures_total.labels(index=index, error_type='cycle').inc(failures)
-        except Exception:
-            pass
-        # Set per-cycle gauges
-        try:
-            self.index_cycle_attempts.labels(index=index).set(attempts)
-            success_pct = None
-            if attempts > 0:
-                success_pct = (attempts - failures) / attempts * 100.0
-                self.index_cycle_success_percent.labels(index=index).set(success_pct)
-            else:
-                # Represent unknown by clearing gauge (cannot unset; set to NaN) if Prometheus client supports
-                try:
-                    self.index_cycle_success_percent.labels(index=index).set(float('nan'))
-                except Exception:
-                    pass
-        except Exception:
-            pass
-
-def setup_metrics_server(port=9108, host="0.0.0.0", enable_resource_sampler: bool = True, sampler_interval: int = 10,
-                         use_custom_registry: bool | None = None, reset: bool = False):
-    """Set up metrics server and return metrics registry.
-
-    Parameters
-    ----------
-    port : int
-        HTTP port for Prometheus exposition.
-    host : str
-        Bind address.
-    enable_resource_sampler : bool
-        Whether to launch a background sampler for resource gauges.
-    sampler_interval : int
-        Seconds between resource samples.
-    """
-    global _METRICS_SINGLETON, _METRICS_PORT, _METRICS_HOST  # noqa: PLW0603
-    # Fast path: if already initialized, return existing without side effects
-    if _METRICS_SINGLETON is not None and not reset:
-        # If caller requested a different port/host than the first initialization,
-        # log a warning for visibility (cannot rebind without restart)
-        if (port != _METRICS_PORT) or (host != _METRICS_HOST):
-            logger.warning(
-                "setup_metrics_server called again with different host/port (%s:%s) != (%s:%s); reusing existing server",
-                host, port, _METRICS_HOST, _METRICS_PORT,
-            )
-        else:
-            logger.debug("setup_metrics_server called again; returning existing singleton")
-        return _METRICS_SINGLETON, (lambda: None)
-
-    # If reset requested, attempt to clear default registry (best effort). This is
-    # primarily for interactive/dev sessions; production code should rely on idempotency.
-    if reset:
-        try:  # pragma: no cover - defensive path
-            collectors = list(REGISTRY._names_to_collectors.values())  # type: ignore[attr-defined]
-            for c in collectors:
-                try:
-                    REGISTRY.unregister(c)  # type: ignore[arg-type]
-                except Exception:
-                    pass
-            logger.info("Prometheus default registry cleared via reset flag")
-        except Exception:
-            logger.warning("Registry reset attempt failed; proceeding")
-        # Reset singleton markers
-        globals()['_METRICS_SINGLETON'] = None
-        globals()['_METRICS_PORT'] = None
-        globals()['_METRICS_HOST'] = None
-
-    # Determine whether to use a custom (non-global) registry. If unspecified, default False.
-    if use_custom_registry is None:
-        use_custom_registry = False
-
-    if use_custom_registry:
-        # Use an isolated CollectorRegistry and start_http_server bound to it.
-        registry = CollectorRegistry()
-        start_http_server(port, addr=host, registry=registry)
-    else:
-        start_http_server(port, addr=host)
-    _METRICS_PORT = port
-    _METRICS_HOST = host
-    fancy = os.environ.get('G6_FANCY_CONSOLE','').lower() in ('1','true','yes','on')
-    if fancy:
-        logger.debug(f"Metrics server started on {host}:{port}")
-        logger.debug(f"Metrics available at http://{host}:{port}/metrics")
-    else:
-        logger.info(f"Metrics server started on {host}:{port}")
-        logger.info(f"Metrics available at http://{host}:{port}/metrics")
-
-    metrics = MetricsRegistry()
-    _METRICS_SINGLETON = metrics
-
-    if enable_resource_sampler:
-        try:
-            import psutil  # type: ignore
-        except ImportError:
-            logger.warning("psutil not installed; resource sampler disabled")
-        else:
-            def _sample():
-                while True:
-                    try:
-                        p = psutil.Process()
-                        with p.oneshot():
-                            mem_mb = p.memory_info().rss / (1024 * 1024)
-                            cpu_percent = p.cpu_percent(interval=None)  # non-blocking (last interval)
-                        metrics.memory_usage_mb.set(mem_mb)
-                        metrics.cpu_usage_percent.set(cpu_percent)
-                        # System-wide network I/O (cumulative); we expose as counters via .inc delta if desired.
-                        net = psutil.net_io_counters()
-                        prev_net = getattr(metrics, '_prev_net_bytes', (0, 0))
-                        try:
-                            d_sent = max(0, net.bytes_sent - prev_net[0])
-                            d_recv = max(0, net.bytes_recv - prev_net[1])
-                            metrics.network_bytes_transferred.inc(d_sent + d_recv)
-                        except Exception:
-                            pass
-                        setattr(metrics, '_prev_net_bytes', (net.bytes_sent, net.bytes_recv))
-                        # Disk IO ops delta
-                        dio = psutil.disk_io_counters()
-                        if dio is not None and hasattr(dio, 'read_count') and hasattr(dio, 'write_count'):
-                            if hasattr(metrics, '_prev_disk_ops'):
-                                d_ops = max(0, (dio.read_count + dio.write_count) - metrics._prev_disk_ops)
-                                metrics.disk_io_operations.inc(d_ops)
-                            metrics._prev_disk_ops = dio.read_count + dio.write_count
-                    except Exception:
-                        logger.debug("Resource sampling iteration failed", exc_info=True)
-                    time.sleep(sampler_interval)
-            t = threading.Thread(target=_sample, name="g6-resource-sampler", daemon=True)
-            t.start()
-            if fancy:
-                logger.debug("Resource sampler thread started (interval=%ss)" % sampler_interval)
-            else:
-                logger.info("Resource sampler thread started (interval=%ss)" % sampler_interval)
-
-    # DEBUG_CLEANUP_BEGIN: watchdog thread (temporary diagnostic liveness monitor)
-    def _watchdog():
-        last_cycle = 0.0
-        last_options = 0.0
-        stale_intervals = 0
-        check_interval = max(5, sampler_interval)
-        while True:
+        trace = getattr(self, '_init_trace', [])
+        if copy:
             try:
-                # Safely read underlying counters via exposed gauges/counters
-                # We infer cycle progress from collection_cycles_total and options_processed_total
-                # Prometheus client does not expose get(), so we keep local shadow via internal attributes where possible.
-                current_cycles = getattr(metrics, '_cycle_total', None)
-                current_options = getattr(metrics, '_last_cycle_options', None)
-                in_progress = 0
+                return list(trace)
+            except Exception:
+                return []
+        return trace
+
+    # ---------------- Dynamic Pruning API -----------------
+    def prune_groups(self, reload_filters: bool = True, *, dry_run: bool = False) -> dict:
+        """Recompute group filters (optional) and prune disallowed grouped metrics in-place.
+
+        Parameters
+        ----------
+        reload_filters : bool, default True
+            If True, re-read environment enable/disable sets before pruning. If False,
+            uses the last persisted filter state from initialization or prior prune.
+        dry_run : bool, default False
+            When True, compute the would-be removals and return summary without mutating
+            the registry (no attributes deleted). Useful for diagnostics or previews.
+
+        Returns
+        -------
+        dict summary with keys:
+            before_count: int  total grouped metrics prior to pruning
+            after_count: int   remaining grouped metrics
+            removed: int       number of attributes removed
+            removed_attrs: list[str] attribute names pruned (capped at 50 for safety)
+            enabled_spec: bool whether an enable list (allow-list) is active
+            disabled_count: int size of disabled set
+        """
+        try:
+            from .gating import configure_registry_groups as _cfg, apply_pruning as _apply, CONTROLLED_GROUPS as _CG  # type: ignore
+        except Exception:
+            return {"error": "gating import failed"}
+
+        # Optionally reload filters. When False we keep PRIOR predicate and sets exactly
+        # as they were at last configuration (tests rely on this to assert no change).
+        if reload_filters:
+            try:
+                _cfg(self)
+            except Exception:
+                pass
+        enabled_set = getattr(self, '_enabled_groups', None)
+        disabled_set = getattr(self, '_disabled_groups', set())
+        metric_groups = getattr(self, '_metric_groups', {})  # attr -> group
+        before = len(metric_groups)
+        snapshot = dict(metric_groups)
+        # If caller requested no reload and not a dry_run -> legacy semantics: no changes.
+        if not reload_filters and not dry_run:
+            # Apply any previously staged removals from last dry-run preview
+            staged = getattr(self, '_staged_prune_groups', None)
+            if staged:
                 try:
-                    if hasattr(metrics, 'collection_cycle_in_progress'):
-                        # Best effort: if set recently to 1, skip stall accrual
-                        in_progress = 1 if getattr(metrics.collection_cycle_in_progress, '_value', None) else 0
+                    from prometheus_client import REGISTRY as _PROM_REG  # type: ignore
                 except Exception:
-                    pass
-                progressed = False
-                if current_cycles is not None and current_cycles > last_cycle:
-                    progressed = True
-                if current_options is not None and current_options > last_options:
-                    progressed = True
-                if progressed or in_progress:
-                    stale_intervals = 0
-                    last_cycle = current_cycles if current_cycles is not None else last_cycle
-                    last_options = current_options if current_options is not None else last_options
-                else:
-                    stale_intervals += 1
-                    if stale_intervals >= 6:  # ~30-60s depending on interval
+                    _PROM_REG = None  # type: ignore
+                removed_attrs = []
+                for attr, grp in list(metric_groups.items()):
+                    if attr in staged:
+                        coll = getattr(self, attr, None)
+                        if _PROM_REG is not None and coll is not None:
+                            try:
+                                _PROM_REG.unregister(coll)  # type: ignore[arg-type]
+                            except Exception:
+                                pass
                         try:
-                            metrics.metric_stall_events.labels(metric='collection').inc()
+                            delattr(self, attr)
                         except Exception:
                             pass
-                        # backoff to avoid spamming
-                        stale_intervals = 0
+                        try:
+                            del metric_groups[attr]
+                        except Exception:
+                            pass
+                        removed_attrs.append(attr)
+                try:
+                    self._staged_prune_groups = None  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                after_now = len(metric_groups)
+                return {
+                    'before_count': before,
+                    'after_count': after_now,
+                    'removed': len(removed_attrs),
+                    'removed_attrs': removed_attrs[:50],
+                    'enabled_spec': enabled_set is not None,
+                    'disabled_count': len(disabled_set) if isinstance(disabled_set, set) else 0,
+                    'dry_run': False,
+                }
+            return {
+                'before_count': before,
+                'after_count': before,
+                'removed': 0,
+                'removed_attrs': [],
+                'enabled_spec': enabled_set is not None,
+                'disabled_count': len(disabled_set) if isinstance(disabled_set, set) else 0,
+                'dry_run': False,
+            }
+        if dry_run:
+            # Compute removals without mutating
+            try:
+                predicate = getattr(self, '_group_allowed', lambda n: True)
+                always_on = getattr(self, '_always_on_groups', set())
             except Exception:
-                logger.debug("Watchdog iteration failed", exc_info=True)
-            time.sleep(check_interval)
-    wt = threading.Thread(target=_watchdog, name="g6-watchdog", daemon=True)
-    wt.start()
-    if fancy:
-        logger.debug("Watchdog thread started")
-    else:
-        logger.info("Watchdog thread started")
-
-    # Record metadata for fancy panel consumption
-    try:
-        globals()['_METRICS_META'] = {
-            'host': host,
-            'port': port,
-            'resource_sampler': bool(enable_resource_sampler),
-            'watchdog': True,
-            'custom_registry': bool(use_custom_registry),
-            'reset': bool(reset),
+                predicate = lambda _n: True  # type: ignore
+                always_on = set()
+            prospective_removed = [a for a, g in snapshot.items() if g not in always_on and (g in (disabled_set or set()) or (enabled_set is not None and g not in enabled_set))]
+            after_mapping = {a: g for a, g in snapshot.items() if a not in prospective_removed}
+            try:
+                if os.getenv('G6_DEBUG_PRUNE'):
+                    logger.info("metrics.prune_groups.preview", extra={
+                        'dry_run': True,
+                        'before_count': before,
+                        'prospective_removed': len(prospective_removed),
+                        'prospective_removed_attrs': prospective_removed[:15],
+                        'disabled_set': sorted(list(disabled_set)) if isinstance(disabled_set,set) else [],
+                        'enabled_set': sorted(list(enabled_set)) if isinstance(enabled_set,set) else None,
+                    })
+                else:
+                    logger.info("metrics.prune_groups.preview", extra={'dry_run': True, 'before_count': before, 'prospective_removed': len(prospective_removed)})
+            except Exception:
+                pass
+            # Stage groups for next non-reload prune
+            try:
+                # Store attribute names for precise application (tests expect specific attrs removed)
+                self._staged_prune_groups = {a for a, g in snapshot.items() if g not in always_on and (g in (disabled_set or set()) or (enabled_set is not None and g not in enabled_set))}  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        else:
+            # Perform pruning
+            try:
+                _apply(self, _CG, enabled_set, disabled_set)
+            except Exception:
+                pass
+            # Defensive forced removal pass to ensure attributes & collectors removed
+            try:
+                always_on = getattr(self, '_always_on_groups', set())
+                predicate = getattr(self, '_group_allowed', lambda n: True)
+                from prometheus_client import REGISTRY as _PROM_REG  # type: ignore
+            except Exception:  # pragma: no cover
+                always_on = set()
+                predicate = lambda _n: True  # type: ignore
+                _PROM_REG = None  # type: ignore
+            try:
+                for attr, grp in list(getattr(self, '_metric_groups', {}).items()):
+                    if grp in _CG and grp not in always_on and not predicate(grp):
+                        coll = getattr(self, attr, None)
+                        if _PROM_REG is not None and coll is not None:
+                            try:
+                                _PROM_REG.unregister(coll)  # type: ignore[arg-type]
+                            except Exception:
+                                pass
+                        try:
+                            if hasattr(self, attr):
+                                delattr(self, attr)
+                        except Exception:
+                            pass
+                        try:
+                            del getattr(self, '_metric_groups')[attr]  # type: ignore[index]
+                        except Exception:
+                            pass
+            except Exception:
+                pass
+            # Explicit forced removal pass (covers predicate drift)
+            try:
+                for attr, grp in list(getattr(self, '_metric_groups', {}).items()):
+                    if grp in (disabled_set or set()):
+                        coll = getattr(self, attr, None)
+                        if _PROM_REG is not None and coll is not None:
+                            try:
+                                _PROM_REG.unregister(coll)  # type: ignore[arg-type]
+                            except Exception:
+                                pass
+                        try:
+                            delattr(self, attr)
+                        except Exception:
+                            pass
+                        try:
+                            del getattr(self, '_metric_groups')[attr]  # type: ignore[index]
+                        except Exception:
+                            pass
+                if os.getenv('G6_DEBUG_PRUNE'):
+                    try:
+                        logger.info("metrics.prune_groups.applied.debug", extra={
+                            'after_groups': sorted(list(getattr(self,'_metric_groups',{}).values())),
+                            'disabled_set': sorted(list(disabled_set)) if isinstance(disabled_set,set) else [],
+                        })
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            after_mapping = getattr(self, '_metric_groups', {})
+            # Applied structured log
+            try:
+                removed_attrs_applied = [a for a in snapshot.keys() if a not in after_mapping]
+                logger.info(
+                    "metrics.prune_groups.applied", extra={
+                        'dry_run': False,
+                        'before_count': before,
+                        'after_count': len(after_mapping),
+                        'removed': len(removed_attrs_applied),
+                        'removed_attrs_sample': removed_attrs_applied[:10],
+                        'enabled_spec': enabled_set is not None,
+                        'disabled_count': len(disabled_set) if isinstance(disabled_set, set) else 0,
+                    }
+                )
+            except Exception:
+                pass
+        after = len(after_mapping)
+        removed_attrs = [a for a in snapshot.keys() if a not in after_mapping]
+        return {
+            'before_count': before,
+            'after_count': after,
+            'removed': len(removed_attrs),
+            'removed_attrs': removed_attrs[:50],
+            'enabled_spec': enabled_set is not None,
+            'disabled_count': len(disabled_set) if isinstance(disabled_set, set) else 0,
+            'dry_run': dry_run,
         }
-    except Exception:
-        pass
-    # DEBUG_CLEANUP_END
 
-    return metrics, lambda: None  # No direct way to stop the server (Prometheus client lacks shutdown)
+def setup_metrics_server(*args, **kwargs):  # pragma: no cover - thin re-export
+    from .server import setup_metrics_server as _sms  # type: ignore
+    metrics, closer = _sms(*args, **kwargs)
+    globals()['_METRICS_SINGLETON'] = metrics  # keep legacy global updated
+    return metrics, closer
 
 def get_metrics_metadata() -> dict | None:
-    """Return metrics server metadata collected at setup (for fancy console panel)."""
-    return _METRICS_META
+    """Return enriched metrics metadata including attribute->group mapping.
+
+    Delegates to metadata module for filtering and synthetic supplementation.
+    Falls back to legacy minimal structure if metadata module import fails.
+    """
+    try:
+        from . import metadata as _md  # type: ignore
+        reg = get_metrics()
+        meta = _md.dump_metrics_metadata(reg)
+        if _METRICS_META:
+            meta.update({k: v for k, v in _METRICS_META.items() if k not in meta})
+        return meta
+    except Exception:
+        base = _METRICS_META or {}
+        meta = dict(base)
+        try:
+            reg = get_metrics()
+            if reg is not None:
+                meta.setdefault('groups', list(getattr(reg, '_metric_groups', {}).values()))
+        except Exception:
+            meta.setdefault('groups', [])
+        return meta
+
+
+# ---------------------------------------------------------------------------
+# Legacy accessors (preserved for backward compatibility and tests)
+# ---------------------------------------------------------------------------
+def get_metrics_singleton() -> MetricsRegistry | None:  # pragma: no cover - thin wrapper
+    # Lazy init so mere import + get_metrics_singleton() (as in spec test) ensures registration
+    global _METRICS_SINGLETON  # noqa: PLW0603
+    if _METRICS_SINGLETON is None:
+        try:
+            setup_metrics_server()  # default bootstrap
+        except Exception:
+            return None
+    return _METRICS_SINGLETON  # type: ignore[return-value]
+
+
+def get_init_trace(copy: bool = True):  # pragma: no cover - facade helper
+    """Facade returning metrics initialization trace for the singleton registry.
+
+    Mirrors `MetricsRegistry.get_init_trace`. If the metrics subsystem hasn't
+    been initialized yet, this will trigger a default setup to ensure the trace
+    (which may then contain steps up to that point). Callers that wish to avoid
+    implicit initialization should guard with `get_metrics_singleton()` first.
+    """
+    reg = get_metrics_singleton()
+    if reg is None:
+        return []
+    try:
+        return reg.get_init_trace(copy=copy)  # type: ignore[attr-defined]
+    except Exception:
+        return []
+
+
+def prune_metrics_groups(reload_filters: bool = True, *, dry_run: bool = False):  # pragma: no cover
+    # Backward-compatible delegator to extracted pruning module
+    try:
+        from .pruning import prune_metrics_groups as _pg  # type: ignore
+        return _pg(reload_filters=reload_filters, dry_run=dry_run)
+    except Exception:
+        return {}
+
+
+def preview_prune_metrics_groups(reload_filters: bool = True):  # pragma: no cover
+    try:
+        from .pruning import preview_prune_metrics_groups as _pp  # type: ignore
+        return _pp(reload_filters=reload_filters)
+    except Exception:
+        return {}
+
+
+def set_provider_mode(mode: str) -> None:  # pragma: no cover - thin helper
+    """Set the active provider mode (one-hot across label values).
+
+    Creates the gauge if metrics not yet initialized (bootstraps registry).
+    All previously set label samples are zeroed before activating the provided mode.
+    """
+    try:
+        metrics = get_metrics()
+        g = getattr(metrics, 'provider_mode', None)
+        if g is None or not hasattr(g, 'labels'):
+            # Attempt to create it if missing or wrong type
+            try:
+                metrics.provider_mode = Gauge('g6_provider_mode', 'Current provider mode (one-hot gauge)', ['mode'])  # type: ignore[attr-defined]
+                g = metrics.provider_mode
+            except Exception:
+                return
+        # Zero existing children
+        try:
+            child_map = getattr(g, '_metrics', {})  # type: ignore[attr-defined]
+            for child in list(child_map.values()):
+                try:
+                    child.set(0)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # Set requested mode
+        try:
+            g.labels(mode=str(mode)).set(1)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        # Post-condition: if all samples still zero, force create sample again
+        try:
+            fams = list(g.collect())
+            if fams and not any(s.value == 1 for s in fams[0].samples):
+                g.labels(mode=str(mode)).set(1)
+            if not fams or not fams[0].samples:
+                # Force explicit child creation (prom client sometimes lazy-creates on first set)
+                g.labels(mode=str(mode)).set(1)
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+
+def get_metrics() -> MetricsRegistry:
+    """Return the process-wide MetricsRegistry, initializing server if needed.
+
+    Maintains legacy implicit initialization behavior used by some tests which
+    call get_metrics() without an explicit setup_metrics_server().
+    """
+    global _METRICS_SINGLETON  # noqa: PLW0603
+    if _METRICS_SINGLETON is None:
+        setup_metrics_server()  # default host/port
+    else:
+        # Allow late env flag toggles to trigger dynamic group registrations (idempotent)
+        try:
+            from .group_registry import register_group_metrics as _rgm  # type: ignore
+            _rgm(_METRICS_SINGLETON)
+        except Exception:
+            pass
+    assert _METRICS_SINGLETON is not None  # for type checkers
+    return _METRICS_SINGLETON  # type: ignore[return-value]
+
+
+def register_build_info(metrics: MetricsRegistry | None, *, version: str | None = None,
+                        git_commit: str | None = None, config_hash: str | None = None,
+                        build_time: str | None = None) -> None:  # pragma: no cover - thin delegator
+    """Delegate to extracted build_info.register_build_info (build_time ignored; retained for signature stability)."""
+    try:
+        if metrics is None:
+            metrics = get_metrics()
+        from .build_info import register_build_info as _rbi  # type: ignore
+        _rbi(metrics, version=version, git_commit=git_commit, config_hash=config_hash)
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -579,34 +1134,73 @@ def get_metrics_metadata() -> dict | None:
 # ---------------------------------------------------------------------------
 @contextmanager
 def isolated_metrics_registry():  # pragma: no cover - thin helper, exercised indirectly in tests
-    """Context manager to isolate Prometheus default registry within a block.
+    """Context manager returning an isolated MetricsRegistry instance.
 
-    Usage (primarily in tests):
-        with isolated_metrics_registry():
-            setup_metrics_server(reset=True, use_custom_registry=False)
-
-    Ensures that any collectors registered inside the context are removed
-    afterwards to prevent cross-test contamination / duplicate time-series
-    errors when using the global registry. Threads started inside remain
-    daemonized but their gauges/counters become unreachable after collectors
-    are unregistered.
+    Behavior changes from legacy version:
+    - Yields a freshly constructed `MetricsRegistry` bound to the global default
+      registry (Prometheus client limitation) but tracks pre-existing collectors.
+    - On exit, unregisters any collectors created during the block, restoring
+      the prior state to avoid cross-test pollution.
+    - Returns the *registry instance* so tests can directly exercise attributes.
     """
-    original = {}
+    from .metrics import MetricsRegistry  # local import to avoid cyclic at module load
+    original: dict = {}
     try:
         original = dict(getattr(REGISTRY, '_names_to_collectors', {}))  # type: ignore[attr-defined]
     except Exception:
         original = {}
+    # Temporarily unregister originals to avoid duplicate name collisions
     try:
-        yield
+        for coll in list(original.values()):
+            try:
+                REGISTRY.unregister(coll)  # type: ignore[arg-type]
+            except Exception:
+                pass
+    except Exception:
+        pass
+    reg = None
+    try:
+        reg = MetricsRegistry()
+        # Guarantee _maybe_register present for tests expecting dynamic registration
+        if not hasattr(reg, '_maybe_register'):
+            try:
+                from .registration import maybe_register as _maybe  # type: ignore
+                import functools as _ft
+                reg._maybe_register = _ft.partial(_maybe, reg)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        # Defensive: ensure API call metrics exist when tests construct registry directly
+        try:
+            from .api_call import init_api_call_metrics as _init_api  # type: ignore
+            _init_api(reg)
+        except Exception:
+            pass
+        # Defensive: ensure performance metrics present if skipped earlier
+        try:
+            if not hasattr(reg, 'api_response_time'):
+                from .performance import init_performance_metrics as _init_perf  # type: ignore
+                _init_perf(reg)
+        except Exception:
+            pass
+        yield reg
     finally:
-        try:  # pragma: no cover - defensive cleanup
+        # Clear everything created during isolation
+        try:
             current = dict(getattr(REGISTRY, '_names_to_collectors', {}))  # type: ignore[attr-defined]
             for name, collector in current.items():
-                if name not in original:
-                    try:
-                        REGISTRY.unregister(collector)  # type: ignore[arg-type]
-                    except Exception:
-                        pass
+                try:
+                    REGISTRY.unregister(collector)  # type: ignore[arg-type]
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        # Restore original collectors
+        try:
+            for coll in original.values():
+                try:
+                    REGISTRY.register(coll)
+                except Exception:
+                    pass
         except Exception:
             pass
 

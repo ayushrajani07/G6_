@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://g6.local/panels/panel_item.schema.json",
+  "title": "Generic Panel Item Wrapper",
+  "description": "Generic shape for panel wrapper files (indices.json, system.json, etc.) where observed.",
+  "type": "object",
+  "required": ["updated_at"],
+  "properties": {
+    "panel": {"type": ["string", "null"]},
+    "kind": {"type": ["string", "null"]},
+    "updated_at": {"type": "string"},
+    "data": {"type": ["object", "array", "null"]},
+    "alerts": {"type": ["array", "null"], "items": {"type": "object"}}
+  },
+  "additionalProperties": true
+}

@@ -46,7 +46,7 @@
         kite_provider.cpython-313.pyc
         __init__.cpython-313.pyc
     collectors/
-      enhanced_collector.py
+  snapshot_collectors.py
       g6_config.json
       providers_interface.py
       unified_collectors.py

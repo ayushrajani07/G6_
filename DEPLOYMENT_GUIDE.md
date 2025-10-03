@@ -258,17 +258,17 @@ Primary ways to run:
 
 1. Direct (recommended for automation):
    ```bash
-   python -m src.unified_main --validate-auth --run-once
+   python scripts/run_orchestrator_loop.py --validate-auth --run-once
    ```
-2. With automatic token acquisition (opens browser if needed):
+2. With automatic token acquisition (opens browser if needed) via token manager then orchestrator:
    ```bash
-   python -m src.unified_main --auto-refresh-token --interactive-token --validate-auth
+   python -m src.tools.token_manager -- --validate-auth --run-once
    ```
-3. Via Token Manager (interactive helper + forwarding):
+3. Token Manager interactive helper examples:
    ```bash
    # Validate/acquire token then prompt
    python -m src.tools.token_manager --no-autorun
-   # Validate and launch unified_main (pass extra flags after --)
+   # Validate and launch orchestrator (pass extra flags after --)
    python -m src.tools.token_manager -- --validate-auth --run-once --analytics
    ```
 
@@ -306,7 +306,7 @@ KITE_ACCESS_TOKEN=zzzzz   # refreshed daily after login
 
 ### Pass-Through via Token Manager
 
-Anything after `--` is forwarded to unified_main:
+Anything after `--` is forwarded to the orchestrator runner:
 ```bash
 python -m src.tools.token_manager -- --validate-auth --run-once --analytics
 ```
@@ -314,13 +314,13 @@ python -m src.tools.token_manager -- --validate-auth --run-once --analytics
 ### Common Recipes
 ```bash
 # Quick validity & one cycle
-python -m src.unified_main --validate-auth --run-once
+python scripts/run_orchestrator_loop.py --validate-auth --run-once
 
 # Morning start with automatic token refresh
-python -m src.unified_main --auto-refresh-token --interactive-token --market-hours-only
+python -m src.tools.token_manager -- --auto-refresh-token --interactive-token --market-hours-only
 
 # Smoke test with dummy provider (configure provider type in config)
-# (Legacy smoke_dummy.py has been removed)
+python scripts/run_orchestrator_loop.py --config config/g6_config.json --run-once
 ```
 
 ## 🧪 Smoke & Diagnostic Modes
@@ -340,7 +340,7 @@ Precedence for choosing the status file path:
 
 Example run (writes status each cycle):
 ```bash
-python -m src.unified_main --runtime-status-file data/runtime_status.json
+python scripts/run_orchestrator_loop.py --runtime-status-file data/runtime_status.json
 ```
 
 Example JSON fields (subject to extension):
@@ -372,7 +372,7 @@ Atomic write behavior: file is first written to `<path>.tmp` then moved into pla
 ### Attach Terminal Mode (Rich Logging)
 Set `G6_TERMINAL_MODE=attach` before launching to add a Rich console handler (color + nice formatting) without altering existing log file output.
 ```bash
-G6_TERMINAL_MODE=attach python -m src.unified_main --runtime-status-file data/runtime_status.json
+G6_TERMINAL_MODE=attach python scripts/run_orchestrator_loop.py --runtime-status-file data/runtime_status.json
 ```
 
 You can build your own custom viewer or extend `src/console/terminal.py` to periodically read and render the JSON.
@@ -384,10 +384,7 @@ Included helper: terminal summary
 ```powershell
 python scripts/summary_view.py --refresh 1.0
 ```
-Prefer panels mode by running the bridge in another shell:
-```powershell
-python scripts/status_to_panels.py --status-file data/runtime_status.json --refresh 1.0
-```
+Panels JSON artifacts are generated in-process (no external bridge required). The summary auto-detects panels mode when `data/panels/` exists (deprecated env vars `G6_SUMMARY_PANELS_MODE` / `G6_SUMMARY_READ_PANELS` have been removed; remove them from any deployment scripts).
 
 ### Per-Index Option Counts (Upgrade)
 

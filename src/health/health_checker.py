@@ -7,17 +7,27 @@ Supports per-index checks automatically from index_registry.
 """
 import time
 import logging
-from typing import Callable, Optional
-try:  # optional registry import
-    from src.utils.index_registry import list_indices  # type: ignore
-except Exception:  # pragma: no cover
-    def list_indices():  # fallback minimal stub
+from typing import Callable, Optional, Dict, Any, cast
+import importlib
+
+def _load_list_indices() -> Callable[[], Dict[str, Any]]:
+    try:  # attempt dynamic import; avoids static unresolved import error
+        module = importlib.import_module("src.utils.index_registry")
+        fn = getattr(module, "list_indices", None)
+        if callable(fn):
+            return cast(Callable[[], Dict[str, Any]], fn)
+    except Exception:
+        pass
+    def _fallback() -> Dict[str, Any]:
         return {}
+    return _fallback
+
+list_indices = _load_list_indices()
 
 # Add this before launching the subprocess
 import sys
 import os
-from src.metrics.metrics import setup_metrics_server, MetricsRegistry
+from src.metrics import setup_metrics_server, MetricsRegistry  # facade import
 
 _METRICS_SINGLETON: Optional[MetricsRegistry] = None
 

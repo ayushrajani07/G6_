@@ -13,7 +13,7 @@
 
 ### 1.2 First Run
 ```
-python -m src.unified_main --run-once --config config/g6_config.json
+python scripts/run_orchestrator_loop.py --config config/g6_config.json --interval 60 --cycles 1
 ```
 Check for:
 - Startup banner (fancy or simple)
@@ -22,7 +22,7 @@ Check for:
 
 ### 1.3 Continuous Run
 ```
-python -m src.unified_main --config config/g6_config.json
+python scripts/run_orchestrator_loop.py --config config/g6_config.json --interval 60
 ```
 Leave running under a process manager (screen/tmux/service wrapper) or Windows Task Scheduler.
 
@@ -143,7 +143,7 @@ ForEach-Object { Compress-Archive -Path $_.FullName -DestinationPath ($_.FullNam
 1. Pull new code / deploy artifact
 2. Diff `requirements.txt`; install new deps in venv
 3. Run `--run-once --analytics` to validate startup
-4. Review CHANGELOG / `README_COMPREHENSIVE.md` sections for new toggles
+4. Review CHANGELOG / `README.md` (Configuration & Feature Toggles) for new toggles
 5. Deploy continuous run
 
 Rollback: use previous git tag / commit; restart.
@@ -178,10 +178,10 @@ Maintain a short Handoff Log (outside repo) capturing:
 ## 15. Quick Commands Cheat Sheet (PowerShell)
 ```
 # Run continuously
-python -m src.unified_main --config config\g6_config.json
+python scripts/run_orchestrator_loop.py --config config\g6_config.json --interval 60
 
 # Single diagnostics cycle with analytics
-$env:G6_FANCY_CONSOLE=1; python -m src.unified_main --config config\g6_config.json --analytics --run-once
+$env:G6_FANCY_CONSOLE=1; python scripts/run_orchestrator_loop.py --config config\g6_config.json --interval 60 --cycles 1 --analytics
 
 # Tail log
 Get-Content g6_platform.log -Wait
@@ -198,3 +198,48 @@ curl http://localhost:8000/metrics | Select-String g6_collection_cycles_total
 
 ---
 End of manual.
+
+---
+## 16. Adaptive Alerts Badge (Severity / Decay / Resolution)
+When `G6_ADAPTIVE_ALERT_SEVERITY=1`, the summary view (and potentially future UI surfaces) shows a compact adaptive alerts badge summarizing current elevated severities and lifecycle state.
+
+Format Variants:
+- Active elevations present: `Adaptive alerts: <total> [C:<critical> W:<warn>]` optionally followed by `R:<resolved>` if any recently decayed resolutions occurred the current cycle.
+- Stabilized (no active warn/critical): `Adaptive alerts: <total> R:<resolved> (stable)` — severity counts are suppressed when both C and W are zero. `(stable)` indicates all tracked alert types have decayed back to `info`.
+
+Fields:
+| Element | Meaning |
+|---------|---------|
+| `<total>` | Count of alerts observed in the current aggregation window (unchanged from legacy) |
+| `C:x` | Number of alerts currently classified critical (after streak / overrides) |
+| `W:y` | Number of alerts currently classified warn |
+| `R:n` | Number of alert types that transitioned from warn/critical back to info via decay this cycle (resolved events) |
+| `(stable)` | Emitted only when there are zero active warn & critical severities after decay evaluation |
+
+Resolution Semantics:
+- A resolved event is emitted only when an alert type with prior active severity warn/critical passively downgrades to info due to inactivity (`G6_ADAPTIVE_ALERT_SEVERITY_DECAY_CYCLES`), not when an alert fires with benign values.
+- Multiple level decay can occur in one evaluation if the idle cycle gap spans several decay windows (e.g., critical→info directly) — still counted once for resolution.
+- Disabled decay (`G6_ADAPTIVE_ALERT_SEVERITY_DECAY_CYCLES=0`) means no resolutions appear (R omitted) and severities remain at last active level until a new alert causes reclassification.
+
+Operator Guidance:
+- Persistent critical counts: investigate upstream signal (e.g., high interpolation fraction or extreme drift). If critical persists without recovery, consider adjusting thresholds only after root cause analysis.
+- High resolved counts with frequent re-escalation: may indicate threshold flapping; review raw metrics or widen decay window.
+- `(stable)` plus rising total alerts typically means informational chatter without degradation; safe to deprioritize.
+
+Key Environment Variables:
+| Env | Purpose |
+|-----|---------|
+| `G6_ADAPTIVE_ALERT_SEVERITY` | Master enable for severity system |
+| `G6_ADAPTIVE_ALERT_SEVERITY_RULES` | Override per-type warn/critical thresholds (JSON) |
+| `G6_ADAPTIVE_ALERT_SEVERITY_MIN_STREAK` | Minimum consecutive trigger count before escalation above info |
+| `G6_ADAPTIVE_ALERT_SEVERITY_DECAY_CYCLES` | Idle cycles before a decay downgrade (enables resolution lifecycle) |
+| `G6_ADAPTIVE_ALERT_SEVERITY_FORCE` | Force overwrite of pre-existing severity fields on alerts |
+
+Example Timeline (DECAY_CYCLES=3):
+Cycle 10: interpolation_high fires at critical → Badge: `... [C:1 W:0]`
+Cycle 11–13: no new interpolation_high → still within idle window → Badge unchanged
+Cycle 14: decay triggers critical→warn → Badge: `... [C:0 W:1]`
+Cycle 17: (another 3 idle cycles) warn→info decay emits resolved → Badge: `... R:1 (stable)`
+
+See also: `docs/design/adaptive_alerts_severity.md` (Phase 2 specifics) and quick reference cheat sheet (if present).
+On-Call Escalation (10-line guide): `docs/cheatsheets/oncall_adaptive_alerts_runbook.md`

@@ -1,0 +1,40 @@
+:root{
+  --bg-color:#ffffff;
+  --text-color:#222222;
+  --panel-bg:#ffffff;
+  --panel-border:#dddddd;
+  --accent:#1f77b4;
+}
+:root[data-theme="dark"]{
+  --bg-color:#111418;
+  --text-color:#e6e6e6;
+  --panel-bg:#1a1f24;
+  --panel-border:#2a3138;
+  --accent:#4da3ff;
+}
+html,body{ height:100%; }
+body{
+  margin:0; padding:12px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
+  background: var(--bg-color);
+  color: var(--text-color);
+}
+.panel{ background: var(--panel-bg); border:1px solid var(--panel-border); border-radius:6px; }
+.panel h2, .panel h3{ margin:8px 10px; }
+.header{
+  display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px;
+}
+.header .title{ font-size:18px; font-weight:600; }
+.header .controls{ display:flex; gap:8px; align-items:center; }
+.small{ font-size:12px; opacity:0.8; }
+.grid{ display:grid; grid-gap:12px; }
+.grid.cols-2{ grid-template-columns: repeat(2, 1fr); }
+.grid.cols-3{ grid-template-columns: repeat(3, 1fr); }
+.grid.cols-4{ grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 1200px){ .grid.cols-3, .grid.cols-4{ grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 800px){ .grid.cols-2, .grid.cols-3, .grid.cols-4{ grid-template-columns: 1fr; } }
+.theme-toggle{
+  cursor:pointer; border:1px solid var(--panel-border); background: var(--panel-bg); color: var(--text-color);
+  padding:6px 10px; border-radius:4px;
+}
+.hidden{ display:none !important; }

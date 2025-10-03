@@ -107,6 +107,7 @@ g6_reorganized/
 
 ### Storage Options
 - **CSV files**: Organized by data_type/index/expiry/offset/YYYY-MM-DD.csv
+    - Base directory default migrated to `data/g6_data` (was `data/csv`). Set `G6_CSV_BASE_DIR` to override; downstream scripts should be updated accordingly.
 - **InfluxDB**: Time-series database with proper tagging
 - **Redis cache**: Optional hot cache for real-time dashboards
 

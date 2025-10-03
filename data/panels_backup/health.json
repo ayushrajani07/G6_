@@ -1,0 +1,10 @@
+{
+  "panel": "health",
+  "updated_at": "2025-09-19T04:34:22.178964Z",
+  "kind": "health",
+  "data": {
+    "collector": "ok",
+    "sinks": "ok",
+    "provider": "ok"
+  }
+}

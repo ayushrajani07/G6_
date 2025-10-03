@@ -19,6 +19,11 @@ import logging
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
+try:
+    from src.error_handling import handle_data_collection_error, handle_data_error  # type: ignore
+except Exception:  # pragma: no cover
+    handle_data_collection_error = None  # type: ignore
+    handle_data_error = None  # type: ignore
 
 try:
     import tracemalloc  # type: ignore
@@ -45,6 +50,11 @@ class MemoryTracer:
             except Exception:
                 logger.debug("Failed to start tracemalloc", exc_info=True)
                 self.enabled = False
+                try:
+                    if handle_data_error:
+                        handle_data_error(Exception("tracemalloc_start_failed"), component="utils.memory_trace", context={"op": "start"})
+                except Exception:
+                    pass
                 return False
         return True
 
@@ -83,10 +93,20 @@ class MemoryTracer:
                             frames = stat.traceback.format()[-3:]
                             for fr in frames:
                                 f.write(f"    {fr}\n")
-                except Exception:
+                except Exception as e:
                     logger.debug("Failed writing tracemalloc snapshot", exc_info=True)
-        except Exception:
+                    try:
+                        if handle_data_collection_error:
+                            handle_data_collection_error(e, component="utils.memory_trace", data_type="tracemalloc_snapshot", context={"dir": self.snapshot_dir})
+                    except Exception:
+                        pass
+        except Exception as e:
             logger.debug("Tracemalloc sample failed", exc_info=True)
+            try:
+                if handle_data_error:
+                    handle_data_error(e, component="utils.memory_trace", context={"op": "sample"})
+            except Exception:
+                pass
 
 
 _GLOBAL_TRACER: MemoryTracer | None = None

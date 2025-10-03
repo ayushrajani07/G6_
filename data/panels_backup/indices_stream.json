@@ -1,0 +1,237 @@
+{
+  "panel": "indices_stream",
+  "updated_at": "2025-09-19T04:34:22.271057Z",
+  "kind": "stream",
+  "data": [
+    {
+      "index": "FINNIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:17.163647Z"
+    },
+    {
+      "index": "SENSEX",
+      "status": "OK",
+      "time": "2025-09-19T04:34:17.163647Z"
+    },
+    {
+      "index": "NIFTY",
+      "status": "OK"
+    },
+    {
+      "index": "BANKNIFTY",
+      "status": "OK"
+    },
+    {
+      "index": "FINNIFTY",
+      "status": "OK"
+    },
+    {
+      "index": "SENSEX",
+      "status": "OK"
+    },
+    {
+      "index": "NIFTY",
+      "status": "OK"
+    },
+    {
+      "index": "BANKNIFTY",
+      "status": "OK"
+    },
+    {
+      "index": "FINNIFTY",
+      "status": "OK"
+    },
+    {
+      "index": "SENSEX",
+      "status": "OK"
+    },
+    {
+      "index": "NIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:18.830419Z"
+    },
+    {
+      "index": "BANKNIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:18.830419Z"
+    },
+    {
+      "index": "FINNIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:18.830419Z"
+    },
+    {
+      "index": "SENSEX",
+      "status": "OK",
+      "time": "2025-09-19T04:34:18.830419Z"
+    },
+    {
+      "index": "NIFTY",
+      "status": "OK"
+    },
+    {
+      "index": "BANKNIFTY",
+      "status": "OK"
+    },
+    {
+      "index": "FINNIFTY",
+      "status": "OK"
+    },
+    {
+      "index": "SENSEX",
+      "status": "OK"
+    },
+    {
+      "index": "NIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:19.482474Z"
+    },
+    {
+      "index": "BANKNIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:19.482474Z"
+    },
+    {
+      "index": "FINNIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:19.482474Z"
+    },
+    {
+      "index": "SENSEX",
+      "status": "OK",
+      "time": "2025-09-19T04:34:19.482474Z"
+    },
+    {
+      "index": "NIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:19.741398Z"
+    },
+    {
+      "index": "BANKNIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:19.741398Z"
+    },
+    {
+      "index": "FINNIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:19.741398Z"
+    },
+    {
+      "index": "SENSEX",
+      "status": "OK",
+      "time": "2025-09-19T04:34:19.741398Z"
+    },
+    {
+      "index": "NIFTY",
+      "status": "OK"
+    },
+    {
+      "index": "BANKNIFTY",
+      "status": "OK"
+    },
+    {
+      "index": "FINNIFTY",
+      "status": "OK"
+    },
+    {
+      "index": "SENSEX",
+      "status": "OK"
+    },
+    {
+      "index": "NIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:20.370174Z"
+    },
+    {
+      "index": "BANKNIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:20.370174Z"
+    },
+    {
+      "index": "FINNIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:20.370174Z"
+    },
+    {
+      "index": "SENSEX",
+      "status": "OK",
+      "time": "2025-09-19T04:34:20.370174Z"
+    },
+    {
+      "index": "NIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:21.045653Z"
+    },
+    {
+      "index": "BANKNIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:21.045653Z"
+    },
+    {
+      "index": "FINNIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:21.045653Z"
+    },
+    {
+      "index": "SENSEX",
+      "status": "OK",
+      "time": "2025-09-19T04:34:21.045653Z"
+    },
+    {
+      "index": "NIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:21.200796Z"
+    },
+    {
+      "index": "BANKNIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:21.200796Z"
+    },
+    {
+      "index": "FINNIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:21.200796Z"
+    },
+    {
+      "index": "SENSEX",
+      "status": "OK",
+      "time": "2025-09-19T04:34:21.200796Z"
+    },
+    {
+      "index": "NIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:21.828768Z"
+    },
+    {
+      "index": "BANKNIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:21.828768Z"
+    },
+    {
+      "index": "FINNIFTY",
+      "status": "OK",
+      "time": "2025-09-19T04:34:21.828768Z"
+    },
+    {
+      "index": "SENSEX",
+      "status": "OK",
+      "time": "2025-09-19T04:34:21.828768Z"
+    },
+    {
+      "index": "NIFTY",
+      "status": "OK"
+    },
+    {
+      "index": "BANKNIFTY",
+      "status": "OK"
+    },
+    {
+      "index": "FINNIFTY",
+      "status": "OK"
+    },
+    {
+      "index": "SENSEX",
+      "status": "OK"
+    }
+  ]
+}

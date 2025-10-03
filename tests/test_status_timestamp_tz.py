@@ -1,9 +1,15 @@
+def test_status_timestamp_is_timezone_aware(run_mock_cycle):
+    data = run_mock_cycle(cycles=1, interval=1)
+    ts = data['timestamp']
+    assert ts.endswith('Z') or ('+' in ts[-6:] and ts[-3] == ':'), f"Timestamp not timezone-aware: {ts}"
 import json, os, tempfile, subprocess, sys
 
 def test_runtime_status_timestamp_is_utc_z():
     status_path = os.path.join(tempfile.gettempdir(), 'g6_status_tz.json')
     env = os.environ.copy(); env['G6_USE_MOCK_PROVIDER']='1'
-    cmd = [sys.executable, '-m', 'src.unified_main', '--run-once', '--runtime-status-file', status_path]
+    # Use orchestrator runner script; run a single cycle by setting G6_LOOP_MAX_CYCLES=1
+    env['G6_LOOP_MAX_CYCLES'] = '1'
+    cmd = [sys.executable, 'scripts/run_orchestrator_loop.py', '--config', 'config/g6_config.json', '--interval', '1', '--cycles', '1']
     subprocess.run(cmd, check=True, env=env)
     with open(status_path) as f:
         data = json.load(f)

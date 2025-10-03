@@ -4,8 +4,13 @@ import threading
 import urllib.request
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Deque, Tuple
+from typing import Dict, List, Optional, Deque, Tuple, Any, Mapping
 from collections import deque
+from src.error_handling import get_error_handler, ErrorCategory, ErrorSeverity
+from src.types.dashboard_types import (
+    StreamRow, FooterSummary, StorageSnapshot, ErrorEvent,
+    HistoryEntry, HistoryStorage, RollState
+)
 
 METRIC_LINE_RE = re.compile(r"^(?P<name>[a-zA-Z_:][a-zA-Z0-9_:]*)\{?(?P<labels>[^}]*)}?\s+(?P<value>[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?\d+)?)")
 LABEL_RE = re.compile(r"(\w+)=\"([^\"]*)\"")
@@ -21,16 +26,21 @@ class ParsedMetrics:
     raw: Dict[str, List[MetricSample]] = field(default_factory=dict)
     age_seconds: float = 0.0
     stale: bool = False
-    stream_rows: List[Dict[str, object]] = field(default_factory=list)
-    footer: Dict[str, object] = field(default_factory=dict)
-    storage: Dict[str, object] = field(default_factory=dict)
-    error_events: List[Dict[str, object]] = field(default_factory=list)
+    # Stream row schema (narrow fields used by templates)
+    stream_rows: List[StreamRow] = field(default_factory=list)
+    footer: FooterSummary | Dict[str, Any] = field(default_factory=dict)
+    storage: StorageSnapshot | Dict[str, Any] = field(default_factory=dict)
+    error_events: List[ErrorEvent] = field(default_factory=list)
     # DEBUG_CLEANUP_BEGIN: store missing core metrics list for temporary banner
     missing_core: List[str] = field(default_factory=list)
     # DEBUG_CLEANUP_END
 
 class MetricsCache:
-    def __init__(self, endpoint: str, interval: float = 5.0, timeout: float = 1.5):
+    # Per-index rolling aggregation state: index -> numeric counters/meta
+    _roll_index: Dict[str, RollState]
+    # History of (timestamp, partial_state) where partial_state may hold 'errors' or 'storage'
+    _history: Deque[Tuple[float, HistoryEntry]]
+    def __init__(self, endpoint: str, interval: float = 5.0, timeout: float = 1.5) -> None:
         self.endpoint = endpoint.rstrip('/')
         if not self.endpoint.endswith('/metrics'):
             self.endpoint += '/metrics'
@@ -40,18 +50,19 @@ class MetricsCache:
         self._data: Optional[ParsedMetrics] = None
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._loop, name="metrics-cache", daemon=True)
-    # rolling state for stream parity
-        self._roll_index = {}
+        # Rolling per-index aggregation state
+        self._roll_index: Dict[str, RollState] = {}
+        # History of (timestamp, partial_state dict)
         self._history = deque(maxlen=50)
-    # DEBUG_CLEANUP_BEGIN: history & roll structures partly support temporary
-    # diagnostic stream/status panels. If long-term retention not needed, these
-    # can be simplified or removed. See markers throughout file.
+        # DEBUG_CLEANUP_BEGIN: history & roll structures partly support temporary
+        # diagnostic stream/status panels. If long-term retention not needed, these
+        # can be simplified or removed. See markers throughout file.
 
-    def start(self):
+    def start(self) -> None:
         if not self._thread.is_alive():
             self._thread.start()
 
-    def stop(self):
+    def stop(self) -> None:
         self._stop.set()
 
     def snapshot(self) -> Optional[ParsedMetrics]:
@@ -64,29 +75,55 @@ class MetricsCache:
 
     def _fetch(self) -> ParsedMetrics:
         ts = time.time()
-        with urllib.request.urlopen(self.endpoint, timeout=self.timeout) as resp:
-            text = resp.read().decode('utf-8', errors='replace')
+        try:
+            with urllib.request.urlopen(self.endpoint, timeout=self.timeout) as resp:
+                text = resp.read().decode('utf-8', errors='replace')
+        except Exception as e:
+            # Route network/endpoint fetch failure; caller will keep old data
+            get_error_handler().handle_error(
+                e,
+                category=ErrorCategory.NETWORK,
+                severity=ErrorSeverity.MEDIUM,
+                component="web.metrics_cache",
+                function_name="_fetch",
+                message=f"Failed to fetch metrics from {self.endpoint}",
+                context={"endpoint": self.endpoint, "timeout": self.timeout},
+                should_log=False,
+            )
+            # Raise to let caller's try/except path keep old data
+            raise
         parsed: Dict[str,List[MetricSample]] = {}
         # DEBUG_CLEANUP_BEGIN: unknown line counter placeholder (no metrics registry in this process)
         unknown_lines = 0
-        for line in text.splitlines():
-            if not line or line.startswith('#'):
-                continue
-            m = METRIC_LINE_RE.match(line)
-            if not m:
-                unknown_lines += 1
-                continue
-            name = m.group('name')
-            labels_raw = m.group('labels')
-            labels: Dict[str,str] = {}
-            if labels_raw:
-                for lm in LABEL_RE.finditer(labels_raw):
-                    labels[lm.group(1)] = lm.group(2)
-            try:
-                value = float(m.group('value'))
-            except ValueError:
-                continue
-            parsed.setdefault(name, []).append(MetricSample(value=value, labels=labels))
+        try:
+            for line in text.splitlines():
+                if not line or line.startswith('#'):
+                    continue
+                m = METRIC_LINE_RE.match(line)
+                if not m:
+                    unknown_lines += 1
+                    continue
+                name = m.group('name')
+                labels_raw = m.group('labels')
+                labels: Dict[str,str] = {}
+                if labels_raw:
+                    for lm in LABEL_RE.finditer(labels_raw):
+                        labels[lm.group(1)] = lm.group(2)
+                try:
+                    value = float(m.group('value'))
+                except ValueError:
+                    continue
+                parsed.setdefault(name, []).append(MetricSample(value=value, labels=labels))
+        except Exception as e:
+            get_error_handler().handle_error(
+                e,
+                category=ErrorCategory.DATA_PARSING,
+                severity=ErrorSeverity.LOW,
+                component="web.metrics_cache",
+                function_name="_fetch",
+                message="Failed parsing metrics response",
+                should_log=False,
+            )
         pm = ParsedMetrics(ts=ts, raw=parsed)
         # DEBUG_CLEANUP_BEGIN: compute missing core metrics
         expected = {
@@ -102,11 +139,19 @@ class MetricsCache:
             self._augment_stream(pm)
             self._augment_storage(pm)
             self._augment_errors(pm)
-        except Exception:
-            pass
+        except Exception as e:
+            get_error_handler().handle_error(
+                e,
+                category=ErrorCategory.CALCULATION,
+                severity=ErrorSeverity.LOW,
+                component="web.metrics_cache",
+                function_name="_fetch",
+                message="Augmentation failed",
+                should_log=False,
+            )
         return pm
 
-    def _augment_stream(self, pm: ParsedMetrics):
+    def _augment_stream(self, pm: ParsedMetrics) -> None:
         """Compute rolling stream-style rows similar to terminal dashboard.
 
         Uses metrics:
@@ -131,17 +176,22 @@ class MetricsCache:
             idx = s.labels.get('index','?')
             failures_total_map[idx] = failures_total_map.get(idx, 0.0) + s.value
         for name,val in opts_map.items():
-            rs = self._roll_index.setdefault(name, {'legs_total':0,'legs_cycles':0,'succ_total':0,'succ_cycles':0,'last_err_ts':0,'last_err_type':''})
+            rs = self._roll_index.setdefault(name, {'legs_total':0.0,'legs_cycles':0,'succ_total':0.0,'succ_cycles':0,'last_err_ts':0.0,'last_err_type':''})
             rs['legs_total'] += val
             rs['legs_cycles'] += 1
         for name,val in cycle_success_map.items():
-            rs = self._roll_index.setdefault(name, {'legs_total':0,'legs_cycles':0,'succ_total':0,'succ_cycles':0,'last_err_ts':0,'last_err_type':''})
+            rs = self._roll_index.setdefault(name, {'legs_total':0.0,'legs_cycles':0,'succ_total':0.0,'succ_cycles':0,'last_err_ts':0.0,'last_err_type':''})
             rs['succ_total'] += val
             rs['succ_cycles'] += 1
-        prev_errors = {}
+        # use Mapping for historical reference; may be underlying dict but we only read
+        prev_errors: Mapping[str, float] = {}
         if self._history:
             _, prev_state = self._history[-1]
-            prev_errors = prev_state.get('errors', {})
+            # Discriminated union on 'kind'
+            if isinstance(prev_state, dict) and prev_state.get('kind') == 'errors':  # legacy dict shape
+                prev_errs_obj = prev_state.get('errors', {})
+                if isinstance(prev_errs_obj, dict):
+                    prev_errors = prev_errs_obj
         errs = pm.raw.get('g6_collection_errors_total', [])
         curr_errors_map: Dict[str, float] = {}
         for e in errs:
@@ -151,11 +201,11 @@ class MetricsCache:
             curr_errors_map[key] = e.value
             prev_val = prev_errors.get(key, 0.0)
             if e.value > prev_val:
-                rs = self._roll_index.setdefault(idx, {'legs_total':0,'legs_cycles':0,'succ_total':0,'succ_cycles':0,'last_err_ts':0,'last_err_type':''})
+                rs = self._roll_index.setdefault(idx, {'legs_total':0.0,'legs_cycles':0,'succ_total':0.0,'succ_cycles':0,'last_err_ts':0.0,'last_err_type':''})
                 rs['last_err_ts'] = now_ts
                 rs['last_err_type'] = et
-        self._history.append((now_ts, {'errors': curr_errors_map}))
-        rows = []
+        self._history.append((now_ts, {'kind': 'errors', 'errors': curr_errors_map}))
+        rows: List[StreamRow] = []
         for name, rs in sorted(self._roll_index.items()):
             legs = opts_map.get(name, 0)
             legs_avg = (rs['legs_total']/rs['legs_cycles']) if rs['legs_cycles'] else 0
@@ -170,18 +220,41 @@ class MetricsCache:
             if at_tot is not None and fl_tot is not None and at_tot > 0:
                 lifetime_success = ((at_tot - fl_tot)/at_tot)*100.0
             err_recent = (now_ts - rs['last_err_ts']) < (self.interval * 3)
-            # Stall detection heuristic (DEBUG_CLEANUP_BEGIN): if legs==0 but cumulative
-            # counter exists and >0 historically, we synthetically mark a stall for visibility.
-            # Remove or refine once watchdog metrics are stable.
+            # Stall heuristic: if legs==0 but historical cumulative is >0, mark a stall for visibility.
             cumulative = opts_cum_map.get(name)
             if legs == 0 and cumulative and cumulative > 0:
                 rs['last_err_type'] = rs.get('last_err_type') or 'stall'
                 err_recent = True
-            status = 'ok'
-            if succ is None or (succ is not None and succ < 80) or legs == 0:
-                status = 'bad'
-            elif (succ is not None and succ < 92) or err_recent:
-                status = 'warn'
+            try:
+                from src.panels.helpers import compute_status_and_reason
+                status, reason_opt = compute_status_and_reason(
+                    success_pct=succ,
+                    legs=int(legs) if isinstance(legs, (int, float)) else None,
+                    err_recent=bool(err_recent),
+                    err_type=rs.get('last_err_type'),
+                    style='web',
+                )
+                reason = reason_opt or ''
+            except Exception:
+                # Fallback inline logic if helper unavailable
+                status = 'ok'
+                reason = ''
+                if succ is None or (succ is not None and succ < 80) or legs == 0:
+                    status = 'bad'
+                    if legs == 0:
+                        reason = 'no legs this cycle'
+                    elif succ is None:
+                        reason = 'no success metric'
+                    else:
+                        reason = f'low success {succ:.1f}%'
+                elif (succ is not None and succ < 92) or err_recent:
+                    status = 'warn'
+                    if err_recent and rs.get('last_err_type'):
+                        reason = f'error: {rs.get("last_err_type")}'
+                    elif succ is not None:
+                        reason = f'success {succ:.1f}%'
+                if not reason and rs.get('last_err_type') == 'stall':
+                    reason = 'possible stall'
             rows.append({
                 'time': time.strftime('%H:%M:%S', time.localtime(now_ts)),
                 'index': name,
@@ -194,10 +267,12 @@ class MetricsCache:
                 'cycle_attempts': cycle_attempts,
                 'err': rs['last_err_type'] if err_recent else '',
                 'status': status,
+                'status_reason': reason,
             })
+        # rows already matches List[StreamRow]
         pm.stream_rows = rows
         total_legs = sum(r['legs'] for r in rows)
-        valid_succ = [r['succ'] for r in rows if r['succ'] is not None]
+        valid_succ: List[float] = [float(r['succ']) for r in rows if r['succ'] is not None and isinstance(r['succ'], (int, float))]
         overall_succ = sum(valid_succ)/len(valid_succ) if valid_succ else None
         pm.footer = {
             'total_legs': total_legs,
@@ -205,11 +280,13 @@ class MetricsCache:
             'indices': len(rows)
         }
 
-    def _augment_storage(self, pm: ParsedMetrics):
+    def _augment_storage(self, pm: ParsedMetrics) -> None:
         raw = pm.raw
-        def first(name):
+
+        def first(name: str) -> float | None:
             arr = raw.get(name)
             return arr[0].value if arr else None
+
         csv_files = first('g6_csv_files_created_total')
         csv_records = first('g6_csv_records_written_total')
         csv_errors = first('g6_csv_write_errors_total')
@@ -221,20 +298,25 @@ class MetricsCache:
         backup_files = first('g6_backup_files_created_total')
         backup_time = first('g6_last_backup_unixtime')
         backup_size = first('g6_backup_size_mb')
+
         # compute deltas vs previous snapshot
-        prev = None
+        prev: StorageSnapshot | None = None
         if self._history:
-            # look at last history element's storage snapshot if exists
-            for prev_ts, obj in reversed(self._history):
-                if 'storage' in obj:
-                    prev = obj['storage']
+            for _pts, obj in reversed(self._history):
+                if isinstance(obj, dict) and obj.get('kind') == 'storage':  # legacy dict variant
+                    storage_field = obj.get('storage')
+                    if isinstance(storage_field, dict) and {'csv','influx','backup'} <= set(storage_field.keys()):
+                        from typing import cast
+                        prev = cast(StorageSnapshot, storage_field)  # runtime validation of keys performed
                     break
-        def delta(curr, prev_val):
+
+        def delta(curr: float | None, prev_val: float | None) -> float | None:
             if curr is None or prev_val is None:
                 return None
             d = curr - prev_val
             return d if d >= 0 else None
-        storage = {
+
+        storage: StorageSnapshot = {
             'csv': {
                 'files_total': csv_files,
                 'records_total': csv_records,
@@ -256,35 +338,32 @@ class MetricsCache:
                 'size_mb': backup_size,
             }
         }
-        pm.storage = storage
-        # push partial storage snapshot into history for delta (reuse existing history deque used for errors)
-        self._history.append((pm.ts, {'storage': storage}))
 
-    def _augment_errors(self, pm: ParsedMetrics, max_events: int = 40):
-        # Construct error event list from history deltas (we stored errors in history earlier)
-        events: List[Dict[str, object]] = []  # each: {'index':str,'error_type':str,'delta':float,'ago':float,'ts':float}
-        # Traverse limited recent history for error deltas
-        cutoff = pm.ts - (self.interval * 60)  # keep last ~minute for panel
-        seen_keys = set()
+        pm.storage = storage
+        storage_entry: HistoryStorage = {'kind': 'storage', 'storage': storage}
+        self._history.append((pm.ts, storage_entry))
+
+    def _augment_errors(self, pm: ParsedMetrics, max_events: int = 40) -> None:
+        pm.error_events = self._build_error_events(pm, max_events)
+
+    def _build_error_events(self, pm: ParsedMetrics, max_events: int) -> List[ErrorEvent]:
+        cutoff = pm.ts - (self.interval * 60)
+        events: List[ErrorEvent] = []
+        seen: set[str] = set()
         for ts, state in reversed(self._history):
-            if ts < cutoff:
+            if ts < cutoff or len(events) >= max_events:
                 break
-            errs = state.get('errors') if isinstance(state, dict) else None
+            if not (isinstance(state, dict) and state.get('kind') == 'errors'):
+                continue
+            raw_errs = state.get('errors')
+            errs: Mapping[str, float] | None = raw_errs if isinstance(raw_errs, dict) else None
             if not errs:
                 continue
             for key, val in errs.items():
-                if key in seen_keys:
+                if key in seen or len(events) >= max_events:
                     continue
-                idx, et = key.split('|',1)
-                # find previous value earlier in history to compute delta
-                prev_val = 0.0
-                for pts, pstate in reversed(self._history):
-                    if pts >= ts:
-                        continue
-                    perrs = pstate.get('errors') if isinstance(pstate, dict) else None
-                    if perrs and key in perrs:
-                        prev_val = perrs[key]
-                        break
+                idx, et = key.split('|', 1)
+                prev_val = self._previous_error_value(key, ts)
                 delta = val - prev_val
                 if delta <= 0:
                     continue
@@ -295,28 +374,41 @@ class MetricsCache:
                     'ago': pm.ts - ts,
                     'ts': ts,
                 })
-                seen_keys.add(key)
-                if len(events) >= max_events:
-                    break
-            if len(events) >= max_events:
-                break
-        # Sort newest first (ts is float); cast for type checker friendliness
-        def _key(ev: Dict[str, object]) -> float:
-            ts_val = ev.get('ts')
-            try:
-                return float(ts_val)  # type: ignore[arg-type]
-            except Exception:
-                return 0.0
-        events.sort(key=_key, reverse=True)
-        pm.error_events = events  # DEBUG_CLEANUP_END (events panel support)
+                seen.add(key)
+        # Newest first
+        events.sort(key=lambda ev: float(ev.get('ts', 0.0)), reverse=True)
+        return events
 
-    def _loop(self):
+    def _previous_error_value(self, key: str, before_ts: float) -> float:
+        for pts, pstate in reversed(self._history):
+            if pts >= before_ts:
+                continue
+            if not (isinstance(pstate, dict) and pstate.get('kind') == 'errors'):
+                continue
+            raw = pstate.get('errors')
+            if isinstance(raw, dict) and key in raw:
+                pv = raw[key]
+                if isinstance(pv, (int, float)):
+                    return float(pv)
+                return 0.0
+        return 0.0
+
+    def _loop(self) -> None:
         while not self._stop.is_set():
             try:
                 data = self._fetch()
                 with self._lock:
                     self._data = data
-            except Exception:
-                # keep old data
-                pass
-            self._stop.wait(self.interval)
+            except Exception as e:
+                get_error_handler().handle_error(
+                    e,
+                    category=ErrorCategory.RESOURCE,
+                    severity=ErrorSeverity.LOW,
+                    component="web.metrics_cache",
+                    function_name="_loop",
+                    message="Background fetch failed; retaining previous snapshot",
+                    should_log=False,
+                )
+            finally:
+                # Wait even on failure so we don't spin aggressively
+                self._stop.wait(self.interval)

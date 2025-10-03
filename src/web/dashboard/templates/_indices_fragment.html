@@ -1,0 +1,48 @@
+{% if snapshot %}
+{% set idxmap = {} %}
+{% for s in snapshot.raw.get('g6_index_options_processed', []) %}
+  {% set _ = idxmap.setdefault(s.labels.get('index'), {}).update({'options_processed': s.value}) %}
+{% endfor %}
+{% for s in snapshot.raw.get('g6_index_last_collection_unixtime', []) %}
+  {% set _ = idxmap.setdefault(s.labels.get('index'), {}).update({'last_collection': s.value}) %}
+{% endfor %}
+{# Use new cycle success percent metric (per latest cycle) #}
+{% for s in snapshot.raw.get('g6_index_cycle_success_percent', []) %}
+  {% set _ = idxmap.setdefault(s.labels.get('index'), {}).update({'success_pct': s.value}) %}
+{% endfor %}
+{% for s in snapshot.raw.get('g6_put_call_ratio', []) %}
+  {% set idx = s.labels.get('index') %}
+  {% set exp = s.labels.get('expiry') %}
+  {% if idx and exp %}
+    {% set entry = idxmap.setdefault(idx, {}) %}
+    {% set pcrs = entry.setdefault('pcr', {}) %}
+    {% set _ = pcrs.update({exp: s.value}) %}
+  {% endif %}
+{% endfor %}
+<div class="card">
+  <table class="table">
+    <thead>
+      <tr><th>Index</th><th>Options</th><th>Last Collection</th><th>Success %</th><th>PCR</th></tr>
+    </thead>
+    <tbody>
+    {% for idx, vals in idxmap.items()|sort %}
+      <tr>
+        <td>{{ idx }}</td>
+        <td>{{ vals.get('options_processed','-') }}</td>
+        <td>{{ vals.get('last_collection','-') }}</td>
+        <td>{{ '%.1f' % vals.get('success_pct') if vals.get('success_pct') is not none else '-' }}</td>
+        <td>
+          {% if vals.get('pcr') %}
+            {% for exp, p in vals.get('pcr').items() %}
+              <span class="tag">{{ exp }}={{ '%.2f' % p }}</span>
+            {% endfor %}
+          {% else %}-{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<p>No index data yet…</p>
+{% endif %}

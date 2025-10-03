@@ -12,6 +12,9 @@ def test_no_datetime_utcnow():
         pstr = str(path).lower()
         if '.venv' in pstr or 'site-packages' in pstr:
             continue
+        if '\\scripts\\hooks\\' in pstr or '/scripts/hooks/' in pstr:
+            # Hook scripts may intentionally reference forbidden tokens for enforcement logic
+            continue
         if path == self_path or path.name == 'ci_time_guard.py':
             continue
         text = path.read_text(encoding='utf-8', errors='ignore')

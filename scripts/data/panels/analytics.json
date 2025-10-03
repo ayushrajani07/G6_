@@ -1,0 +1,13 @@
+{
+  "panel": "analytics",
+  "updated_at": "2025-10-01T05:33:13Z",
+  "data": {
+    "pcr": 0.8,
+    "max_pain": {
+      "NIFTY": 20943,
+      "BANKNIFTY": 22601,
+      "FINNIFTY": 22586,
+      "SENSEX": 22513
+    }
+  }
+}

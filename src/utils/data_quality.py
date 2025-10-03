@@ -78,6 +78,32 @@ class DataQualityChecker:
             except (ValueError, TypeError):
                 issues.append(f"Invalid strike for {symbol}: {data.get('strike')}")
                 continue
+
+            # Volume sanity (if present)
+            try:
+                if 'volume' in data and data['volume'] is not None:
+                    v = data.get('volume')
+                    if v is not None:
+                        vol = float(v)
+                        if vol < 0:
+                            issues.append(f"Negative volume for {symbol}: {vol}")
+                            # keep item but mark issue
+            except (ValueError, TypeError):
+                issues.append(f"Invalid volume for {symbol}: {data.get('volume')}")
+
+            # Open interest sanity (if present)
+            try:
+                oi_key = 'open_interest' if 'open_interest' in data else ('oi' if 'oi' in data else None)
+                if oi_key:
+                    v = data.get(oi_key)
+                    if v is not None:
+                        oi_val = float(v)
+                        if oi_val < 0:
+                            issues.append(f"Negative OI for {symbol}: {oi_val}")
+                            # keep item but mark issue
+            except (ValueError, TypeError):
+                if 'open_interest' in data or 'oi' in data:
+                    issues.append(f"Invalid OI for {symbol}: {data.get('open_interest', data.get('oi'))}")
             
             # Check for extreme values (outliers)
             if self.is_price_outlier(data):
@@ -113,6 +139,82 @@ class DataQualityChecker:
             return True
             
         return False
+
+    def check_expiry_consistency(self, options_data: Dict[str, Any], *, index_price: Optional[float] = None, expiry_rule: Optional[str] = None) -> List[str]:
+        """Detect consistency issues across an expiry set, focusing on next-week anomalies.
+
+        Heuristics (lightweight):
+        - If expiry_rule indicates next week (e.g., 'next_week', 'next'), and median option price is far above
+          a fraction of ATM (e.g., > 30% of ATM for most strikes), flag as "next_week_price_outlier".
+        - If IV values (when present) are absurd (e.g., > 5.0), flag as "iv_out_of_range".
+
+        Returns a list of issue labels. Non-fatal: intended for surfacing in DQ labels.
+        """
+        issues: List[str] = []
+        try:
+            if not isinstance(options_data, dict) or not options_data:
+                return issues
+            rule = (expiry_rule or "").lower().strip()
+            # Gather last_price and iv values
+            prices: List[float] = []
+            ivs: List[float] = []
+            for _sym, od in options_data.items():
+                try:
+                    p = float(od.get('last_price', 0) or 0)
+                    if p > 0:
+                        prices.append(p)
+                except Exception:
+                    pass
+                try:
+                    iv = float(od.get('iv', 0) or 0)
+                    if iv > 0:
+                        ivs.append(iv)
+                except Exception:
+                    pass
+            # Rule-based next-week price anomaly
+            if rule in ("next_week", "next", "week_next", "nextweek") and index_price and prices:
+                try:
+                    import statistics as _st
+                    med = _st.median(prices)
+                    # If median option trade is unusually high vs. ATM proxy, flag
+                    # Using 0.3 of index_price as simplistic ceiling
+                    if med > 0.3 * float(index_price):
+                        issues.append("next_week_price_outlier")
+                except Exception:
+                    pass
+            # IV range sanity
+            if ivs and any(iv > 5.0 for iv in ivs):
+                issues.append("iv_out_of_range")
+
+            # Monthly static pricing detection (non-fatal; for observability)
+            if 'month' in rule:
+                try:
+                    # Compute diversity in CE and PE prices separately when possible
+                    ce_prices: List[float] = []
+                    pe_prices: List[float] = []
+                    for _sym, od in options_data.items():
+                        t = (od.get('instrument_type') or od.get('type') or '').upper()
+                        p = float(od.get('last_price', 0) or 0)
+                        if p <= 0:
+                            continue
+                        if t == 'CE':
+                            ce_prices.append(p)
+                        elif t == 'PE':
+                            pe_prices.append(p)
+                    def _low_diversity(vals: List[float]) -> bool:
+                        if len(vals) < 3:
+                            return False
+                        return len({round(v, 2) for v in vals}) <= 2
+                    if _low_diversity(ce_prices):
+                        issues.append('monthly_ce_price_static')
+                    if _low_diversity(pe_prices):
+                        issues.append('monthly_pe_price_static')
+                except Exception:
+                    pass
+        except Exception:
+            # DQ should be best-effort and never raise
+            pass
+        return issues
     
     def validate_index_data(self, index_price, index_ohlc=None):
         """
@@ -199,55 +301,44 @@ class DataQualityChecker:
                 put_volume.append(float(data.get('volume', 0)))
         
         # Calculate statistics
-        stats = {
-            'call_count': len(call_prices),
-            'put_count': len(put_prices),
-            'total_count': len(options_data)
+        from typing import Any, Dict as _Dict
+        stats: _Dict[str, Any] = {
+            'call_count': int(len(call_prices)),
+            'put_count': int(len(put_prices)),
+            'total_count': int(len(options_data))
         }
         
         # Price statistics
         if call_prices:
-            stats.update({
-                'call_price_min': min(call_prices),
-                'call_price_max': max(call_prices),
-                'call_price_avg': sum(call_prices) / len(call_prices)
-            })
+            stats['call_price_min'] = float(min(call_prices))
+            stats['call_price_max'] = float(max(call_prices))
+            stats['call_price_avg'] = float(sum(call_prices) / len(call_prices))
         
         if put_prices:
-            stats.update({
-                'put_price_min': min(put_prices),
-                'put_price_max': max(put_prices),
-                'put_price_avg': sum(put_prices) / len(put_prices)
-            })
+            stats['put_price_min'] = float(min(put_prices))
+            stats['put_price_max'] = float(max(put_prices))
+            stats['put_price_avg'] = float(sum(put_prices) / len(put_prices))
         
         # OI statistics
         if call_oi:
-            stats.update({
-                'call_oi_total': sum(call_oi),
-                'call_oi_avg': sum(call_oi) / len(call_oi)
-            })
+            stats['call_oi_total'] = float(sum(call_oi))
+            stats['call_oi_avg'] = float(sum(call_oi) / len(call_oi))
         
         if put_oi:
-            stats.update({
-                'put_oi_total': sum(put_oi),
-                'put_oi_avg': sum(put_oi) / len(put_oi)
-            })
+            stats['put_oi_total'] = float(sum(put_oi))
+            stats['put_oi_avg'] = float(sum(put_oi) / len(put_oi))
         
         # PCR
         if call_oi and put_oi and sum(call_oi) > 0:
-            stats['pcr'] = sum(put_oi) / sum(call_oi)
+            stats['pcr'] = float(sum(put_oi) / sum(call_oi))
         
         # Volume statistics
         if call_volume:
-            stats.update({
-                'call_volume_total': sum(call_volume),
-                'call_volume_avg': sum(call_volume) / len(call_volume)
-            })
+            stats['call_volume_total'] = float(sum(call_volume))
+            stats['call_volume_avg'] = float(sum(call_volume) / len(call_volume))
         
         if put_volume:
-            stats.update({
-                'put_volume_total': sum(put_volume),
-                'put_volume_avg': sum(put_volume) / len(put_volume)
-            })
+            stats['put_volume_total'] = float(sum(put_volume))
+            stats['put_volume_avg'] = float(sum(put_volume) / len(put_volume))
         
         return stats

@@ -1,31 +1,48 @@
 from __future__ import annotations
 import os
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 
+_FmtFunc = Callable[[Any], Optional[str]]
+_fmt_ist_hms_30s: Optional[_FmtFunc]
 try:
-    from zoneinfo import ZoneInfo  # Python 3.9+
-    IST_TZ = ZoneInfo("Asia/Kolkata")
+    from src.utils.timeutils import format_any_to_ist_hms_30s as _imported_fmt
+    # Assign with relaxed signature; cast at call sites by runtime check
+    _fmt_ist_hms_30s = _imported_fmt  # noqa: F401
 except Exception:
-    IST_TZ = timezone(timedelta(hours=5, minutes=30))
+    _fmt_ist_hms_30s = None
 
 # Optional psutil
 try:
-    import psutil  # type: ignore
+    import psutil  # optional
 except Exception:
-    psutil = None  # type: ignore
+    psutil = None  # fallback sentinel
 
 # ---------- Formatting helpers ----------
 
 def fmt_hms_from_dt(dt: datetime) -> str:
+    if _fmt_ist_hms_30s is not None:
+        try:
+            s = _fmt_ist_hms_30s(dt)
+            if isinstance(s, str):
+                return s
+        except Exception:
+            pass
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(IST_TZ).strftime("%H:%M:%S")
+    return dt.astimezone(timezone(timedelta(hours=5, minutes=30))).strftime("%H:%M:%S")
 
 
 def fmt_hms(ts: Any) -> Optional[str]:
+    if _fmt_ist_hms_30s is not None:
+        try:
+            s = _fmt_ist_hms_30s(ts)
+            if isinstance(s, str):
+                return s
+        except Exception:
+            pass
     if isinstance(ts, datetime):
         return fmt_hms_from_dt(ts)
     if isinstance(ts, (int, float)):
@@ -82,7 +99,11 @@ def parse_iso(ts: Any) -> Optional[datetime]:
 # ---------- Market hours (IST) ----------
 
 def ist_now() -> datetime:
-    return datetime.now(IST_TZ)
+    try:
+        from zoneinfo import ZoneInfo
+        return datetime.now(ZoneInfo("Asia/Kolkata"))
+    except Exception:
+        return datetime.now(timezone(timedelta(hours=5, minutes=30)))
 
 
 def is_market_hours_ist(dt: Optional[datetime] = None) -> bool:
@@ -133,21 +154,26 @@ def derive_market_summary(status: Dict[str, Any] | None) -> Tuple[str, str]:
     state = "OPEN" if open_flag else "CLOSED"
     extra = ""
     if next_open:
+        # Use local variable inside each branch to avoid partially assigned state
+        def _fmt_block(dt_val: datetime) -> str:
+            delta_local = (dt_val - datetime.now(timezone.utc)).total_seconds()
+            from .derive import fmt_hms_from_dt as _fmt
+            return f"next open: {_fmt(dt_val)} (in {fmt_timedelta_secs(delta_local)})"
+        parsed_dt: Optional[datetime] = None
         try:
             if isinstance(next_open, (int, float)):
-                dt = datetime.fromtimestamp(float(next_open), tz=timezone.utc)
+                parsed_dt = datetime.fromtimestamp(float(next_open), tz=timezone.utc)
             else:
-                dt = datetime.fromisoformat(str(next_open).replace("Z", "+00:00"))
-            delta = (dt - datetime.now(timezone.utc)).total_seconds()
-            extra = f"next open: {dt.isoformat().replace('+00:00','Z')} (in {fmt_timedelta_secs(delta)})"
+                parsed_dt = datetime.fromisoformat(str(next_open).replace("Z", "+00:00"))
         except Exception:
+            parsed_dt = parse_iso(next_open)
+        if parsed_dt is not None:
             try:
-                dt = parse_iso(next_open)
-                if dt:
-                    delta = (dt - datetime.now(timezone.utc)).total_seconds()
-                    extra = f"next open: {dt.isoformat().replace('+00:00','Z')} (in {fmt_timedelta_secs(delta)})"
+                extra = _fmt_block(parsed_dt)
             except Exception:
                 extra = f"next open: {next_open}"
+        else:
+            extra = f"next open: {next_open}"
     return (state, extra)
 
 

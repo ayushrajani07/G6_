@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Any, Tuple, Callable
 
 try:
-    from src.metrics.metrics import setup_metrics_server as _setup_metrics_server
+    from src.metrics import setup_metrics_server as _setup_metrics_server  # facade import
 except Exception:
     # Fallback if metrics module not present
     _setup_metrics_server = None  # type: ignore

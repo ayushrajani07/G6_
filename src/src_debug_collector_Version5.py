@@ -22,6 +22,11 @@ This script assumes execution via the project root (e.g. `python -m src.src_debu
 from src.broker.kite_provider import KiteProvider
 from src.collectors.providers_interface import Providers
 from src.storage.csv_sink import CsvSink
+try:
+    from src.error_handling import handle_provider_error, handle_collector_error  # type: ignore
+except Exception:  # pragma: no cover
+    handle_provider_error = None  # type: ignore
+    handle_collector_error = None  # type: ignore
 
 def main():
     """Main debug function."""
@@ -36,6 +41,11 @@ def main():
         logger.info("Providers initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize providers: {e}", exc_info=True)
+        try:
+            if handle_provider_error:
+                handle_provider_error(e, component="debug_collector", index_name="ALL", context={"op": "init_providers"})
+        except Exception:
+            pass
         return 1
     
     # Initialize storage
@@ -57,6 +67,11 @@ def main():
             logger.info(f"{index_symbol} derived ATM strike: {atm_strike}")
         except Exception as e:
             logger.error(f"Error deriving ATM strike for {index_symbol}: {e}", exc_info=True)
+            try:
+                if handle_provider_error:
+                    handle_provider_error(e, component="debug_collector", index_name=index_symbol, context={"op": "get_ltp"})
+            except Exception:
+                pass
             continue
         
         # Get this week's expiry
@@ -65,6 +80,11 @@ def main():
             logger.info(f"{index_symbol} this_week expiry: {expiry_date}")
         except Exception as e:
             logger.error(f"Error resolving expiry for {index_symbol}: {e}", exc_info=True)
+            try:
+                if handle_provider_error:
+                    handle_provider_error(e, component="debug_collector", index_name=index_symbol, context={"op": "resolve_expiry"})
+            except Exception:
+                pass
             continue
         
         # Calculate strikes
@@ -99,6 +119,11 @@ def main():
                     instruments = providers.primary_provider.get_option_instruments(index_symbol, expiry_date, strikes)  # type: ignore[attr-defined]
                 except Exception as inner_e:
                     logger.error(f"Provider get_option_instruments error: {inner_e}")
+                    try:
+                        if handle_provider_error:
+                            handle_provider_error(inner_e, component="debug_collector", index_name=index_symbol, context={"op": "get_option_instruments"})
+                    except Exception:
+                        pass
             if instruments:
                 logger.info(f"Found {len(instruments)} option instruments")
                 logger.info(f"First instrument: {instruments[0]}")
@@ -107,6 +132,11 @@ def main():
                 continue
         except Exception as e:
             logger.error(f"Error getting option instruments for {index_symbol}: {e}", exc_info=True)
+            try:
+                if handle_provider_error:
+                    handle_provider_error(e, component="debug_collector", index_name=index_symbol, context={"op": "get_option_instruments_outer"})
+            except Exception:
+                pass
             continue
         
         # Convert instruments to dictionary
@@ -144,6 +174,11 @@ def main():
                                     options_data[symbol][field] = quote_data[field]
             except Exception as e:
                 logger.error(f"Error getting quotes: {e}", exc_info=True)
+                try:
+                    if handle_provider_error:
+                        handle_provider_error(e, component="debug_collector", index_name=index_symbol, context={"op": "get_quote_options"})
+                except Exception:
+                    pass
         
         # Write to CSV
         try:
@@ -152,6 +187,11 @@ def main():
             logger.info(f"Data written for {index_symbol}")
         except Exception as e:
             logger.error(f"Error writing data to CSV: {e}", exc_info=True)
+            try:
+                if handle_collector_error:
+                    handle_collector_error(e, component="debug_collector", index_name=index_symbol, context={"op": "csv_write"})
+            except Exception:
+                pass
     
     logger.info("Debug collection completed")
     return 0

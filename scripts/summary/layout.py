@@ -1,15 +1,16 @@
 from __future__ import annotations
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:  # pragma: no cover - import only for type checkers
+    from rich.layout import Layout
 
 from scripts.summary.env import _env_true, _env_min_col_width, panel_height
 from scripts.summary.derive import derive_indices
 from scripts.summary.data_source import _use_panels_json, _read_panel_json
 
 
-def build_layout(status: Dict[str, Any] | None, status_file: str, metrics_url: Optional[str], rolling: Optional[Dict[str, Any]] = None, *, compact: bool = False, low_contrast: bool = False) -> Any:
-    from rich.console import Group as _Group  # type: ignore
-    from rich.layout import Layout  # type: ignore
-    from rich.panel import Panel  # type: ignore
+def build_layout(status: Dict[str, Any] | None, status_file: str, metrics_url: Optional[str], rolling: Optional[Dict[str, Any]] = None, *, compact: bool = False, low_contrast: bool = False) -> "Layout":
+    from rich.layout import Layout
     from scripts.summary.panels.indices import indices_panel
     from scripts.summary.panels.analytics import analytics_panel
     from scripts.summary.panels.alerts import alerts_panel
@@ -40,20 +41,22 @@ def build_layout(status: Dict[str, Any] | None, status_file: str, metrics_url: O
         Layout(name="header", size=header_size),
         Layout(name="body", ratio=1, minimum_size=body_min),
     )
-    # Body 3-column grid with fixed width ratios: 45% | 30% | 25%
+    # Body 3-column grid with adjusted width ratios: 50% | 20% | 30%
+    # (Reduced Performance & Storage by 10%, added 5% each to Indices+Analytics and Alerts)
     layout["body"].split_row(
-        Layout(name="colL", ratio=45, minimum_size=_env_min_col_width()),
-        Layout(name="colM", ratio=30, minimum_size=_env_min_col_width()),
-        Layout(name="colR", ratio=25, minimum_size=_env_min_col_width()),
+        Layout(name="colL", ratio=50, minimum_size=_env_min_col_width()),
+        Layout(name="colM", ratio=20, minimum_size=_env_min_col_width()),
+        Layout(name="colR", ratio=30, minimum_size=_env_min_col_width()),
     )
     # Left column: Indices (70% height) + Analytics (30%)
     layout["colL"].split_column(
         Layout(name="indices", ratio=7, minimum_size=6),
         Layout(name="analytics", ratio=3, minimum_size=4),
     )
-    # Middle column: Performance & Storage (full body height)
+    # Middle column: Performance & Storage (60%) + Storage & Backup (40%)
     layout["colM"].split_column(
-        Layout(name="perfstore", ratio=10, minimum_size=6),
+        Layout(name="perfstore", ratio=6, minimum_size=6),
+        Layout(name="storage", ratio=4, minimum_size=4),
     )
     # Right column: Alerts (70%) + Links (30%)
     layout["colR"].split_column(
@@ -62,8 +65,8 @@ def build_layout(status: Dict[str, Any] | None, status_file: str, metrics_url: O
     )
 
     # Header (moved to panels.header)
-    from scripts.summary.panels.header import header_panel  # type: ignore
-    layout["header"].update(header_panel("", "", indices, low_contrast=low_contrast, status=status, interval=interval))
+    from scripts.summary.panels.header import header_panel
+    layout["header"].update(header_panel("", version, indices, low_contrast=low_contrast, status=status, interval=interval))
 
     # Panels
     layout["indices"].update(indices_panel(status, compact=compact, low_contrast=low_contrast, loop_for_footer=rolling))
@@ -71,28 +74,14 @@ def build_layout(status: Dict[str, Any] | None, status_file: str, metrics_url: O
     layout["alerts"].update(alerts_panel(status, compact=compact, low_contrast=low_contrast))
     layout["links"].update(links_panel(status_file, metrics_url, low_contrast=low_contrast))
 
-    perf_children = []
-    # Add children with simple de-duplication by title to avoid accidental duplicates
-    _child_titles = set()
-    hp = health_panel(status, low_contrast=low_contrast, compact=compact)
-    try:
-        t = getattr(hp, "title", None) or getattr(hp, "renderable", None)
-        key = str(t)
-    except Exception:
-        key = "health"
-    if key not in _child_titles:
-        perf_children.append(hp)
-        _child_titles.add(key)
-    sp = sinks_panel(status, low_contrast=low_contrast)
-    try:
-        t2 = getattr(sp, "title", None) or getattr(sp, "renderable", None)
-        key2 = str(t2)
-    except Exception:
-        key2 = "sinks"
-    if key2 not in _child_titles:
-        perf_children.append(sp)
-        _child_titles.add(key2)
-    layout["perfstore"].update(Panel(_Group(*perf_children), title="Performance & Storage", border_style=("white" if low_contrast else "white"), expand=True))
+    # Import monitoring panels
+    from scripts.summary.panels.monitoring import unified_performance_storage_panel, storage_backup_metrics_panel
+    
+    # Performance & Storage panel (top panel)
+    layout["perfstore"].update(unified_performance_storage_panel(status, low_contrast=low_contrast, compact=compact, show_title=True))
+    
+    # Storage & Backup Metrics panel (bottom panel)
+    layout["storage"].update(storage_backup_metrics_panel(status, low_contrast=low_contrast, compact=compact, show_title=True))
 
     return layout
 
@@ -102,9 +91,7 @@ def refresh_layout(layout: Any, status: Dict[str, Any] | None, status_file: str,
     Update an existing Layout with new panels for the given status without recreating the Layout object.
     This helps Rich.Live keep a stable frame height and prevents line-creep when screen=False.
     """
-    from rich.console import Group as _Group  # type: ignore
-    from rich.panel import Panel  # type: ignore
-    from scripts.summary.panels.header import header_panel  # type: ignore
+    from scripts.summary.panels.header import header_panel
     from scripts.summary.panels.indices import indices_panel
     from scripts.summary.panels.analytics import analytics_panel
     from scripts.summary.panels.alerts import alerts_panel
@@ -134,24 +121,11 @@ def refresh_layout(layout: Any, status: Dict[str, Any] | None, status_file: str,
     layout["alerts"].update(alerts_panel(status, compact=compact, low_contrast=low_contrast))
     layout["links"].update(links_panel(status_file, metrics_url, low_contrast=low_contrast))
 
-    perf_children = []
-    _child_titles = set()
-    hp = health_panel(status, low_contrast=low_contrast, compact=compact)
-    try:
-        t = getattr(hp, "title", None) or getattr(hp, "renderable", None)
-        key = str(t)
-    except Exception:
-        key = "health"
-    if key not in _child_titles:
-        perf_children.append(hp)
-        _child_titles.add(key)
-    sp = sinks_panel(status, low_contrast=low_contrast)
-    try:
-        t2 = getattr(sp, "title", None) or getattr(sp, "renderable", None)
-        key2 = str(t2)
-    except Exception:
-        key2 = "sinks"
-    if key2 not in _child_titles:
-        perf_children.append(sp)
-        _child_titles.add(key2)
-    layout["perfstore"].update(Panel(_Group(*perf_children), title="Performance & Storage", border_style=("white" if low_contrast else "white"), expand=True))
+    # Import monitoring panels
+    from scripts.summary.panels.monitoring import unified_performance_storage_panel, storage_backup_metrics_panel
+    
+    # Performance & Storage panel (top panel)
+    layout["perfstore"].update(unified_performance_storage_panel(status, low_contrast=low_contrast, compact=compact, show_title=True))
+    
+    # Storage & Backup Metrics panel (bottom panel)
+    layout["storage"].update(storage_backup_metrics_panel(status, low_contrast=low_contrast, compact=compact, show_title=True))

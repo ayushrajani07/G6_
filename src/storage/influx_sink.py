@@ -2,23 +2,82 @@
 # -*- coding: utf-8 -*-
 """
 InfluxDB sink for G6 Options Trading Platform.
+
+Refactored to use:
+- InfluxBufferManager for batching and periodic flush
+- InfluxCircuitBreaker to avoid hammering a failing backend
+- InfluxConnectionPool to share clients (optional lightweight)
 """
 
 import logging
 import time
-from datetime import datetime
-from typing import Dict, Any
+from datetime import datetime, timezone
+from typing import Dict, Any, List, Optional
 
 # Add this before launching the subprocess
 import sys  # noqa: F401
 import os  # noqa: F401
 
+from .influx_buffer_manager import InfluxBufferManager
+from .influx_circuit_breaker import InfluxCircuitBreaker
+from .influx_connection_pool import InfluxConnectionPool
+from ..health import runtime as health_runtime
+from ..health.models import HealthLevel, HealthState
+from ..utils.circuit_registry import circuit_protected  # optional adaptive CB for write paths
+from src.error_handling import get_error_handler, ErrorCategory, ErrorSeverity
+
 logger = logging.getLogger(__name__)
+
+
+class _TinyPoint:
+    """Minimal Point stand-in for tests when influxdb_client isn't installed.
+
+    Supports chained .tag(), .field(), and .time(ts) methods and stores timestamp
+    on attribute `_time` so tests can assert propagation.
+    """
+    def __init__(self, measurement: str):
+        self._measurement = measurement
+        self._tags: Dict[str, Any] = {}
+        self._fields: Dict[str, Any] = {}
+        self._time: Optional[datetime] = None
+
+    def tag(self, k: str, v: Any):
+        self._tags[k] = v
+        return self
+
+    def field(self, k: str, v: Any):
+        self._fields[k] = v
+        return self
+
+    def time(self, ts: datetime):
+        self._time = ts
+        return self
+
 
 class InfluxSink:
     """InfluxDB storage sink for G6 data."""
     
-    def __init__(self, url='http://localhost:8086', token='', org='', bucket='g6_data', enable_symbol_tag: bool = True, max_retries: int = 3, backoff_base: float = 0.25):
+    def __init__(
+        self,
+        url: str = 'http://localhost:8086',
+        token: str = '',
+        org: str = '',
+        bucket: str = 'g6_data',
+        enable_symbol_tag: bool = True,
+        # buffering
+        batch_size: int | None = None,
+        flush_interval: float | None = None,
+        max_queue_size: int | None = None,
+        # retries (for buffer manager)
+        max_retries: int = 3,
+        backoff_base: float = 0.25,
+        # breaker
+        breaker_fail_threshold: int = 5,
+        breaker_reset_timeout: float = 30.0,
+        # pool
+        pool_min_size: int = 1,
+        pool_max_size: int = 2,
+    ):
         """
         Initialize InfluxDB sink.
         
@@ -37,29 +96,177 @@ class InfluxSink:
         self.max_retries = max_retries
         self.backoff_base = backoff_base
         self.metrics = None  # attach externally like CsvSink
+        self._buffer: Optional[InfluxBufferManager] = None
+        self._breaker = InfluxCircuitBreaker(failure_threshold=breaker_fail_threshold, reset_timeout=breaker_reset_timeout)
+        self._pool: Optional[InfluxConnectionPool] = None
+        try:
+            self._health_enabled = os.environ.get('G6_HEALTH_COMPONENTS', '').lower() in ('1','true','yes','on')
+        except Exception:
+            self._health_enabled = False
         
         try:
             from influxdb_client.client.influxdb_client import InfluxDBClient
-            
-            # Initialize client
+            # Initialize base client (will also seed pool)
             self.client = InfluxDBClient(url=url, token=token, org=org)
-            # Use batching with default flush interval
             self.write_api = self.client.write_api()
-            
+            # Connection pool uses factory to create additional clients if needed
+            try:
+                self._pool = InfluxConnectionPool(
+                    factory=lambda: InfluxDBClient(url=url, token=token, org=org),
+                    min_size=int(os.environ.get('G6_INFLUX_POOL_MIN_SIZE', pool_min_size)),
+                    max_size=int(os.environ.get('G6_INFLUX_POOL_MAX_SIZE', pool_max_size)),
+                )
+            except Exception:
+                self._pool = None
+            # Buffer manager configured from env overrides when not provided
+            eff_batch = int(os.environ.get('G6_INFLUX_BATCH_SIZE', batch_size or 500))
+            eff_flush = float(os.environ.get('G6_INFLUX_FLUSH_INTERVAL', flush_interval or 1.0))
+            eff_queue = int(os.environ.get('G6_INFLUX_MAX_QUEUE_SIZE', max_queue_size or 10000))
+
+            def _write_points(points: List[Any]) -> None:
+                # write using main write_api (single client). Could round-robin via pool if desired.
+                if not self.write_api:
+                    raise RuntimeError("write_api not initialized")
+                # points may be Point or str; delegate directly
+                self.write_api.write(bucket=self.bucket, record=points)
+
+            def _on_success(n: int) -> None:
+                try:
+                    self._breaker.record_success()
+                    if self.metrics:
+                        self.metrics.influxdb_points_written.inc(n)
+                        self.metrics.influxdb_write_success_rate.set(100.0)
+                        self.metrics.influxdb_connection_status.set(1)
+                    if self._health_enabled:
+                        health_runtime.set_component('influx_sink', HealthLevel.HEALTHY, HealthState.HEALTHY)
+                except Exception:
+                    pass
+
+            def _on_failure(e: Exception) -> None:
+                try:
+                    self._breaker.record_failure()
+                    if self.metrics:
+                        self.metrics.influxdb_write_success_rate.set(0.0)
+                        self.metrics.influxdb_connection_status.set(0)
+                    if self._health_enabled:
+                        state = HealthState.CRITICAL if self._breaker.state == "OPEN" else HealthState.WARNING
+                        level = HealthLevel.CRITICAL if self._breaker.state == "OPEN" else HealthLevel.WARNING
+                        health_runtime.set_component('influx_sink', level, state)
+                except Exception:
+                    pass
+
+            self._buffer = InfluxBufferManager(
+                write_fn=_write_points,
+                batch_size=eff_batch,
+                flush_interval=eff_flush,
+                max_queue_size=eff_queue,
+                max_retries=self.max_retries,
+                backoff_base=self.backoff_base,
+                on_success=_on_success,
+                on_failure=_on_failure,
+            )
             logger.info(f"InfluxDB sink initialized with bucket: {bucket}")
-        except ImportError:
+        except ImportError as e:
             logger.warning("influxdb_client package not installed, using dummy implementation")
+            # Soft-route missing dependency
+            get_error_handler().handle_error(
+                e,
+                category=ErrorCategory.CONFIGURATION,
+                severity=ErrorSeverity.LOW,
+                component="storage.influx_sink",
+                function_name="__init__",
+                message="influxdb_client not installed; using dummy",
+                should_log=False,
+            )
         except Exception as e:
             logger.error(f"Error initializing InfluxDB client: {e}")
+            get_error_handler().handle_error(
+                e,
+                category=ErrorCategory.DATABASE,
+                severity=ErrorSeverity.HIGH,
+                component="storage.influx_sink",
+                function_name="__init__",
+                message="Failed to initialize InfluxDB client",
+                should_log=False,
+            )
+        # Optionally protect write paths with adaptive circuit breakers (env opt-in)
+        try:
+            if os.environ.get('G6_ADAPTIVE_CB_INFLUX', '').lower() in ('1','true','yes','on'):
+                if hasattr(self, 'write_options_data'):
+                    self.write_options_data = circuit_protected('influx.write_options_data')(self.write_options_data)  # type: ignore[assignment]
+                if hasattr(self, 'write_overview_snapshot'):
+                    self.write_overview_snapshot = circuit_protected('influx.write_overview_snapshot')(self.write_overview_snapshot)  # type: ignore[assignment]
+                if hasattr(self, 'write_cycle_stats'):
+                    self.write_cycle_stats = circuit_protected('influx.write_cycle_stats')(self.write_cycle_stats)  # type: ignore[assignment]
+        except Exception as e:
+            get_error_handler().handle_error(
+                e,
+                category=ErrorCategory.RESOURCE,
+                severity=ErrorSeverity.LOW,
+                component="storage.influx_sink",
+                function_name="__init__",
+                message="Failed to enable adaptive circuit breakers",
+                should_log=False,
+            )
     
     def close(self):
         """Close InfluxDB client."""
+        try:
+            if self._buffer:
+                self._buffer.stop()
+        except Exception as e:
+            get_error_handler().handle_error(
+                e,
+                category=ErrorCategory.RESOURCE,
+                severity=ErrorSeverity.LOW,
+                component="storage.influx_sink",
+                function_name="close",
+                message="Buffer stop failed",
+                should_log=False,
+            )
         if self.client:
             try:
                 self.client.close()
                 logger.info("InfluxDB client closed")
             except Exception as e:
                 logger.error(f"Error closing InfluxDB client: {e}")
+                get_error_handler().handle_error(
+                    e,
+                    category=ErrorCategory.DATABASE,
+                    severity=ErrorSeverity.MEDIUM,
+                    component="storage.influx_sink",
+                    function_name="close",
+                    message="Error closing InfluxDB client",
+                    should_log=False,
+                )
+        try:
+            if self._pool:
+                self._pool.close_all()
+        except Exception as e:
+            get_error_handler().handle_error(
+                e,
+                category=ErrorCategory.RESOURCE,
+                severity=ErrorSeverity.LOW,
+                component="storage.influx_sink",
+                function_name="close",
+                message="Failed closing pool",
+                should_log=False,
+            )
+
+    def flush(self):
+        try:
+            if self._buffer:
+                self._buffer.flush()
+        except Exception as e:
+            get_error_handler().handle_error(
+                e,
+                category=ErrorCategory.RESOURCE,
+                severity=ErrorSeverity.LOW,
+                component="storage.influx_sink",
+                function_name="flush",
+                message="Buffer flush failed",
+                should_log=False,
+            )
     
     def attach_metrics(self, metrics_registry):
         self.metrics = metrics_registry
@@ -83,7 +290,6 @@ class InfluxSink:
                 from src.utils.timeutils import utc_now
                 timestamp = utc_now()
             except Exception:
-                from datetime import timezone
                 timestamp = datetime.now(timezone.utc)
         
         # Convert expiry_date to string if it's a date object
@@ -98,10 +304,13 @@ class InfluxSink:
                 logger.warning(f"No options data to write for {index_symbol} {expiry_date}")
                 return
 
-            # Import Point from canonical path
-            from influxdb_client.client.write.point import Point
+            # Import Point from canonical path; fall back to tiny stand-in in test contexts
+            try:
+                from influxdb_client.client.write.point import Point
+            except Exception:  # pragma: no cover - env without influxdb_client
+                Point = _TinyPoint  # type: ignore
 
-            points = []
+            points: List[Any] = []
             for symbol, data in options_data.items():
                 strike = data.get('strike', 0)
                 opt_type = data.get('type', data.get('instrument_type', ''))  # 'CE' or 'PE'
@@ -140,35 +349,43 @@ class InfluxSink:
                 point = point.time(timestamp)
                 points.append(point)
 
-            success = False
-            for attempt in range(self.max_retries):
-                try:
-                    self.write_api.write(bucket=self.bucket, record=points)
-                    success = True
-                    break
-                except Exception as e:  # noqa
-                    wait = self.backoff_base * (2 ** attempt)
-                    logger.warning(f"Influx write attempt {attempt+1}/{self.max_retries} failed: {e}; retrying in {wait:.2f}s")
-                    time.sleep(wait)
-            if success:
-                logger.info(f"Wrote {len(points)} data points to InfluxDB")
-                try:
-                    if self.metrics:
-                        self.metrics.influxdb_points_written.inc(len(points))
-                        self.metrics.influxdb_write_success_rate.set(100.0)
-                        self.metrics.influxdb_connection_status.set(1)
-                except Exception:
-                    pass
+            # Use circuit breaker to guard enqueue when backend failing hard
+            if getattr(self, "_breaker", None) is None or self._breaker.allow():
+                if getattr(self, "_buffer", None):
+                    self._buffer.add_many(points)  # type: ignore[union-attr]
+                else:
+                    # Back-compat path for tests that stub write_api only
+                    try:
+                        self.write_api.write(bucket=self.bucket, record=points)
+                        if self.metrics:
+                            try:
+                                self.metrics.influxdb_points_written.inc(len(points))
+                            except Exception:
+                                pass
+                    except Exception as e:
+                        logger.debug(f"Fallback direct write failed: {e}")
+                        get_error_handler().handle_error(
+                            e,
+                            category=ErrorCategory.DATABASE,
+                            severity=ErrorSeverity.MEDIUM,
+                            component="storage.influx_sink",
+                            function_name="write_options_data",
+                            message="Fallback direct write failed",
+                            should_log=False,
+                        )
             else:
-                logger.error("Failed to write points to InfluxDB after retries")
-                try:
-                    if self.metrics:
-                        self.metrics.influxdb_write_success_rate.set(0.0)
-                        self.metrics.influxdb_connection_status.set(0)
-                except Exception:
-                    pass
+                logger.debug("Influx breaker OPEN/HALF_OPEN: drop enqueue")
         except Exception as e:
             logger.error(f"Error writing options data to InfluxDB: {e}")
+            get_error_handler().handle_error(
+                e,
+                category=ErrorCategory.DATABASE,
+                severity=ErrorSeverity.HIGH,
+                component="storage.influx_sink",
+                function_name="write_options_data",
+                message="Error writing options data to InfluxDB",
+                should_log=False,
+            )
             try:
                 if self.metrics:
                     self.metrics.influxdb_connection_status.set(0)
@@ -185,7 +402,10 @@ class InfluxSink:
         if not self.client or not self.write_api:
             return
         try:
-            from influxdb_client.client.write.point import Point
+            try:
+                from influxdb_client.client.write.point import Point
+            except Exception:
+                Point = _TinyPoint  # type: ignore
             expiry_bit_map = {'this_week':1,'next_week':2,'this_month':4,'next_month':8}
             collected_mask = 0
             for k in pcr_snapshot.keys():
@@ -213,25 +433,39 @@ class InfluxSink:
                 .field("collected_mask", collected_mask) \
                 .field("missing_mask", missing_mask) \
                 .time(timestamp)
-            success = False
-            for attempt in range(self.max_retries):
-                try:
-                    self.write_api.write(bucket=self.bucket, record=point)
-                    success = True
-                    break
-                except Exception as e2:  # noqa
-                    wait = self.backoff_base * (2 ** attempt)
-                    logger.warning(f"Influx overview write attempt {attempt+1}/{self.max_retries} failed: {e2}; retrying in {wait:.2f}s")
-                    time.sleep(wait)
-            if success:
-                logger.info(f"Wrote aggregated overview snapshot for {index_symbol} to InfluxDB")
-                try:
-                    if self.metrics:
-                        self.metrics.influxdb_points_written.inc()
-                except Exception:
-                    pass
+            if getattr(self, "_breaker", None) is None or self._breaker.allow():
+                if getattr(self, "_buffer", None):
+                    self._buffer.add(point)  # type: ignore[union-attr]
+                else:
+                    try:
+                        self.write_api.write(bucket=self.bucket, record=point)
+                        if self.metrics:
+                            try:
+                                self.metrics.influxdb_points_written.inc()
+                            except Exception:
+                                pass
+                    except Exception as e:
+                        logger.debug(f"Fallback direct write (overview) failed: {e}")
+                        get_error_handler().handle_error(
+                            e,
+                            category=ErrorCategory.DATABASE,
+                            severity=ErrorSeverity.MEDIUM,
+                            component="storage.influx_sink",
+                            function_name="write_overview_snapshot",
+                            message="Fallback direct write overview failed",
+                            should_log=False,
+                        )
         except Exception as e:
             logger.error(f"Error writing overview snapshot to InfluxDB: {e}")
+            get_error_handler().handle_error(
+                e,
+                category=ErrorCategory.DATABASE,
+                severity=ErrorSeverity.HIGH,
+                component="storage.influx_sink",
+                function_name="write_overview_snapshot",
+                message="Error writing overview snapshot",
+                should_log=False,
+            )
 
     def write_cycle_stats(self, cycle:int, elapsed: float, success_rate: float | None, options_last:int | None, per_index: dict[str,int] | None, timestamp=None):
         """Write a single cycle summary point.
@@ -244,13 +478,15 @@ class InfluxSink:
         if not self.client or not self.write_api:
             return
         try:
-            from influxdb_client.client.write.point import Point
+            try:
+                from influxdb_client.client.write.point import Point
+            except Exception:
+                Point = _TinyPoint  # type: ignore
             if timestamp is None:
                 try:
                     from src.utils.timeutils import ensure_utc_helpers  # type: ignore
                     utc_now, _iso = ensure_utc_helpers()
                 except Exception:
-                    from datetime import datetime, timezone
                     def utc_now():  # type: ignore
                         return datetime.now(timezone.utc)
                 timestamp = utc_now()
@@ -268,23 +504,39 @@ class InfluxSink:
                     except Exception:
                         pass
             point = point.time(timestamp)
-            success = False
-            for attempt in range(self.max_retries):
-                try:
-                    self.write_api.write(bucket=self.bucket, record=point)
-                    success = True
-                    break
-                except Exception as e:  # noqa
-                    wait = self.backoff_base * (2 ** attempt)
-                    logger.warning(f"Influx cycle write attempt {attempt+1}/{self.max_retries} failed: {e}; retrying in {wait:.2f}s")
-                    time.sleep(wait)
-            if success and self.metrics:
-                try:
-                    self.metrics.influxdb_points_written.inc()
-                except Exception:
-                    pass
+            if getattr(self, "_breaker", None) is None or self._breaker.allow():
+                if getattr(self, "_buffer", None):
+                    self._buffer.add(point)  # type: ignore[union-attr]
+                else:
+                    try:
+                        self.write_api.write(bucket=self.bucket, record=point)
+                        if self.metrics:
+                            try:
+                                self.metrics.influxdb_points_written.inc()
+                            except Exception:
+                                pass
+                    except Exception as e:
+                        logger.debug(f"Fallback direct write (cycle) failed: {e}")
+                        get_error_handler().handle_error(
+                            e,
+                            category=ErrorCategory.DATABASE,
+                            severity=ErrorSeverity.MEDIUM,
+                            component="storage.influx_sink",
+                            function_name="write_cycle_stats",
+                            message="Fallback direct write cycle failed",
+                            should_log=False,
+                        )
         except Exception as e:
             logger.debug(f"Failed to write cycle stats: {e}")
+            get_error_handler().handle_error(
+                e,
+                category=ErrorCategory.DATABASE,
+                severity=ErrorSeverity.LOW,
+                component="storage.influx_sink",
+                function_name="write_cycle_stats",
+                message="Failed to write cycle stats",
+                should_log=False,
+            )
 
 class NullInfluxSink:
     """Null implementation of InfluxDB sink that does nothing."""
@@ -301,8 +553,11 @@ class NullInfluxSink:
         """Write options data (no-op)."""
         pass
 
-    def write_overview_snapshot(self, index_symbol, pcr_snapshot, timestamp, day_width=0):
-        """Write aggregated overview snapshot (no-op)."""
+    def write_overview_snapshot(self, index_symbol, pcr_snapshot, timestamp, day_width=0, expected_expiries=None):
+        """Write aggregated overview snapshot (no-op).
+
+        Accepts expected_expiries for API compatibility with InfluxSink.
+        """
         pass
 
     def write_cycle_stats(self, cycle:int, elapsed: float, success_rate: float | None, options_last:int | None, per_index: dict[str,int] | None, timestamp=None):

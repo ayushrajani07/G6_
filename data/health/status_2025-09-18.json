@@ -1,33 +1,33 @@
 {
-  "timestamp": "2025-09-18T10:20:58.280461Z",
+  "timestamp": "2025-09-18T17:36:46.830338Z",
   "components": {
     "providers": {
       "status": "healthy",
       "message": "OK",
-      "last_check": "2025-09-18T15:50:58.230364"
+      "last_check": "2025-09-18T23:06:46.784826"
     },
     "csv_sink": {
       "status": "healthy",
       "message": "OK",
-      "last_check": "2025-09-18T15:50:58.230706"
+      "last_check": "2025-09-18T23:06:46.785088"
     },
     "influx_sink": {
       "status": "healthy",
       "message": "OK",
-      "last_check": "2025-09-18T15:50:58.231024"
+      "last_check": "2025-09-18T23:06:46.785237"
     }
   },
   "health_checks": {
     "csv_storage": {
       "status": "healthy",
       "message": "CSV sink is healthy",
-      "last_check": "2025-09-18T15:50:58.232683",
+      "last_check": "2025-09-18T23:06:46.786885",
       "data": {}
     },
     "primary_provider_responsive": {
       "status": "healthy",
       "message": "Provider responsive",
-      "last_check": "2025-09-18T15:50:58.280175",
+      "last_check": "2025-09-18T23:06:46.830026",
       "data": {
         "ltp": 25400
       }

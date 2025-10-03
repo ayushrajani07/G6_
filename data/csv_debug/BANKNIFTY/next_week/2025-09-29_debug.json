@@ -1,0 +1,14 @@
+{
+  "timestamp": "2025-09-29 07:03:19",
+  "index": "BANKNIFTY",
+  "expiry": "2025-10-28",
+  "expiry_code": "next_week",
+  "index_price": 54318.7,
+  "atm_strike": 54300,
+  "pcr": 1.5711513150556584,
+  "day_width": 432.3000000000029,
+  "data_count": 42,
+  "rounded_timestamp": "29-09-2025 12:33:30",
+  "batched": false,
+  "flushed": true
+}

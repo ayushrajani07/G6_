@@ -12,7 +12,7 @@ def test_indices_panel_prefers_json_over_log(tmp_path: Path, monkeypatch):
     panels_dir = tmp_path / "panels"
     panels_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("G6_PANELS_DIR", str(panels_dir))
-    monkeypatch.setenv("G6_SUMMARY_READ_PANELS", "true")
+    # Deprecated env removed; rely solely on presence of panel JSON for preference
 
     # Write indices.json with one set of metrics
     payload = {

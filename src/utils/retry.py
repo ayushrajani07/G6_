@@ -19,13 +19,14 @@ import logging
 import os
 from typing import Any, Callable, Iterable, Optional, Sequence, Type
 
-from tenacity import (  # type: ignore
+from tenacity import (
     retry, Retrying, stop_after_attempt, stop_after_delay,
     wait_exponential, wait_chain, wait_fixed, wait_random,
     retry_if_exception, retry_if_exception_type,
 )
 
 from .exceptions import RetryError
+from src.error_handling import get_error_handler, ErrorCategory, ErrorSeverity
 
 logger = logging.getLogger(__name__)
 
@@ -45,8 +46,19 @@ def _parse_exception_list(csv: str | None) -> list[Type[BaseException]]:
                 exc = getattr(mod, cls_name)
             if isinstance(exc, type) and issubclass(exc, BaseException):
                 out.append(exc)
-        except Exception:
-            logger.debug("Unknown exception in retry list: %s", name)
+        except Exception as e:
+            # Route to central handler but keep behavior: just skip unknown names
+            get_error_handler().handle_error(
+                exception=e,
+                category=ErrorCategory.CONFIGURATION,
+                severity=ErrorSeverity.LOW,
+                component="utils.retry",
+                function_name="_parse_exception_list",
+                message=f"Unknown exception type in retry list: {name}",
+                context={"token": name},
+                should_log=False,
+                should_reraise=False,
+            )
     return out
 
 

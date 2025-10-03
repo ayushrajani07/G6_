@@ -1,12 +1,15 @@
 from __future__ import annotations
-from typing import Any, Dict
+from typing import Any, Dict, TYPE_CHECKING
 import os
 
-def sinks_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False) -> Any:
-    from rich.panel import Panel  # type: ignore
-    from rich.table import Table  # type: ignore
-    from rich import box  # type: ignore
-    from rich.console import Group  # type: ignore
+if TYPE_CHECKING:  # pragma: no cover
+    from rich.panel import Panel as _Panel
+
+def sinks_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, show_title: bool = True) -> Any:
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich import box
+    from rich.console import Group
     from scripts.summary.data_source import (
         _use_panels_json,
         _read_panel_json,
@@ -30,7 +33,7 @@ def sinks_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False) ->
         pj_storage = _read_panel_json("storage")
         if isinstance(pj_storage, (dict, list)):
             try:
-                from rich.table import Table as RTable  # type: ignore
+                from rich.table import Table as RTable
                 rtbl = RTable(box=box.SIMPLE_HEAD)
                 rtbl.add_column("Component", style="bold")
                 rtbl.add_column("Metric")
@@ -93,8 +96,18 @@ def sinks_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False) ->
                     parts.append(f"Status: [{color}]{overall_status.lower()}[/]")
                 if parts:
                     footer.add_row("[dim]" + clip(" | ".join(parts)) + "[/dim]")
-                    return Panel(Group(rtbl, footer), title="💾 Storage & Backup Metrics", border_style=("white" if low_contrast else "cyan"), expand=True)
-                return Panel(rtbl, title="💾 Storage & Backup Metrics", border_style=("white" if low_contrast else "cyan"), expand=True)
+                    return Panel(
+                        Group(rtbl, footer),
+                        title=("💾 Storage & Backup Metrics" if show_title else None),
+                        border_style=("white" if low_contrast else "cyan"),
+                        expand=True,
+                    )
+                return Panel(
+                    rtbl,
+                    title=("💾 Storage & Backup Metrics" if show_title else None),
+                    border_style=("white" if low_contrast else "cyan"),
+                    expand=True,
+                )
             except Exception:
                 pass
     sinks = status.get("sinks", {}) if status else {}
@@ -119,4 +132,4 @@ def sinks_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False) ->
                     age_str = f" ({_fmt(age)} ago)"
                     last = fmt_hms_from_dt(dt)
             tbl.add_row(clip(f"• {k}: last write {last or '—'}{age_str}"))
-    return Panel(tbl, title="Sinks", border_style=("white" if low_contrast else "cyan"), expand=True)
+    return Panel(tbl, title=("Sinks" if show_title else None), border_style=("white" if low_contrast else "cyan"), expand=True)

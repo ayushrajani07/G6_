@@ -28,12 +28,26 @@ DEFAULTS: Dict[str, Any] = {
     "orchestration": {"run_interval_sec": 60, "prometheus_port": 9108},
     "storage": {
         "csv_dir": "data/g6_data",
+        # CSV buffering defaults (can be overridden via env or config)
+        "csv_buffer_size": 0,
+        "csv_max_open_files": 64,
+        "csv_flush_interval_seconds": 2.0,
         "influx": {
             "enabled": False,
             "url": "http://localhost:8086",
             "token": "",
             "org": "g6",
             "bucket": "g6_data",
+            # performance knobs (optional)
+            "batch_size": 500,
+            "flush_interval_seconds": 1.0,
+            "max_queue_size": 10000,
+            "pool_min_size": 1,
+            "pool_max_size": 2,
+            "max_retries": 3,
+            "backoff_base": 0.25,
+            "breaker_failure_threshold": 5,
+            "breaker_reset_timeout": 30.0,
         },
     },
     # Feature / console toggles (new optional config layer; env & CLI still override)
@@ -44,6 +58,14 @@ DEFAULTS: Dict[str, Any] = {
         "fancy_startup": False,
         "live_panel": False,
         "startup_banner": True,
+    },
+    # Experimental async/parallel collection flags (opt-in, default off)
+    "parallel_collection": {
+        "enabled": False,
+        "max_workers": 8,
+        "rate_limits": {
+            "kite": {"cps": 0.0, "burst": 0}
+        },
     },
     "index_params": {},
 }
@@ -120,11 +142,26 @@ def _derive_data_dir(raw: Dict[str, Any]) -> None:
         raw["data_dir"] = DEFAULTS["storage"]["csv_dir"]
 
 
+def _parse_version(ver: Any) -> tuple[int, int]:
+    try:
+        s = str(ver)
+        parts = s.split('.')
+        major = int(parts[0]) if parts and parts[0].isdigit() else 0
+        minor = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
+        return (major, minor)
+    except Exception:
+        return (0, 0)
+
+
 def normalize(raw: Dict[str, Any]) -> Dict[str, Any]:
     """Return a new normalized config dictionary without mutating input."""
     work = _merge(DEFAULTS, raw)
-    _translate_indices(work)
-    _unify_influx(work)
+    ver = _parse_version(work.get("schema_version"))
+    # Skip legacy translations if schema already versioned sufficiently
+    if ver < (1, 1):
+        _translate_indices(work)
+    if ver < (1, 2):
+        _unify_influx(work)
     _derive_data_dir(work)
     # Metrics: ensure enabled key exists
     metrics = work.setdefault("metrics", {})

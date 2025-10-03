@@ -1,0 +1,3 @@
+timestamp,index,expiry_tag,expiry_date,offset,index_price,atm,strike,ce,pe,tp,avg_ce,avg_pe,avg_tp,ce_vol,pe_vol,ce_oi,pe_oi,ce_iv,pe_iv,ce_delta,pe_delta,ce_theta,pe_theta,ce_vega,pe_vega,ce_gamma,pe_gamma,ce_rho,pe_rho
+29-09-2025 12:22:30,NIFTY,this_month,2025-09-30,-500,24648.95,24650,24150,544.0,2.7,546.7,606.93,2.98,609.91,10950,25147200,21225,1374450,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+29-09-2025 12:33:30,NIFTY,this_month,2025-09-30,-500,24648.4,24650,24150,549.0,2.65,551.65,606.15,2.97,609.12,11100,26000175,21225,1472700,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0

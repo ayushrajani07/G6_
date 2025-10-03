@@ -1,0 +1,28 @@
+{% extends 'layout.html' %}
+{% block title %}Weekday Overlays{% endblock %}
+{% block body %}
+<div class="container-fluid p-10">
+  <div class="dash-header">
+    <h1>Weekday Overlays</h1>
+  </div>
+  <section class="panel">
+    <div class="panel-header"><div class="title">Embedded Plot</div></div>
+    <div class="panel-body">
+      {% if html_present %}
+        <!-- Embedded generated overlays HTML -->
+        {{ embedded_html | safe }}
+      {% else %}
+        <div class="placeholder">
+          No overlays HTML found at <code>{{ html_path }}</code>.
+          <p>Generate it via:</p>
+          <pre class="code">python scripts/plot_weekday_overlays.py --index NIFTY --expiry-tag this_week --offset ATM --output weekday_overlays.html</pre>
+          {% if meta_json %}
+          <p>Metadata sidecar:</p>
+          <pre class="code">{{ meta_json }}</pre>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

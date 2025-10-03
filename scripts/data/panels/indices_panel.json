@@ -1,0 +1,33 @@
+{
+  "panel": "indices_panel",
+  "updated_at": "2025-10-01T05:33:13Z",
+  "data": {
+    "items": [
+      {
+        "index": "NIFTY",
+        "status": "ok",
+        "dq_score": 92.25,
+        "age": 2
+      },
+      {
+        "index": "BANKNIFTY",
+        "status": "ok",
+        "dq_score": 94.75,
+        "age": 0
+      },
+      {
+        "index": "FINNIFTY",
+        "status": "ok",
+        "dq_score": 91.88,
+        "age": 3
+      },
+      {
+        "index": "SENSEX",
+        "status": "ok",
+        "dq_score": 94.89,
+        "age": 0
+      }
+    ],
+    "count": 4
+  }
+}

@@ -5,26 +5,510 @@ Unified collectors for G6 Platform.
 """
 
 import logging
+import os
 import datetime
 import time
-from typing import Dict, Any
+from typing import Dict, Any, List, Tuple, Optional, Callable
 import json
+from dataclasses import dataclass
+from src.collectors.cycle_context import CycleContext, ExpiryContext
+from src.utils.timeutils import utc_now
+from src.collectors.modules.context import build_collector_context, CollectorContext  # Phase 1 context introduction
+from src.collectors.persist_result import PersistResult
+from src.collectors.helpers.persist import persist_and_metrics, persist_with_context
 from src.logstream.formatter import format_index
+from src.utils.deprecations import check_pipeline_flag_deprecation  # type: ignore
 
 
 # Add this before launching the subprocess
 import sys  # retained for potential future CLI usage
-from src.utils.market_hours import is_market_open, get_next_market_open
-from src.utils.data_quality import DataQualityChecker
-from src.utils.memory_pressure import MemoryPressureManager
-from src.utils.memory_trace import get_tracer
+from src.utils.market_hours import get_next_market_open  # dynamic is_market_open access below
+try:  # Phase 6: data quality bridge (extracted)
+    from src.collectors.modules.data_quality_bridge import (
+        get_dq_checker as _get_dq_checker,
+        run_option_quality as _run_option_quality,
+        run_index_quality as _run_index_quality,
+        run_expiry_consistency as _run_expiry_consistency,
+    )  # type: ignore
+except Exception:  # pragma: no cover
+    _get_dq_checker = lambda: None  # type: ignore
+    _run_option_quality = lambda dq, data: ({}, [])  # type: ignore
+    _run_index_quality = lambda dq, price, index_ohlc=None: (True, [])  # type: ignore
+    _run_expiry_consistency = lambda dq, data, index_price, expiry_rule: []  # type: ignore
+from src.collectors.modules.memory_pressure_bridge import evaluate_memory_pressure  # memory pressure abstraction
+from src.error_handling import handle_collector_error
+from src.utils.exceptions import (
+    ResolveExpiryError,
+    NoInstrumentsError,
+    NoQuotesError,
+    CsvWriteError,
+    InfluxWriteError,
+)
+from src.collectors.helpers.status_reducer import derive_partial_reason  # hot-path helper (was dynamically imported)
 
 
 
 
 logger = logging.getLogger(__name__)
 
-def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metrics=None, compute_greeks: bool = False, risk_free_rate: float = 0.05, estimate_iv: bool = False, iv_max_iterations: int | None = None, iv_min: float | None = None, iv_max: float | None = None, iv_precision: float | None = None):
+# Centralized TRACE emission: delegate to broker.kite.tracing when available.
+try:  # pragma: no cover - import side-effect free
+    from src.broker.kite.tracing import trace as _trace  # type: ignore
+except Exception:  # pragma: no cover
+    def _trace(msg: str, **ctx):  # fallback minimal gating
+        if os.environ.get('G6_QUIET_MODE') == '1' and os.environ.get('G6_QUIET_ALLOW_TRACE','0').lower() not in ('1','true','yes','on'):
+            return
+        if os.environ.get('G6_TRACE_COLLECTOR','0').lower() not in ('1','true','yes','on'):
+            return
+        try:
+            if ctx:
+                logger.warning("TRACE %s | %s", msg, json.dumps(ctx, default=str)[:4000])
+            else:
+                logger.warning("TRACE %s", msg)
+        except Exception:
+            pass
+
+################################################################################
+# Internal Helper Abstractions (extracted to reduce cyclomatic complexity)
+################################################################################
+
+class _ExpiryResult:
+    """Lightweight container for per-expiry processing outcome."""
+    __slots__ = (
+        'expiry_rule','expiry_date','enriched','pcr','day_width','collection_time',
+        'strike_list','option_count','fail','human_row','snapshot_timestamp'
+    )
+    def __init__(self, expiry_rule: str, expiry_date, enriched: Dict[str,Any], strike_list: List[float]):
+        self.expiry_rule = expiry_rule
+        self.expiry_date = expiry_date
+        self.enriched = enriched
+        self.pcr = None
+        self.day_width = 0
+        self.collection_time = None
+        self.strike_list = strike_list
+        self.option_count = len(enriched)
+        self.fail = False
+        self.human_row = None  # tuple built only in concise mode
+        self.snapshot_timestamp = None
+
+@dataclass
+class AggregationState:
+    """State accumulated across expiries for a single index cycle.
+
+    representative_day_width: last non-zero day width observed.
+    snapshot_base_time: earliest timestamp across expiries (used for snapshot anchoring).
+    """
+    representative_day_width: int = 0
+    snapshot_base_time: Optional[datetime.datetime] = None
+
+    def capture(self, metrics_payload: Dict[str, Any]):  # pragma: no cover - lightweight defensive
+        try:
+            if metrics_payload.get('day_width'):
+                self.representative_day_width = int(metrics_payload['day_width'])
+            ts = metrics_payload.get('timestamp')
+            if ts:
+                if self.snapshot_base_time is None or ts < self.snapshot_base_time:
+                    self.snapshot_base_time = ts
+        except Exception:
+            logger.debug('aggregation_state_capture_failed', exc_info=True)
+
+
+
+
+def _determine_concise_mode() -> bool:
+    try:
+        from src.broker.kite_provider import _CONCISE as _PROV_CONCISE  # type: ignore
+        return bool(_PROV_CONCISE)
+    except Exception:  # pragma: no cover
+        return False
+
+# Heartbeat state (process-wide)
+_LAST_HEARTBEAT_EMIT = 0.0
+
+def _maybe_emit_heartbeat(metrics, *, force: bool = False) -> None:
+    """Emit a lightweight structured heartbeat log at most every G6_LOOP_HEARTBEAT_INTERVAL seconds.
+
+    Fields focus on high-level loop health without verbose per-phase data:
+        hb.loop.heartbeat duration_s=<sec_since_last_cycle> options=<last_cycle_options> cycles=<total_cycles>
+    Safe no-op if metrics absent. Uses module global to avoid cross-import duplication.
+    """
+    import os, time as _t
+    global _LAST_HEARTBEAT_EMIT
+    try:
+        interval_env = os.environ.get('G6_LOOP_HEARTBEAT_INTERVAL','')
+        if not force:
+            if not interval_env:
+                return
+            try:
+                interval = float(interval_env)
+            except Exception:
+                interval = 0.0
+            if interval <= 0:
+                return
+        else:
+            interval = 0.0
+        now = _t.time()
+        if not force and _LAST_HEARTBEAT_EMIT and (now - _LAST_HEARTBEAT_EMIT) < interval:
+            return
+        cycles = None
+        opts = None
+        limiter_tokens = None
+        limiter_cooldown = None
+        batch_saved = None
+        batch_avg = None
+        try:
+            if metrics and hasattr(metrics, 'collection_cycles'):
+                val = getattr(getattr(metrics, 'collection_cycles'), '_value', None)
+                if val and hasattr(val, 'get'):
+                    cycles = int(val.get())  # type: ignore
+        except Exception:
+            pass
+        try:
+            if metrics and hasattr(metrics, '_last_cycle_options'):
+                opts = int(getattr(metrics, '_last_cycle_options') or 0)
+        except Exception:
+            pass
+        try:  # batching stats
+            from src.broker.kite.quote_batcher import get_batcher  # type: ignore
+            _b = get_batcher()
+            batch_saved = getattr(_b, '_debug_calls_saved', None)
+            batch_avg = getattr(_b, '_debug_avg_batch_size', None)
+        except Exception:
+            pass
+        try:  # limiter snapshot
+            import gc
+            for _obj in gc.get_objects():
+                if _obj.__class__.__name__ == 'RateLimiter' and hasattr(_obj, '_st'):
+                    _st = getattr(_obj, '_st')
+                    limiter_tokens = getattr(_st, 'tokens', None)
+                    cd_until = getattr(_st, 'cooldown_until', 0.0)
+                    if cd_until and cd_until > now:
+                        limiter_cooldown = round(cd_until - now, 1)
+                    else:
+                        limiter_cooldown = 0.0
+                    break
+        except Exception:
+            pass
+        logger.info(
+            "hb.loop.heartbeat "
+            f"cycles={cycles if cycles is not None else 'NA'} "
+            f"last_cycle_options={opts if opts is not None else 'NA'} "
+            f"limiter_tokens={limiter_tokens if limiter_tokens is not None else 'NA'} "
+            f"limiter_cooldown_s={limiter_cooldown if limiter_cooldown is not None else 'NA'} "
+            f"batch_saved_calls={batch_saved if batch_saved is not None else 'NA'} "
+            f"batch_avg_size={batch_avg if batch_avg is not None else 'NA'}"
+        )
+        _LAST_HEARTBEAT_EMIT = now
+    except Exception:
+        logger.debug('heartbeat_emit_failed', exc_info=True)
+
+
+def _init_cycle_metrics(metrics):  # side-effect only
+    if metrics and hasattr(metrics, 'collection_cycle_in_progress'):
+        try:
+                metrics.collection_cycle_in_progress.set(1)
+        except Exception:
+            pass
+
+
+def _maybe_init_greeks(compute_greeks: bool, estimate_iv: bool, risk_free_rate: float, metrics):
+    """Initialize greeks calculator honoring env overrides. Returns (greeks_calculator, compute_greeks_flag, estimate_iv_flag)."""
+    try:
+        _env_force_greeks = os.environ.get('G6_FORCE_GREEKS','').lower() in ('1','true','yes','on')
+        _env_disable_greeks = os.environ.get('G6_DISABLE_GREEKS','').lower() in ('1','true','yes','on')
+    except Exception:  # pragma: no cover
+        _env_force_greeks = False; _env_disable_greeks = False
+    if _env_force_greeks:
+        compute_greeks = True
+    if _env_disable_greeks:
+        compute_greeks = False
+    greeks_calculator = None
+    greeks_enabled_effective = compute_greeks or estimate_iv
+    if greeks_enabled_effective:
+        try:
+            from src.analytics.option_greeks import OptionGreeks  # type: ignore
+            greeks_calculator = OptionGreeks(risk_free_rate=risk_free_rate)
+            if compute_greeks:
+                logger.info(f"Greek computation enabled (r={risk_free_rate}) [force_env={_env_force_greeks}]")
+            elif estimate_iv:
+                logger.info(f"IV estimation enabled (r={risk_free_rate}) [force_env={_env_force_greeks}]")
+        except Exception as e:
+            logger.error(f"Failed to initialize OptionGreeks: {e}")
+            if compute_greeks:
+                compute_greeks = False
+            if estimate_iv:
+                estimate_iv = False
+            greeks_calculator = None
+    if metrics and hasattr(metrics, 'memory_greeks_enabled'):
+        try:
+            metrics.memory_greeks_enabled.set(1 if greeks_calculator else 0)
+        except Exception:  # pragma: no cover
+            pass
+    return greeks_calculator, compute_greeks, estimate_iv
+
+
+def _evaluate_memory_pressure(metrics) -> Dict[str,Any]:  # backward-compatible wrapper
+    return evaluate_memory_pressure(metrics)
+
+
+_FALLBACK_BUILD = False
+try:
+    from src.utils.strikes import build_strikes as _build_strikes  # shared utility with scale param
+except Exception:  # pragma: no cover
+    _FALLBACK_BUILD = True
+    def _build_strikes(atm: float, n_itm: int, n_otm: int, index_symbol: str, *, scale: float | None = None) -> List[float]:  # type: ignore[override]
+        # scale ignored in fallback
+        if atm <= 0:
+            return []
+        # Use centralized registry (R1) for default step size
+        try:
+            from src.utils.index_registry import get_index_meta  # local import to avoid circular during fallback
+            step = float(get_index_meta(index_symbol).step)
+        except Exception:
+            step = 100.0 if index_symbol in ['BANKNIFTY','SENSEX'] else 50.0
+        arr: List[float] = []
+        for i in range(1, n_itm + 1):
+            arr.append(float(atm - i*step))
+        arr.append(float(atm))
+        for i in range(1, n_otm + 1):
+            arr.append(float(atm + i*step))
+        return sorted(arr)
+
+# -----------------------------------------------------------------------------
+# Future Refactor Opportunities (non-functional; roadmap)
+# -----------------------------------------------------------------------------
+# 1. Introduce a @dataclass CycleContext to encapsulate shared objects/flags.
+# 2. Move human-readable summary generation into a dedicated formatter module.
+# 3. Provide injectable clock abstraction for deterministic testing.
+# 4. Convert per-expiry pipeline into strategy chain (fetch -> enrich -> derive -> persist).
+# 5. Explore concurrency (async IO) for parallel expiry processing.
+# 6. Expose structured return object for programmatic diagnostics & tests.
+# NOTE: Deferred intentionally to keep current change scoped to complexity reduction.
+
+
+from src.collectors.modules.coverage_eval import coverage_metrics as _coverage_metrics, field_coverage_metrics as _field_coverage_metrics  # Phase 3 extracted
+from src.collectors.helpers.iv_greeks import iv_estimation_block as _iv_estimation_block
+from src.collectors.helpers.validation import preventive_validation_stage as _preventive_validation_stage
+from src.collectors.helpers.synthetic import classify_expiry_result as _classify_expiry_result
+from src.synthetic.strategy import build_synthetic_quotes as _generate_synthetic_quotes, synthesize_index_price as _synthesize_index_price
+from src.collectors.helpers.validation import preventive_validation_stage as _preventive_validation_stage
+from src.collectors.helpers.greeks import compute_greeks_block as _compute_greeks_block
+from src.collectors.helpers.status_reducer import compute_expiry_status as _compute_expiry_status, aggregate_cycle_status as _aggregate_cycle_status
+from src.collectors.helpers.struct_events import (
+    emit_zero_data as _emit_zero_data_struct,
+    emit_option_match_stats as _emit_option_match_stats,
+    emit_cycle_status_summary as _emit_cycle_status_summary,
+)
+from src.collectors.modules.expiry_universe import build_expiry_map as _build_expiry_map  # Phase 2: extracted expiry map
+try:
+    # B11 anomaly detection (optional) – lightweight import; guarded where used
+    from src.bench.anomaly import detect_anomalies as _detect_anomalies  # type: ignore
+except Exception:  # pragma: no cover
+    _detect_anomalies = None  # type: ignore
+
+
+def _persist_and_metrics(ctx: CycleContext, enriched_data, index_symbol, expiry_rule, expiry_date, collection_time, index_price, index_ohlc, allow_per_option_metrics) -> PersistResult:
+    # Temporary shim calling extracted helper to avoid touching call sites elsewhere during transition.
+    return persist_and_metrics(ctx, enriched_data, index_symbol, expiry_rule, expiry_date, collection_time, index_price, index_ohlc, allow_per_option_metrics)
+
+
+def _synthetic_metric_pop(ctx: CycleContext, index_symbol, expiry_date):  # pragma: no cover (delegation)
+    from src.collectors.modules.expiry_helpers import synthetic_metric_pop as _impl
+    return _impl(ctx, index_symbol, expiry_date)
+
+
+"""(Deprecated) Legacy ExpiryService compatibility layer removed.
+
+The collection loop previously allowed a fallback resolution path using a
+module-level `_EXPIRY_SERVICE_SINGLETON` gated by `G6_EXPIRY_SERVICE`.
+This created divergence and subtle mismatches (e.g. monthly anchor drift).
+
+As of 2025-09-30 the hook is removed: `_resolve_expiry` delegates *only* to
+`providers.resolve_expiry`. Any tests that relied on monkeypatching the legacy
+singleton must instead patch the provider facade or inject custom expiry lists.
+"""
+
+_EXPIRY_SERVICE_SINGLETON = None  # retained as a sentinel only; not used
+_TRACE_AUTO_DISABLED = False  # process-level sentinel for G6_TRACE_AUTO_DISABLE feature
+
+def _resolve_expiry(index_symbol, expiry_rule, providers, metrics, concise_mode):  # pragma: no cover
+    """Unified expiry resolution.
+
+    Single source of truth: delegate directly to `providers.resolve_expiry`.
+    Any failure falls back to today's date (logged in non-concise mode).
+    """
+    import datetime as _dt, logging
+    try:
+        return providers.resolve_expiry(index_symbol, expiry_rule)
+    except Exception as e:  # defensive fallback: today
+        if not concise_mode:
+            logging.getLogger(__name__).warning(
+                "expiry_resolve_fallback_today", extra={"index": index_symbol, "rule": expiry_rule, "error": str(e)}
+            )
+        return _dt.date.today()
+
+
+def _fetch_option_instruments(index_symbol, expiry_rule, expiry_date, strikes, providers, metrics):  # pragma: no cover
+    from src.collectors.modules.expiry_helpers import fetch_option_instruments as _impl
+    return _impl(index_symbol, expiry_rule, expiry_date, strikes, providers, metrics)
+
+
+def _enrich_quotes(index_symbol, expiry_rule, expiry_date, instruments, providers, metrics):  # pragma: no cover
+    from src.collectors.modules.expiry_helpers import enrich_quotes as _impl
+    return _impl(index_symbol, expiry_rule, expiry_date, instruments, providers, metrics)
+
+# Maintain export for legacy monkeypatching patterns
+try:
+    __all__.append('_EXPIRY_SERVICE_SINGLETON')  # type: ignore[name-defined]
+except Exception:  # pragma: no cover
+    __all__ = ['_EXPIRY_SERVICE_SINGLETON']  # type: ignore
+
+
+from src.collectors.helpers.validation import preventive_validation_stage as _preventive_validation_stage
+
+
+def _process_index(
+    ctx: CycleContext,
+    index_symbol: str,
+    params: Any,
+    *,
+    compute_greeks: bool,
+    estimate_iv: bool,
+    greeks_calculator: Any,
+    mem_flags: Dict[str, Any],
+    concise_mode: bool,
+    build_snapshots: bool,
+    risk_free_rate: float,
+    metrics: Any,
+    snapshots_accum: List[Any],
+    dq_enabled: bool,
+    dq_checker: Any,
+) -> Dict[str, Any]:
+    """Thin delegator to extracted modules.index_processor.process_index.
+
+    Falls back to legacy inline implementation (no-op result) if import fails.
+    """
+    try:
+        from src.collectors.modules import index_processor as _idx_mod  # type: ignore
+        return _idx_mod.process_index(
+            ctx,
+            index_symbol,
+            params,
+            compute_greeks=compute_greeks,
+            estimate_iv=estimate_iv,
+            greeks_calculator=greeks_calculator,
+            mem_flags=mem_flags,
+            concise_mode=concise_mode,
+            build_snapshots=build_snapshots,
+            risk_free_rate=risk_free_rate,
+            metrics=metrics,
+            snapshots_accum=snapshots_accum,
+            dq_enabled=dq_enabled,
+            dq_checker=dq_checker,
+            deps={
+                # TRACE_ENABLED removed: tracing centralized (kept key removed to avoid stale reference)
+                'trace': _trace,
+                'AggregationState': AggregationState,
+                'build_strikes': _build_strikes,
+                'synth_index_price': _synthesize_index_price,
+                'aggregate_cycle_status': _aggregate_cycle_status,
+                'process_expiry': _process_expiry,
+                'run_index_quality': _run_index_quality,
+            },
+        )
+    except Exception:
+        logger.debug('index_processor_module_failed', exc_info=True)
+        return {
+            'human_block': None,
+            'indices_struct_entry': None,
+            'summary_rows_entry': None,
+            'overall_legs': 0,
+            'overall_fails': 0,
+        }
+
+
+def _process_expiry(
+    *,
+    ctx: CycleContext,
+    index_symbol: str,
+    expiry_rule: str,
+    atm_strike: float,
+    concise_mode: bool,
+    precomputed_strikes: List[float],
+    expiry_universe_map: Optional[Dict[Any, Any]],
+    allow_per_option_metrics: bool,
+    local_compute_greeks: bool,
+    local_estimate_iv: bool,
+    greeks_calculator: Any,
+    risk_free_rate: float,
+    per_index_ts: datetime.datetime,
+    index_price: float,
+    index_ohlc: Dict[str, Any],
+    metrics: Any,
+    mem_flags: Dict[str, Any],
+    dq_checker: Any,
+    dq_enabled: bool,
+    snapshots_accum: List[Any],
+    build_snapshots: bool,
+    allowed_expiry_dates: set,
+    pcr_snapshot: Dict[str, Any],
+    aggregation_state: 'AggregationState',
+) -> Dict[str, Any]:
+    """Process a single expiry. Returns dict containing success flag, option_count, expiry_rec, human_row.
+
+    Extraction of original inline logic from _process_index; behavior preserved. AggregationState replaces holder lambdas.
+    """
+    # Delegator to extracted module
+    try:
+        from src.collectors.modules.expiry_processor import process_expiry as _proc  # type: ignore
+        return _proc(
+            ctx=ctx,
+            index_symbol=index_symbol,
+            expiry_rule=expiry_rule,
+            atm_strike=atm_strike,
+            concise_mode=concise_mode,
+            precomputed_strikes=precomputed_strikes,
+            expiry_universe_map=expiry_universe_map,
+            allow_per_option_metrics=allow_per_option_metrics,
+            local_compute_greeks=local_compute_greeks,
+            local_estimate_iv=local_estimate_iv,
+            greeks_calculator=greeks_calculator,
+            risk_free_rate=risk_free_rate,
+            per_index_ts=per_index_ts,
+            index_price=index_price,
+            index_ohlc=index_ohlc,
+            metrics=metrics,
+            mem_flags=mem_flags,
+            dq_checker=dq_checker,
+            dq_enabled=dq_enabled,
+            snapshots_accum=snapshots_accum,
+            build_snapshots=build_snapshots,
+            allowed_expiry_dates=allowed_expiry_dates,
+            pcr_snapshot=pcr_snapshot,
+            aggregation_state=aggregation_state,
+        )
+    except Exception:  # pragma: no cover - fallback path
+        logger.debug('expiry_processor_module_failed_fallback_inline', exc_info=True)
+        # Preserve legacy failure semantics: return a minimal failure outcome
+        return {'success': False, 'option_count': 0, 'expiry_rec': {'rule': expiry_rule, 'failed': True}}
+
+
+def run_unified_collectors(
+    index_params,
+    providers,
+    csv_sink,
+    influx_sink,
+    metrics=None,
+    *,
+    compute_greeks: bool = False,
+    risk_free_rate: float = 0.05,
+    estimate_iv: bool = False,
+    iv_max_iterations: int | None = None,
+    iv_min: float | None = None,
+    iv_max: float | None = None,
+    iv_precision: float | None = None,
+    build_snapshots: bool = False,
+):
     """Run unified collectors for all configured indices.
 
     Parameters
@@ -49,639 +533,195 @@ def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metri
         iv_max_iterations / iv_min / iv_max / iv_precision : (future use)
         Forthcoming IV solver tuning knobs; currently captured for forward compatibility.
     """
-    # (iv_max_iterations, iv_min, iv_max) currently unused; integration handled in later task.
-    # Mark cycle in-progress (dashboard can avoid reading partial gauges)
-    if metrics and hasattr(metrics, 'collection_cycle_in_progress'):
+    # Graceful guard: if providers facade missing, skip collection instead of raising attribute errors per index.
+    if providers is None:
         try:
-            metrics.collection_cycle_in_progress.set(1)
+            have_warned = getattr(run_unified_collectors, '_g6_warned_missing_providers', False)  # type: ignore[attr-defined]
         except Exception:
-            pass
-    # Track the collection timestamp
-    start_cycle_wall = time.time()
-    now = datetime.datetime.now()  # local-ok
-    
-    # Initialize data quality checker
-    data_quality = DataQualityChecker()
-    
-    # Track the collection timestamp
-    now = datetime.datetime.now()  # local-ok
-    
-    # Check if equity market is open
-    if not is_market_open(market_type="equity", session_type="regular"):
-        next_open = get_next_market_open(market_type="equity", session_type="regular")
-        wait_time = (next_open - datetime.datetime.now(datetime.timezone.utc)).total_seconds()
-        logger.info("Equity market is closed. Next market open: %s (in %.1f minutes)", 
-                    next_open, wait_time/60)
-        # Clear in-progress if set
-        if metrics and hasattr(metrics, 'collection_cycle_in_progress'):
-            try:
-                metrics.collection_cycle_in_progress.set(0)
-            except Exception:
-                pass
-        return
-    
-    logger.info("Equity market is open, starting collection")
-    
-    # Initialize greeks calculator once if needed
-    greeks_calculator = None
-    if compute_greeks:
-        try:
-            from src.analytics.option_greeks import OptionGreeks  # type: ignore
-            greeks_calculator = OptionGreeks(risk_free_rate=risk_free_rate)
-            logger.info(f"Greek computation enabled (r={risk_free_rate})")
-        except Exception as e:
-            logger.error(f"Failed to initialize OptionGreeks: {e}")
-            compute_greeks = False
-    if estimate_iv and not compute_greeks:
-        # Need calculator for IV even if greeks disabled
-        try:
-            from src.analytics.option_greeks import OptionGreeks  # type: ignore
-            greeks_calculator = OptionGreeks(risk_free_rate=risk_free_rate)
-            logger.info(f"IV estimation enabled (r={risk_free_rate})")
-        except Exception as e:
-            logger.error(f"Failed to initialize OptionGreeks for IV estimation: {e}")
-            estimate_iv = False
+            have_warned = False
+        if not have_warned:
+            logger.error("Unified collectors: providers not initialized (set G6_BOOTSTRAP_COMPONENTS=1 or supply credentials); skipping all indices")
+            try: setattr(run_unified_collectors, '_g6_warned_missing_providers', True)  # type: ignore[attr-defined]
+            except Exception: pass
+        return {
+            'status': 'no_providers',
+            'indices_processed': 0,
+            'have_raw': False,
+            'snapshots': [] if build_snapshots else None,
+            'snapshot_count': 0,
+            'indices': [],
+            'reason': 'providers_none',
+        }
 
-    # Initialize memory pressure manager (lazy; safe if psutil missing)
-    mp_manager = None
+    # Rollout modes (shadow/primary) removed: unified_collectors now always executes the legacy path directly.
+    # `G6_PIPELINE_ROLLOUT` is ignored (will be documented as removed); `G6_PIPELINE_COLLECTOR` already deprecated.
+    check_pipeline_flag_deprecation()
+    # (iv_max_iterations, iv_min, iv_max) currently unused; integration handled in later task.
+    # Mark cycle in-progress & start timers
+    _trace("cycle_start", indices=list(index_params.keys()), compute_greeks=compute_greeks, estimate_iv=estimate_iv)
+    _init_cycle_metrics(metrics)
+    start_cycle_wall = time.time(); cycle_start_ts = utc_now()
+    ctx = CycleContext(index_params=index_params, providers=providers, csv_sink=csv_sink, influx_sink=influx_sink, metrics=metrics, start_wall=start_cycle_wall, start_ts=cycle_start_ts)
+    # Phase 1: build high-level CollectorContext (non-invasive; not yet threaded through downstream helpers)
     try:
-        mp_manager = MemoryPressureManager(metrics=metrics)
+        _collector_ctx: CollectorContext = build_collector_context(index_params=index_params, metrics=metrics, debug=os.environ.get('G6_COLLECTOR_REFACTOR_DEBUG','').lower() in ('1','true','yes','on'))
+        # Attach for exploratory introspection / future phased migration
+        ctx.collector_ctx = _collector_ctx  # type: ignore[attr-defined]
     except Exception:
-        logger.debug("MemoryPressureManager init failed", exc_info=True)
-    # Initialize optional memory tracer
-    mem_tracer = None
-    try:
-        mem_tracer = get_tracer()
-        if mem_tracer.ensure_started():
-            # Take an initial sample to warm up
-            mem_tracer.sample(metrics=metrics)
-    except Exception:
-        logger.debug("Memory tracer init failed", exc_info=True)
+        logger.debug('collector_context_init_failed', exc_info=True)
 
-    # Determine concise mode (reuse provider concise flag)
-    concise_mode = False
+    # Phase 0 (modularization refactor) instrumentation flag
+    # Deprecated: refactor_debug parity accumulation removed
+    refactor_debug = False
+
+    # Market gate extraction
     try:
-        from src.broker.kite_provider import _CONCISE as _PROV_CONCISE  # type: ignore
-        concise_mode = bool(_PROV_CONCISE)
+        from src.collectors.modules.market_gate import evaluate_market_gate  # type: ignore
+        proceed, early = evaluate_market_gate(build_snapshots, metrics)
+        if not proceed:
+            return early  # type: ignore[return-value]
+        _trace("market_open")
     except Exception:
-        pass
+        logger.debug("market_gate_module_failed_fallback_inline", exc_info=True)
+        # Fallback: do nothing (assume open) and continue
+    
+    # Init greeks & memory pressure flags
+    with ctx.time_phase('init_greeks'):
+        greeks_calculator, compute_greeks, estimate_iv = _maybe_init_greeks(compute_greeks, estimate_iv, risk_free_rate, metrics)
+        _trace("init_greeks_done", greeks_enabled=bool(greeks_calculator), compute_greeks=compute_greeks, estimate_iv=estimate_iv)
+    with ctx.time_phase('memory_pressure_eval'):
+        mem_flags = _evaluate_memory_pressure(metrics)
+        _trace("memory_flags", **mem_flags)
+
+    mp_manager = None  # we no longer re-evaluate inside loops (single eval design retained)
+    concise_mode = _determine_concise_mode()
 
     human_blocks: list[str] = []
+    summary_rows: list[dict[str, Any]] = []  # ensure defined before any early index skip appends
     overall_legs_total = 0
     overall_fail_total = 0
     if concise_mode:
         today_str = datetime.datetime.now().strftime('%d-%b-%Y')  # local-ok
-        header = ("\n" + "=" * 70 + f"\n        DAILY OPTIONS COLLECTION LOG — {today_str}\n" + "=" * 70 + "\n")
-        logger.info(header)
+        # Emit header only once per day unless override flag forces each cycle
+        force_daily_repeat = os.environ.get('G6_DAILY_HEADER_EVERY_CYCLE','').lower() in ('1','true','yes','on')
+        _header_key = f'_g6_daily_header_{today_str}'
+        if force_daily_repeat or _header_key not in globals():
+            header = ("\n" + "=" * 70 + f"\n        DAILY OPTIONS COLLECTION LOG — {today_str}\n" + "=" * 70 + "\n")
+            logger.info(header)
+            globals()[_header_key] = True  # sentinel to prevent repeat
 
     # Process each index
-    for index_symbol, params in index_params.items():
-        # Skip disabled indices
-        if not params.get('enable', True):
-            continue
-        
-        if not concise_mode:
-            logger.info(f"Collecting data for {index_symbol}")
-        else:
-            logger.debug(f"Collecting data for {index_symbol}")
-        
+    def _p(obj, name, default=None):  # supports dataclass or dict
         try:
-            per_index_start = time.time()
-            per_index_option_count = 0
-            per_index_option_processing_seconds = 0.0
-            per_index_success = True
-            per_index_attempts = 0  # number of expiry collection attempts
-            per_index_failures = 0  # number of failed expiry collections
-            # Get index price and OHLC data (instrumented)
-            index_price = 0
-            index_ohlc = {}
-            _t0 = time.time()
-            try:
-                index_price, index_ohlc = providers.get_index_data(index_symbol)
-                if metrics and hasattr(metrics, 'mark_api_call'):
-                    metrics.mark_api_call(success=True, latency_ms=(time.time()-_t0)*1000.0)
-            except Exception:
-                if metrics and hasattr(metrics, 'mark_api_call'):
-                    metrics.mark_api_call(success=False, latency_ms=(time.time()-_t0)*1000.0)
-                raise
-            
-            # Get ATM strike (instrumented)
-            _t0 = time.time()
-            atm_strike = providers.get_ltp(index_symbol)
-            if metrics and hasattr(metrics, 'mark_api_call'):
-                # Treat failures inside get_ltp already caught upstream; assume success if numeric
-                success_flag = isinstance(atm_strike, (int,float)) and atm_strike > 0
-                metrics.mark_api_call(success=success_flag, latency_ms=(time.time()-_t0)*1000.0)
-            if not concise_mode:
-                logger.info(f"{index_symbol} ATM strike: {atm_strike}")
-            else:
-                logger.debug(f"{index_symbol} ATM strike: {atm_strike}")
-            
-            # Update metrics if available
+            if isinstance(obj, dict):
+                return obj.get(name, default)
+            # dataclass or object with attribute
+            return getattr(obj, name, default)
+        except Exception:
+            return default
+
+    # Container for optional snapshot domain objects (built only when build_snapshots=True)
+    snapshots_accum: List[Any] = [] if build_snapshots else []  # type: ignore[var-annotated]
+    indices_struct: List[Dict[str, Any]] = []  # structured per-index summaries
+
+    # Initialize data quality checker once (guarded by env flag for parity)
+    dq_enabled = os.environ.get('G6_ENABLE_DATA_QUALITY','').lower() in ('1','true','yes','on')
+    dq_checker = _get_dq_checker() if dq_enabled else None
+
+    for index_symbol, params in index_params.items():
+        _res = _process_index(
+            ctx,
+            index_symbol,
+            params,
+            compute_greeks=compute_greeks,
+            estimate_iv=estimate_iv,
+            greeks_calculator=greeks_calculator,
+            mem_flags=mem_flags,
+            concise_mode=concise_mode,
+            build_snapshots=build_snapshots,
+            risk_free_rate=risk_free_rate,
+            metrics=metrics,
+            snapshots_accum=snapshots_accum,
+            dq_enabled=dq_enabled,
+            dq_checker=dq_checker,
+        )
+        if _res.get('summary_rows_entry'):
+            summary_rows.append(_res['summary_rows_entry'])
+        if _res.get('human_block'):
+            human_blocks.append(_res['human_block'])
+        overall_legs_total += _res.get('overall_legs',0)
+        overall_fail_total += _res.get('overall_fails',0)
+        if _res.get('indices_struct_entry'):
+            indices_struct.append(_res['indices_struct_entry'])
+        # Accumulate per-index option legs for metrics (each leg = one option instrument)
+        try:
             if metrics:
-                try:
-                    metrics.index_price.labels(index=index_symbol).set(index_price)
-                    metrics.index_atm.labels(index=index_symbol).set(atm_strike)
-                except:
-                    logger.debug(f"Failed to update metrics for {index_symbol}")
-            
-            # Prepare aggregation containers
-            pcr_snapshot = {}
-            representative_day_width = 0
-            snapshot_base_time = datetime.datetime.now()  # local-ok
-            expected_expiries = params.get('expiries', ['this_week'])
-
-            # Evaluate memory pressure once per index (can inform strategy)
-            effective_strikes_otm = params.get('strikes_otm', 10)
-            effective_strikes_itm = params.get('strikes_itm', 10)
-            allow_per_option_metrics = True
-            local_compute_greeks = compute_greeks
-            local_estimate_iv = estimate_iv
-            if mp_manager:
-                try:
-                    mp_manager.evaluate()
-                    # Scaling factor applied progressively (round down)
-                    scale = mp_manager.depth_scale if hasattr(mp_manager, 'depth_scale') else 1.0
-                    effective_strikes_otm = max(2, int(effective_strikes_otm * scale))
-                    effective_strikes_itm = max(2, int(effective_strikes_itm * scale))
-                    if mp_manager.should_skip_greeks():
-                        local_compute_greeks = False
-                        local_estimate_iv = False
-                    if mp_manager.should_slow_cycles():
-                        time.sleep(0.25)
-                    if mp_manager.drop_per_option_metrics():
-                        allow_per_option_metrics = False
-                except Exception:
-                    logger.debug("Memory pressure evaluation failed", exc_info=True)
-
-            # Prepare human summary rows if concise
-            # Time, Price, ATM, Expiry, Tag, Legs, CE, PE, PCR, Range, Step
-            human_rows: list[tuple[str,str,str,str,str,str,str,str,str,str,str]] = []
-
-            # Process each expiry
-            for expiry_rule in params.get('expiries', ['this_week']):
-                # Count an attempt up-front; refined logic could skip if index disabled mid-loop
-                per_index_attempts += 1
-                try:
-                    # Resolve expiry date (instrumented)
-                    _t_api = time.time()
-                    expiry_date = providers.resolve_expiry(index_symbol, expiry_rule)
-                    if metrics and hasattr(metrics, 'mark_api_call'):
-                        metrics.mark_api_call(success=bool(expiry_date), latency_ms=(time.time()-_t_api)*1000.0)
-                    if not concise_mode:
-                        logger.info(f"{index_symbol} {expiry_rule} expiry resolved to: {expiry_date}")
-                    else:
-                        logger.debug(f"{index_symbol} {expiry_rule} expiry resolved to: {expiry_date}")
-                    
-                    # Calculate strikes to collect
-                    strikes_otm = effective_strikes_otm
-                    strikes_itm = effective_strikes_itm
-                    
-                    strike_step = 50.0  # Default step
-                    if index_symbol in ['BANKNIFTY', 'SENSEX']:
-                        strike_step = 100.0
-                    
-                    strikes = []
-                    # Add ITM strikes
-                    for i in range(1, strikes_itm + 1):
-                        strikes.append(float(atm_strike - (i * strike_step)))
-                    
-                    # Add ATM strike
-                    strikes.append(float(atm_strike))
-                    
-                    # Add OTM strikes
-                    for i in range(1, strikes_otm + 1):
-                        strikes.append(float(atm_strike + (i * strike_step)))
-                    
-                    # Sort strikes
-                    strikes.sort()
-                    
-                    if not concise_mode:
-                        logger.info(f"Collecting {len(strikes)} strikes for {index_symbol} {expiry_rule}: {strikes}")
-                    else:
-                        logger.debug(f"Collecting {len(strikes)} strikes for {index_symbol} {expiry_rule}")
-                    
-                    # Get option instruments (instrumented)
-                    _t_api = time.time()
-                    instruments = providers.get_option_instruments(index_symbol, expiry_date, strikes)
-                    if metrics and hasattr(metrics, 'mark_api_call'):
-                        metrics.mark_api_call(success=bool(instruments), latency_ms=(time.time()-_t_api)*1000.0)
-                    
-                    if not instruments:
-                        logger.warning(f"No option instruments found for {index_symbol} expiry {expiry_date}")
-                        continue
-                    
-                    # Enrich instruments with quote data (including avg_price) (instrumented)
-                    enrich_start = time.time()
-                    enriched_data = providers.enrich_with_quotes(instruments)
-                    enrich_elapsed = time.time() - enrich_start
-                    if metrics and hasattr(metrics, 'mark_api_call'):
-                        metrics.mark_api_call(success=bool(enriched_data), latency_ms=enrich_elapsed*1000.0)
-                    
-                    if not enriched_data:
-                        logger.warning(f"No quote data available for {index_symbol} expiry {expiry_date}")
-                        continue
-
-                    # --- Data Quality validation and metrics ---
-                    try:
-                        valid_data, dq_issues = data_quality.validate_options_data(enriched_data)
-                        # Basic DQ score: percentage of valid vs total
-                        total_items = len(enriched_data) if isinstance(enriched_data, dict) else 0
-                        score_pct = 100.0
-                        if total_items > 0:
-                            score_pct = max(0.0, min(100.0, (len(valid_data) / total_items) * 100.0))
-                        if metrics:
-                            # Global score (single gauge) and per-index gauge
-                            try:
-                                metrics.data_quality_score.set(score_pct)
-                            except Exception:
-                                pass
-                            try:
-                                if hasattr(metrics, 'index_data_quality_score'):
-                                    metrics.index_data_quality_score.labels(index=index_symbol).set(score_pct)
-                            except Exception:
-                                pass
-                            try:
-                                if dq_issues and hasattr(metrics, 'index_dq_issues_total'):
-                                    metrics.index_dq_issues_total.labels(index=index_symbol).inc(len(dq_issues))
-                            except Exception:
-                                pass
-                        # Replace enriched_data with valid subset for downstream processing/persistence
-                        enriched_data = valid_data or enriched_data
-                    except Exception:
-                        logger.debug("Data quality validation failed", exc_info=True)
-
-                    # --- Optional IV estimation (before greek computation) ---
-                    if local_estimate_iv and greeks_calculator:
-                        try:
-                            spot = float(index_price)
-                            # Solver tuning (defaults if None)
-                            solver_max_iter = iv_max_iterations or 100
-                            solver_min_iv = iv_min if iv_min is not None else 0.01
-                            solver_max_iv = iv_max if iv_max is not None else 5.0
-                            iv_success = iv_fail = total_iter = 0
-                            solver_precision = iv_precision if iv_precision is not None else 1e-5
-                            option_loop_start = time.time()
-                            for symbol, data in enriched_data.items():
-                                try:
-                                    strike = float(data.get('strike') or data.get('strike_price') or 0)
-                                    if strike <= 0 or spot <= 0:
-                                        continue
-                                    opt_type = (data.get('instrument_type') or data.get('type') or '').upper()
-                                    is_call = opt_type == 'CE'
-                                    # Use last traded price if available for IV inversion
-                                    market_price = float(data.get('last_price', 0))
-                                    if market_price <= 0:
-                                        continue
-                                    existing_iv = float(data.get('iv', 0))
-                                    if existing_iv <= 0:
-                                        iv_result = greeks_calculator.implied_volatility(
-                                            is_call=is_call,
-                                            S=spot,
-                                            K=strike,
-                                            T=expiry_date,
-                                            market_price=market_price,
-                                            r=risk_free_rate,
-                                            max_iterations=solver_max_iter,
-                                            precision=solver_precision,
-                                            min_iv=solver_min_iv,
-                                            max_iv=solver_max_iv,
-                                            return_iterations=True
-                                        )
-                                        # Defensive: support legacy float return if refactor missed
-                                        if isinstance(iv_result, tuple):
-                                            iv_est, iters = iv_result
-                                        else:  # pragma: no cover - safety net
-                                            iv_est, iters = iv_result, 0
-                                        if iv_est > 0:
-                                            # Clamp again defensively
-                                            if iv_est < solver_min_iv:
-                                                iv_est = solver_min_iv
-                                            elif iv_est > solver_max_iv:
-                                                iv_est = solver_max_iv
-                                            data['iv'] = iv_est
-                                            iv_success += 1
-                                        else:
-                                            iv_fail += 1
-                                        total_iter += iters
-                                except Exception as iv_e:
-                                    logger.debug(f"IV estimation failed for {symbol}: {iv_e}")
-                            # Optionally could expose metrics here (future metrics task)
-                            if metrics:
-                                try:
-                                    if hasattr(metrics, 'iv_success'):
-                                        if iv_success:
-                                            metrics.iv_success.labels(index=index_symbol, expiry=expiry_rule).inc(iv_success)
-                                        if iv_fail:
-                                            metrics.iv_fail.labels(index=index_symbol, expiry=expiry_rule).inc(iv_fail)
-                                    if hasattr(metrics, 'iv_iterations') and (iv_success + iv_fail) > 0:
-                                        avg_iter = total_iter / (iv_success + iv_fail)
-                                        metrics.iv_iterations.labels(index=index_symbol, expiry=expiry_rule).set(avg_iter)
-                                except Exception:
-                                    logger.debug("Failed updating IV estimation metrics", exc_info=True)
-                        except Exception as iv_batch_e:
-                            logger.error(f"IV estimation batch failed for {index_symbol} {expiry_rule}: {iv_batch_e}")
-
-                    # --- Optional Greek computation (fills iv, delta, gamma, theta, vega, rho if zero/missing) ---
-                    if local_compute_greeks and greeks_calculator:
-                        try:
-                            spot = float(index_price)
-                            # Time to expiry handled by OptionGreeks with date
-                            greeks_start = time.time()
-                            for symbol, data in enriched_data.items():
-                                try:
-                                    strike = float(data.get('strike') or data.get('strike_price') or 0)
-                                    if strike <= 0 or spot <= 0:
-                                        continue
-                                    # Determine option type
-                                    opt_type = data.get('instrument_type') or data.get('type') or ''
-                                    is_call = opt_type.upper() == 'CE'
-                                    # Use provided IV if >0 else fallback guess 0.25
-                                    iv = float(data.get('iv', 0))
-                                    if iv <= 0:
-                                        iv = 0.25
-                                    # Compute greeks
-                                    g = greeks_calculator.black_scholes(
-                                        is_call=is_call,
-                                        S=spot,
-                                        K=strike,
-                                        T=expiry_date,
-                                        sigma=iv,
-                                        r=risk_free_rate
-                                    )
-                                    # Populate fields only if missing or zero
-                                    for k_src, k_dst in [
-                                        ('delta','delta'), ('gamma','gamma'), ('theta','theta'), ('vega','vega'), ('rho','rho')
-                                    ]:
-                                        if float(data.get(k_dst, 0)) == 0:
-                                            data[k_dst] = g.get(k_src, 0)
-                                    # Ensure iv stored (percent) consistent with existing convention (raw fraction OK)
-                                    if float(data.get('iv', 0)) == 0 and iv:
-                                        data['iv'] = iv
-                                except Exception as oge:
-                                    logger.debug(f"Greek calc failed for {symbol}: {oge}")
-                            per_index_option_processing_seconds += (time.time() - greeks_start)
-                        except Exception as gex:
-                            logger.error(f"Greek computation batch failed for {index_symbol} {expiry_rule}: {gex}")
-                    
-                    # Write data to storage with the index price and OHLC
-                    # Use the current timestamp when writing data
-                    collection_time = datetime.datetime.now()  # local-ok
-                    if not concise_mode:
-                        logger.info(f"Writing {len(enriched_data)} records to CSV sink")
-                    else:
-                        logger.debug(f"Writing {len(enriched_data)} records to CSV sink")
-                    metrics_payload = csv_sink.write_options_data(
-                        index_symbol,
-                        expiry_date,
-                        enriched_data,
-                        collection_time,
-                        index_price=index_price,
-                        index_ohlc=index_ohlc,
-                        suppress_overview=True,
-                        return_metrics=True
-                    )
-
-                    # Capture PCR for aggregated snapshot
-                    try:
-                        if metrics_payload:
-                            pcr_snapshot[metrics_payload['expiry_code']] = metrics_payload['pcr']
-                            # Preference: last day_width if non-zero, else keep previous
-                            if metrics_payload.get('day_width', 0):
-                                representative_day_width = metrics_payload['day_width']
-                            # Use earliest collection_time for consistent rounding window
-                            if metrics_payload.get('timestamp') and metrics_payload['timestamp'] < snapshot_base_time:
-                                snapshot_base_time = metrics_payload['timestamp']
-                    except Exception as agg_e:
-                        logger.debug(f"Aggregation capture failed for {index_symbol} {expiry_rule}: {agg_e}")
-                    
-                    # Write to InfluxDB if enabled
-                    if influx_sink:
-                        influx_sink.write_options_data(
-                            index_symbol, 
-                            expiry_date,
-                            enriched_data,
-                            collection_time
-                        )
-                    
-                    # Update metrics
-                    if metrics:
-                        try:
-                            # Count options collected
-                            metrics.options_collected.labels(index=index_symbol, expiry=expiry_rule).set(len(enriched_data))
-                            per_index_option_count += len(enriched_data)
-                            # Increment global processed counter
-                            metrics.options_processed_total.inc(len(enriched_data))
-                            # Increment per-index cumulative counter
-                            try:
-                                metrics.index_options_processed_total.labels(index=index_symbol).inc(len(enriched_data))
-                            except Exception:
-                                pass
-                        except Exception:
-                            logger.debug(f"Failed options_collected metric for {index_symbol}")
-                        try:
-                            # Update PCR (Put-Call Ratio)
-                            call_oi = sum(float(data.get('oi', 0)) for data in enriched_data.values() if data.get('instrument_type') == 'CE')
-                            put_oi = sum(float(data.get('oi', 0)) for data in enriched_data.values() if data.get('instrument_type') == 'PE')
-                            pcr = put_oi / call_oi if call_oi > 0 else 0
-                            metrics.pcr.labels(index=index_symbol, expiry=expiry_rule).set(pcr)
-                        except Exception:
-                            logger.debug(f"Failed PCR metric for {index_symbol}")
-                        try:
-                            # Per-option metrics (price, volume, OI, IV & Greeks)
-                            for symbol, data in enriched_data.items():
-                                strike_val = data.get('strike') or data.get('strike_price') or 0
-                                opt_type = (data.get('instrument_type') or data.get('type') or '').upper()
-                                if strike_val and opt_type in ('CE','PE'):
-                                    if not allow_per_option_metrics:
-                                        continue
-                                    metrics.option_price.labels(index=index_symbol, expiry=expiry_rule, strike=str(strike_val), type=opt_type).set(float(data.get('last_price', 0) or 0))
-                                    metrics.option_volume.labels(index=index_symbol, expiry=expiry_rule, strike=str(strike_val), type=opt_type).set(float(data.get('volume', 0) or 0))
-                                    metrics.option_oi.labels(index=index_symbol, expiry=expiry_rule, strike=str(strike_val), type=opt_type).set(float(data.get('oi', 0) or 0))
-                                    metrics.option_iv.labels(index=index_symbol, expiry=expiry_rule, strike=str(strike_val), type=opt_type).set(float(data.get('iv', 0) or 0))
-                                    # Greeks only if present (avoid zeros misuse)
-                                    if 'delta' in data:
-                                        metrics.option_delta.labels(index=index_symbol, expiry=expiry_rule, strike=str(strike_val), type=opt_type).set(float(data.get('delta') or 0))
-                                    if 'gamma' in data:
-                                        metrics.option_gamma.labels(index=index_symbol, expiry=expiry_rule, strike=str(strike_val), type=opt_type).set(float(data.get('gamma') or 0))
-                                    if 'theta' in data:
-                                        metrics.option_theta.labels(index=index_symbol, expiry=expiry_rule, strike=str(strike_val), type=opt_type).set(float(data.get('theta') or 0))
-                                    if 'vega' in data:
-                                        metrics.option_vega.labels(index=index_symbol, expiry=expiry_rule, strike=str(strike_val), type=opt_type).set(float(data.get('vega') or 0))
-                                    if 'rho' in data:
-                                        metrics.option_rho.labels(index=index_symbol, expiry=expiry_rule, strike=str(strike_val), type=opt_type).set(float(data.get('rho') or 0))
-                        except Exception:
-                            logger.debug(f"Failed per-option metrics for {index_symbol}", exc_info=True)
-                    
-                    # Log success
-                    if not concise_mode:
-                        logger.info(f"Successfully collected {len(enriched_data)} options for {index_symbol} {expiry_rule}")
-                    else:
-                        logger.debug(f"Collected {len(enriched_data)} options for {index_symbol} {expiry_rule}")
-                    # Capture human row if concise
-                    if concise_mode:
-                        ts_local = datetime.datetime.now().strftime('%H:%M')  # local-ok
-                        price_disp = f"{index_price:.2f}" if isinstance(index_price,(int,float)) else "-"
-                        atm_disp = f"{int(atm_strike)}" if isinstance(atm_strike,(int,float)) else "-"
-                        legs = len(enriched_data)
-                        # CE / PE counts
-                        ce_count = sum(1 for d in enriched_data.values() if (d.get('instrument_type') or d.get('type') or '').upper() == 'CE')
-                        pe_count = sum(1 for d in enriched_data.values() if (d.get('instrument_type') or d.get('type') or '').upper() == 'PE')
-                        # PCR (OI based) fallback to count ratio if OI missing
-                        call_oi = sum(float(d.get('oi', 0)) for d in enriched_data.values() if (d.get('instrument_type') or d.get('type') or '').upper() == 'CE')
-                        put_oi = sum(float(d.get('oi', 0)) for d in enriched_data.values() if (d.get('instrument_type') or d.get('type') or '').upper() == 'PE')
-                        pcr_val = (put_oi / call_oi) if call_oi > 0 else (pe_count / ce_count if ce_count > 0 else 0)
-                        if strikes:
-                            rng_min = int(min(strikes)); rng_max = int(max(strikes))
-                            diffs_f = [int(b-a) for a,b in zip(strikes, strikes[1:]) if b>a]
-                            step_val = min(diffs_f) if diffs_f else 0
-                            rng_disp = f"{rng_min}\u2013{rng_max}"  # en dash
-                        else:
-                            rng_disp = "-"; step_val = 0
-                        tag_map = {'this_week':'This week','next_week':'Next week','this_month':'This month','next_month':'Next month'}
-                        tag = tag_map.get(expiry_rule, expiry_rule) or "-"
-                        human_rows.append((ts_local, price_disp, atm_disp, str(expiry_date), str(tag), str(legs), str(ce_count), str(pe_count), f"{pcr_val:.2f}", rng_disp, str(step_val)))
-                    
-                except Exception as e:
-                    logger.error(f"Error collecting data for {index_symbol} {expiry_rule}: {e}")
-                    per_index_success = False
-                    per_index_failures += 1
-                    if metrics:
-                        try:
-                            metrics.collection_errors.labels(index=index_symbol, error_type='expiry_collection').inc()
-                            metrics.total_errors.inc()
-                            metrics.data_errors.inc()
-                        except Exception:
-                            logger.debug("Failed to increment collection errors metric")
-            
-            # After processing all expiries for this index, write one aggregated overview snapshot
-            try:
-                if pcr_snapshot:
-                    csv_sink.write_overview_snapshot(index_symbol, pcr_snapshot, snapshot_base_time, representative_day_width, expected_expiries=expected_expiries)
-                    if influx_sink:
-                        try:
-                            influx_sink.write_overview_snapshot(index_symbol, pcr_snapshot, snapshot_base_time, representative_day_width, expected_expiries=expected_expiries)
-                        except Exception as ie:
-                            logger.debug(f"Influx overview snapshot failed for {index_symbol}: {ie}")
-            except Exception as snap_e:
-                logger.error(f"Failed to write aggregated overview snapshot for {index_symbol}: {snap_e}")
-
-            # Per-index aggregate metrics + structured stream log
-            if metrics:
-                try:
-                    elapsed_index = time.time() - per_index_start
-                    if per_index_option_count > 0:
-                        metrics.index_options_processed.labels(index=index_symbol).set(per_index_option_count)
-                        metrics.index_avg_processing_time.labels(index=index_symbol).set(per_index_option_processing_seconds / max(per_index_option_count,1))
-                        # Populate internal per-index last cycle options map for runtime status file
-                        try:
-                            if hasattr(metrics, '_per_index_last_cycle_options'):
-                                metrics._per_index_last_cycle_options[index_symbol] = per_index_option_count
-                        except Exception:
-                            pass
-                    else:
-                        # Soft failure condition: zero options gathered across all expiries counted as failure increment for visibility
-                        try:
-                            metrics.collection_errors.labels(index=index_symbol, error_type='no_options').inc()
-                        except Exception:
-                            pass
-                    metrics.index_last_collection_unixtime.labels(index=index_symbol).set(int(time.time()))
-                    metrics.index_current_atm.labels(index=index_symbol).set(float(atm_strike))
-                    # Principled per-cycle success using attempts/failures
-                    try:
-                        metrics.mark_index_cycle(index=index_symbol, attempts=per_index_attempts, failures=per_index_failures)
-                    except Exception:
-                        # fallback legacy behavior
-                        rate = 100.0 if per_index_success else 0.0
-                        metrics.index_success_rate.labels(index=index_symbol).set(rate)
-                except Exception:
-                    logger.debug(f"Failed index aggregate metrics for {index_symbol}")
-            try:
-                last_age = 0.0  # we just collected
-                pcr_val = None
-                try:
-                    if pcr_snapshot:
-                        # choose deterministic first key
-                        first_key = sorted(pcr_snapshot.keys())[0]
-                        pcr_val = pcr_snapshot[first_key]
-                except Exception:
-                    pass
-                status = 'ok' if per_index_option_count > 0 and per_index_failures == 0 else 'warn' if per_index_option_count > 0 else 'bad'
-                line = format_index(
-                    index=index_symbol,
-                    legs=per_index_option_count,
-                    legs_avg=None,
-                    legs_cum=None,
-                    succ_pct=None,  # cycle success emitted only after mark_index_cycle; could enrich later
-                    succ_avg_pct=None,
-                    attempts=per_index_attempts,
-                    failures=per_index_failures,
-                    last_age_s=last_age,
-                    pcr=pcr_val,
-                    atm=atm_strike if isinstance(atm_strike,(int,float)) else None,
-                    err=None if per_index_failures==0 else 'fail',
-                    status=status
-                )
-                if concise_mode:
-                    logger.debug(line)
-                else:
-                    logger.info(line)
-                if concise_mode:
-                    block_lines = [
-                        "-------------------------",
-                        f"INDEX: {index_symbol}",
-                        "-------------------------",
-                        # Aligned header with added columns
-                        "Time   Price     ATM   Expiry      Tag         Legs  CE   PE   PCR   Range          Step",
-                        "-------------------------------------------------------------------------------",
-                    ]
-                    for (t, price_disp, atm_disp, exp_str, tag, legs, ce_c, pe_c, pcr_v, rng_disp, step_v) in human_rows:
-                        block_lines.append(f"{t:<6} {price_disp:>8} {atm_disp:>6} {exp_str:<11} {tag:<11} {legs:>4} {ce_c:>3} {pe_c:>3} {pcr_v:>5} {rng_disp:<14} {step_v:>4}")
-                    block_lines.append("-------------------------------------------------------------------------------")
-                    block_lines.append(f"{index_symbol} TOTAL LEGS: {per_index_option_count} | FAILS: {per_index_failures} | STATUS: {status.upper()}")
-                    human_blocks.append("\n".join(block_lines))
-                    overall_legs_total += per_index_option_count
-                    overall_fail_total += per_index_failures
-            except Exception:
-                logger.debug("Failed to emit index stream line", exc_info=True)
-            # Sample tracemalloc between indices when enabled
-            try:
-                if mem_tracer and mem_tracer.enabled:
-                    mem_tracer.sample(metrics=metrics)
-            except Exception:
-                logger.debug("Memory tracer sample failed (per-index)", exc_info=True)
-        except Exception as e:
-            logger.error(f"Error processing index {index_symbol}: {e}")
+                legs = int(_res.get('overall_legs', 0) or 0)
+                # Initialize per-index tracking map if missing
+                if not hasattr(metrics, '_per_index_last_cycle_options'):
+                    setattr(metrics, '_per_index_last_cycle_options', {})
+                per_map = getattr(metrics, '_per_index_last_cycle_options')
+                if isinstance(per_map, dict):
+                    per_map[index_symbol] = legs
+        except Exception:
+            logger.debug('metrics_per_index_option_accumulate_failed', exc_info=True)
     
     # Update collection time metrics
-    total_elapsed = time.time() - start_cycle_wall  # define early for logging fallback
-    if metrics:
-        try:
-            collection_time = (datetime.datetime.now() - now).total_seconds()  # local-ok
-            metrics.collection_duration.observe(collection_time)
-            metrics.collection_cycles.inc()
-            # Derived helper method marks cycle; supply per-option timing aggregate (sum across indices)
-            try:
-                metrics.mark_cycle(success=True, cycle_seconds=total_elapsed, options_processed=metrics._last_cycle_options or 0, option_processing_seconds=metrics._last_cycle_option_seconds or 0.0)
-            except Exception:
-                # Fallback to direct gauges if helper fails
-                metrics.avg_cycle_time.set(total_elapsed)
-                if total_elapsed > 0:
-                    metrics.cycles_per_hour.set(3600.0 / total_elapsed)
-            # Clear in-progress flag
-            if hasattr(metrics, 'collection_cycle_in_progress'):
+    total_elapsed = time.time() - start_cycle_wall  # cycle duration (seconds)
+    # Set aggregate options processed for cycle summary (sum of legs across indices)
+    try:
+        if metrics:
+            total_legs = overall_legs_total
+            # Fallback if per-index map present: recompute to be safe
+            if hasattr(metrics, '_per_index_last_cycle_options'):
                 try:
-                    metrics.collection_cycle_in_progress.set(0)
+                    m = getattr(metrics, '_per_index_last_cycle_options')
+                    if isinstance(m, dict) and m:
+                        total_legs = sum(int(v or 0) for v in m.values())
                 except Exception:
                     pass
-        except Exception as e:
-            logger.error(f"Failed to update collection metrics: {e}")
-    # Final memory tracer sample at cycle end
-    try:
-        if 'mem_tracer' in locals() and mem_tracer and mem_tracer.enabled:
-            mem_tracer.sample(metrics=metrics)
+            setattr(metrics, '_last_cycle_options', total_legs)
     except Exception:
-        logger.debug("Memory tracer sample failed (cycle-end)", exc_info=True)
+        logger.debug('metrics_total_option_accumulate_failed', exc_info=True)
+    # Emit phase metrics summary
+    with ctx.time_phase('emit_phase_metrics'):
+        try:
+            ctx.emit_phase_metrics()
+        except Exception:
+            logger.debug("Failed emitting phase metrics", exc_info=True)
+        _trace("phase_metrics_emitted")
+    # Emit consolidated phase timing summary line (human-readable)
+    try:
+        ctx.emit_consolidated_log()
+    except Exception:
+        logger.debug("Failed emitting consolidated phase timing log", exc_info=True)
+    _trace("consolidated_log_emitted")
+    if metrics:
+        try:
+            from src.collectors.modules.metrics_updater import finalize_cycle_metrics  # type: ignore
+            finalize_cycle_metrics(
+                metrics,
+                start_cycle_wall=start_cycle_wall,
+                cycle_start_ts=cycle_start_ts,
+                total_elapsed=total_elapsed,
+            )
+        except Exception as e:
+            try:
+                collection_time_elapsed = (utc_now() - cycle_start_ts).total_seconds()
+                metrics.collection_duration.observe(collection_time_elapsed)
+                metrics.collection_cycles.inc()
+                try:
+                    metrics.mark_cycle(success=True, cycle_seconds=total_elapsed, options_processed=metrics._last_cycle_options or 0, option_processing_seconds=metrics._last_cycle_option_seconds or 0.0)
+                except Exception:
+                    metrics.avg_cycle_time.set(total_elapsed)
+                    if total_elapsed > 0:
+                        metrics.cycles_per_hour.set(3600.0 / total_elapsed)
+                if hasattr(metrics, 'collection_cycle_in_progress'):
+                    try: metrics.collection_cycle_in_progress.set(0)
+                    except Exception: pass
+            except Exception as inner:
+                logger.error(f"Failed to update collection metrics: {inner}")
+                _trace("metrics_update_error", error=str(inner))
     # Emit accumulated human summary before structured cycle line
     if concise_mode and human_blocks:
         try:
@@ -691,6 +731,7 @@ def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metri
             logger.info(footer)
         except Exception:
             logger.debug("Failed to emit human summary footer", exc_info=True)
+        _trace("concise_footer_emitted", total_legs=overall_legs_total, total_fails=overall_fail_total)
 
     # Emit cycle line(s) with new mode control: G6_CYCLE_OUTPUT={pretty|raw|both}
     # Precedence rules:
@@ -698,12 +739,13 @@ def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metri
     # 2. Else use G6_CYCLE_OUTPUT value (default 'pretty')
     # 3. Values: 'pretty' => only human table (header+row) line(s); 'raw' => only machine CYCLE line; 'both' => both.
     try:
-        from src.logstream.formatter import format_cycle, format_cycle_pretty, format_cycle_table
+        from src.logstream.formatter import format_cycle, format_cycle_pretty, format_cycle_table, format_cycle_readable
         import os as _os_env
         legacy_disable = _os_env.environ.get('G6_DISABLE_PRETTY_CYCLE', '0').lower() in ('1','true','yes','on')
         mode = 'raw' if legacy_disable else _os_env.environ.get('G6_CYCLE_OUTPUT', 'pretty').strip().lower()
         if mode not in ('pretty','raw','both'):
             mode = 'pretty'
+        cycle_style = _os_env.environ.get('G6_CYCLE_STYLE','legacy').strip().lower()  # legacy | readable
 
         opts_total = getattr(metrics, '_last_cycle_options', 0) if metrics else 0
         opts_per_min = None
@@ -739,18 +781,32 @@ def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metri
         pretty_line = None
         if mode in ('raw','both'):
             try:
-                raw_line = format_cycle(
-                    duration_s=total_elapsed,
-                    options=opts_total or 0,
-                    options_per_min=opts_per_min,
-                    cpu=cpu,
-                    mem_mb=mem_mb,
-                    api_latency_ms=api_ms,
-                    api_success_pct=api_succ,
-                    collection_success_pct=coll_succ,
-                    indices=len(index_params or {}),
-                    stall_flag=None
-                )
+                if cycle_style == 'readable':
+                    raw_line = format_cycle_readable(
+                        duration_s=total_elapsed,
+                        options=opts_total or 0,
+                        options_per_min=opts_per_min,
+                        cpu=cpu,
+                        mem_mb=mem_mb,
+                        api_latency_ms=api_ms,
+                        api_success_pct=api_succ,
+                        collection_success_pct=coll_succ,
+                        indices=len(index_params or {}),
+                        stall_flag=None
+                    )
+                else:
+                    raw_line = format_cycle(
+                        duration_s=total_elapsed,
+                        options=opts_total or 0,
+                        options_per_min=opts_per_min,
+                        cpu=cpu,
+                        mem_mb=mem_mb,
+                        api_latency_ms=api_ms,
+                        api_success_pct=api_succ,
+                        collection_success_pct=coll_succ,
+                        indices=len(index_params or {}),
+                        stall_flag=None
+                    )
             except Exception:
                 logger.debug("Failed to format raw cycle line", exc_info=True)
         if mode in ('pretty','both') and not legacy_disable:
@@ -778,10 +834,154 @@ def run_unified_collectors(index_params, providers, csv_sink, influx_sink, metri
                 logger.info(raw_line)
         except Exception:
             logger.debug("Failed to emit raw cycle line", exc_info=True)
+        _trace("cycle_raw_emitted", have_raw=bool(raw_line))
         try:
             if pretty_line:
                 logger.info(pretty_line)
         except Exception:
             logger.debug("Failed to emit pretty cycle summary", exc_info=True)
+        _trace("cycle_pretty_emitted", have_pretty=bool(pretty_line))
     except Exception:
         logger.debug("Failed to emit cycle line(s)", exc_info=True)
+    # Optional heartbeat
+    try:
+        _maybe_emit_heartbeat(metrics)
+    except Exception:
+        logger.debug('heartbeat_invoke_failed', exc_info=True)
+        _trace("cycle_emit_error")
+
+    # Auto-disable noisy trace flags after first successful cycle if enabled
+    global _TRACE_AUTO_DISABLED  # pragma: no cover (simple control logic)
+    if not _TRACE_AUTO_DISABLED and os.getenv('G6_TRACE_AUTO_DISABLE','').lower() in {'1','true','yes','on'}:
+        noisy_flags = [
+            'G6_TRACE_COLLECTOR',
+            'G6_TRACE_EXPIRY_SELECTION',
+            'G6_TRACE_EXPIRY_PIPELINE',
+            'G6_CSV_VERBOSE',
+        ]
+        disabled = []
+        for flag in noisy_flags:
+            val = os.environ.get(flag,'').lower()
+            if val in {'1','true','yes','on'}:
+                os.environ[flag] = '0'
+                disabled.append(flag)
+        if disabled:
+            logger.info("trace_auto_disable: disabled %s", ','.join(disabled))
+        else:
+            logger.info("trace_auto_disable: no active trace flags to disable")
+        _TRACE_AUTO_DISABLED = True
+
+    # Structured return object (backward compatible: callers ignoring return unaffected).
+    try:
+        # Emit cycle_status_summary structured event before returning (observability enhancement)
+        try:
+            _emit_cycle_status_summary(
+                cycle_ts=int(time.time()),
+                duration_s=total_elapsed,
+                indices=indices_struct,
+                index_count=len(indices_struct),
+                include_reason_totals=True,
+            )
+        except Exception:
+            logger.debug("cycle_status_summary_emit_failed", exc_info=True)
+        # Phase 5: Benchmark / Anomaly persistence extracted to modules.benchmark_bridge
+        try:
+            from src.collectors.modules.benchmark_bridge import write_benchmark_artifact  # type: ignore
+            # Provide detector function if available
+            detector_fn = _detect_anomalies if _detect_anomalies else None
+            write_benchmark_artifact(indices_struct, total_elapsed, ctx, metrics, detector_fn)
+        except Exception:
+            logger.debug("benchmark_bridge_failed", exc_info=True)
+        # Build snapshot summary (Phase 7 extraction cleanup – fallback removed) + Phase 9 alert aggregation
+        from src.collectors.modules.snapshot_core import build_snapshot  # type: ignore
+        try:
+            from src.collectors.modules.alerts_core import aggregate_alerts  # type: ignore
+            _alert_summary = aggregate_alerts(indices_struct)
+        except Exception:
+            logger.debug('legacy_alert_aggregation_failed', exc_info=True)
+            _alert_summary = None
+        snap_summary = build_snapshot(indices_struct, len(index_params or {}), metrics, build_reason_totals=True)
+        partial_reason_totals = snap_summary.partial_reason_totals
+        # Phase 0 parity snapshot write (debug mode) BEFORE returning (extracted to persistence_io)
+        # Removed refactor_debug parity snapshot emission
+        snapshot_summary = snap_summary.to_dict() if snap_summary else None
+        if snapshot_summary is not None and _alert_summary is not None:
+            try:
+                summary_alerts = _alert_summary.to_dict()
+                alerts_block = {
+                    'total': summary_alerts.get('alerts_total', 0),
+                    'categories': summary_alerts.get('alerts', {}),
+                    'index_triggers': summary_alerts.get('alerts_index_triggers', {}),
+                }
+                snapshot_summary['alerts'] = alerts_block
+                if os.environ.get('G6_ALERTS_FLAT_COMPAT','1').lower() in ('1','true','yes','on'):
+                    snapshot_summary['alerts_total'] = alerts_block['total']
+                    for k, v in alerts_block['categories'].items():
+                        snapshot_summary[f'alert_{k}'] = v
+            except Exception:
+                logger.debug('legacy_alert_snapshot_merge_failed', exc_info=True)
+        ret_obj = {
+            'status': 'ok',
+            'indices_processed': len(index_params or {}),
+            'have_raw': True,
+            'snapshots': snapshots_accum if build_snapshots else None,
+            'snapshot_count': len(snapshots_accum) if build_snapshots else 0,
+            'indices': indices_struct,
+            'partial_reason_totals': partial_reason_totals,
+            'snapshot_summary': snapshot_summary,
+        }
+        # Phase 10 operational metrics (legacy path) – best-effort
+        try:
+            if metrics is not None:
+                from prometheus_client import Histogram as _H, Summary as _S, Counter as _C  # type: ignore
+                cycle_elapsed = total_elapsed
+                if not hasattr(metrics, 'legacy_cycle_duration_seconds'):
+                    try: metrics.legacy_cycle_duration_seconds = _H('g6_legacy_cycle_duration_seconds','Legacy collectors cycle duration seconds', buckets=(0.1,0.25,0.5,1,2,5,10))  # type: ignore[attr-defined]
+                    except Exception: pass
+                if not hasattr(metrics, 'legacy_cycle_duration_summary'):
+                    try: metrics.legacy_cycle_duration_summary = _S('g6_legacy_cycle_duration_summary','Legacy collectors cycle duration summary')  # type: ignore[attr-defined]
+                    except Exception: pass
+                h = getattr(metrics,'legacy_cycle_duration_seconds',None); s = getattr(metrics,'legacy_cycle_duration_summary',None)
+                if h:
+                    try: h.observe(cycle_elapsed)
+                    except Exception: pass
+                if s:
+                    try: s.observe(cycle_elapsed)
+                    except Exception: pass
+                # Alert counters (flat or nested)
+                alerts_block = None
+                if snapshot_summary and 'alerts' in snapshot_summary:
+                    alerts_block = snapshot_summary['alerts']
+                elif snapshot_summary:
+                    # reconstruct from flat fields
+                    cats = {k[len('alert_'):]: v for k,v in snapshot_summary.items() if k.startswith('alert_')}
+                    alerts_block = {'categories': cats, 'total': snapshot_summary.get('alerts_total')}
+                if alerts_block:
+                    for cat, val in (alerts_block.get('categories') or {}).items():
+                        metric_name = f'legacy_alerts_{cat}_total'
+                        if not hasattr(metrics, metric_name):
+                            try: setattr(metrics, metric_name, _C(f'g6_{metric_name}','Count of legacy cycles with occurrences for category'))  # type: ignore[attr-defined]
+                            except Exception: pass
+                        c = getattr(metrics, metric_name, None)
+                        if c and val>0:
+                            try: c.inc(val)
+                            except Exception: pass
+        except Exception:
+            logger.debug('legacy_operational_metrics_failed', exc_info=True)
+        # Shadow diff attachment removed with rollout mode deprecation.
+        # Phase 8: add coverage rollups at index level if not already present
+        try:
+            from src.collectors.modules.coverage_core import compute_index_coverage  # type: ignore
+            for ix in ret_obj['indices']:
+                if 'expiries' in ix and 'strike_coverage_avg' not in ix:
+                    cov_roll = compute_index_coverage(ix.get('index'), ix.get('expiries') or [])
+                    ix['strike_coverage_avg'] = cov_roll.get('strike_coverage_avg')
+                    ix['field_coverage_avg'] = cov_roll.get('field_coverage_avg')
+        except Exception:
+            logger.debug('legacy_coverage_rollup_failed', exc_info=True)
+        return ret_obj
+    except Exception:
+        return {'status': 'ok', 'indices_processed': len(index_params or {}), 'have_raw': True}
+
+    # (Unreachable code path note): The return above exits normally; below retained for clarity.
+

@@ -51,11 +51,26 @@ def build_base_status(indices: List[str], market_open: bool, analytics: bool) ->
             "cycle": 0,
             "last_run": now,
             "next_run_in_sec": 0,
-            "avg_cycle_ms": 0,
+            "avg_cycle_ms": random.randint(500, 1200),  # Simulate realistic cycle times in ms
             "p95_cycle_ms": 0,
+            "last_duration": round(random.uniform(0.5, 1.2), 3),  # Simulate cycle duration in seconds
+            "success_rate": round(random.uniform(88.0, 98.0), 1),  # Simulate success rate percentage
         },
         "indices": {i: {"ltp": 0, "change": 0.0} for i in indices},
-        "indices_detail": {i: {"status": "ok", "ltp": 0, "age_sec": 0} for i in indices},
+        # Seed initial DQ fields so UIs can render a DQ chip immediately
+        "indices_detail": {
+            i: {
+                "status": "ok",
+                "ltp": 0,
+                "age_sec": 0,
+                "legs": random.randint(50, 300),  # Simulate options legs count per index
+                "dq": {
+                    "score_percent": float(random.uniform(85.0, 95.0)),
+                    "issues_total": 0,
+                },
+            }
+            for i in indices
+        },
         "provider": {"name": "sim", "latency_ms": random.randint(20, 80)},
         "health": {"collector": "ok", "sinks": "ok", "provider": "ok"},
         "sinks": {"csv": {"last_write": now}},
@@ -75,6 +90,10 @@ def update_dynamics(state: Dict, indices: List[str], t: int, dt: float):
     state["app"]["uptime_sec"] = state["app"].get("uptime_sec", 0) + dt
     state["loop"]["last_run"] = utc_now_iso()
     state["loop"]["next_run_in_sec"] = max(0, int(round(state["loop"].get("target_interval", 1))))
+    # Update cycle timing metrics with some realistic variation
+    state["loop"]["avg_cycle_ms"] = max(200, int(random.uniform(400, 1200)))
+    state["loop"]["last_duration"] = round(random.uniform(0.4, 1.1), 3)
+    state["loop"]["success_rate"] = round(max(75.0, min(100.0, 92.0 + 5.0 * math.sin(t / 25.0) + random.uniform(-3.0, 3.0))), 1)
     # Oscillate LTPs a bit with noise
     for i in indices:
         base = 20000 if i != "SENSEX" else 70000
@@ -86,6 +105,15 @@ def update_dynamics(state: Dict, indices: List[str], t: int, dt: float):
         state["indices"][i]["change"] = round(change, 2)
         state["indices_detail"][i]["ltp"] = round(ltp, 2)
         state["indices_detail"][i]["age_sec"] = random.randint(0, 5)
+        # Update legs count with some variation (simulate changing option contracts)
+        state["indices_detail"][i]["legs"] = max(20, int(state["indices_detail"][i].get("legs", 100) + random.randint(-5, 10)))
+        # Simulated per-index data quality fields: score oscillates and issues are sporadic
+        try:
+            dq_score = max(50.0, min(100.0, 85.0 + 10.0 * math.sin((t + hash(i) % 7) / 10.0) + random.uniform(-2.0, 2.0)))
+            dq_issues = 0 if dq_score >= 80.0 else random.randint(1, 4)
+            state["indices_detail"][i]["dq"] = {"score_percent": round(float(dq_score), 2), "issues_total": int(dq_issues)}
+        except Exception:
+            pass
     # Provider latency wiggle
     state["provider"]["latency_ms"] = max(5, int(abs(50 + 30 * math.sin(t / 20.0) + random.uniform(-10, 10))))
     # Resources noise
@@ -94,7 +122,7 @@ def update_dynamics(state: Dict, indices: List[str], t: int, dt: float):
 
 
 
-def _atomic_replace(src: Path, dst: Path, *, retries: int = 20, delay: float = 0.05) -> None:
+def _atomic_replace(src: Path, dst: Path, *, retries: int = 20, delay: float = 0.05, payload: str | None = None) -> None:
     """Attempt an atomic replace with retries (Windows-friendly).
 
     On Windows, replacing a file that is opened by another process (even for reading)
@@ -115,22 +143,57 @@ def _atomic_replace(src: Path, dst: Path, *, retries: int = 20, delay: float = 0
             # If destination is missing or other transient issues, retry a bit
             last_err = e
             _time.sleep(delay)
-    # Final attempt (raise if still failing)
-    _os.replace(src, dst)
+    # Final attempt with graceful fallback to non-atomic write on Windows
+    try:
+        _os.replace(src, dst)
+        return
+    except Exception as e:
+        last_err = e
+    # Non-atomic fallback: copy contents from tmp to dst (best-effort)
+    try:
+        contents: str
+        if src.exists():
+            try:
+                with src.open("r", encoding="utf-8") as rf:
+                    contents = rf.read()
+            except FileNotFoundError:
+                # The file existed but vanished between exists() and open(); use payload if available
+                if payload is not None:
+                    contents = payload
+                else:
+                    raise last_err  # type: ignore[misc]
+        elif payload is not None:
+            # If temp file vanished (rare race on Windows), use the already-serialized payload
+            contents = payload
+        else:
+            # Nothing we can do; re-raise below
+            raise last_err  # type: ignore[misc]
+        with dst.open("w", encoding="utf-8") as wf:
+            wf.write(contents)
+            try:
+                wf.flush()
+                _os.fsync(wf.fileno())
+            except Exception:
+                pass
+        return
+    except Exception:
+        # If even fallback fails, re-raise the last replace error
+        raise last_err
 
 
 def write_status(path: Path, state: Dict):
     tmp = path.with_suffix(path.suffix + ".tmp")
     path.parent.mkdir(parents=True, exist_ok=True)
     # Write and flush to disk before replace
+    serialized = json.dumps(state, indent=2)
     with tmp.open("w", encoding="utf-8") as f:
-        json.dump(state, f, indent=2)
+        f.write(serialized)
         try:
             f.flush()
             os.fsync(f.fileno())
         except Exception:
             pass
-    _atomic_replace(tmp, path)
+    _atomic_replace(tmp, path, payload=serialized)
 
 
 

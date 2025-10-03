@@ -14,6 +14,7 @@ import json
 from typing import Dict, Any, List, Optional, Callable
 
 logger = logging.getLogger(__name__)
+from src.error_handling import get_error_handler, ErrorCategory, ErrorSeverity
 
 class HealthMonitor:
     """System health monitoring for G6 Platform."""
@@ -51,9 +52,10 @@ class HealthMonitor:
             'last_check': None,
             'status': 'unknown'
         }
-        # Log registration (always INFO, green)
-        status_line = f"Registered component for health monitoring: {name}"
-        self.logger.info(colorize(status_line, FG_GREEN, bold=False))
+        # Log registration at DEBUG to avoid noisy startup
+        self.logger.debug(
+            colorize(f"Registered component for health monitoring: {name}", FG_GREEN, bold=False)
+        )
     
     def register_health_check(self, name: str, check_fn: Callable[[], Dict[str, Any]]):
         """
@@ -69,8 +71,8 @@ class HealthMonitor:
             'last_check': None,
             'status': 'unknown'
         })
-        # Log registration
-        self.logger.info(colorize(f"Registered health check: {name}", FG_GREEN, bold=False))
+        # Log registration at DEBUG to avoid noisy startup
+        self.logger.debug(colorize(f"Registered health check: {name}", FG_GREEN, bold=False))
     
     def start(self):
         """Start health monitoring thread."""
@@ -81,7 +83,14 @@ class HealthMonitor:
         self.monitor_thread = threading.Thread(target=self._monitor_loop)
         self.monitor_thread.daemon = True
         self.monitor_thread.start()
-        self.logger.info(colorize(f"Health monitoring started with {len(self.components)} components", FG_GREEN, bold=False))
+        # Start message at DEBUG to reduce chatter; banner will summarize health
+        self.logger.debug(
+            colorize(
+                f"Health monitoring started with {len(self.components)} components",
+                FG_GREEN,
+                bold=False,
+            )
+        )
     
     def stop(self):
         """Stop health monitoring thread."""
@@ -98,6 +107,18 @@ class HealthMonitor:
                 self._run_health_checks()
                 self._save_health_status()
             except Exception as e:
+                # Route monitoring loop errors centrally (INITIALIZATION/RESOURCE)
+                try:
+                    get_error_handler().handle_error(
+                        e,
+                        category=ErrorCategory.RESOURCE,
+                        severity=ErrorSeverity.MEDIUM,
+                        component="health.monitor",
+                        function_name="_monitor_loop",
+                        message="Error in health monitoring loop",
+                    )
+                except Exception:
+                    pass
                 self.logger.error(f"Error in health monitoring: {e}")
                 
             # Sleep until next check
@@ -129,10 +150,22 @@ class HealthMonitor:
                     # Unhealthy -> red WARNING
                     self.logger.warning(colorize(f"Component {name} health check: {status} - {message}", FG_RED, bold=True))
                 else:
-                    # Healthy -> green INFO (explicit requirement to print pass info)
-                    self.logger.info(colorize(f"Component {name} health check: {status}", FG_GREEN, bold=False))
+                    # Healthy -> DEBUG (reduce normal noise); warnings stay INFO/ERROR paths
+                    self.logger.debug(colorize(f"Component {name} health check: {status}", FG_GREEN, bold=False))
                     
             except Exception as e:
+                try:
+                    get_error_handler().handle_error(
+                        e,
+                        category=ErrorCategory.RESOURCE,
+                        severity=ErrorSeverity.MEDIUM,
+                        component="health.monitor",
+                        function_name="_check_all_components",
+                        message=f"Error checking component {name}",
+                        context={"component": name},
+                    )
+                except Exception:
+                    pass
                 self.logger.error(f"Error checking component {name}: {e}")
                 self.components[name]['last_check'] = datetime.datetime.now()  # local-ok
                 self.components[name]['status'] = 'error'
@@ -156,9 +189,22 @@ class HealthMonitor:
                 if check['status'] != 'healthy':
                     self.logger.warning(colorize(f"Health check {check['name']}: {check['status']} - {check['message']}", FG_RED, bold=True))
                 else:
-                    self.logger.info(colorize(f"Health check {check['name']}: healthy", FG_GREEN, bold=False))
+                    # Downgrade healthy pass logs to DEBUG
+                    self.logger.debug(colorize(f"Health check {check['name']}: healthy", FG_GREEN, bold=False))
                 
             except Exception as e:
+                try:
+                    get_error_handler().handle_error(
+                        e,
+                        category=ErrorCategory.RESOURCE,
+                        severity=ErrorSeverity.MEDIUM,
+                        component="health.monitor",
+                        function_name="_run_health_checks",
+                        message=f"Error in health check {check['name']}",
+                        context={"check": check['name']},
+                    )
+                except Exception:
+                    pass
                 self.logger.error(f"Error in health check {check['name']}: {e}")
                 check['last_check'] = datetime.datetime.now()  # local-ok
                 check['status'] = 'error'
@@ -201,6 +247,18 @@ class HealthMonitor:
             with open(health_file, 'w') as f:
                 json.dump(status, f, indent=2)
         except Exception as e:
+            try:
+                get_error_handler().handle_error(
+                    e,
+                    category=ErrorCategory.FILE_IO,
+                    severity=ErrorSeverity.MEDIUM,
+                    component="health.monitor",
+                    function_name="_save_health_status",
+                    message="Error saving health status",
+                    context={"path": health_file},
+                )
+            except Exception:
+                pass
             self.logger.error(f"Error saving health status: {e}")
         
         # Update last status

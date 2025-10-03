@@ -1,4 +1,25 @@
 groups:
+  - name: g6_health_score.rules
+    interval: 30s
+    rules:
+      # Aggregated platform health score (0-1). Component weights:
+      #   Errors inverse (recent error rate).............25%
+      #   API success rate (percent/100)................25%
+      #   Collection success rate (percent/100).........20%
+      #   Backlog headroom (1 - utilization)............15%
+      #   Need_full absence (1 - need_full_active)......15%
+      # Formula mirrors the Grafana inline expression previously used; now centralized.
+      - record: g6:aggregated_health_score
+        expr: |
+          (
+            (1 - clamp_max(sum(rate(g6_total_errors_total[5m])) / 5, 1)) * 0.25
+            + (clamp_max(g6_api_success_rate_percent / 100, 1)) * 0.25
+            + (clamp_max(g6_collection_success_rate_percent / 100, 1)) * 0.20
+            + (1 - clamp_max(g6_events_backlog_current / clamp_min(g6_events_backlog_highwater,1), 1)) * 0.15
+            + (1 - clamp_max(g6_events_need_full_active, 1)) * 0.15
+          )
+        labels:
+          job: g6_platform
   - name: g6_memory_pressure.rules
     interval: 15s
     rules:
@@ -43,3 +64,229 @@ groups:
         expr: g6_memory_per_option_metrics_enabled
         labels:
           job: g6_platform
+  - name: g6_overlay_quality.alerts
+    interval: 30s
+    rules:
+      - alert: G6OverlayCriticalIssues
+        expr: max by (index) (g6_overlay_quality_last_run_critical) > 0
+        for: 2m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Overlay critical issues present"
+          description: |-
+            Index {{ $labels.index }} has {{ $value }} critical overlay quality issue(s) in the last run.
+            Investigate EOD overlay generation and data inputs.
+  - name: g6_events_stream.rules
+    interval: 30s
+    rules:
+      # Panel diff write savings ratio (requires both diff and full bytes)
+      - record: g6_panel_diff_bytes_5m
+        expr: sum(rate(g6_panel_diff_bytes_total{type="diff"}[5m]))
+      - record: g6_panel_full_bytes_5m
+        expr: sum(rate(g6_panel_diff_bytes_total{type="full"}[5m]))
+      - record: g6_panel_diff_write_savings_ratio
+        expr: 1 - (g6_panel_diff_bytes_5m / clamp_min(g6_panel_full_bytes_5m, 1))
+        labels:
+          job: g6_platform
+      # Events backlog utilization (needs manual max config; expose as ratio if max exported later)
+      - record: g6_events_backlog_highwater_ratio
+        expr: clamp_max(g6_events_backlog_current / clamp_min(g6_events_backlog_highwater,1), 1)
+        labels:
+          job: g6_platform
+      # Dropped diffs (generation mismatch) 10m velocity
+      - record: g6_events_dropped_generation_mismatch_10m
+        expr: sum(increase(g6_events_dropped_total{reason="generation_mismatch"}[10m]))
+      # Need-full episodes 30m velocity
+      - record: g6_events_need_full_episodes_30m
+        expr: increase(g6_events_need_full_episodes_total[30m])
+      # Recovery attempts 30m velocity
+      - record: g6_events_full_recovery_30m
+        expr: increase(g6_events_full_recovery_total[30m])
+  - name: g6_events_stream.alerts
+    interval: 30s
+    rules:
+      - alert: G6EventsDroppedDiffs
+        expr: g6_events_dropped_generation_mismatch_10m > 5
+        for: 10m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Sustained diff generation mismatches"
+          description: |-
+            {{ $value }} panel diffs dropped (generation mismatch) over 10m. Check for missing full snapshots or ordering issues.
+      - alert: G6EventsGenerationStagnation
+        expr: (time() - max_over_time(g6_events_generation[15m])) > 900 and sum(rate(g6_events_published_total{type="panel_diff"}[15m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+          team: g6
+        annotations:
+          summary: "Panel generation stagnated while diffs flowing"
+          description: |-
+            No panel_full generation advance in >15m but diffs continue. Clients may accumulate dropped diffs.
+      - alert: G6EventsNeedFullActive
+        expr: max_over_time(g6_events_need_full_active[5m]) == 1
+        for: 5m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Client need_full state persisting"
+          description: |-
+            Summary client has remained in degraded (need_full) state for >5m. Investigate missing forced baseline.
+      - alert: G6EventsRecoverySpike
+        expr: g6_events_full_recovery_30m > 3
+        for: 5m
+        labels:
+            severity: info
+            team: g6
+        annotations:
+          summary: "Recovery attempt spike"
+          description: |-
+            {{ $value }} forced baseline recoveries in 30m window. Potential systemic diff rejection.
+      - alert: G6EventsNeedFullFlapping
+        expr: g6_events_need_full_episodes_30m > 5
+        for: 10m
+        labels:
+          severity: info
+          team: g6
+        annotations:
+          summary: "Need_full flapping episodes"
+          description: |-
+            {{ $value }} need_full episodes in 30m (frequent degrade/recover cycle). Review SSE ordering & snapshot cadence.
+  - name: g6_health_score.alerts
+    interval: 30s
+    rules:
+      - alert: G6HealthScoreDegraded
+        expr: g6:aggregated_health_score < 0.85
+        for: 10m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Aggregated health score degraded (<0.85)"
+          description: |-
+            Health score {{ $value | printf "%.2f" }} below warning threshold for >10m.
+            Components (weights): errors inverse 25%, API success 25%, collection success 20%, backlog headroom 15%, need_full absence 15%.
+            Triage: 1) Check recent error spikes (g6_total_errors_total). 2) Inspect API & collection success rates. 3) Examine backlog utilization & need_full state.
+      - alert: G6HealthScoreCritical
+        expr: g6:aggregated_health_score < 0.70
+        for: 5m
+        labels:
+          severity: critical
+          team: g6
+        annotations:
+          summary: "Aggregated health score CRITICAL (<0.70)"
+          description: |-
+            Health score {{ $value | printf "%.2f" }} below critical threshold for >5m.
+            Immediate action required. Likely multiple degradations: sustained errors OR low success rates plus backlog pressure / need_full active.
+            Runbook: validate SSE stream continuity, force baseline if needed, inspect provider/API error logs, confirm memory pressure not causing cascading impact.
+  - name: g6_events_latency.rules
+    interval: 30s
+    rules:
+      # Market session open flag (ensure job label & future flexibility)
+      - record: g6_market_session_open_flag
+        expr: g6_market_session_open
+        labels:
+          job: g6_platform
+      # Freshness (age) of last full snapshot; useful for detecting stalled full baselines.
+      - record: g6_events_last_full_age_seconds
+        expr: time() - g6_events_last_full_unixtime
+        labels:
+          job: g6_platform
+      # Histogram quantiles over 5m (publish -> client apply latency) per event type.
+      - record: g6:panel_event_latency_p50_seconds
+        expr: histogram_quantile(0.50, sum(rate(g6_panel_event_latency_seconds_bucket[5m])) by (le,type))
+        labels:
+          job: g6_platform
+      - record: g6:panel_event_latency_p95_seconds
+        expr: histogram_quantile(0.95, sum(rate(g6_panel_event_latency_seconds_bucket[5m])) by (le,type))
+        labels:
+          job: g6_platform
+      - record: g6:panel_event_latency_p99_seconds
+        expr: histogram_quantile(0.99, sum(rate(g6_panel_event_latency_seconds_bucket[5m])) by (le,type))
+        labels:
+          job: g6_platform
+      # Overall (all types combined) latency quantiles (helps single stat panels)
+      - record: g6:panel_event_latency_overall_p95_seconds
+        expr: histogram_quantile(0.95, sum(rate(g6_panel_event_latency_seconds_bucket[5m])) by (le))
+        labels:
+          job: g6_platform
+      # Mean latency approximation: sum(rate(sum)) / sum(rate(count)) per type.
+      - record: g6:panel_event_latency_mean_seconds
+        expr: |
+          sum by (type) (rate(g6_panel_event_latency_seconds_sum[5m]))
+            /
+          clamp_min(sum by (type) (rate(g6_panel_event_latency_seconds_count[5m])), 1e-9)
+        labels:
+          job: g6_platform
+  - name: g6_events_latency.alerts
+    interval: 30s
+    rules:
+      # Full snapshot freshness: warn when no full snapshot for >10m while diffs flowing; critical at 20m.
+      - alert: G6EventsFullSnapshotStaleWarn
+        expr: g6_market_session_open_flag == 1 and g6_events_last_full_age_seconds > 600 and sum(rate(g6_events_published_total{type="panel_diff"}[10m])) > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Full snapshot stale (>10m) while diffs active"
+          description: |-
+            Last panel_full older than 10m (age={{ $value | printf "%.0f" }}s) yet diffs still publishing. Potential risk of diff rejection if baseline drifts. Consider forcing baseline.
+      - alert: G6EventsFullSnapshotStaleCritical
+        expr: g6_market_session_open_flag == 1 and g6_events_last_full_age_seconds > 1200 and sum(rate(g6_events_published_total{type="panel_diff"}[20m])) > 0
+        for: 5m
+        labels:
+          severity: critical
+          team: g6
+        annotations:
+          summary: "Full snapshot VERY stale (>20m)"
+          description: |-
+            No full snapshot in >20m. Immediate action: trigger forced baseline; inspect generation increment path.
+      # Diff latency regression (p95) sustained
+      - alert: G6PanelDiffLatencyHigh
+        expr: g6_market_session_open_flag == 1 and g6:panel_event_latency_p95_seconds{type="panel_diff"} > 0.25
+        for: 10m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Panel diff p95 latency >250ms"
+          description: |-
+            p95 panel_diff end-to-end latency above 250ms for >10m. Investigate network/server saturation or client apply overhead.
+      - alert: G6PanelDiffLatencyCritical
+        expr: g6_market_session_open_flag == 1 and g6:panel_event_latency_p95_seconds{type="panel_diff"} > 0.5
+        for: 10m
+        labels:
+          severity: critical
+          team: g6
+        annotations:
+          summary: "Panel diff p95 latency >500ms"
+          description: |-
+            Sustained p95 >500ms indicates severe degradation. Check backlog, CPU contention, network latency.
+      # Full snapshot larger payload latencies have looser thresholds
+      - alert: G6PanelFullLatencyHigh
+        expr: g6_market_session_open_flag == 1 and g6:panel_event_latency_p95_seconds{type="panel_full"} > 0.75
+        for: 15m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Full snapshot p95 latency >750ms"
+          description: |-
+            Large full snapshot latency sustained. Validate snapshot size growth or serialization overhead.
+      # Overall (merged types) p95 regression to capture broad impact
+      - alert: G6PanelEventOverallLatencyElevated
+        expr: g6_market_session_open_flag == 1 and g6:panel_event_latency_overall_p95_seconds > 0.4
+        for: 10m
+        labels:
+          severity: info
+          team: g6
+        annotations:
+          summary: "Overall panel event p95 latency >400ms"
+          description: |-
+            Broad latency elevation across event types. Cross-check diff vs full breakdown to isolate driver.

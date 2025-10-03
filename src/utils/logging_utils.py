@@ -27,7 +27,18 @@ def setup_logging(level: str = 'INFO', log_file: Optional[str] = None, fmt: str 
     root.setLevel(log_level)
     # Remove existing handlers to avoid duplication on re-init
     for h in root.handlers[:]:
-        root.removeHandler(h)
+        try:
+            root.removeHandler(h)
+            try:
+                h.flush()
+            except Exception:
+                pass
+            try:
+                h.close()
+            except Exception:
+                pass
+        except Exception:
+            pass
 
     # Decide console format precedence: explicit fmt parameter beats env toggles.
     verbose_console_env = os.environ.get('G6_VERBOSE_CONSOLE', '').lower() in ('1','true','yes','on')
@@ -59,12 +70,19 @@ def setup_logging(level: str = 'INFO', log_file: Optional[str] = None, fmt: str 
                 def format(self, record: logging.LogRecord) -> str:  # type: ignore[override]
                     # Use record.created or fall back to time.time() to avoid naive datetime usage
                     import time as _time
+                    # Pull structured context if available
+                    try:
+                        from . import log_context as _lc  # type: ignore
+                        ctx = _lc.get_context()
+                    except Exception:
+                        ctx = {}
                     payload = {
                         'ts': getattr(record, 'created', _time.time()),
                         'level': record.levelname,
                         'logger': record.name,
                         'thread': record.threadName,
                         'msg': record.getMessage(),
+                        'ctx': ctx or None,
                     }
                     if record.exc_info:
                         payload['exc_info'] = self.formatException(record.exc_info)
@@ -80,6 +98,20 @@ def setup_logging(level: str = 'INFO', log_file: Optional[str] = None, fmt: str 
         except Exception:
             console.setFormatter(logging.Formatter(console_fmt))
     else:
+        # Enrich plain text logs with selected context fields by adding a filter
+        class _CtxFilter(logging.Filter):
+            def filter(self, record: logging.LogRecord) -> bool:  # type: ignore[override]
+                try:
+                    from . import log_context as _lc  # type: ignore
+                    ctx = _lc.get_context()
+                    # Expose as attributes for formatters that include them
+                    for k in ("run_id", "component", "cycle", "index", "provider"):
+                        if k in ctx and not hasattr(record, k):
+                            setattr(record, k, ctx[k])
+                except Exception:
+                    pass
+                return True
+        console.addFilter(_CtxFilter())
         console.setFormatter(logging.Formatter(console_fmt))
     try:
         enc = getattr(sys.stdout, 'encoding', '') or ''
@@ -100,17 +132,60 @@ def setup_logging(level: str = 'INFO', log_file: Optional[str] = None, fmt: str 
     if log_file:
         try:
             os.makedirs(os.path.dirname(log_file), exist_ok=True)
-            fh = logging.FileHandler(log_file)
+            fh = logging.FileHandler(log_file, encoding='utf-8')
             fh.setLevel(log_level)
             # Always keep detailed format in file for post-mortem analysis
+            class _FileCtxFilter(logging.Filter):
+                def filter(self, record: logging.LogRecord) -> bool:  # type: ignore[override]
+                    try:
+                        from . import log_context as _lc  # type: ignore
+                        ctx = _lc.get_context()
+                        for k in ("run_id", "component", "cycle", "index", "provider"):
+                            if k in ctx and not hasattr(record, k):
+                                setattr(record, k, ctx[k])
+                    except Exception:
+                        pass
+                    return True
+            fh.addFilter(_FileCtxFilter())
             fh.setFormatter(logging.Formatter(DEFAULT_FORMAT))
             root.addHandler(fh)
         except Exception as e:
             root.error(f"Failed to create log file handler: {e}")
+            try:
+                from src.error_handling import handle_api_error  # late import
+                handle_api_error(e, component="utils.logging_utils", context={"op": "create_file_handler", "path": log_file})
+            except Exception:
+                pass
 
     for name in SUPPRESSED_LOGGERS:
         logging.getLogger(name).setLevel(logging.WARNING)
 
     return root
+
+# Best-effort cleanup of logging handlers at interpreter exit to avoid ResourceWarnings in tests
+try:
+    import atexit
+    @atexit.register
+    def _g6_close_logging_handlers() -> None:
+        # Do not import or call any logging or error-handling code here.
+        # During interpreter shutdown, streams may already be closed; simply
+        # attempt a quiet flush/close and swallow any exceptions.
+        try:
+            root = logging.getLogger()
+            for h in root.handlers[:]:
+                try:
+                    # Some handlers may already have closed streams; ignore errors
+                    h.flush()
+                except Exception:
+                    pass
+                try:
+                    h.close()
+                except Exception:
+                    pass
+        except Exception:
+            # Final safety net: never raise during shutdown
+            pass
+except Exception:
+    pass
 
 __all__ = ["setup_logging"]

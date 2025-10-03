@@ -1,0 +1,14 @@
+{
+  "timestamp": "2025-09-29 07:03:19",
+  "index": "NIFTY",
+  "expiry": "2025-09-30",
+  "expiry_code": "this_month",
+  "index_price": 24648.4,
+  "atm_strike": 24650,
+  "pcr": 0.8149350618902528,
+  "day_width": 158.09999999999854,
+  "data_count": 42,
+  "rounded_timestamp": "29-09-2025 12:33:30",
+  "batched": false,
+  "flushed": true
+}

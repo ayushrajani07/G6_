@@ -1,27 +1,31 @@
 {
   "panel": "indices",
-  "updated_at": "2025-09-18T08:01:08.607405Z",
-  "kind": null,
+  "updated_at": "2025-09-28T18:04:19.025036Z",
+  "kind": "indices",
   "data": {
     "NIFTY": {
-      "legs": null,
-      "fails": null,
-      "status": "OK"
+      "status": "OK",
+      "legs": 281,
+      "dq_score": 89.28,
+      "dq_issues": 0
     },
     "BANKNIFTY": {
-      "legs": null,
-      "fails": null,
-      "status": "OK"
+      "status": "OK",
+      "legs": 84,
+      "dq_score": 86.19,
+      "dq_issues": 0
     },
     "FINNIFTY": {
-      "legs": null,
-      "fails": null,
-      "status": "OK"
+      "status": "OK",
+      "legs": 214,
+      "dq_score": 88.92,
+      "dq_issues": 0
     },
     "SENSEX": {
-      "legs": null,
-      "fails": null,
-      "status": "OK"
+      "status": "OK",
+      "legs": 103,
+      "dq_score": 93.04,
+      "dq_issues": 0
     }
   }
 }

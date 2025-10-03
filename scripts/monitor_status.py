@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Lightweight runtime status monitor.
-Reads the JSON status file emitted by unified_main (when --runtime-status-file is used)
-and prints concise updates when the cycle increments.
+Reads a JSON status file emitted by the orchestrator (or legacy runner) and
+prints concise updates when the cycle increments.
 
 Usage:
   python scripts/monitor_status.py --file data/runtime_status.json --interval 1
@@ -18,7 +18,6 @@ import datetime as dt
 
 try:  # optional pretty output
     from rich.console import Console  # type: ignore
-    from rich.table import Table  # type: ignore
     RICH = True
     console = Console()
 except Exception:  # pragma: no cover
@@ -26,9 +25,11 @@ except Exception:  # pragma: no cover
     console = None  # type: ignore
 
 
+from src.utils.status_reader import get_status_reader
+
 def load_status(path: str):
-    with open(path, 'r') as f:
-        return json.load(f)
+    reader = get_status_reader(path)
+    return reader.get_raw_status()
 
 
 def format_line(data: dict) -> str:
@@ -43,6 +44,11 @@ def format_line(data: dict) -> str:
 
 
 def render_rich(data: dict):  # pragma: no cover - cosmetic
+    if not RICH or console is None:
+        print(format_line(data))
+        return
+    # Import Table lazily to avoid static analysis errors when Rich isn't installed
+    from rich.table import Table  # type: ignore
     table = Table(title="G6 Runtime Status", expand=True)
     table.add_column("Field")
     table.add_column("Value")
@@ -63,13 +69,14 @@ def main():
     ap.add_argument('--rich', action='store_true', help='Force Rich table output each update (if installed)')
     args = ap.parse_args()
 
+    reader = get_status_reader(args.file)
     last_cycle = None
-    if not os.path.exists(args.file):
+    if not reader.exists():
         print(f"Waiting for status file {args.file} ...")
     while True:
         try:
-            data = load_status(args.file)
-            cyc = data.get('cycle')
+            data = reader.get_raw_status()
+            cyc = data.get('cycle') if isinstance(data, dict) else None
             if cyc != last_cycle:
                 last_cycle = cyc
                 if args.rich and RICH:

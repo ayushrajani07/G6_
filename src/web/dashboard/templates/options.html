@@ -1,0 +1,42 @@
+{% extends 'layout.html' %}
+{% block title %}Options Metadata{% endblock %}
+{% block body %}
+<div class="container-fluid p-10">
+  <div class="dash-header">
+    <h1>Options Metadata</h1>
+  </div>
+  <section class="panel">
+    <div class="panel-header"><div class="title">Filesystem Inventory</div></div>
+    <div class="panel-body">
+      {% if fs.indices and fs.indices|length > 0 %}
+      <p>Root: <code>{{ fs.root }}</code></p>
+      <table class="table compact">
+        <thead>
+          <tr>
+            <th>Index</th>
+            <th>Expiry Tags</th>
+            <th>Offsets per Tag</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for idx in fs.indices %}
+          {% set meta = fs.matrix.get(idx) %}
+          <tr>
+            <td>{{ idx }}</td>
+            <td>{{ meta.expiry_tags|join(', ') }}</td>
+            <td>
+              {% for exp, offs in meta.offsets.items() %}
+                <div><strong>{{ exp }}:</strong> {{ offs|join(', ') }}</div>
+              {% endfor %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="placeholder">No data found under <code>{{ fs.root }}</code>. Once your collectors write live CSVs, this page will populate.</div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}

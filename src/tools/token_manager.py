@@ -17,17 +17,8 @@ import webbrowser
 from pathlib import Path
 import subprocess
 import threading
-from typing import Any, Dict, TypedDict, Optional, cast
-try:  # Optional dependency
-    from dotenv import load_dotenv  # type: ignore
-except Exception:  # noqa: BLE001
-    def load_dotenv(*args, **kwargs):  # type: ignore
-        return False
-
-
-# Add this before launching the subprocess
-import sys  # noqa: F401
-import os  # noqa: F401
+from typing import Any, Dict, Mapping, Iterable, Tuple, TypedDict, Optional, cast
+from src.error_handling import handle_api_error, handle_critical_error
 
 # Configure logging
 logging.basicConfig(
@@ -41,14 +32,23 @@ logger = logging.getLogger("token-manager")
 # Suppress Flask development server logs
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
-def load_env_vars():
-    """Load environment variables from .env file."""
+def load_env_vars() -> bool:
+    """Load environment variables from .env file if python-dotenv is available."""
+    try:
+        from dotenv import load_dotenv  # local import to avoid hard dependency
+    except Exception:
+        logger.debug("python-dotenv not installed; skipping .env load")
+        return False
     try:
         load_dotenv()
         logger.info("Environment variables loaded from .env file")
         return True
-    except Exception as e:
-        logger.warning(f"Error loading .env file: {e}")
+    except Exception as e:  # pragma: no cover - defensive
+        try:
+            handle_api_error(e, component="token_manager", context={"op": "load_env"})
+        except Exception:
+            pass
+        logger.warning("Error loading .env file: %s", e)
         return False
 
 class ProfileDict(TypedDict, total=False):
@@ -60,35 +60,80 @@ class SessionDict(TypedDict, total=False):
 
 
 def _to_dict(obj: Any) -> Dict[str, Any]:
-    try:
-        return dict(obj)  # type: ignore[arg-type]
-    except Exception:
-        return {}
+    """Best-effort conversion of arbitrary mapping-like object to dict[str, Any].
+
+    Avoids broad type: ignore usage by normalizing keys to str when possible.
+    """
+    if isinstance(obj, dict):  # fast path retains original dict
+        # Ensure keys are strings; if not, coerce via comprehension
+        if all(isinstance(k, str) for k in obj.keys()):
+            return cast(Dict[str, Any], obj)
+        return {str(k): v for k, v in obj.items()}
+    if isinstance(obj, Mapping):
+        return {str(k): v for k, v in obj.items()}
+    if isinstance(obj, Iterable):  # Treat as sequence of pair-likes
+        try:
+            tentative = dict(cast(Iterable[Tuple[Any, Any]], obj))
+        except Exception:
+            return {}
+        if not tentative:
+            return {}
+        if not all(isinstance(k, str) for k in tentative.keys()):
+            tentative = {str(k): v for k, v in tentative.items()}
+        return tentative
+    return {}
 
 
-def validate_token(api_key, access_token):
-    """Validate current token. Cast responses to dict for type safety."""
+def _kite_validate_token(api_key: str, access_token: str) -> bool:
+    """Legacy Kite-specific validation kept for fallback paths.
+
+    New provider aware paths should prefer provider.validate().
+    """
     if not api_key or not access_token:
         logger.warning("API key or access token is missing")
         return False
-        
-    try:
-        from kiteconnect import KiteConnect
-        
-        # Initialize Kite with the token
+    verbose = os.environ.get("G6_KITE_AUTH_VERBOSE", "").lower() in {"1","true","yes","on"}
+    try:  # defer import so fake provider scenarios don't require kiteconnect
+        from kiteconnect import KiteConnect  # optional dep
+        try:
+            from kiteconnect.exceptions import TokenException  # type: ignore
+        except Exception:  # pragma: no cover - older versions or import shape changes
+            TokenException = Exception  # type: ignore
         kite = KiteConnect(api_key=api_key)
         kite.set_access_token(access_token)
-        
-        # Try a simple API call to validate
-        logger.info("Validating token with a simple API call...")
-        raw = kite.profile()
+        try:
+            raw = kite.profile()
+        except TokenException as te:  # Expected path for stale / invalid token
+            msg = str(te)
+            if not verbose and "Incorrect `api_key` or `access_token`" in msg:
+                # Suppress noisy stack + error handler escalation; this is a normal invalidation event
+                logger.warning("Token invalid (expected case) – %s", msg)
+                return False
+            # Verbose or unexpected message: fall through to generic handler
+            raise
         profile = cast(ProfileDict, _to_dict(raw))
         user_name = profile.get('user_name') or profile.get('userName') or 'Unknown'
-        logger.info(f"Token is valid. Logged in as: {user_name}")
+        logger.info("Token is valid. Logged in as: %s", user_name)
         return True
-        
-    except Exception as e:
-        logger.warning(f"Token validation failed: {e}")
+    except Exception as e:  # noqa: BLE001
+        # Only escalate to generic error handler if verbose or not a common invalid token scenario
+        if verbose:
+            try:
+                handle_api_error(e, component="token_manager", context={"op": "validate_token"})
+            except Exception:
+                pass
+        logger.warning("Token validation failed: %s", e)
+        return False
+
+
+def provider_validate_token(provider, api_key: str, access_token: str) -> bool:
+    """Generic provider validation wrapper with error shielding."""
+    if not api_key or not access_token:
+        return False
+    try:
+        return bool(provider.validate(api_key, access_token))
+    except Exception as e:  # noqa: BLE001
+        logger.warning("Provider '%s' validation error: %s", getattr(provider, 'name', '?'), e)
         return False
 
 def acquire_or_refresh_token(auto_open_browser: bool = True, interactive: bool = True, validate_after: bool = True) -> bool:
@@ -110,23 +155,31 @@ def acquire_or_refresh_token(auto_open_browser: bool = True, interactive: bool =
         logger.error("Missing KITE_API_KEY or KITE_API_SECRET in environment")
         return False
     # Existing token fast path
-    if access_token and validate_token(api_key, access_token):
+    if access_token and _kite_validate_token(api_key, access_token):
         return True
     # Automated browser-based flow
     if auto_open_browser:
         try:
             new_tok = flask_login_server(api_key, api_secret, auto_run_app=False)
-            if new_tok and (not validate_after or validate_token(api_key, new_tok)):
+            if new_tok and (not validate_after or _kite_validate_token(api_key, new_tok)):
                 return True
         except Exception as e:
+            try:
+                handle_api_error(e, component="token_manager", context={"op": "auto_acquire"})
+            except Exception:
+                pass
             logger.warning(f"Automated token acquisition failed: {e}")
     # Interactive guided/manual flow
     if interactive:
         try:
             new_tok = guided_token_refresh(api_key, api_secret, auto_run_app=False)
-            if new_tok and (not validate_after or validate_token(api_key, new_tok)):
+            if new_tok and (not validate_after or _kite_validate_token(api_key, new_tok)):
                 return True
         except Exception as e:
+            try:
+                handle_api_error(e, component="token_manager", context={"op": "guided_refresh"})
+            except Exception:
+                pass
             logger.warning(f"Guided token refresh failed: {e}")
     logger.error("Unable to acquire a valid Kite access token")
     return False
@@ -166,36 +219,41 @@ def update_env_file(key, value):
     # Write back to file
     with open(env_file, "w") as f:
         f.write("\n".join(lines) + "\n")
-    
-    logger.info(f"Updated {key} in {env_file}")
+    # Also update current process environment so subsequent in-process orchestrator
+    # launches without spawning a new process see the
+    # refreshed credential immediately. This was missing earlier and caused the
+    # provider to initialize with a stale/empty token even after a successful
+    # browser login.
+    try:
+        os.environ[key] = value
+    except Exception:
+        pass
+    logger.info(f"Updated {key} in {env_file} (in-memory env refreshed)")
 
 def run_main_application(extra_args: Optional[list[str]] = None):
-    """Run the unified G6 Platform application.
+    """Run the G6 orchestrator loop via the canonical runner script.
 
-    Prefers in-process import of `src.unified_main` for faster startup; falls back
-    to a subprocess invocation if import-time issues arise (keeps isolation when
-    debugging path/env problems).
+    Legacy unified_main fallback removed (2025-09-28). Any attempt to import
+    or invoke it will raise RuntimeError. This function now only dispatches to
+    `scripts/run_orchestrator_loop.py` and returns that process' exit code.
     """
     if extra_args is None:
         extra_args = []
+    orchestrator_script = Path('scripts') / 'run_orchestrator_loop.py'
+    if not orchestrator_script.exists():
+        logger.error("Orchestrator runner script missing: %s. Repository may be incomplete.", orchestrator_script)
+        return 1
+    cmd = [sys.executable, str(orchestrator_script), *extra_args]
     try:
-        logger.info("Starting G6 Unified Platform...")
-        try:
-            from src import unified_main  # type: ignore
-            # Simulate CLI argv for unified_main
-            prev_argv = sys.argv[:]
-            sys.argv = [prev_argv[0], *extra_args]
-            try:
-                return unified_main.main()
-            finally:
-                sys.argv = prev_argv
-        except Exception as imp_err:  # noqa: BLE001
-            logger.warning(f"In-process unified_main launch failed ({imp_err}); falling back to subprocess")
-            cmd = [sys.executable, '-m', 'src.unified_main', *extra_args]
-            result = subprocess.run(cmd)
-            return result.returncode
+        logger.info("Launching orchestrator loop: %s", ' '.join(cmd))
+        result = subprocess.run(cmd)
+        return int(result.returncode)
     except Exception as e:  # noqa: BLE001
-        logger.error(f"Error starting unified main application: {e}")
+        try:
+            handle_critical_error(e, component="token_manager", context={"op": "run_orchestrator"})
+        except Exception:
+            pass
+        logger.error("Failed to launch orchestrator loop: %s", e)
         return 1
 
 def flask_login_server(api_key, api_secret, auto_run_app=True):
@@ -212,10 +270,14 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
     """
     # Flask is required for this method
     try:  # Optional dependency path
-        from flask import Flask, request  # type: ignore
-        from kiteconnect import KiteConnect  # type: ignore
-    except ImportError:
+        from flask import Flask, request  # optional dep
+        from kiteconnect import KiteConnect  # optional dep
+    except ImportError as e:
         logger.error("Flask and/or kiteconnect packages are not installed")
+        try:
+            handle_api_error(e, component="token_manager", context={"op": "import_flask_kite"})
+        except Exception:
+            pass
         print("\nPlease install required packages:")
         print("pip install flask kiteconnect")
         return None
@@ -309,6 +371,10 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
             return html
             
         except Exception as e:
+            try:
+                handle_api_error(e, component="token_manager", context={"op": "exchange_request_token"})
+            except Exception:
+                pass
             logger.error(f"Error exchanging request token: {e}")
             return f"Error: {str(e)}", 500
     
@@ -330,6 +396,10 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
     try:
         login_url = kite.login_url()
     except Exception as e:
+        try:
+            handle_api_error(e, component="token_manager", context={"op": "login_url"})
+        except Exception:
+            pass
         logger.error(f"Unable to generate login URL: {e}")
         return None
     
@@ -372,6 +442,10 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
                         logger.info("Token acquired using KITE_REQUEST_TOKEN from environment")
                         break
                 except Exception as e:
+                    try:
+                        handle_api_error(e, component="token_manager", context={"op": "env_request_token"})
+                    except Exception:
+                        pass
                     logger.error(f"Error using KITE_REQUEST_TOKEN: {e}")
     
     print("\n")
@@ -461,6 +535,10 @@ def guided_token_refresh(api_key, api_secret, auto_run_app=True):
         return access_token
     
     except Exception as e:
+        try:
+            handle_api_error(e, component="token_manager", context={"op": "guided_refresh"})
+        except Exception:
+            pass
         logger.error(f"Error in guided token refresh: {e}")
         return None
 
@@ -475,11 +553,24 @@ def main():
     import argparse
     parser = argparse.ArgumentParser(description='G6 Platform Token Manager', add_help=True)
     parser.add_argument('--no-autorun', action='store_true', help='Do not automatically run main application')
+    parser.add_argument('--provider', default=None, help='Token provider (env G6_TOKEN_PROVIDER overrides). Default: kite')
+    parser.add_argument('--headless', action='store_true', help='Force headless token acquisition (or env G6_TOKEN_HEADLESS=1)')
     parser.add_argument('--', dest='passthrough', help=argparse.SUPPRESS)  # placeholder (not used directly)
     # We capture unknown args AFTER parsing known ones
     known_args, unknown_args = parser.parse_known_args()
     auto_run_app = not known_args.no_autorun
     passthrough_args = unknown_args  # list[str]
+    provider_name = (known_args.provider or os.environ.get('G6_TOKEN_PROVIDER') or 'kite').lower()
+    headless = bool(known_args.headless or os.environ.get('G6_TOKEN_HEADLESS') == '1')
+
+    # Lazy import provider registry (optional deps inside providers handled there)
+    try:
+        from src.tools.token_providers import get_provider
+        provider = get_provider(provider_name)
+    except Exception as e:  # noqa: BLE001
+        logger.error("Unable to initialize provider '%s': %s", provider_name, e)
+        return 1
+    logger.info("Using token provider: %s", getattr(provider, 'name', provider_name))
     
     # Load environment variables
     load_env_vars()
@@ -500,17 +591,52 @@ def main():
     # Check token validity
     logger.info("Checking for existing access token...")
     token_valid = False
-    
     if access_token:
-        logger.info("Found existing access token, validating...")
-        token_valid = validate_token(api_key, access_token)
+        logger.info("Found existing access token, validating via provider...")
+        token_valid = provider_validate_token(provider, api_key, access_token)
     
     # If token is valid and auto_run_app is True, run the main application
     if token_valid and auto_run_app:
         return run_main_application(extra_args=passthrough_args)
+    # If token is valid, autorun disabled, and we're in headless mode or using a non-kite provider
+    # exit immediately without any interactive prompt.
+    if token_valid and not auto_run_app and (headless or getattr(provider, 'name', '') != 'kite'):
+        logger.info("Fast-exit: valid token, autorun disabled, headless=%s provider=%s", headless, getattr(provider,'name','?'))
+        print("\nToken is valid. Headless or non-kite provider selected; exiting without interactive prompt.")
+        return 0
         
     # If token is invalid or missing, offer options
     if not token_valid:
+        # First attempt: provider-driven acquisition (non-headless for now)
+        try:
+            new_tok = provider.acquire(api_key=api_key, api_secret=api_secret, headless=headless, interactive=not headless)
+        except TypeError:
+            # Backwards compatibility if provider implementations change signature
+            try:
+                new_tok = provider.acquire(api_key, api_secret)
+            except Exception as e:  # noqa: BLE001
+                logger.error("Provider acquisition error: %s", e)
+                new_tok = None
+        except Exception as e:  # noqa: BLE001
+            logger.error("Provider acquisition error: %s", e)
+            new_tok = None
+        if new_tok:
+            update_env_file("KITE_ACCESS_TOKEN", new_tok)
+            if provider_validate_token(provider, api_key, new_tok):
+                logger.info("Token acquired via provider '%s'", provider.name)
+                if auto_run_app:
+                    return run_main_application(extra_args=passthrough_args)
+                else:
+                    print("\nToken acquired and stored. Autorun disabled.")
+                    return 0
+            else:
+                logger.warning("Provider returned token but validation failed; falling back to legacy menu for kite provider.")
+
+        # If provider is NOT kite, do not show interactive legacy menu (only kite implements those UX paths currently)
+        if getattr(provider, 'name', '') != 'kite' or headless:
+            logger.error("Unable to acquire valid token via provider '%s'", provider.name)
+            return 1
+
         print("\nYour Kite API access token is invalid or missing.")
         print("\nOptions:")
         print("1. Automated token refresh (Flask server)")
@@ -547,7 +673,7 @@ def main():
             update_env_file("KITE_ACCESS_TOKEN", access_token)
             
             # Validate the entered token
-            if not validate_token(api_key, access_token):
+            if not provider_validate_token(provider, api_key, access_token):
                 logger.error("The entered token is invalid")
                 return 1
                 
@@ -558,15 +684,25 @@ def main():
             print("\nExiting without refreshing token")
             return 0
     
-    # If we get here, token is valid but auto_run_app is False
+    # If we get here, token is valid but auto_run_app is False.
+    # For headless mode or non-kite providers we should avoid any interactive prompt and just exit cleanly.
+    if headless or getattr(provider, 'name', '') != 'kite':
+        print("\nToken is valid. Headless or non-kite provider selected; exiting without interactive prompt.")
+        return 0
+
     print("\nKite API token is valid and ready to use.")
-    choice = input("\nStart G6 Platform now? (y/n): ")
-    
+    try:
+        choice = input("\nStart G6 Platform now? (y/n): ")
+    except OSError:
+        # In constrained (e.g., pytest captured) environments fallback to non-interactive safe exit
+        logger.debug("StdIn not available for interactive prompt; returning 0.")
+        return 0
+
     if choice.lower().startswith("y"):
         return run_main_application(extra_args=passthrough_args)
     else:
         print("\nYou can start G6 Platform manually with:")
-        print("python -m src.unified_main --help\n")
+        print("python scripts/run_orchestrator_loop.py --config config/g6_config.json --interval 60\n")
         return 0
 
 if __name__ == "__main__":

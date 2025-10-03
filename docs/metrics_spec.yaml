@@ -1,0 +1,351 @@
+################################################################################
+# Canonical Metrics Specification (Top-level list format expected by tests)
+# Schema Version: 0.1.1
+# NOTE: All entries must include required keys: name,type,labels,group,stability,description
+# Names kept sorted alphabetically for deterministic diffs.
+################################################################################
+
+- name: g6_adaptive_controller_actions_total
+  attr: adaptive_controller_actions
+  type: counter
+  labels: [reason, action]
+  group: adaptive_controller
+  stability: experimental
+  description: Adaptive controller actions taken
+
+- name: g6_collection_cycles
+  attr: collection_cycles
+  type: counter
+  labels: []
+  group: core
+  stability: stable
+  description: Number of collection cycles run
+
+- name: g6_collection_duration_seconds
+  attr: collection_duration
+  type: summary
+  labels: []
+  group: core
+  stability: stable
+  description: Time spent collecting data
+
+- name: g6_collection_errors
+  attr: collection_errors
+  type: counter
+  labels: [index, error_type]
+  group: core
+  stability: stable
+  description: Number of collection errors
+
+- name: g6_config_deprecated_keys
+  attr: config_deprecated_keys
+  type: counter
+  labels: [key]
+  group: core
+  stability: experimental
+  description: Deprecated or legacy config keys encountered
+
+- name: g6_index_atm_strike
+  attr: index_atm
+  type: gauge
+  labels: [index]
+  group: core
+  stability: stable
+  description: ATM strike price
+
+- name: g6_index_price
+  attr: index_price
+  type: gauge
+  labels: [index]
+  group: core
+  stability: stable
+  description: Current index price
+
+- name: g6_iv_estimation_avg_iterations
+  attr: iv_iterations
+  type: gauge
+  labels: [index, expiry]
+  group: greeks
+  stability: experimental
+  description: Average IV solver iterations (rolling per cycle)
+
+- name: g6_iv_estimation_failure
+  attr: iv_fail
+  type: counter
+  labels: [index, expiry]
+  group: greeks
+  stability: experimental
+  description: Failed IV estimations (alias short form)
+
+- name: g6_iv_estimation_success
+  attr: iv_success
+  type: counter
+  labels: [index, expiry]
+  group: greeks
+  stability: experimental
+  description: Successful IV estimations (alias short form)
+
+- name: g6_option_detail_mode
+  attr: option_detail_mode
+  type: gauge
+  labels: [index]
+  group: adaptive_controller
+  stability: experimental
+  description: Current option detail mode (0=full,1=medium,2=low)
+
+- name: g6_option_iv
+  attr: option_iv
+  type: gauge
+  labels: [index, expiry, strike, type]
+  group: core
+  stability: experimental
+  description: Option implied volatility
+
+- name: g6_option_oi
+  attr: option_oi
+  type: gauge
+  labels: [index, expiry, strike, type]
+  group: core
+  stability: experimental
+  description: Option open interest
+
+- name: g6_option_price
+  attr: option_price
+  type: gauge
+  labels: [index, expiry, strike, type]
+  group: core
+  stability: experimental
+  description: Option price
+
+- name: g6_option_volume
+  attr: option_volume
+  type: gauge
+  labels: [index, expiry, strike, type]
+  group: core
+  stability: experimental
+  description: Option volume
+
+- name: g6_options_collected
+  attr: options_collected
+  type: gauge
+  labels: [index, expiry]
+  group: core
+  stability: stable
+  description: Number of options collected
+
+- name: g6_panel_diff_bytes_last
+  attr: panel_diff_bytes_last
+  type: gauge
+  labels: [type]
+  group: panel_diff
+  stability: experimental
+  description: Bytes of last diff JSON written
+
+- name: g6_panel_diff_bytes_total
+  attr: panel_diff_bytes_total
+  type: counter
+  labels: [type]
+  group: panel_diff
+  stability: experimental
+  description: Total bytes of diff JSON written
+
+- name: g6_panel_diff_truncated_total
+  attr: panel_diff_truncated
+  type: counter
+  labels: [reason]
+  group: panel_diff
+  stability: experimental
+  description: Panel diff truncation events
+
+- name: g6_panel_diff_writes_total
+  attr: panel_diff_writes
+  type: counter
+  labels: [type]
+  group: panel_diff
+  stability: experimental
+  description: Panel diff snapshots written
+
+- name: g6_panels_integrity_checks_total
+  attr: panels_integrity_checks
+  type: counter
+  labels: []
+  group: panels_integrity
+  stability: experimental
+  description: Total panel integrity checks run
+
+- name: g6_panels_integrity_failures_total
+  attr: panels_integrity_failures
+  type: counter
+  labels: []
+  group: panels_integrity
+  stability: experimental
+  description: Total panel integrity check failures
+
+- name: g6_panels_integrity_last_elapsed_seconds
+  attr: panels_integrity_last_elapsed
+  type: gauge
+  labels: []
+  group: panels_integrity
+  stability: experimental
+  description: Seconds taken by the last integrity check
+
+- name: g6_panels_integrity_last_gap_seconds
+  attr: panels_integrity_last_gap
+  type: gauge
+  labels: []
+  group: panels_integrity
+  stability: experimental
+  description: Gap (seconds) since last successful check
+
+- name: g6_panels_integrity_last_success_age_seconds
+  attr: panels_integrity_last_success_age
+  type: gauge
+  labels: []
+  group: panels_integrity
+  stability: experimental
+  description: Age (seconds) of last successful integrity pass
+
+- name: g6_panels_integrity_mismatches
+  attr: panels_integrity_mismatches
+  type: counter
+  labels: []
+  group: panels_integrity
+  stability: experimental
+  description: Cumulative panel hash mismatches detected
+
+- name: g6_panels_integrity_ok
+  attr: panels_integrity_ok
+  type: gauge
+  labels: []
+  group: panels_integrity
+  stability: experimental
+  description: Panels integrity check pass state (1 ok / 0 failing)
+
+- name: g6_provider_mode
+  attr: provider_mode
+  type: gauge
+  labels: [mode]
+  group: core
+  stability: stable
+  description: Current provider mode (one-hot gauge)
+
+- name: g6_put_call_ratio
+  attr: pcr
+  type: gauge
+  labels: [index, expiry]
+  group: core
+  stability: stable
+  description: Put-Call Ratio
+
+- name: g6_risk_agg_bucket_utilization
+  attr: risk_agg_bucket_utilization
+  type: gauge
+  labels: []
+  group: analytics_risk_agg
+  stability: experimental
+  description: Risk aggregation bucket utilization fraction (0-1)
+
+- name: g6_risk_agg_notional_delta
+  attr: risk_agg_notional_delta
+  type: gauge
+  labels: []
+  group: analytics_risk_agg
+  stability: experimental
+  description: Aggregate delta notional for last risk aggregation
+
+- name: g6_risk_agg_notional_vega
+  attr: risk_agg_notional_vega
+  type: gauge
+  labels: []
+  group: analytics_risk_agg
+  stability: experimental
+  description: Aggregate vega notional for last risk aggregation
+
+- name: g6_risk_agg_rows
+  attr: risk_agg_rows
+  type: gauge
+  labels: []
+  group: analytics_risk_agg
+  stability: experimental
+  description: Rows in last risk aggregation build
+
+- name: g6_root_cache_evictions
+  attr: root_cache_evictions
+  type: counter
+  labels: []
+  group: perf_cache
+  stability: experimental
+  description: Root symbol cache evictions
+
+- name: g6_root_cache_hit_ratio
+  attr: root_cache_hit_ratio
+  type: gauge
+  labels: []
+  group: perf_cache
+  stability: experimental
+  description: Root symbol cache hit ratio (0-1)
+
+- name: g6_root_cache_hits
+  attr: root_cache_hits
+  type: counter
+  labels: []
+  group: perf_cache
+  stability: experimental
+  description: Root symbol cache hits
+
+- name: g6_root_cache_misses
+  attr: root_cache_misses
+  type: counter
+  labels: []
+  group: perf_cache
+  stability: experimental
+  description: Root symbol cache misses
+
+- name: g6_root_cache_size
+  attr: root_cache_size
+  type: gauge
+  labels: []
+  group: perf_cache
+  stability: experimental
+  description: Current root symbol cache size
+
+- name: g6_vol_surface_interp_seconds
+  attr: vol_surface_interp_seconds
+  type: histogram
+  labels: []
+  group: analytics_vol_surface
+  buckets: [0.001, 0.005, 0.01, 0.02, 0.05, 0.1]
+  stability: experimental
+  description: Interpolation timing distribution
+
+- name: g6_vol_surface_interpolated_fraction
+  attr: vol_surface_interpolated_fraction
+  type: gauge
+  labels: [index]
+  group: analytics_vol_surface
+  stability: experimental
+  description: Fraction of interpolated rows in surface
+
+- name: g6_vol_surface_quality_score
+  attr: vol_surface_quality_score
+  type: gauge
+  labels: [index]
+  group: analytics_vol_surface
+  stability: experimental
+  description: Vol surface quality score (0-100)
+
+- name: g6_vol_surface_rows
+  attr: vol_surface_rows
+  type: gauge
+  labels: [index, source]
+  group: analytics_vol_surface
+  stability: experimental
+  description: Vol surface row count by source
+
+- name: g6_vol_surface_rows_expiry
+  attr: vol_surface_rows_expiry
+  type: gauge
+  labels: [index, expiry, source]
+  group: analytics_vol_surface
+  stability: experimental
+  description: Vol surface per-expiry row count by source

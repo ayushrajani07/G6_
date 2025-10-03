@@ -14,6 +14,17 @@ INFLUX_TOKEN=VFEhioeCi2vFCtv-dH_7Fe6gEgNtO-Tu7qcQW4WvIbAFQIdKGa_hDu4dxatOgwskZcv
 # RUN_OFFSET_SEC=0
 # LOG_LEVEL=INFO
 
+# ---- Provider/Kite Connect ----
+# Per-call timeout guard for Kite API operations (seconds). Calls exceeding this
+# will raise TimeoutError and be retried according to retry settings.
+# Default: 4.0
+# G6_KITE_TIMEOUT_SEC=4.0
+
+# Optional throttle between Kite API calls (milliseconds). Helps avoid upstream
+# rate limit bursts when loops are tight. Set to 0 to disable.
+# Default: 0 (disabled)
+# G6_KITE_THROTTLE_MS=50
+
 # ---- Summarizer UI (Rich) ----
 # Clip long text to this many characters in certain panels (market, loop, provider, health, sinks, analytics, links)
 # Default: 60
@@ -44,6 +55,9 @@ INFLUX_TOKEN=VFEhioeCi2vFCtv-dH_7Fe6gEgNtO-Tu7qcQW4WvIbAFQIdKGa_hDu4dxatOgwskZcv
 # G6_SUMMARY_META_REFRESH_SEC=10
 # Refresh resources overlay (CPU/mem) this often, independent of snapshot cycle (default 15)
 # G6_SUMMARY_RES_REFRESH_SEC=15
+# Backoff applied when the Summary UI loop encounters transient errors (milliseconds)
+# Default: 300
+# G6_SUMMARY_LOOP_BACKOFF_MS=300
 
 # Panel JSON files sink (for summarizer streaming)
 # Add 'panels' to G6_OUTPUT_SINKS to enable writing per-panel JSON files that
@@ -52,6 +66,14 @@ INFLUX_TOKEN=VFEhioeCi2vFCtv-dH_7Fe6gEgNtO-Tu7qcQW4WvIbAFQIdKGa_hDu4dxatOgwskZcv
 # G6_PANELS_DIR=data/panels
 # G6_PANELS_INCLUDE=indices,market,loop,health,sinks,resources,analytics,alerts,links
 # G6_PANELS_ATOMIC=true
+
+# Retry/backoff for panels/status reads (helps on Windows file sharing)
+# When true, bridge retries reading status file on transient errors
+# and uses these backoff knobs (in milliseconds) for read and loop errors.
+# Defaults: retry=true, read_backoff=200, loop_backoff=300
+# G6_PANELS_READ_RETRY=true
+# G6_PANELS_READ_BACKOFF_MS=200
+# G6_PANELS_LOOP_BACKOFF_MS=300
 
 # Prefer per-panel JSON over status (default: true)
 # When enabled, the summarizer will first read data/panels/*.json files for
@@ -91,3 +113,20 @@ INFLUX_TOKEN=VFEhioeCi2vFCtv-dH_7Fe6gEgNtO-Tu7qcQW4WvIbAFQIdKGa_hDu4dxatOgwskZcv
 # If set, summarizer will parse lines like "NIFTY TOTAL LEGS: 272 | FAILS: 0 | STATUS: OK"
 # from the given file and show Legs/Fails/Status alongside LTP/Age.
 # G6_INDICES_PANEL_LOG=C:\\path\\to\\your\\daily_options_log.txt
+
+# Data Quality thresholds (display only)
+# The Summary View colors DQ% based on these thresholds and shows a small legend in the Indices panel footer.
+# Default: warn=85, error=70
+# G6_DQ_WARN_THRESHOLD=85
+# G6_DQ_ERROR_THRESHOLD=70
+
+# Provider latency thresholds (display only)
+# The Provider panel colors the reported latency using these thresholds.
+# Default: warn=400 ms, error=800 ms (values in milliseconds)
+# G6_PROVIDER_LAT_WARN_MS=400
+# G6_PROVIDER_LAT_ERR_MS=800
+
+# Backoff badge window (display only)
+# When the bridge publishes a WARN backoff event, the System panel shows a small yellow badge
+# if the event occurred within this many milliseconds from now. Default: 120000 (2 minutes)
+# G6_SUMMARY_BACKOFF_BADGE_MS=120000

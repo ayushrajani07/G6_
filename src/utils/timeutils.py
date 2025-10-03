@@ -6,13 +6,13 @@ Consolidated time utilities from various modules.
 
 from __future__ import annotations
 
-import pytz
-from datetime import datetime, date, time as dt_time, timedelta
+from datetime import datetime, date, time as dt_time, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Optional, Tuple, Union
 
-# Timezones
-IST = pytz.timezone('Asia/Kolkata')
-UTC = pytz.UTC
+# Timezones (zoneinfo)
+IST = ZoneInfo('Asia/Kolkata')
+UTC = timezone.utc
 
 # Market hours (IST)
 MARKET_OPEN = dt_time(9, 15)  # 9:15 AM
@@ -23,19 +23,16 @@ PRE_MARKET_START = dt_time(9, 0)   # 9:00 AM
 POST_MARKET_END = dt_time(16, 0)   # 4:00 PM
 
 def get_ist_now() -> datetime:
-    """Get current time in IST."""
-    return datetime.now(IST)
+    """Get current time in IST (aware)."""
+    return datetime.now(tz=IST)
 
 def get_utc_now() -> datetime:
-    """Get current time in UTC.""" 
-    return datetime.now(UTC)
+    """Get current time in UTC (aware).""" 
+    return datetime.now(tz=UTC)
 
 def utc_now() -> datetime:
-    """Return an aware UTC datetime using modern API pathway.
-
-    Wrapper to allow future migration from pytz to zoneinfo seamlessly.
-    """
-    return datetime.now(UTC)
+    """Return an aware UTC datetime."""
+    return datetime.now(tz=UTC)
 
 def isoformat_z(dt: datetime) -> str:
     """Return RFC3339/ISO8601 style string with 'Z' suffix for UTC datetimes.
@@ -56,15 +53,15 @@ def ensure_utc_helpers():
     return utc_now, isoformat_z
 
 def ist_to_utc(ist_dt: datetime) -> datetime:
-    """Convert IST datetime to UTC."""
+    """Convert IST datetime to UTC (assumes naive input is IST)."""
     if ist_dt.tzinfo is None:
-        ist_dt = IST.localize(ist_dt)
+        ist_dt = ist_dt.replace(tzinfo=IST)
     return ist_dt.astimezone(UTC)
 
 def utc_to_ist(utc_dt: datetime) -> datetime:
-    """Convert UTC datetime to IST."""
+    """Convert UTC datetime to IST (assumes naive input is UTC)."""
     if utc_dt.tzinfo is None:
-        utc_dt = UTC.localize(utc_dt)
+        utc_dt = utc_dt.replace(tzinfo=UTC)
     return utc_dt.astimezone(IST)
 
 def is_market_open(check_time: Optional[datetime] = None) -> bool:
@@ -121,7 +118,7 @@ def next_market_open(from_time: Optional[datetime] = None) -> datetime:
     while check_date.weekday() >= 5:  # Skip weekends
         check_date = check_date + timedelta(days=1)
     
-    return IST.localize(datetime.combine(check_date, MARKET_OPEN))
+    return datetime.combine(check_date, MARKET_OPEN, tzinfo=IST)
 
 def time_until_market_open(from_time: Optional[datetime] = None) -> float:
     """Get seconds until market opens."""
@@ -142,8 +139,8 @@ def get_market_session_bounds(trade_date: Optional[date] = None) -> Tuple[dateti
     if trade_date is None:
         trade_date = get_ist_now().date()
         
-    start = IST.localize(datetime.combine(trade_date, MARKET_OPEN))
-    end = IST.localize(datetime.combine(trade_date, MARKET_CLOSE))
+    start = datetime.combine(trade_date, MARKET_OPEN, tzinfo=IST)
+    end = datetime.combine(trade_date, MARKET_CLOSE, tzinfo=IST)
     
     return start, end
 
@@ -256,3 +253,107 @@ def round_timestamp(dt: datetime, step_seconds: int = 30, strategy: str = 'neare
 def format_rounded_timestamp(dt: datetime, step_seconds: int = 30, fmt: str = '%d-%m-%Y %H:%M:%S', strategy: str = 'nearest') -> str:
     """Convenience: round timestamp then format."""
     return round_timestamp(dt, step_seconds=step_seconds, strategy=strategy).strftime(fmt)
+
+# ---------------------------------------------------------------------------
+# IST-specific front-end rounding/formatting helpers
+# ---------------------------------------------------------------------------
+def round_to_30s_ist(dt: datetime, strategy: str = 'nearest') -> datetime:
+    """Return dt rounded to the nearest 30s boundary in IST.
+
+    - Preserves timezone awareness and returns an aware datetime in IST.
+    - If input is naive, assumes UTC (consistent with project convention) before conversion.
+    - Rounds to either :00 or :30 within the minute as requested.
+    """
+    # Normalize to aware UTC then convert to IST for rounding
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    dt_ist = dt.astimezone(IST)
+    rounded_ist = round_timestamp(dt_ist, step_seconds=30, strategy=strategy)
+    # Ensure seconds are exactly 0 or 30 (guard against drift)
+    s = rounded_ist.second
+    if s not in (0, 30):
+        # Snap to nearest of 0 or 30
+        snap = 0 if s < 15 or (s >= 45 and strategy != 'floor') else 30
+        rounded_ist = rounded_ist.replace(second=snap, microsecond=0)
+        # If snapping rolled minute (e.g., ceil), handle via strategy in round_timestamp already
+    return rounded_ist
+
+
+def format_ist_hms_30s(dt: datetime, strategy: str = 'nearest') -> str:
+    """Format a datetime as IST HH:MM:SS after 30s rounding.
+
+    Output format strictly HH:MM:SS (e.g., 09:15:00, 09:15:30).
+    """
+    return round_to_30s_ist(dt, strategy=strategy).strftime('%H:%M:%S')
+
+
+def format_any_to_ist_hms_30s(ts: Union[datetime, float, int, str], strategy: str = 'nearest') -> Optional[str]:
+    """Accept datetime/epoch/ISO and return IST HH:MM:SS with 30s rounding.
+
+    - datetime: used as-is
+    - float/int: interpreted as UNIX epoch seconds (UTC)
+    - str: parsed as ISO8601; 'Z' suffix supported (UTC)
+    Returns None if parsing fails.
+    """
+    try:
+        if isinstance(ts, datetime):
+            return format_ist_hms_30s(ts, strategy=strategy)
+        if isinstance(ts, (int, float)):
+            dt = datetime.fromtimestamp(float(ts), tz=UTC)
+            return format_ist_hms_30s(dt, strategy=strategy)
+        if isinstance(ts, str):
+            # Support common ISO forms, allow trailing Z
+            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+            return format_ist_hms_30s(dt, strategy=strategy)
+    except Exception:
+        return None
+    return None
+
+# ---------------------------------------------------------------------------
+# Extended convenience: full date+time formatting (DD-MM-YYYY HH:MM:SS) in IST
+# ---------------------------------------------------------------------------
+def format_ist_dt_30s(dt: datetime, strategy: str = 'nearest', fmt: str = '%d-%m-%Y %H:%M:%S') -> str:
+    """Return full date+time string in IST after 30s rounding.
+
+    Parameters
+    ----------
+    dt : datetime
+        Input datetime (naive assumed UTC).
+    strategy : str, default 'nearest'
+        Rounding strategy ('nearest','floor','ceil').
+    fmt : str, default '%d-%m-%Y %H:%M:%S'
+        strftime format applied after rounding (kept consistent with CSV expectations).
+    """
+    return round_to_30s_ist(dt, strategy=strategy).strftime(fmt)
+
+
+def format_any_to_ist_dt_30s(ts: Union[datetime, float, int, str], strategy: str = 'nearest', fmt: str = '%d-%m-%Y %H:%M:%S') -> Optional[str]:
+    """Accept heterogeneous timestamp input and return IST date+time string (30s rounding).
+
+    Returns None on parse failure.
+    """
+    try:
+        if isinstance(ts, datetime):
+            return format_ist_dt_30s(ts, strategy=strategy, fmt=fmt)
+        if isinstance(ts, (int, float)):
+            dt = datetime.fromtimestamp(float(ts), tz=UTC)
+            return format_ist_dt_30s(dt, strategy=strategy, fmt=fmt)
+        if isinstance(ts, str):
+            dt = datetime.fromisoformat(ts.replace('Z', '+00:00'))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+            return format_ist_dt_30s(dt, strategy=strategy, fmt=fmt)
+    except Exception:  # pragma: no cover - defensive
+        return None
+    return None
+
+__all__ = [
+    'IST','UTC','MARKET_OPEN','MARKET_CLOSE','PRE_MARKET_START','POST_MARKET_END',
+    'get_ist_now','get_utc_now','utc_now','isoformat_z','ensure_utc_helpers','ist_to_utc','utc_to_ist',
+    'is_market_open','market_hours_check','next_market_open','time_until_market_open','format_ist_time',
+    'get_market_session_bounds','compute_weekly_expiry','compute_next_weekly_expiry','compute_monthly_expiry',
+    'compute_next_monthly_expiry','round_timestamp','format_rounded_timestamp','round_to_30s_ist','format_ist_hms_30s',
+    'format_any_to_ist_hms_30s','format_ist_dt_30s','format_any_to_ist_dt_30s'
+]

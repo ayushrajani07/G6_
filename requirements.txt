@@ -12,6 +12,7 @@ influxdb-client>=1.36.0
 
 # Monitoring
 prometheus-client>=0.17.0
+flask>=3.0.0  # For Kite auth callback lightweight server
 
 # Caching (optional)
 redis>=4.5.0
@@ -30,3 +31,10 @@ rich>=13.7.0
 python-dotenv>=1.0.0
 fastapi>=0.110.0
 uvicorn[standard]>=0.27.0
+pre-commit>=3.7.0
+ruff>=0.6.1
+mypy>=1.10.0
+detect-secrets>=1.5.0
+types-requests>=2.32.0.20240914  # typing stubs for requests
+jsonschema>=4.0.0
+PyYAML>=6.0.0

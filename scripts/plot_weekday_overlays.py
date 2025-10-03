@@ -35,7 +35,16 @@ import math
 from pathlib import Path
 from datetime import datetime, date
 from typing import TYPE_CHECKING
+# Ensure repository root is on sys.path when running as a script
+import sys
+from pathlib import Path as _Path
+_ROOT = _Path(__file__).resolve().parents[1]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+
 from src.utils.bootstrap import bootstrap
+import os
+import gc
 
 try:
     # Bootstrap (enable_metrics False to avoid starting server for a plotting script)
@@ -52,163 +61,40 @@ if TYPE_CHECKING:  # hinting only
     import plotly.subplots as sp  # noqa: F401
 from typing import Optional
 
-# Time helpers for UTC metadata stamps
-try:
-    from src.utils.timeutils import ensure_utc_helpers  # type: ignore
-    utc_now, isoformat_z = ensure_utc_helpers()
-except Exception:
-    from datetime import datetime, timezone
-    def utc_now():  # type: ignore
-        return datetime.now(timezone.utc)
-    def isoformat_z(ts):  # type: ignore
-        try:
-            return ts.isoformat().replace('+00:00','Z')
-        except Exception:
-            return str(ts)
-
-# Global flags for static export handling
-_STATIC_EXPORT_AVAILABLE = True
-_STATIC_EXPORT_WARNED = False
-
-def _export_figure_image(fig, path: Path, label: str):
-    """Attempt static export with debounced warnings.
-
-    If kaleido (plotly image export engine) is not installed or another
-    recoverable error occurs, we emit *one* warning and mark exports disabled
-    for the remainder of this run. Subsequent export attempts become no-ops.
-    """
-    global _STATIC_EXPORT_AVAILABLE, _STATIC_EXPORT_WARNED
-    if not _STATIC_EXPORT_AVAILABLE:
-        return
-    try:
-        fig.write_image(str(path))
-    except Exception as e:  # broad: plotly raises ValueError/ImportError variants
-        if not _STATIC_EXPORT_WARNED:
-            print(f"[WARN] static export disabled after failure on {label}: {e}")
-            print("[INFO] Install 'kaleido' (pip install kaleido) to enable PNG export.")
-            _STATIC_EXPORT_WARNED = True
-        _STATIC_EXPORT_AVAILABLE = False
-        # Optionally cleanup partial file
-        try:
-            if path.exists():
-                path.unlink()
-        except Exception:
-            pass
+from src.utils.overlay_plotting import (
+    env_int,
+    proc_mem_mb,
+    monitor_memory,
+    load_live_series,
+    load_overlay_series,
+    build_merged,
+    add_traces,
+    load_config_json,
+    effective_window,
+    annotate_alpha,
+    export_figure_image,
+    filter_overlay_by_density,
+    calculate_z_score,
+    add_volatility_bands,
+)
+from src.utils.assets import get_plotly_js_src
 
 WEEKDAY_NAMES = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
 
-BLUE = "#1f77b4"  # consistent palette
-ORANGE = "#ff7f0e"
+# colors centralized in overlay_plotting
+
+# Memory management defaults (overridable via CLI/env)
+DEFAULT_VIS_MEMORY_LIMIT_MB = 768
+DEFAULT_PLOT_CHUNK_SIZE = 5000
+
+_env_int = env_int
+_proc_mem_mb = proc_mem_mb
+_monitor_memory = monitor_memory
 
 
-def load_live_series(live_root: Path, index: str, expiry_tag: str, offset: str, trade_date: date):
-    """Load live series CSV for given parameters, returning a DataFrame (may be empty)."""
-    daily_file = live_root / index / expiry_tag / offset / f"{trade_date:%Y-%m-%d}.csv"
-    if not daily_file.exists():
-        return pd.DataFrame()
-    try:
-        df = pd.read_csv(daily_file)
-    except Exception:
-        return pd.DataFrame()
-    if df.empty:
-        return df
-    if 'timestamp' not in df.columns:
-        return pd.DataFrame()
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
-    # derive tp, avg_tp if present columns exist
-    for c in ['ce','pe','avg_ce','avg_pe']:
-        if c not in df.columns:
-            df[c] = 0.0
-    df['tp_live'] = df['ce'].fillna(0) + df['pe'].fillna(0)
-    df['avg_tp_live'] = df['avg_ce'].fillna(0) + df['avg_pe'].fillna(0)
-    df['time_key'] = df['timestamp'].dt.strftime('%H:%M:%S')
-    return df
-
-
-def load_overlay_series(weekday_root: Path, weekday_name: str, index: str, expiry_tag: str, offset: str):
-    """Load overlay (weekday master) DataFrame for index/expiry/offset."""
-    f = weekday_root / weekday_name / f"{index}_{expiry_tag}_{offset}.csv"
-    if not f.exists():
-        return pd.DataFrame()
-    try:
-        df = pd.read_csv(f)
-    except Exception:
-        return pd.DataFrame()
-    if df.empty:
-        return df
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
-    df['time_key'] = df['timestamp'].dt.strftime('%H:%M:%S')
-    # Ensure expected columns exist (backward compatibility)
-    for col in ['tp_mean','tp_ema','avg_tp_mean','avg_tp_ema']:
-        if col not in df.columns:
-            df[col] = None
-    return df
-
-
-def build_merged(live_df: pd.DataFrame, overlay_df: pd.DataFrame) -> pd.DataFrame:
-    if live_df.empty:
-        return pd.DataFrame()
-    return live_df.merge(
-        overlay_df[['time_key','tp_mean','tp_ema','avg_tp_mean','avg_tp_ema']],
-        on='time_key', how='left'
-    )
-
-
-def add_traces(fig, merged: pd.DataFrame, title: str, show_deviation: bool, row: Optional[int]=None, col: Optional[int]=None):
-    """Add traces to a subplot figure (if row/col given) or a standalone figure."""
-    kwargs = {}
-    if row is not None and col is not None:
-        kwargs = {"row": row, "col": col}
-    if merged.empty:
-        if row is not None and col is not None:
-            fig.add_annotation(text=f"No data: {title}", row=row, col=col, showarrow=False)
-        else:
-            fig.add_annotation(text=f"No data: {title}", xref='paper', yref='paper', x=0.5, y=0.5, showarrow=False)
-        return
-    x = merged['timestamp']
-    fig.add_trace(go.Scatter(x=x, y=merged['tp_live'], name=f"{title} tp live", line=dict(color=BLUE, width=2)), **kwargs)
-    fig.add_trace(go.Scatter(x=x, y=merged['tp_mean'], name=f"{title} tp mean", line=dict(color=BLUE, dash='dash')), **kwargs)
-    fig.add_trace(go.Scatter(x=x, y=merged['tp_ema'], name=f"{title} tp ema", line=dict(color=BLUE, dash='dot')), **kwargs)
-    fig.add_trace(go.Scatter(x=x, y=merged['avg_tp_live'], name=f"{title} avg_tp live", line=dict(color=ORANGE, width=2)), **kwargs)
-    fig.add_trace(go.Scatter(x=x, y=merged['avg_tp_mean'], name=f"{title} avg_tp mean", line=dict(color=ORANGE, dash='dash')), **kwargs)
-    fig.add_trace(go.Scatter(x=x, y=merged['avg_tp_ema'], name=f"{title} avg_tp ema", line=dict(color=ORANGE, dash='dot')), **kwargs)
-    if show_deviation and 'tp_mean' in merged and 'tp_live' in merged:
-        dev = merged['tp_live'] - merged['tp_mean']
-        fig.add_trace(go.Scatter(x=x, y=dev, name=f"{title} dev(tp-live-mean)", line=dict(color='rgba(31,119,180,0.3)', dash='solid')), **kwargs)
-
-
-def _load_config_json(path: str):
-    if not path:
-        return {}
-    try:
-        with open(path,'r') as f:
-            return json.load(f)
-    except Exception as e:
-        print(f"[WARN] Could not load JSON config {path}: {e}")
-        return {}
-
-def _effective_window(alpha: float) -> float:
-    if alpha <= 0 or alpha > 1:
-        return float('nan')
-    return (2/alpha) - 1
-
-def _annotate_alpha(fig, alpha: float, weekday_name: str, trade_date: date):
-    eff = _effective_window(alpha)
-    fig.add_annotation(
-        text=f"EMA α={alpha:.3g} (eff≈{eff:.2f} buckets) | {weekday_name} {trade_date}",
-        xref='paper', yref='paper', x=0.01, y=0.99, showarrow=False,
-        font=dict(size=11, color='#444'), align='left', bgcolor='rgba(255,255,255,0.6)'
-    )
-    # embed into layout meta
-    meta = fig.layout.meta or {}
-    meta.update({
-        'ema': {
-            'alpha': alpha,
-            'effective_window_buckets': eff,
-            'generated_utc': isoformat_z(utc_now())
-        }
-    })
-    fig.update_layout(meta=meta)
+_load_config_json = load_config_json
+_annotate_alpha = annotate_alpha
+_effective_window = effective_window
 
 def main():
     ap = argparse.ArgumentParser(description="Plot weekday overlays (live vs mean & EMA).")
@@ -224,6 +110,20 @@ def main():
     ap.add_argument('--layout', choices=['by-index','grid','tabs','split'], default=None, help='Layout strategy override')
     ap.add_argument('--alpha', type=float, help='EMA alpha (used only for annotation / meta; data already computed in CSV)')
     ap.add_argument('--static-dir', help='If provided, export PNG images (requires kaleido) into this directory.')
+    # Optional live updates and theming
+    ap.add_argument('--live-endpoint', help='HTTP endpoint returning JSON to drive live updates (optional).')
+    ap.add_argument('--live-interval-ms', type=int, default=5000, help='Polling interval for live updates in ms (default 5000).')
+    ap.add_argument('--theme', choices=['light','dark'], help='Page theme (light/dark). Defaults to light or last saved.')
+    # Optional statistical helpers (computed client-side if enabled)
+    ap.add_argument('--enable-zscore', action='store_true', help='Render z-score panel below each chart (beta).')
+    ap.add_argument('--enable-bands', action='store_true', help='Add simple volatility bands around mean (beta).')
+    ap.add_argument('--bands-multiplier', type=float, default=2.0, help='Stddev multiplier for bands if enabled (default 2.0).')
+    # Data quality / density filters (optional)
+    ap.add_argument('--min-count', type=int, help='Minimum sample count (counter_tp) to include overlay rows')
+    ap.add_argument('--min-confidence', type=float, help='Minimum relative confidence (counter_tp / max counter) in [0,1]')
+    # Memory tuning (optional)
+    ap.add_argument('--memory-limit', type=int, help=f'Memory limit in MB (default env G6_OVERLAY_VIS_MEMORY_LIMIT_MB or {DEFAULT_VIS_MEMORY_LIMIT_MB})')
+    ap.add_argument('--chunk-size', type=int, help=f'Chunk size for reading large CSVs (default env G6_OVERLAY_VIS_CHUNK_SIZE or {DEFAULT_PLOT_CHUNK_SIZE})')
     args = ap.parse_args()
     cfg = _load_config_json(args.config_json)
     # Resolve primitives with precedence: CLI > JSON > defaults
@@ -240,8 +140,18 @@ def main():
     height_per_panel = panel_cfg.get('height_per_panel', 320)
     alpha_ann = cfg.get('alpha_annotation', True)
     alpha_val = args.alpha if args.alpha is not None else cfg.get('alpha', 0.5)
+    # Density filters
+    min_count = args.min_count if args.min_count is not None else cfg.get('min_count')
+    min_conf = args.min_confidence if args.min_confidence is not None else cfg.get('min_confidence')
     if layout_mode not in {'by-index','grid','tabs','split'}:
         layout_mode = 'by-index'
+
+    # Resolve memory parameters
+    mem_limit_mb = args.memory_limit or _env_int('G6_OVERLAY_VIS_MEMORY_LIMIT_MB', DEFAULT_VIS_MEMORY_LIMIT_MB)
+    chunk_size = args.chunk_size or _env_int('G6_OVERLAY_VIS_CHUNK_SIZE', DEFAULT_PLOT_CHUNK_SIZE)
+    start_mem = _proc_mem_mb()
+    if start_mem > 0:
+        print(f"[INFO] Starting memory usage: {start_mem:.1f}MB; chunk_size={chunk_size}; limit={mem_limit_mb}MB")
 
     # Build combinations; each index gets its own grouping
     combos = []
@@ -252,19 +162,55 @@ def main():
     live_root = Path(args.live_root)
     weekday_root = Path(args.weekday_root)
 
+    # Client-side config JSON for live/theme
+    client_cfg = {
+        'live': {
+            'endpoint': args.live_endpoint or cfg.get('live_endpoint'),
+            'intervalMs': int(args.live_interval_ms or cfg.get('live_interval_ms', 5000)),
+        },
+        'theme': args.theme or cfg.get('theme'),
+    }
+
+    # Asset tags
+    theme_css_tag = "<link rel='stylesheet' href='src/assets/css/overlay_themes.css'>"
+    updates_js_tag = "<script src='src/assets/js/overlay_live_updates.js'></script>"
+    plotly_tag = f"<script src='{get_plotly_js_src()}'></script>"
+
+    page_title = f"Weekday Overlays ({weekday_name}) – {trade_date}"
+    header_controls = f"<div class='header'><div class='title'>{page_title}</div><div class='controls'><button id='g6-theme-toggle' class='theme-toggle'>Toggle theme</button></div></div>"
+
     if layout_mode == 'by-index':
         index_groups = {}
         for idx, exp, off in combos:
             index_groups.setdefault(idx, []).append((exp, off))
-        fig = sp.make_subplots(rows=len(index_groups), cols=1, shared_xaxes=True, vertical_spacing=0.02, subplot_titles=list(index_groups.keys()))
+        # Enable secondary y for optional z-score
+        specs = [[{"secondary_y": True}] for _ in range(len(index_groups))]
+        fig = sp.make_subplots(rows=len(index_groups), cols=1, shared_xaxes=True, vertical_spacing=0.02, subplot_titles=list(index_groups.keys()), specs=specs)
         row_i = 1
         for idx, pairs in index_groups.items():
             for exp, off in pairs:
-                live_df = load_live_series(live_root, idx, exp, off, trade_date)
-                overlay_df = load_overlay_series(weekday_root, weekday_name, idx, exp, off)
+                live_df = load_live_series(live_root, idx, exp, off, trade_date, chunk_size=chunk_size, mem_limit_mb=mem_limit_mb)
+                overlay_df = load_overlay_series(weekday_root, weekday_name, idx, exp, off, chunk_size=chunk_size, mem_limit_mb=mem_limit_mb)
+                overlay_df = filter_overlay_by_density(overlay_df, min_count=min_count, min_confidence=min_conf)
                 merged = build_merged(live_df, overlay_df)
                 title = f"{idx}-{exp}-{off}"
                 add_traces(fig, merged, row=row_i, col=1, title=title, show_deviation=show_deviation)
+                # Optional volatility bands around tp_mean
+                if args.enable_bands and not merged.empty and 'tp_mean' in merged:
+                    try:
+                        dev_std = (merged['tp_live'] - merged['tp_mean']).rolling(window=30, min_periods=5).std()
+                        add_volatility_bands(fig, merged['timestamp'], merged['tp_mean'], dev_std, k=float(args.bands_multiplier), name_prefix=f"{title} tp")
+                    except Exception:
+                        pass
+                # Optional z-score on secondary y-axis
+                if args.enable_zscore and not merged.empty:
+                    try:
+                        z = calculate_z_score(merged, 'tp_live', 'tp_mean')
+                        if z is not None:
+                            fig.add_trace(go.Scatter(x=merged['timestamp'], y=z, name=f"{title} z(tp vs mean)", line=dict(color='#2ca02c', dash='dash')), row=row_i, col=1, secondary_y=True)
+                    except Exception:
+                        pass
+            _monitor_memory(f"subplot_row_{idx}", mem_limit_mb)
             row_i += 1
         fig.update_layout(
             title=f"Weekday Overlay ({weekday_name}) – {trade_date}",
@@ -273,27 +219,81 @@ def main():
             template='plotly_white',
             height=max(400, height_per_panel * len(index_groups))
         )
+        if args.enable_zscore:
+            fig.update_yaxes(title_text="z-score", secondary_y=True)
         if alpha_ann:
             _annotate_alpha(fig, alpha_val, weekday_name, trade_date)
-        html = fig.to_html(include_plotlyjs='cdn', full_html=False)
-        html_body = f"<h2>Weekday Overlays ({weekday_name})</h2>" + html
+        # Always exclude plotly bundle and add a script tag explicitly using resolver
+        html = fig.to_html(include_plotlyjs=False, full_html=False)
+        html_body = header_controls + html
         # wrap minimal template
-        final_html = f"""<html><head><meta charset='utf-8'><title>Weekday Overlays</title></head><body>{html_body}</body></html>"""
+        cfg_script = f"<script>window.G6 = window.G6 || {{}}; window.G6.overlay = window.G6.overlay || {{}}; window.G6.overlay.cfg = {json.dumps(client_cfg)};</script>"
+        boot_script = """
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    try{ if(window.G6 && G6.overlay){ G6.overlay.initTheme((G6.overlay.cfg && G6.overlay.cfg.theme) || 'light'); } }catch(_){ }
+    try{
+        const btn = document.getElementById('g6-theme-toggle');
+        if(btn && window.G6 && G6.overlay){ btn.addEventListener('click', function(){
+            const root = document.documentElement; const isDark = root.getAttribute('data-theme')==='dark';
+            G6.overlay.setTheme(isDark ? 'light' : 'dark');
+        }); }
+        // register the unified figure div if present
+        const div = document.querySelector('.plotly-graph-div');
+        if(div && div.id){ G6.overlay.registerGraph(div.id, { layout: 'by-index' }); }
+        if(G6.overlay && G6.overlay.cfg && G6.overlay.cfg.live){ G6.overlay.startPolling(G6.overlay.cfg.live); }
+    }catch(_){ }
+});
+</script>
+"""
+        final_html = f"""
+<html>
+    <head>
+        <meta charset='utf-8'>
+        <title>Weekday Overlays</title>
+        {theme_css_tag}
+    </head>
+    <body>
+        {plotly_tag}
+        {updates_js_tag}
+        {cfg_script}
+        {html_body}
+        {boot_script}
+    </body>
+</html>
+"""
         Path(args.output).write_text(final_html, encoding='utf-8')
         if args.static_dir:
             outdir = Path(args.static_dir); outdir.mkdir(parents=True, exist_ok=True)
-            _export_figure_image(fig, outdir / 'by_index.png', 'by-index')
+            export_figure_image(fig, outdir / 'by_index.png', 'by-index')
     else:
-        # grid / tabs / split placeholder simplified initial version (grid rendering only for now)
+        # Non by-index modes
         panels = []
         for idx, exp, off in combos:
-            live_df = load_live_series(live_root, idx, exp, off, trade_date)
-            overlay_df = load_overlay_series(weekday_root, weekday_name, idx, exp, off)
+            live_df = load_live_series(live_root, idx, exp, off, trade_date, chunk_size=chunk_size, mem_limit_mb=mem_limit_mb)
+            overlay_df = load_overlay_series(weekday_root, weekday_name, idx, exp, off, chunk_size=chunk_size, mem_limit_mb=mem_limit_mb)
+            overlay_df = filter_overlay_by_density(overlay_df, min_count=min_count, min_confidence=min_conf)
             merged = build_merged(live_df, overlay_df)
             fig_one = go.Figure()
             add_traces(fig_one, merged, title=f"{idx}-{exp}-{off}", show_deviation=show_deviation)
+            # Optional bands
+            if args.enable_bands and not merged.empty and 'tp_mean' in merged:
+                try:
+                    dev_std = (merged['tp_live'] - merged['tp_mean']).rolling(window=30, min_periods=5).std()
+                    add_volatility_bands(fig_one, merged['timestamp'], merged['tp_mean'], dev_std, k=float(args.bands_multiplier), name_prefix=f"{idx}-{exp}-{off} tp")
+                except Exception:
+                    pass
+            # Optional z-score on y2
+            if args.enable_zscore and not merged.empty:
+                try:
+                    z = calculate_z_score(merged, 'tp_live', 'tp_mean')
+                    if z is not None:
+                        fig_one.add_trace(go.Scatter(x=merged['timestamp'], y=z, name=f"{idx}-{exp}-{off} z(tp vs mean)", line=dict(color='#2ca02c', dash='dash'), yaxis='y2'))
+                        fig_one.update_layout(yaxis2=dict(title='z-score', overlaying='y', side='right'))
+                except Exception:
+                    pass
             fig_one.update_layout(
-                margin=dict(l=40,r=10,t=40,b=40),
+                margin=dict(l=40, r=10, t=40, b=40),
                 height=height_per_panel,
                 title=f"{idx} | {exp} | {off}",
                 hovermode='x unified',
@@ -301,17 +301,21 @@ def main():
             )
             if alpha_ann:
                 _annotate_alpha(fig_one, alpha_val, weekday_name, trade_date)
-            div_html = fig_one.to_html(include_plotlyjs=False, full_html=False, div_id=f"panel-{idx}-{exp}-{off}")
-            panels.append((idx, exp, off, div_html, fig_one))
-        # Build filters UI
-        unique_exp = sorted(set(e for _, e, _ in combos))
-        unique_off = sorted(set(o for _, _, o in combos))
-        filter_ui = ["<section id='filters'><strong>Filters:</strong>"]
-        filter_ui.append("<div>Expiry Tags:" + ''.join([f"<label><input type='checkbox' class='f-exp' value='{e}' checked> {e}</label>" for e in unique_exp]) + "</div>")
-        filter_ui.append("<div>Offsets:" + ''.join([f"<label><input type='checkbox' class='f-off' value='{o}' checked> {o}</label>" for o in unique_off]) + "</div>")
-        filter_ui.append("<a href='#' id='all-on'>All On</a> | <a href='#' id='all-off'>All Off</a>")
-        filter_ui.append("</section>")
-        grid_css = f"""
+            div_id = f"panel-{idx}-{exp}-{off}"
+            div_html = fig_one.to_html(include_plotlyjs=False, full_html=False, div_id=div_id)
+            panels.append((idx, exp, off, div_id, div_html, fig_one))
+            _monitor_memory(f"panel_{idx}_{exp}_{off}", mem_limit_mb)
+
+        if layout_mode == 'grid':
+            # Build filters UI
+            unique_exp = sorted(set(e for _, e, _ in combos))
+            unique_off = sorted(set(o for _, _, o in combos))
+            filter_ui = ["<section id='filters'><strong>Filters:</strong>"]
+            filter_ui.append("<div>Expiry Tags:" + ''.join([f"<label><input type='checkbox' class='f-exp' value='{e}' checked> {e}</label>" for e in unique_exp]) + "</div>")
+            filter_ui.append("<div>Offsets:" + ''.join([f"<label><input type='checkbox' class='f-off' value='{o}' checked> {o}</label>" for o in unique_off]) + "</div>")
+            filter_ui.append("<a href='#' id='all-on'>All On</a> | <a href='#' id='all-off'>All Off</a>")
+            filter_ui.append("</section>")
+            grid_css = f"""
 <style>
 body {{ font-family: Arial, sans-serif; }}
 #filters label {{ margin-right: 12px; font-size: 13px; }}
@@ -320,7 +324,7 @@ body {{ font-family: Arial, sans-serif; }}
 .panel h3 {{ font-size:14px; margin:4px 0 6px; font-weight:600; }}
 </style>
 """
-        script = """
+            script = """
 <script>
 function applyFilters(){
   const expSel=[...document.querySelectorAll('.f-exp:checked')].map(c=>c.value);
@@ -336,18 +340,153 @@ document.getElementById('all-on').addEventListener('click',e=>{e.preventDefault(
 document.getElementById('all-off').addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.f-exp,.f-off').forEach(c=>c.checked=false);applyFilters();});
 </script>
 """
-        panel_divs = []
-        for idx, exp, off, div_html, fig_ref in panels:
-            panel_divs.append(f"<div class='panel' data-exp='{exp}' data-off='{off}'>{div_html}</div>")
-        container = "<div class='panel-grid'>" + ''.join(panel_divs) + "</div>"
-        html_full = f"<html><head><meta charset='utf-8'><title>Weekday Overlays</title>{grid_css}</head><body><h2>Weekday Overlays ({weekday_name}) – {trade_date}</h2>{''.join(filter_ui)}{container}<script src='https://cdn.plot.ly/plotly-latest.min.js'></script>{script}</body></html>"
-        Path(args.output).write_text(html_full, encoding='utf-8')
+            panel_divs = []
+            for idx, exp, off, _div_id, div_html, _fig_ref in panels:
+                panel_divs.append(f"<div class='panel' data-exp='{exp}' data-off='{off}'>{div_html}</div>")
+            container = "<div class='panel-grid'>" + ''.join(panel_divs) + "</div>"
+            cfg_script = f"<script>window.G6 = window.G6 || {{}}; window.G6.overlay = window.G6.overlay || {{}}; window.G6.overlay.cfg = {json.dumps(client_cfg)};</script>"
+            boot = """
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    try{ if(window.G6 && G6.overlay){ G6.overlay.initTheme((G6.overlay.cfg && G6.overlay.cfg.theme) || 'light'); } }catch(_){ }
+    try{
+        document.querySelectorAll('.plotly-graph-div').forEach(div=>{ if(div.id){ G6.overlay.registerGraph(div.id, { layout: 'grid' }); }});
+        if(G6.overlay && G6.overlay.cfg && G6.overlay.cfg.live){ G6.overlay.startPolling(G6.overlay.cfg.live); }
+    }catch(_){ }
+});
+</script>
+"""
+            # Important: load Plotly bundle before any inline Plotly.newPlot scripts inside panel divs
+            html_full = f"<html><head><meta charset='utf-8'><title>Weekday Overlays</title>{grid_css}{theme_css_tag}</head><body>{plotly_tag}{updates_js_tag}{cfg_script}{header_controls}{''.join(filter_ui)}{container}{script}{boot}</body></html>"
+            Path(args.output).write_text(html_full, encoding='utf-8')
+        elif layout_mode == 'tabs':
+            # Simple tabs: one panel visible at a time
+            tabs_css = """
+<style>
+body { font-family: Arial, sans-serif; }
+.tabs { display: flex; border-bottom: 1px solid #ccc; margin-bottom: 8px; }
+.tab { padding: 8px 12px; cursor: pointer; border: 1px solid #ccc; border-bottom: none; margin-right: 6px; border-top-left-radius: 4px; border-top-right-radius: 4px; background:#f7f7f7; }
+.tab.active { background: #fff; font-weight: 600; }
+.tab-content { border: 1px solid #ccc; border-radius: 0 4px 4px 4px; padding: 6px; background:#fff; }
+</style>
+"""
+            tab_headers = []
+            tab_contents = []
+            for i, (idx, exp, off, div_id, div_html, _fig) in enumerate(panels):
+                tab_id = f"tab-{idx}-{exp}-{off}"
+                active_cls = 'active' if i == 0 else ''
+                style = '' if i == 0 else 'style=\"display:none\"'
+                tab_headers.append(f"<div class='tab {active_cls}' data-target='{div_id}'>{idx} | {exp} | {off}</div>")
+                tab_contents.append(f"<div class='tab-content' id='{div_id}' {style}>{div_html}</div>")
+            script = """
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  document.querySelectorAll('.tab').forEach(function(tab){
+    tab.addEventListener('click', function(){
+      document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+      this.classList.add('active');
+      const target = this.getAttribute('data-target');
+      document.querySelectorAll('.tab-content').forEach(div=>{
+        if(div.id === target) { div.style.display='block'; } else { div.style.display='none'; }
+      });
+    });
+  });
+});
+</script>
+"""
+            tabs_html = "<div class='tabs'>" + ''.join(tab_headers) + "</div>" + ''.join(tab_contents)
+            cfg_script = f"<script>window.G6 = window.G6 || {{}}; window.G6.overlay = window.G6.overlay || {{}}; window.G6.overlay.cfg = {json.dumps(client_cfg)};</script>"
+            boot = """
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    try{ if(window.G6 && G6.overlay){ G6.overlay.initTheme((G6.overlay.cfg && G6.overlay.cfg.theme) || 'light'); } }catch(_){ }
+    try{
+        document.querySelectorAll('.tab-content .plotly-graph-div').forEach(div=>{ if(div.id){ G6.overlay.registerGraph(div.id, { layout: 'tabs' }); }});
+        if(G6.overlay && G6.overlay.cfg && G6.overlay.cfg.live){ G6.overlay.startPolling(G6.overlay.cfg.live); }
+    }catch(_){ }
+});
+</script>
+"""
+            html_full = f"<html><head><meta charset='utf-8'><title>Weekday Overlays</title>{tabs_css}{theme_css_tag}</head><body>{plotly_tag}{updates_js_tag}{cfg_script}{header_controls}{tabs_html}{script}{boot}</body></html>"
+            Path(args.output).write_text(html_full, encoding='utf-8')
+        elif layout_mode == 'split':
+            # Two-column layout with synchronized x-range among all panels
+            split_css = """
+<style>
+body { font-family: Arial, sans-serif; }
+.split-grid { display: grid; grid-template-columns: repeat(2, 1fr); grid-gap: 12px; }
+.panel { border:1px solid #ddd; padding:4px; border-radius:4px; background:#fff; }
+</style>
+"""
+            # Build container with div ids
+            items = []
+            for idx, exp, off, div_id, div_html, _fig in panels:
+                items.append(f"<div class='panel' id='wrap-{div_id}'>{div_html}</div>")
+            container = "<div class='split-grid'>" + ''.join(items) + "</div>"
+            # JS to sync x-range using Plotly relayout events
+            sync_js = """
+<script>
+function syncX(range){
+    const ids = Array.from(document.querySelectorAll('.tab-content, .panel .plotly-graph-div')).map(d=>d.id).filter(Boolean);
+}
+document.addEventListener('DOMContentLoaded', function(){
+    const graphs = document.querySelectorAll('.plotly-graph-div');
+    let isSyncing = false;
+    graphs.forEach(g=>{
+        g.on('plotly_relayout', ev=>{
+            if(isSyncing) return;
+            if(ev['xaxis.range[0]'] && ev['xaxis.range[1]']){
+                isSyncing = true;
+                const update = { 'xaxis.range': [ev['xaxis.range[0]'], ev['xaxis.range[1]']] };
+                graphs.forEach(other=>{ if(other!==g){ Plotly.relayout(other, update); }});
+                isSyncing = false;
+            }
+        });
+    });
+});
+</script>
+"""
+            cfg_script = f"<script>window.G6 = window.G6 || {{}}; window.G6.overlay = window.G6.overlay || {{}}; window.G6.overlay.cfg = {json.dumps(client_cfg)};</script>"
+            boot = """
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    try{ if(window.G6 && G6.overlay){ G6.overlay.initTheme((G6.overlay.cfg && G6.overlay.cfg.theme) || 'light'); } }catch(_){ }
+    try{
+        document.querySelectorAll('.split-grid .plotly-graph-div').forEach(div=>{ if(div.id){ G6.overlay.registerGraph(div.id, { layout: 'split' }); }});
+        if(G6.overlay && G6.overlay.cfg && G6.overlay.cfg.live){ G6.overlay.startPolling(G6.overlay.cfg.live); }
+    }catch(_){ }
+});
+</script>
+"""
+            html_full = f"<html><head><meta charset='utf-8'><title>Weekday Overlays</title>{split_css}{theme_css_tag}</head><body>{plotly_tag}{updates_js_tag}{cfg_script}{header_controls}{container}{sync_js}{boot}</body></html>"
+            Path(args.output).write_text(html_full, encoding='utf-8')
+        else:
+            # Fallback: treat as grid
+            panel_divs = []
+            for idx, exp, off, _div_id, div_html, _fig_ref in panels:
+                panel_divs.append(f"<div class='panel'>{div_html}</div>")
+            cfg_script = f"<script>window.G6 = window.G6 || {{}}; window.G6.overlay = window.G6.overlay || {{}}; window.G6.overlay.cfg = {json.dumps(client_cfg)};</script>"
+            boot = """
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    try{ if(window.G6 && G6.overlay){ G6.overlay.initTheme((G6.overlay.cfg && G6.overlay.cfg.theme) || 'light'); } }catch(_){ }
+    try{
+        document.querySelectorAll('.plotly-graph-div').forEach(div=>{ if(div.id){ G6.overlay.registerGraph(div.id, { layout: 'grid' }); }});
+        if(G6.overlay && G6.overlay.cfg && G6.overlay.cfg.live){ G6.overlay.startPolling(G6.overlay.cfg.live); }
+    }catch(_){ }
+});
+</script>
+"""
+            html_full = f"<html><head><meta charset='utf-8'><title>Weekday Overlays</title>{theme_css_tag}</head><body>{plotly_tag}{updates_js_tag}{cfg_script}{header_controls}{''.join(panel_divs)}{boot}</body></html>"
+            Path(args.output).write_text(html_full, encoding='utf-8')
+
         # static export per panel if requested
         if args.static_dir:
-            outdir = Path(args.static_dir); outdir.mkdir(parents=True, exist_ok=True)
-            for idx, exp, off, _div, fig_obj in panels:
-                fname = f"{idx}_{exp}_{off}.png".replace('|','_')
-                _export_figure_image(fig_obj, outdir / fname, fname)
+            outdir = Path(args.static_dir)
+            outdir.mkdir(parents=True, exist_ok=True)
+            for idx, exp, off, _div_id, _div, fig_obj in panels:
+                fname = f"{idx}_{exp}_{off}.png".replace('|', '_')
+                export_figure_image(fig_obj, outdir / fname, fname)
         # sidecar metadata
         meta = {
             'layout_mode': layout_mode,
@@ -358,7 +497,7 @@ document.getElementById('all-off').addEventListener('click',e=>{e.preventDefault
             'panel_count': len(panels),
             'indices': indices,
             'expiry_tags': expiry_tags,
-            'offsets': offsets
+            'offsets': offsets,
         }
         try:
             (Path(args.output).parent / 'weekday_overlays_meta.json').write_text(json.dumps(meta, indent=2), encoding='utf-8')

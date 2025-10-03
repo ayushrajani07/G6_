@@ -2,8 +2,8 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 def links_panel(status_file: str, metrics_url: Optional[str], *, low_contrast: bool = False) -> Any:
-    from rich.panel import Panel  # type: ignore
-    from rich.table import Table  # type: ignore
+    from rich.panel import Panel
+    from rich.table import Table
     from scripts.summary.data_source import _use_panels_json, _read_panel_json
     from scripts.summary.derive import clip
     from scripts.summary.env import effective_panel_width

@@ -1,9 +1,11 @@
 {
   "panel": "provider",
-  "updated_at": "2025-09-18T08:01:09.185797Z",
-  "kind": null,
+  "updated_at": "2025-09-30T12:01:39.770182Z",
+  "kind": "provider",
   "data": {
     "name": "sim",
-    "latency_ms": 72
+    "auth": null,
+    "expiry": null,
+    "latency_ms": 15
   }
 }

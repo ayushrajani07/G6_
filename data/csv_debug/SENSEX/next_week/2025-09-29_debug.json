@@ -1,0 +1,14 @@
+{
+  "timestamp": "2025-09-29 07:03:20",
+  "index": "SENSEX",
+  "expiry": "2025-10-09",
+  "expiry_code": "next_week",
+  "index_price": 80381.92,
+  "atm_strike": 80400,
+  "pcr": 1.1127906976744186,
+  "day_width": 512.1500000000087,
+  "data_count": 42,
+  "rounded_timestamp": "29-09-2025 12:33:30",
+  "batched": false,
+  "flushed": true
+}

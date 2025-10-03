@@ -21,7 +21,11 @@ import json
 from .path_utils import ensure_sys_path, resolve_path
 from .logging_utils import setup_logging
 from src.config.config_wrapper import ConfigWrapper
-from src.metrics.metrics import setup_metrics_server
+from src.config.loader import load_and_process_config, ConfigError
+from src.metrics import setup_metrics_server  # facade import (modularized)
+from src.metrics.circuit_metrics import CircuitMetricsExporter
+from src.health import HealthServer, HealthMetricsExporter, HealthLevel, HealthState, AlertManager
+from src.health import runtime as health_runtime
 
 try:  # optional dependency
     from dotenv import load_dotenv  # type: ignore
@@ -48,6 +52,11 @@ def load_raw_config(path: str) -> dict:
             return json.load(f)
     except Exception as e:  # pragma: no cover - fallback path
         logging.error("Bootstrap config load failed (%s): %s", path, e)
+        try:
+            from src.error_handling import handle_data_error
+            handle_data_error(e, component="bootstrap", context={"op": "load_raw_config", "path": path})
+        except Exception:
+            pass
         return {"storage": {"csv_dir": "data/g6_data"}}
 
 
@@ -80,24 +89,126 @@ def bootstrap(
             logging.debug("Environment variables loaded from .env")
         except Exception as e:  # pragma: no cover
             logging.warning("dotenv load failed: %s", e)
+            try:
+                from src.error_handling import handle_api_error
+                handle_api_error(e, component="bootstrap", context={"op": "load_dotenv"})
+            except Exception:
+                pass
 
     # Config
-    raw = load_raw_config(config_path)
+    raw = None
+    # Optional new loader with migration+validation behind env flag
+    enhanced_cfg = os.environ.get('G6_ENHANCED_CONFIG', '').lower() in ('1','true','yes','on')
+    if enhanced_cfg or os.environ.get('G6_CONFIG_LOADER', '').lower() in ('1','true','yes','on'):
+        try:
+            processed, _warns = load_and_process_config(config_path)
+            raw = processed
+        except ConfigError as e:
+            logging.warning("New config loader failed (%s); falling back to legacy load_raw_config", e)
+            raw = load_raw_config(config_path)
+    else:
+        raw = load_raw_config(config_path)
     config = ConfigWrapper(raw)
 
     # Metrics
     metrics = None
     stop = lambda: None
+    circuit_exporter = None
+    health_server = None
+    health_exporter = None
+    alerts_manager = None
     if enable_metrics and config.get("metrics", {}).get("enabled", True):  # type: ignore[index]
         port = config.metrics_port()
         metrics, stop = setup_metrics_server(port=port, reset=metrics_reset, use_custom_registry=metrics_use_custom_registry)
+        # Optional circuit metrics exporter (default off)
+        try:
+            enable_circuit_metrics = os.environ.get('G6_CIRCUIT_METRICS', '').lower() in ('1','true','yes','on') or \
+                bool(config.get('resilience', {}).get('circuit_metrics', {}).get('enabled', False))  # type: ignore[index]
+            if enable_circuit_metrics:
+                interval = float(config.get('resilience', {}).get('circuit_metrics', {}).get('interval', 15.0))  # type: ignore[index]
+                circuit_exporter = CircuitMetricsExporter(metrics, interval_seconds=interval)
+                circuit_exporter.start()
+        except Exception:
+            circuit_exporter = None
+        # Optional health components (default off)
+        try:
+            enable_health_api = os.environ.get('G6_HEALTH_API', '').lower() in ('1','true','yes','on') or \
+                bool(config.get('health', {}).get('api', {}).get('enabled', False))  # type: ignore[index]
+            enable_health_prom = os.environ.get('G6_HEALTH_PROMETHEUS', '').lower() in ('1','true','yes','on') or \
+                bool(config.get('health', {}).get('prometheus', {}).get('enabled', False))  # type: ignore[index]
+            if enable_health_api:
+                h_host = str(config.get('health', {}).get('api', {}).get('host', '127.0.0.1'))  # type: ignore[index]
+                h_port = int(config.get('health', {}).get('api', {}).get('port', 8099))  # type: ignore[index]
+                # Minimal readiness check: metrics server started
+                def _ready() -> bool:
+                    return metrics is not None
+                health_server = HealthServer(host=h_host, port=h_port, ready_check=_ready)
+                health_server.start()
+                # Set initial overall to UNKNOWN
+                health_server.set_overall(HealthLevel.UNKNOWN, HealthState.UNKNOWN)
+            if enable_health_prom:
+                health_exporter = HealthMetricsExporter(namespace='g6')
+                if health_exporter.enabled():
+                    # Initialize overall to UNKNOWN so metrics exist
+                    health_exporter.set_overall(HealthLevel.UNKNOWN, HealthState.UNKNOWN)
+            # Publish to runtime helper for other modules to update
+            if enable_health_api or enable_health_prom:
+                health_runtime.set_current(health_server, health_exporter)
+        except Exception:
+            health_server = None
+            health_exporter = None
+        # Optional alerts subsystem (default off)
+        try:
+            enable_alerts = os.environ.get('G6_ALERTS', '').lower() in ('1','true','yes','on') or \
+                bool(config.get('health', {}).get('alerts', {}).get('enabled', False))  # type: ignore[index]
+            if enable_alerts:
+                alerts_cfg = dict(config.get('health', {}).get('alerts', {}))  # type: ignore[index]
+                # Allow overriding state directory via env
+                state_dir_env = os.environ.get('G6_ALERTS_STATE_DIR')
+                if state_dir_env:
+                    alerts_cfg['state_directory'] = state_dir_env
+                alerts_manager = AlertManager.get_instance()
+                alerts_manager.initialize(alerts_cfg)
+        except Exception:
+            alerts_manager = None
 
-    return BootContext(
+    ctx = BootContext(
         config=config,
         metrics=metrics,
         stop_metrics=stop,
         log_file=log_file,
         config_path=config_path,
     )
+    # Wrap stop to ensure exporter stops too
+    if circuit_exporter is not None or health_server is not None or health_exporter is not None or alerts_manager is not None:
+        old_stop = ctx.stop_metrics
+        def _stop_all():
+            # Health server stop
+            try:
+                if health_server is not None:
+                    health_server.stop()
+            except Exception:
+                pass
+            try:
+                health_runtime.clear_current()
+            except Exception:
+                pass
+            # No explicit stop needed for health_exporter (metrics cleanup occurs on process end)
+            try:
+                if alerts_manager is not None:
+                    alerts_manager.stop()
+            except Exception:
+                pass
+            try:
+                if circuit_exporter is not None:
+                    circuit_exporter.stop()
+            except Exception:
+                pass
+            try:
+                old_stop()
+            except Exception:
+                pass
+        ctx.stop_metrics = _stop_all  # type: ignore
+    return ctx
 
 __all__ = ["bootstrap", "BootContext"]

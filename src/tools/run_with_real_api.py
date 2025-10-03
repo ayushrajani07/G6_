@@ -14,6 +14,11 @@ from pathlib import Path
 from src.utils.path_utils import ensure_sys_path, data_subdir
 from src.utils.logging_utils import setup_logging
 from src.config.config_wrapper import ConfigWrapper
+try:
+    from src.error_handling import handle_api_error, handle_collector_error  # type: ignore
+except Exception:  # pragma: no cover
+    handle_api_error = None  # type: ignore
+    handle_collector_error = None  # type: ignore
 
 ensure_sys_path()
 
@@ -40,7 +45,7 @@ def main():
     from src.collectors.unified_collectors import run_unified_collectors
     from src.storage.csv_sink import CsvSink
     from src.storage.influx_sink import NullInfluxSink
-    from src.metrics.metrics import setup_metrics_server
+    from src.metrics import setup_metrics_server  # facade import
     
     # Load configuration
     config_path = os.environ.get("CONFIG_PATH", "config/g6_config.json")
@@ -60,6 +65,11 @@ def main():
         logger.info("KiteProvider initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize KiteProvider: {e}")
+        try:
+            if handle_api_error:
+                handle_api_error(e, component="tools.run_with_real_api", context={"op": "init_provider"})
+        except Exception:
+            pass
         return 1
     
     # Initialize components
@@ -107,6 +117,11 @@ def main():
         logger.info("Interrupted by user")
     except Exception as e:
         logger.error(f"Error during collection: {e}")
+        try:
+            if handle_collector_error:
+                handle_collector_error(e, component="tools.run_with_real_api", index_name="ALL", context={"op": "collect_cycle"})
+        except Exception:
+            pass
     finally:
         # Clean up
         try:

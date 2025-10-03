@@ -1,0 +1,19 @@
+{
+  "panel": "indices",
+  "updated_at": "2025-09-19T04:34:22.201606Z",
+  "kind": "indices",
+  "data": {
+    "NIFTY": {
+      "status": "OK"
+    },
+    "BANKNIFTY": {
+      "status": "OK"
+    },
+    "FINNIFTY": {
+      "status": "OK"
+    },
+    "SENSEX": {
+      "status": "OK"
+    }
+  }
+}

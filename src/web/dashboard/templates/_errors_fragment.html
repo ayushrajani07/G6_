@@ -1,6 +1,5 @@
 {% if snapshot and snapshot.error_events %}
 <div class="panel errors-panel">
-  <h3>Error Events</h3>
   <table class="error-events">
     <thead>
       <tr><th>When</th><th>Index</th><th>Type</th><th>Count</th></tr>
@@ -18,5 +17,5 @@
   </table>
 </div>
 {% else %}
-<div class="panel errors-panel"><h3>Error Events</h3><p>No recent errors.</p></div>
+<div class="panel errors-panel"><p>No recent errors.</p></div>
 {% endif %}

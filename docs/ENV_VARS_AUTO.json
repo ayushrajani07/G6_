@@ -1,0 +1,3055 @@
+{
+  "counts": {
+    "code_referenced": 597,
+    "documented": 541,
+    "stale": 0,
+    "undocumented": 56
+  },
+  "generated": "2025-10-02T08:46:09.400392Z",
+  "inventory": [
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ARCHITECTURE.md",
+      "name": "G6_ADAPTIVE_",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_ALERT_COLOR_CRITICAL",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_ALERT_COLOR_INFO",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_ALERT_COLOR_WARN",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\OPERATOR_MANUAL.md",
+      "name": "G6_ADAPTIVE_ALERT_SEVERITY",
+      "refs": 34
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\OPERATOR_MANUAL.md",
+      "name": "G6_ADAPTIVE_ALERT_SEVERITY_DECAY_CYCLES",
+      "refs": 21
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\OPERATOR_MANUAL.md",
+      "name": "G6_ADAPTIVE_ALERT_SEVERITY_FORCE",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\OPERATOR_MANUAL.md",
+      "name": "G6_ADAPTIVE_ALERT_SEVERITY_MIN_STREAK",
+      "refs": 17
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\OPERATOR_MANUAL.md",
+      "name": "G6_ADAPTIVE_ALERT_SEVERITY_RULES",
+      "refs": 25
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_ADAPTIVE_CB_INFLUX",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_ADAPTIVE_CB_PROVIDERS",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\temp_http_trend_check.py",
+      "name": "G6_ADAPTIVE_CONTROLLER",
+      "refs": 27
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_CONTROLLER_ACTIONS_DEBUG",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\temp_http_trend_check.py",
+      "name": "G6_ADAPTIVE_CONTROLLER_SEVERITY",
+      "refs": 12
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_DEMOTE_COOLDOWN",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_MAX_DETAIL_MODE",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_MAX_SLA_BREACH_STREAK",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_MEMORY_TIER",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_MIN_DETAIL_MODE",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_MIN_HEALTH_CYCLES",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_PROMOTE_COOLDOWN",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_RECOVERY_CYCLES",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\REMEDIATION_ACTIONS.md",
+      "name": "G6_ADAPTIVE_SCALE_PASSTHROUGH",
+      "refs": 15
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_SEVERITY_CRITICAL_DEMOTE_TYPES",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_SEVERITY_STATE_DEBUG",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_ADAPTIVE_SEVERITY_TREND_",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_SEVERITY_TREND_CRITICAL_RATIO",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\temp_http_trend_check.py",
+      "name": "G6_ADAPTIVE_SEVERITY_TREND_SMOOTH",
+      "refs": 13
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_SEVERITY_TREND_WARN_RATIO",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\temp_http_trend_check.py",
+      "name": "G6_ADAPTIVE_SEVERITY_TREND_WINDOW",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_SEVERITY_WARN_BLOCK_PROMOTE_TYPES",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_SLA_BREACH_STREAK",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_ADAPTIVE_STRIKE_",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\CONFIG_FEATURE_TOGGLES.md",
+      "name": "G6_ADAPTIVE_STRIKE_BREACH_THRESHOLD",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_STRIKE_MAX_ITM",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_STRIKE_MAX_OTM",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\CONFIG_FEATURE_TOGGLES.md",
+      "name": "G6_ADAPTIVE_STRIKE_MIN",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\CONFIG_FEATURE_TOGGLES.md",
+      "name": "G6_ADAPTIVE_STRIKE_REDUCTION",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\CONFIG_FEATURE_TOGGLES.md",
+      "name": "G6_ADAPTIVE_STRIKE_RESTORE_HEALTHY",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\CONFIG_FEATURE_TOGGLES.md",
+      "name": "G6_ADAPTIVE_STRIKE_SCALING",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_STRIKE_STEP",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_THEME_GZIP",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_THEME_SSE_DIFF",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_THEME_STREAM_INTERVAL",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ADAPTIVE_THEME_STREAM_MAX_EVENTS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_ALERTS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\PHASE10_SCOPE.md",
+      "name": "G6_ALERTS_EMBED_LEGACY",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ALERTS_FLAT_COMPAT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_ALERTS_STATE_DIR",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_ALERT_FIELD_COV_MIN",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_ALERT_LIQUIDITY_MIN_RATIO",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\PHASE10_SCOPE.md",
+      "name": "G6_ALERT_LIQ_MIN_RATIO",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_ALERT_QUOTE_STALE_AGE_S",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\PHASE10_SCOPE.md",
+      "name": "G6_ALERT_SPREAD_PCT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\PHASE10_SCOPE.md",
+      "name": "G6_ALERT_STALE_SEC",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_ALERT_STRIKE_COV_MIN",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_ALERT_TAXONOMY_EXTENDED",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_ALERT_WIDE_SPREAD_PCT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\CONFIGURATION.md",
+      "name": "G6_ALLOW_LEGACY_",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\DEPRECATIONS_SUMMARY.md",
+      "name": "G6_ALLOW_LEGACY_PANELS_BRIDGE",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ALLOW_LEGACY_SCAN",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ANALYTICS_COMPRESS",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ANALYTICS_DIR",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_modules.md",
+      "name": "G6_ASYNC_PERSIST",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\ENHANCED_COLLECTOR_RETIREMENT.md",
+      "name": "G6_AUTO_SNAPSHOTS",
+      "refs": 15
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_modules.md",
+      "name": "G6_BENCHMARK_",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_BENCHMARK_ANNOTATE_OUTLIERS",
+      "refs": 14
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_BENCHMARK_ANOMALY_HISTORY",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_BENCHMARK_ANOMALY_THRESHOLD",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_patch.md",
+      "name": "G6_BENCHMARK_COMPRESS",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_patch.md",
+      "name": "G6_BENCHMARK_DUMP",
+      "refs": 33
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_BENCHMARK_KEEP_N",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_BENCH_TREND_DEBUG",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_BOOTSTRAP_COMPONENTS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_BUILD_COMMIT",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_BUILD_CONFIG_HASH",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_BUILD_TIME",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_BUILD_VERSION",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\OVERLAY_VISUALIZATION.md",
+      "name": "G6_CALENDAR_HOLIDAYS_JSON",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CARDINALITY_MAX_SERIES",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CARDINALITY_MIN_DISABLE_SECONDS",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CARDINALITY_REENABLE_FRACTION",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CATALOG_EVENTS_CONTEXT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CATALOG_EVENTS_LIMIT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\temp_http_trend_check.py",
+      "name": "G6_CATALOG_HTTP",
+      "refs": 12
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CATALOG_HTTP_DISABLE",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CATALOG_HTTP_FORCED",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CATALOG_HTTP_FORCE_RELOAD",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CATALOG_HTTP_HOST",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\debug_catalog_http.py",
+      "name": "G6_CATALOG_HTTP_PORT",
+      "refs": 13
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\debug_catalog_http.py",
+      "name": "G6_CATALOG_HTTP_REBUILD",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\temp_debug2.py",
+      "name": "G6_CATALOG_INTEGRITY",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_CATALOG_TS",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_CB_BACKOFF",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_CB_FAILURES",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_CB_HALF_OPEN_SUCC",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_CB_JITTER",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_CB_MAX_RESET",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_CB_MIN_RESET",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_CB_STATE_DIR",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_CIRCUIT_METRICS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_CIRCUIT_METRICS_INTERVAL",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_COLLECTION_INTERVAL",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_modules.md",
+      "name": "G6_COLLECTOR_REFACTOR_DEBUG",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPLOYMENT_GUIDE.md",
+      "name": "G6_COLOR",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_COMPOSITE_PROVIDER",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_COMPUTE_GREEKS",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPLOYMENT_GUIDE.md",
+      "name": "G6_CONCISE_LOGS",
+      "refs": 13
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_CONFIG_",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\README.md",
+      "name": "G6_CONFIG_DOC_STRICT",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_CONFIG_EMIT_NORMALIZED",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_CONFIG_LEGACY_SOFT",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CONFIG_LOADER",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CONFIG_PATH",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CONFIG_SCHEMA_DOC_STRICT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CONFIG_STRICT",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CONFIG_VALIDATE_CAPABILITIES",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_modules.md",
+      "name": "G6_CONTRACT_",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_patch.md",
+      "name": "G6_CONTRACT_COOLDOWN",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CONTRACT_MULTIPLIER_",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CONTRACT_MULTIPLIER_DEFAULT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CONTRACT_MULTIPLIER_NIFTY",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_patch.md",
+      "name": "G6_CONTRACT_OK_CYCLES",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_patch.md",
+      "name": "G6_CONTRACT_STEP",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\FILE_STRUCTURE.md",
+      "name": "G6_CSV_BASE_DIR",
+      "refs": 13
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_BATCH_FLUSH",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_CSV_BUFFER_SIZE",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_DEDUP_ENABLED",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_DEMO_DIR",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_DQ_MIN_POSITIVE_COUNT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_DQ_MIN_POSITIVE_FRACTION",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_CSV_FLUSH_INTERVAL",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_FLUSH_NOW",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_CSV_JUNK_",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_JUNK_DEBUG",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_JUNK_ENABLE",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_JUNK_MIN_LEG_OI",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_JUNK_MIN_LEG_VOL",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_JUNK_MIN_TOTAL_OI",
+      "refs": 14
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_JUNK_MIN_TOTAL_VOL",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_JUNK_STALE_THRESHOLD",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_JUNK_SUMMARY_INTERVAL",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_JUNK_WHITELIST",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_CSV_MAX_OPEN_FILES",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_PRICE_SANITY",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CSV_VERBOSE",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CYCLE_INTERVAL",
+      "refs": 27
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPLOYMENT_GUIDE.md",
+      "name": "G6_CYCLE_OUTPUT",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CYCLE_SLA_FRACTION",
+      "refs": 13
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_CYCLE_STYLE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_DASHBOARD_CORE_REFRESH_SEC",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_DASHBOARD_DEBUG",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_DASHBOARD_SECONDARY_REFRESH_SEC",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_DEBUG_SHORT_TTL",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\README.md",
+      "name": "G6_DETAIL_MODE_BAND_ATM_WINDOW",
+      "refs": 13
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_DIAG_EXIT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_DISABLE_ADAPTIVE_STRIKE_RETRY",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_DISABLE_AUTO_DOTENV",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_DISABLE_COMPONENTS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\run_doc_check.py",
+      "name": "G6_DISABLE_EXPIRY_MAP",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_DISABLE_GREEKS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_DISABLE_METRICS_SOURCE",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_DISABLE_METRIC_GROUPS",
+      "refs": 32
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_DISABLE_MINIMAL_CONSOLE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_DISABLE_PER_OPTION_METRICS",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\REMEDIATION_ACTIONS.md",
+      "name": "G6_DISABLE_PREFILTER",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPLOYMENT_GUIDE.md",
+      "name": "G6_DISABLE_PRETTY_CYCLE",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_DISABLE_ROOT_CACHE",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPLOYMENT_GUIDE.md",
+      "name": "G6_DISABLE_STARTUP_BANNER",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_DISABLE_STRIKE_CACHE",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_DISABLE_STRUCT_EVENTS",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_DOMAIN_MODELS",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_DQ_ERROR_THRESHOLD",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_DQ_WARN_THRESHOLD",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EMIT_CATALOG",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EMIT_CATALOG_EVENTS",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_ENABLE_",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\REMEDIATION_ACTIONS.md",
+      "name": "G6_ENABLE_BACKWARD_EXPIRY_FALLBACK",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ENABLE_BLACK",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_modules.md",
+      "name": "G6_ENABLE_DATA_QUALITY",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPRECATIONS.md",
+      "name": "G6_ENABLE_LEGACY_LOOP",
+      "refs": 13
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_ENABLE_METRIC_GROUPS",
+      "refs": 50
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\REMEDIATION_ACTIONS.md",
+      "name": "G6_ENABLE_NEAREST_EXPIRY_FALLBACK",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\TESTING.md",
+      "name": "G6_ENABLE_OPTIONAL_TESTS",
+      "refs": 12
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_ENABLE_PANEL_PUBLISH",
+      "refs": 13
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ENABLE_PERF_TESTS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\TESTING.md",
+      "name": "G6_ENABLE_SLOW_TESTS",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ENABLE_TRACEMALLOC",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ENHANCED_CONFIG",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_ENHANCED_SNAPSHOT_MODE",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ENHANCED_UI",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ENHANCED_UI_MARKER",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_ENRICH_ASYNC",
+      "refs": 19
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ENRICH_ASYNC_BATCH",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ENRICH_ASYNC_TIMEOUT_MS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ENRICH_ASYNC_WORKERS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ENV_DEPRECATION_ALLOW",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ENV_DEPRECATION_STRICT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\README.md",
+      "name": "G6_ENV_DOC_STRICT",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\README.md",
+      "name": "G6_ESTIMATE_IV",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EVENTS_DISABLE",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EVENTS_FORCE_FULL_RETRY_SECONDS",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\debug_catalog_http.py",
+      "name": "G6_EVENTS_LOG_PATH",
+      "refs": 21
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EVENTS_MIN_LEVEL",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EVENTS_RECENT_MAX",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EVENTS_SAMPLE_DEFAULT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EVENTS_SAMPLE_MAP",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EVENTS_SNAPSHOT_GAP_MAX",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EVENTS_SSE_HEARTBEAT",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EVENTS_SSE_POLL",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EVENTS_SSE_RETRY_MS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EXPIRY_COERCION_AGGREGATE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EXPIRY_EXPAND_CONFIG",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\run_doc_check.py",
+      "name": "G6_EXPIRY_MAP_STRICT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EXPIRY_MISCLASS_DEBUG",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EXPIRY_MISCLASS_DETECT",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPRECATIONS.md",
+      "name": "G6_EXPIRY_MISCLASS_POLICY",
+      "refs": 16
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPRECATIONS.md",
+      "name": "G6_EXPIRY_MISCLASS_SKIP",
+      "refs": 18
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EXPIRY_QUARANTINE_DIR",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EXPIRY_QUARANTINE_MAX_DAYS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EXPIRY_QUARANTINE_SUMMARY",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EXPIRY_REWRITE_ANNOTATE",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EXPIRY_RULE_RESOLUTION",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_modules.md",
+      "name": "G6_EXPIRY_SERVICE",
+      "refs": 13
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_EXPIRY_SUMMARY_INTERVAL_SEC",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPRECATIONS.md",
+      "name": "G6_FACADE_PARITY_STRICT",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\OPERATOR_MANUAL.md",
+      "name": "G6_FANCY_CONSOLE",
+      "refs": 16
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_FEATURES_ANALYTICS_STARTUP",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_FEATURES_FANCY_STARTUP",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_FEATURES_LIVE_PANEL",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FIELD_COVERAGE_OK",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_FILTER_MIN_OI",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_FILTER_MIN_VOLUME",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_FILTER_VOLUME_PERCENTILE",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_FOLLOWUPS_",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOLLOWUPS_BUCKET_CONSEC",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOLLOWUPS_BUCKET_THRESHOLD",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOLLOWUPS_BUFFER_MAX",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOLLOWUPS_DEBUG",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOLLOWUPS_DEMOTE_THRESHOLD",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOLLOWUPS_ENABLED",
+      "refs": 22
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOLLOWUPS_EVENTS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOLLOWUPS_INTERP_CONSEC",
+      "refs": 15
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOLLOWUPS_INTERP_THRESHOLD",
+      "refs": 15
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOLLOWUPS_PANEL_LIMIT",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOLLOWUPS_RISK_DRIFT_PCT",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOLLOWUPS_RISK_MIN_OPTIONS",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOLLOWUPS_RISK_WINDOW",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOLLOWUPS_SUPPRESS_SECONDS",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOLLOWUPS_WEIGHTS",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOLLOWUPS_WEIGHT_WINDOW",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOO_BAR",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\OPERATOR_MANUAL.md",
+      "name": "G6_FORCE_ASCII",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FORCE_DATA_SOURCE",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FORCE_GREEKS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_FORCE_MARKET_OPEN",
+      "refs": 74
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FORCE_NEW_REGISTRY",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\README_COMPREHENSIVE.md",
+      "name": "G6_FORCE_UNICODE",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FORCE_UNIFIED_PANELS_WRITE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_FOREIGN_EXPIRY_SALVAGE",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_GIT_COMMIT",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_HEALTH_API",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ARCHITECTURE.md",
+      "name": "G6_HEALTH_API_",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_HEALTH_API_ENABLED",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_HEALTH_API_HOST",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_HEALTH_API_PORT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_HEALTH_COMPONENTS",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_HEALTH_PROMETHEUS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_HOLIDAYS_FILE",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_HTTP_BASIC_PASS",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_HTTP_BASIC_USER",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\EMITTERS_REPORT_TEMP.md",
+      "name": "G6_INDICES_PANEL_LOG",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_INFLUX_BATCH_SIZE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_INFLUX_FLUSH_INTERVAL",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_INFLUX_MAX_QUEUE_SIZE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_INFLUX_POOL_MAX_SIZE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_INFLUX_POOL_MIN_SIZE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\REMEDIATION_ACTIONS.md",
+      "name": "G6_INSTRUMENT_CACHE_TTL",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_INTEGRITY_AUTO_EVERY",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_INTEGRITY_AUTO_RUN",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_INTERP_FRACTION_ALERT_STREAK",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_INTERP_FRACTION_ALERT_THRESHOLD",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_JSON_LOGS",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_KITE_AUTH_VERBOSE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_KITE_RATE_LIMIT_BURST",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_KITE_RATE_LIMIT_CPS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_KITE_THROTTLE_MS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_KITE_TIMEOUT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_KITE_TIMEOUT_SEC",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\PHASE10_SCOPE.md",
+      "name": "G6_LATENCY_PROFILING",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\REMEDIATION_ACTIONS.md",
+      "name": "G6_LEAN_MODE",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_LEGACY_COLLECTOR",
+      "refs": 18
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_LEGACY_LOOP_WARNED",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_LIFECYCLE_COMPRESSION_AGE_SEC",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_LIFECYCLE_COMPRESSION_EXT",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_LIFECYCLE_JOB",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_LIFECYCLE_MAX_PER_CYCLE",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_LIFECYCLE_QUAR_DIR",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_LIFECYCLE_RETENTION_DAYS",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_LIFECYCLE_RETENTION_DELETE_LIMIT",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\OPERATOR_MANUAL.md",
+      "name": "G6_LIVE_PANEL",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_LOG_FILE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_LOG_LEVEL",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_LOOP_INTERVAL_SECONDS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_LOOP_MARKET_HOURS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPRECATIONS.md",
+      "name": "G6_LOOP_MAX_CYCLES",
+      "refs": 36
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_MASTER_REFRESH_SEC",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPRECATIONS.md",
+      "name": "G6_MAX_CYCLES",
+      "refs": 17
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_MEMORY_GC_INTERVAL_SEC",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_MEMORY_LEVEL1_MB",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_MEMORY_LEVEL2_MB",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_MEMORY_LEVEL3_MB",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_MEMORY_MINOR_GC_EACH_CYCLE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_MEMORY_PRESSURE_RECOVERY_SECONDS",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_MEMORY_PRESSURE_TIERS",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_MEMORY_ROLLBACK_COOLDOWN",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_MEMORY_TIER",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_MEMORY_TIER_OVERRIDE",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\CONFIGURATION.md",
+      "name": "G6_METRICS_",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_METRICS_CARD_ATM_WINDOW",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_METRICS_CARD_CHANGE_THRESHOLD",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_METRICS_CARD_ENABLED",
+      "refs": 12
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_METRICS_CARD_RATE_LIMIT_PER_SEC",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\PHASE10_SCOPE.md",
+      "name": "G6_METRICS_ENABLE",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\DEPRECATIONS_SUMMARY.md",
+      "name": "G6_METRICS_ENABLED",
+      "refs": 12
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_METRICS_ENDPOINT",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_METRICS_HOST",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_METRICS_INTROSPECTION_DUMP",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_METRICS_PORT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_METRICS_STRICT_EXCEPTIONS",
+      "refs": 16
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_METRICS_URL",
+      "refs": 15
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_METRICS_VERBOSE",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_MISSING_CYCLE_FACTOR",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_MONTHLY_EXPIRY_DOW",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_MYPY_BIN",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_NAME",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_NEW_BOOTSTRAP",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_NEW_LOOP",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_OPTION_METRIC_ATM_WINDOW",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\EMITTERS_REPORT_TEMP.md",
+      "name": "G6_OUTPUT_JSONL_PATH",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\EMITTERS_REPORT_TEMP.md",
+      "name": "G6_OUTPUT_LEVEL",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\EMITTERS_REPORT_TEMP.md",
+      "name": "G6_OUTPUT_SINKS",
+      "refs": 30
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\OVERLAY_VISUALIZATION.md",
+      "name": "G6_OVERLAY_SKIP_NON_TRADING",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\OVERLAY_VISUALIZATION.md",
+      "name": "G6_OVERLAY_VIS_CHUNK_SIZE",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\OVERLAY_VISUALIZATION.md",
+      "name": "G6_OVERLAY_VIS_MEMORY_LIMIT_MB",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\OVERLAY_VISUALIZATION.md",
+      "name": "G6_OVERLAY_WRITE_BACKUP",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_OVERVIEW_INTERVAL_SECONDS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ARCHITECTURE.md",
+      "name": "G6_PANELS_",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\README_COMPREHENSIVE.md",
+      "name": "G6_PANELS_ALWAYS_META",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\EMITTERS_REPORT_TEMP.md",
+      "name": "G6_PANELS_ATOMIC",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANELS_BRIDGE_PHASE",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANELS_BRIDGE_SUPPRESS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\EMITTERS_REPORT_TEMP.md",
+      "name": "G6_PANELS_DIR",
+      "refs": 54
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\EMITTERS_REPORT_TEMP.md",
+      "name": "G6_PANELS_INCLUDE",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\README.md",
+      "name": "G6_PANELS_INTEGRITY_INTERVAL",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\README.md",
+      "name": "G6_PANELS_INTEGRITY_MONITOR",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\README.md",
+      "name": "G6_PANELS_INTEGRITY_STRICT",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANELS_LOOP_BACKOFF_MS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANELS_READ_BACKOFF_MS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANELS_READ_RETRY",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANELS_SCHEMA_WRAPPER",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANELS_SSE_DEBUG",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANELS_SSE_OVERLAY",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANELS_SSE_STRICT",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANELS_SSE_TIMEOUT",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANELS_SSE_TYPES",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANELS_SSE_URL",
+      "refs": 12
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\README.md",
+      "name": "G6_PANELS_VALIDATE",
+      "refs": 12
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANELS_WRITER_BASIC",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANEL_AUTO_FIT",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANEL_CLIP",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANEL_DIFFS",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANEL_DIFF_FULL_INTERVAL",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANEL_DIFF_MAX_KEYS",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANEL_DIFF_NEST_DEPTH",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANEL_H_",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANEL_H_MARKET",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANEL_MIN_COL_W",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANEL_W_",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PANEL_W_MARKET",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPRECATIONS.md",
+      "name": "G6_PARALLEL_COLLECTION",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PARALLEL_CYCLE_BUDGET_FRACTION",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PARALLEL_INDEX_RETRY",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PARALLEL_INDEX_TIMEOUT_SEC",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PARALLEL_INDEX_WORKERS",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPRECATIONS.md",
+      "name": "G6_PARALLEL_INDICES",
+      "refs": 19
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PARALLEL_MAX_WORKERS",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PARALLEL_STAGGER_MS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_PARITY_FLOAT_ATOL",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_PARITY_FLOAT_RTOL",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PARITY_GOLDEN_VERIFY",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_PARITY_INCLUDE_REASON_GROUPS",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\PHASE10_SCOPE.md",
+      "name": "G6_PARTIAL_REASON_HIERARCHY",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_PIPELINE_COLLECTOR",
+      "refs": 74
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_PIPELINE_INCLUDE_DIAGNOSTICS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_PIPELINE_REENTRY",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_PIPELINE_ROLLOUT",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PIP_AUDIT_IGNORE",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PIP_AUDIT_SEVERITY",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\OVERLAY_VISUALIZATION.md",
+      "name": "G6_PLOTLY_JS_PATH",
+      "refs": 15
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\OVERLAY_VISUALIZATION.md",
+      "name": "G6_PLOTLY_VERSION",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_PREFILTER_",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_modules.md",
+      "name": "G6_PREFILTER_CLAMP_STRICT",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_modules.md",
+      "name": "G6_PREFILTER_DISABLE",
+      "refs": 13
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_modules.md",
+      "name": "G6_PREFILTER_MAX_INSTRUMENTS",
+      "refs": 15
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_PREVENTIVE_DEBUG",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PRICE_MAX_INDEX_FRAC",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PRICE_MAX_STRIKE_FRAC",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PRICE_PAISE_THRESHOLD",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PROCESS_START_TS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\run_doc_check.py",
+      "name": "G6_PROFILE_EXPIRY_MAP",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ARCHITECTURE.md",
+      "name": "G6_PROVIDERS_",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PROVIDERS_PRIMARY_API_KEY",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PROVIDER_FAILFAST",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PROVIDER_LAT_ERR_MS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PROVIDER_LAT_WARN_MS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_PUBLISHER_EMIT_INDICES_STREAM",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_PYTEST_BIN",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_QUIET_ALLOW_TRACE",
+      "refs": 12
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_QUIET_MODE",
+      "refs": 15
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ARCHITECTURE.md",
+      "name": "G6_REFACTOR_DEBUG",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_REGEN_PARITY_GOLDEN",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_RETRY_BACKOFF",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_RETRY_BLACKLIST",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_RETRY_JITTER",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_RETRY_MAX_ATTEMPTS",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_RETRY_MAX_SECONDS",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_RETRY_PROVIDERS",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_RETRY_WHITELIST",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_RETURN_SNAPSHOTS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\README.md",
+      "name": "G6_RISK_AGG",
+      "refs": 13
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_RISK_AGG_BUCKETS",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_RISK_AGG_MAX_OPTIONS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_RISK_AGG_PERSIST",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_RISK_BUCKET_UTIL_MIN",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_RISK_BUCKET_UTIL_STREAK",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_RISK_DELTA_DRIFT_PCT",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_RISK_DELTA_DRIFT_WINDOW",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_RISK_DELTA_STABLE_ROW_TOLERANCE",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_RISK_NOTIONALS_PER_INDEX",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_ROOT_CACHE_MAX",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_RUFF_BIN",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_RUNTIME_FLAGS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPLOYMENT_GUIDE.md",
+      "name": "G6_RUNTIME_STATUS",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\debug_catalog_http.py",
+      "name": "G6_RUNTIME_STATUS_FILE",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_RUN_ID",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SBOM_INCLUDE_HASH",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SCHEMA_STRICT",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SECONDARY_PROVIDER_PATH",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_SKIP_CONFIG_DOC_VALIDATION",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SKIP_CONFIG_SCHEMA_DOC_SYNC",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\README.md",
+      "name": "G6_SKIP_ENV_DOC_VALIDATION",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\TESTING.md",
+      "name": "G6_SKIP_PROVIDER_READINESS",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SKIP_ZERO_ROWS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\ENHANCED_COLLECTOR_RETIREMENT.md",
+      "name": "G6_SNAPSHOT_CACHE",
+      "refs": 22
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SNAPSHOT_CACHE_FORCE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SNAPSHOT_TEST_MODE",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SOURCE_PRIORITY_LOGS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SOURCE_PRIORITY_METRICS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SOURCE_PRIORITY_PANELS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SOURCE_PRIORITY_STATUS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_STARTUP_EXPIRY_TRACE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_STARTUP_LEGACY_PLACEHOLDERS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_STATUS_FILE",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\CONFIGURATION.md",
+      "name": "G6_STORAGE_",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_STORAGE_CSV_DIR",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ARCHITECTURE.md",
+      "name": "G6_STORAGE_INFLUX_",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_STORAGE_INFLUX_BUCKET",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_STORAGE_INFLUX_ENABLED",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_STORAGE_INFLUX_ORG",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENVIRONMENT.md",
+      "name": "G6_STORAGE_INFLUX_URL",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_STREAM_GATE_MODE",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_STREAM_STALE_ERR_SEC",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_STREAM_STALE_WARN_SEC",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_modules.md",
+      "name": "G6_STRICT_MODULE_IMPORTS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_STRIKE_CLUSTER",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_STRIKE_COVERAGE_OK",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\PHASE10_SCOPE.md",
+      "name": "G6_STRIKE_POLICY",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_STRIKE_POLICY_COOLDOWN",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_STRIKE_POLICY_MAX_ITM",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_STRIKE_POLICY_MAX_OTM",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_STRIKE_POLICY_STEP",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_STRIKE_POLICY_TARGET",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_STRIKE_POLICY_WINDOW",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_STRIKE_STEP_",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_STRIKE_STEP_NIFTY",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_STRIKE_UNIVERSE_CACHE_SIZE",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ARCHITECTURE.md",
+      "name": "G6_SUMMARY_",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_AGG_V2",
+      "refs": 25
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_ALERTS_LOG_MAX",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_ALERT_DEDUPE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_ALERT_LOG_BACKUPS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_ALERT_LOG_MAX_MB",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_ALT_SCREEN",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_ANOMALY",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_AUTO_FULL_RECOVERY",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_BACKOFF_BADGE_MS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_BUILD_MODEL",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_CONTROLLER_META",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_CURATED_MODE",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_DEBUG_LOG",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_DEBUG_UPDATES",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_DOSSIER_INTERVAL",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_DOSSIER_INTERVAL_SEC",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_DOSSIER_PATH",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_EVENT_DEBOUNCE_MS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_FOLLOWUP_SPARK",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_HEADER_ENH",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_HIDE_EMPTY_BLOCKS",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_HISTORY_FILE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_HISTORY_FILE_MAX_MB",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_HISTORY_SIZE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\CONFIGURATION.md",
+      "name": "G6_SUMMARY_LEGACY",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_LOOP_BACKOFF_MS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_MAX_LINES",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_MEM_PROJECTION",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_META_REFRESH_SEC",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_METRICS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_MODE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_SUMMARY_PANELS_MODE",
+      "refs": 18
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_PANEL_ISOLATION",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_PARITY",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_SUMMARY_READ_PANELS",
+      "refs": 15
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_REFRESH_SEC",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_RES_REFRESH_SEC",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_RICH_MODE",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_ROOT_CAUSE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_SCHEMA_ENFORCE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_SCORING",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_SEVERITY_BADGE",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_SHOW_NEED_FULL",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_SIG_V2",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_SPARKLINES",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_SSE_TIMEOUT",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_SSE_TYPES",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_SSE_URL",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_STATUS_FILE",
+      "refs": 9
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_THEME",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_THRESH_OVERRIDES",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_TRENDS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPRECATIONS.md",
+      "name": "G6_SUMMARY_UNIFIED_SNAPSHOT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUMMARY_V2_LOG_DEBUG",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_SUMMARY_V2_ONLY",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\DEPRECATIONS.md",
+      "name": "G6_SUPPRESS_",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CLEANUP_PLAN.md",
+      "name": "G6_SUPPRESS_BENCHMARK_DEPRECATED",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_SUPPRESS_CLOSED_METRICS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CLEANUP_PLAN.md",
+      "name": "G6_SUPPRESS_DEPRECATED_RUN_LIVE",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CLEANUP_PLAN.md",
+      "name": "G6_SUPPRESS_DEPRECATED_WARNINGS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CLEANUP_PLAN.md",
+      "name": "G6_SUPPRESS_DEPRECATIONS",
+      "refs": 23
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\DEPRECATIONS.md",
+      "name": "G6_SUPPRESS_EXPIRY_MATRIX_WARN",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPRECATIONS.md",
+      "name": "G6_SUPPRESS_KITE_DEPRECATIONS",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPRECATIONS.md",
+      "name": "G6_SUPPRESS_LEGACY_LOOP_WARN",
+      "refs": 10
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_SUPPRESS_LEGACY_METRICS_WARN",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\README.md",
+      "name": "G6_SYMBOL_MATCH_MODE",
+      "refs": 12
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\README.md",
+      "name": "G6_SYMBOL_MATCH_SAFEMODE",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\REMEDIATION_ACTIONS.md",
+      "name": "G6_SYMBOL_MATCH_UNDERLYING_STRICT",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_modules.md",
+      "name": "G6_SYNTHETIC_",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPLOYMENT_GUIDE.md",
+      "name": "G6_TERMINAL_MODE",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_TEST_CONFIG",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_TEST_TIME_HARD",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_TEST_TIME_SOFT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\OVERLAY_VISUALIZATION.md",
+      "name": "G6_TIME_TOLERANCE_SECONDS",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_TOKEN_HEADLESS",
+      "refs": 14
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\README.md",
+      "name": "G6_TOKEN_PROVIDER",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_TRACEMALLOC_",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_TRACEMALLOC_SNAPSHOT_DIR",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_TRACEMALLOC_TOPN",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_TRACEMALLOC_WRITE_SNAPSHOTS",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_TRACE_AUTO_DISABLE",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\REMEDIATION_ACTIONS.md",
+      "name": "G6_TRACE_COLLECTOR",
+      "refs": 25
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\collector_modules.md",
+      "name": "G6_TRACE_EXPIRY",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_TRACE_EXPIRY_PIPELINE",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_TRACE_EXPIRY_SELECTION",
+      "refs": 7
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\ENV_VARS_AUTO.md",
+      "name": "G6_TRACE_METRICS",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\REMEDIATION_ACTIONS.md",
+      "name": "G6_TRACE_OPTION_MATCH",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_TRACE_QUOTES",
+      "refs": 3
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_UNIFIED_METRICS",
+      "refs": 17
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPRECATIONS.md",
+      "name": "G6_UNIFIED_MODEL_INIT_DEBUG",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\DEPLOYMENT_GUIDE.md",
+      "name": "G6_USE_MOCK_PROVIDER",
+      "refs": 24
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_VALIDATION_BYPASS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_VERBOSE_CONSOLE",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_VERSION",
+      "refs": 11
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_VOL_SURFACE",
+      "refs": 25
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_VOL_SURFACE_BUCKETS",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_VOL_SURFACE_INTERPOLATE",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_VOL_SURFACE_MAX_OPTIONS",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_VOL_SURFACE_MODEL",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_VOL_SURFACE_PERSIST",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_VOL_SURFACE_PER_EXPIRY",
+      "refs": 24
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\CHANGELOG.md",
+      "name": "G6_WARN_LEGACY_METRICS_IMPORT",
+      "refs": 8
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_WEB_PORT",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_WEEKDAY_OVERLAYS_HTML",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_WEEKDAY_OVERLAYS_META",
+      "refs": 4
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_WEEKLY_EXPIRY_DOW",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\config_dict.md",
+      "name": "G6_WRITE_CONFIG_DOC_BASELINE",
+      "refs": 6
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\docs\\env_dict.md",
+      "name": "G6_WRITE_CONFIG_SCHEMA_DOC_BASELINE",
+      "refs": 5
+    },
+    {
+      "first_path": "C:\\Users\\ASUS\\Documents\\G6\\qq\\g6_reorganized\\README.md",
+      "name": "G6_WRITE_ENV_DOC_BASELINE",
+      "refs": 7
+    }
+  ],
+  "stale": [],
+  "undocumented": [
+    "G6_ADAPTIVE_",
+    "G6_ADAPTIVE_SEVERITY_TREND_",
+    "G6_ADAPTIVE_STRIKE_",
+    "G6_ALLOW_LEGACY_",
+    "G6_BENCHMARK_",
+    "G6_CONFIG_",
+    "G6_CONTRACT_",
+    "G6_CSV_JUNK_",
+    "G6_DISABLE_PER_OPTION_METRICS",
+    "G6_ENABLE_",
+    "G6_FOLLOWUPS_",
+    "G6_HEALTH_API_",
+    "G6_MEMORY_TIER_OVERRIDE",
+    "G6_METRICS_",
+    "G6_PANELS_",
+    "G6_PREFILTER_",
+    "G6_PROVIDERS_",
+    "G6_STORAGE_",
+    "G6_STORAGE_INFLUX_",
+    "G6_STORAGE_INFLUX_ORG",
+    "G6_STORAGE_INFLUX_URL",
+    "G6_STRICT_MODULE_IMPORTS",
+    "G6_SUMMARY_",
+    "G6_SUMMARY_ALERT_DEDUPE",
+    "G6_SUMMARY_ALERT_LOG_BACKUPS",
+    "G6_SUMMARY_ALERT_LOG_MAX_MB",
+    "G6_SUMMARY_ANOMALY",
+    "G6_SUMMARY_CONTROLLER_META",
+    "G6_SUMMARY_DOSSIER_INTERVAL",
+    "G6_SUMMARY_EVENT_DEBOUNCE_MS",
+    "G6_SUMMARY_FOLLOWUP_SPARK",
+    "G6_SUMMARY_HEADER_ENH",
+    "G6_SUMMARY_HISTORY_FILE",
+    "G6_SUMMARY_HISTORY_FILE_MAX_MB",
+    "G6_SUMMARY_HISTORY_SIZE",
+    "G6_SUMMARY_MAX_LINES",
+    "G6_SUMMARY_MEM_PROJECTION",
+    "G6_SUMMARY_METRICS",
+    "G6_SUMMARY_PANEL_ISOLATION",
+    "G6_SUMMARY_PARITY",
+    "G6_SUMMARY_RICH_MODE",
+    "G6_SUMMARY_ROOT_CAUSE",
+    "G6_SUMMARY_SCHEMA_ENFORCE",
+    "G6_SUMMARY_SCORING",
+    "G6_SUMMARY_SEVERITY_BADGE",
+    "G6_SUMMARY_SPARKLINES",
+    "G6_SUMMARY_THEME",
+    "G6_SUMMARY_TRENDS",
+    "G6_SUMMARY_V2_ONLY",
+    "G6_SUPPRESS_",
+    "G6_SUPPRESS_DEPRECATED_RUN_LIVE",
+    "G6_SUPPRESS_KITE_DEPRECATIONS",
+    "G6_SUPPRESS_LEGACY_METRICS_WARN",
+    "G6_SYNTHETIC_",
+    "G6_TRACE_METRICS",
+    "G6_VOL_SURFACE"
+  ]
+}

@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
 """Unified developer tooling CLI for G6 platform.
+(DEPRECATION NOTICE) Prefer `python scripts/g6.py` for new workflows.
+Set G6_SUPPRESS_LEGACY_CLI=1 to silence this warning.
 
 Subcommands:
-  run-once        Run a single mock collection cycle (leveraging unified_main)
-  dashboard       Continuous mock dashboard run (existing run_mock_dashboard semantics)
+    run-once        Run a single mock collection cycle (orchestrator path)
+    dashboard       Continuous mock dashboard run using orchestrator cycle
   view-status     Pretty-print a runtime status JSON file continuously (tail)
   validate-status Validate a runtime status JSON blob against lightweight schema
   full-tests      Convenience wrapper to run core + optional test suites
     summary         Launch the Rich/ASCII summarizer view
     simulate-status Generate a realistic runtime_status.json for demo/testing
-
-Environment helpers:
-  Set G6_ENABLE_OPTIONAL_TESTS=1 to include optional tests.
-  Set G6_ENABLE_SLOW_TESTS=1 to include slow tests.
-
-This script intentionally avoids external deps beyond stdlib.
 """
 from __future__ import annotations
 import argparse
@@ -22,14 +18,28 @@ import json
 import os
 import sys
 import time
-from pathlib import Path
 import subprocess
+from pathlib import Path
+
+_warned = False
+
+def _warn():
+    global _warned
+    if _warned:
+        return
+    if os.getenv('G6_SUPPRESS_LEGACY_CLI','').lower() in ('1','true','yes','on'):
+        return
+    print('[DEPRECATED] dev_tools.py will migrate into g6 CLI. Use `g6 summary` / `g6 simulate` etc. Set G6_SUPPRESS_LEGACY_CLI=1 to silence.', file=sys.stderr)
+    _warned = True
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.schema.runtime_status_validator import validate_runtime_status  # noqa: E402
+from src.orchestrator.bootstrap import bootstrap_runtime  # type: ignore  # noqa: E402
+from src.orchestrator.cycle import run_cycle  # type: ignore  # noqa: E402
+from src.orchestrator.context import RuntimeContext  # type: ignore  # noqa: E402
 
 DEFAULT_CONFIG = 'config/g6_config.json'
 
@@ -39,50 +49,73 @@ def _common_status_args(p: argparse.ArgumentParser):
     p.add_argument('--interval', type=int, default=3, help='Collection interval seconds')
 
 
-def cmd_run_once(args: argparse.Namespace) -> int:
-    from src.unified_main import main as unified_main  # lazy import
-    argv = [
-        'unified_main', '--config', args.config, '--run-once', '--mock-data',
-        '--interval', str(args.interval), '--runtime-status-file', args.status_file,
-        '--metrics-custom-registry', '--metrics-reset'
-    ]
-    old = sys.argv
+def _bootstrap(config_path: str) -> tuple[RuntimeContext, callable]:  # type: ignore[name-defined]
+    ctx, metrics_stop = bootstrap_runtime(config_path)
+    # Derive index_params heuristic if missing
     try:
-        sys.argv = argv
-        return unified_main() or 0
+        raw_cfg = ctx.config.raw if hasattr(ctx.config, 'raw') else {}
+        if ctx.index_params is None:
+            idx_params = raw_cfg.get('index_params') or raw_cfg.get('indices') or {}
+            if isinstance(idx_params, dict) and idx_params:
+                ctx.index_params = idx_params  # type: ignore[assignment]
+    except Exception:
+        pass
+    return ctx, metrics_stop
+
+
+def cmd_run_once(args: argparse.Namespace) -> int:
+    os.environ.setdefault('G6_FORCE_MARKET_OPEN', '1')  # ensure cycle executes in mock context
+    try:
+        ctx, metrics_stop = _bootstrap(args.config)
+    except Exception as e:  # noqa: BLE001
+        print(f"Bootstrap failed: {e}")
+        return 2
+    try:
+        run_cycle(ctx)
+    except Exception as e:  # noqa: BLE001
+        print(f"Cycle error: {e}")
+        return 3
     finally:
-        sys.argv = old
+        try:
+            metrics_stop()
+        except Exception:
+            pass
+    return 0
 
 
 def cmd_dashboard(args: argparse.Namespace) -> int:
-    # Approximate existing run_mock_dashboard loop with status refresh prints.
-    from src.unified_main import main as unified_main
+    os.environ.setdefault('G6_FORCE_MARKET_OPEN', '1')
+    try:
+        ctx, metrics_stop = _bootstrap(args.config)
+    except Exception as e:  # noqa: BLE001
+        print(f"Bootstrap failed: {e}")
+        return 2
     cycles = args.cycles
-    for i in range(cycles if cycles > 0 else 1_000_000):
-        argv = [
-            'unified_main', '--config', args.config, '--run-once', '--mock-data',
-            '--interval', str(args.interval), '--runtime-status-file', args.status_file,
-            '--metrics-custom-registry'
-        ]
-        if i == 0:
-            argv.append('--metrics-reset')
-        old = sys.argv
-        try:
-            sys.argv = argv
-            rc = unified_main() or 0
-            if rc != 0:
-                return rc
-        finally:
-            sys.argv = old
-        if not args.no_view:
+    try:
+        for i in range(cycles if cycles > 0 else 1_000_000):
+            start = time.time()
             try:
-                data = json.loads(Path(args.status_file).read_text())
-                print(f"Cycle {i}: cycle={data.get('cycle')} elapsed={data.get('elapsed')}s indices={data.get('indices')}")
-            except Exception:
-                print('Cycle {i}: (status read failed)')
-        if cycles > 0 and i + 1 >= cycles:
-            break
-        time.sleep(args.sleep_between)
+                run_cycle(ctx)
+            except Exception as e:  # noqa: BLE001
+                print(f"Cycle error: {e}")
+                return 3
+            if not args.no_view:
+                try:
+                    data = json.loads(Path(args.status_file).read_text())
+                    print(f"Cycle {i}: cycle={data.get('cycle')} elapsed={data.get('elapsed')}s indices={data.get('indices')}")
+                except Exception:
+                    print(f'Cycle {i}: (status read failed)')
+            if cycles > 0 and i + 1 >= cycles:
+                break
+            elapsed = time.time() - start
+            sleep_for = max(0.0, args.sleep_between - elapsed)
+            if sleep_for:
+                time.sleep(sleep_for)
+    finally:
+        try:
+            metrics_stop()
+        except Exception:
+            pass
     return 0
 
 
@@ -223,9 +256,10 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def main(argv: list[str] | None = None) -> int:
+def main():  # add explicit main wrapper for deprecation warn
+    _warn()
     parser = build_parser()
-    args = parser.parse_args(argv)
+    args = parser.parse_args()
     return args.func(args)
 
 if __name__ == '__main__':  # pragma: no cover

@@ -1,27 +1,131 @@
 from __future__ import annotations
 from typing import Any, Dict
+import logging
+from src.utils.panel_error_utils import centralized_panel_error_handler, safe_panel_execute
+from src.error_handling import handle_ui_error
+import os
 
+@centralized_panel_error_handler("alerts_panel")
 def alerts_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_contrast: bool = False) -> Any:
-    from rich import box  # type: ignore
-    from rich.panel import Panel  # type: ignore
-    from rich.table import Table  # type: ignore
+    """Alerts panel with comprehensive error handling."""
+    return safe_panel_execute(
+        _create_alerts_panel, status, compact, low_contrast,
+        error_msg="Alerts - Error Loading Data"
+    )
+
+def _create_alerts_panel(status: Dict[str, Any] | None, compact: bool, low_contrast: bool) -> Any:
+    """Internal implementation for alerts panel."""
+    from rich import box
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.console import Group
     from scripts.summary.data_source import _use_panels_json, _read_panel_json
-    from scripts.summary.derive import clip, fmt_hms
-    from scripts.summary.env import effective_panel_width
+    from scripts.summary.derive import clip, fmt_hms, parse_iso
+    from datetime import datetime, timezone
+    import os
+    import json
+    from pathlib import Path
+    
+    def _get_alerts_log_path():
+        return Path("data/panels/alerts_log.json")
+    
+    def _get_rolling_alerts_log(max_entries=100):
+        try:
+            log_path = _get_alerts_log_path()
+            if log_path.exists():
+                with open(log_path, 'r') as f:
+                    data = json.load(f)
+                    if isinstance(data, dict) and isinstance(data.get("alerts"), list):
+                        return data["alerts"][-max_entries:]
+        except Exception as e:
+            handle_ui_error(e, component="alerts_panel.log", context={"op": "read"})
+            logging.warning(f"Error reading alerts log: {e}")
+        return []
+    
+    # Under V2 aggregation flag the panel must be read-only (no persistence side-effects)
+    FLAG_V2 = os.getenv("G6_SUMMARY_AGG_V2", "0").lower() in {"1","true","yes","on"}
+    
+    def generate_non_system_alerts(status):  # legacy only
+        # Only generate when FLAG_V2 is off; otherwise builder produced and persisted synthetic alerts
+        if FLAG_V2:
+            return []
+        alerts = []
+        try:
+            now = datetime.now(timezone.utc)
+        except Exception:
+            now = datetime.fromtimestamp(0, tz=timezone.utc)
+        if not status:
+            return [{"time": now.isoformat(), "level": "ERROR", "component": "System", "message": "No status data available"}]
+        try:
+            indices_detail = status.get("indices_detail", {})
+            if isinstance(indices_detail, dict) and indices_detail:
+                low_dq_indices = []
+                for idx_name, idx_data in indices_detail.items():
+                    if isinstance(idx_data, dict):
+                        dq_data = idx_data.get("dq", {})
+                        if isinstance(dq_data, dict):
+                            score = dq_data.get("score_percent")
+                            if isinstance(score, (int, float)) and score == score and score < 80:
+                                low_dq_indices.append(f"{idx_name}:{score:.1f}%")
+                if low_dq_indices:
+                    level = "ERROR" if any(":7" in idx or ":6" in idx for idx in low_dq_indices) else "WARNING"
+                    message = f"Low data quality: {', '.join(low_dq_indices[:3])}"
+                    if len(low_dq_indices) > 3:
+                        message += f" (+{len(low_dq_indices)-3} more)"
+                    alerts.append({"time": now.isoformat(), "level": level, "component": "Data Quality", "message": message})
+        except Exception:
+            pass
+        try:
+            market = status.get("market", {})
+            if isinstance(market, dict) and market.get("status") == "CLOSED":
+                alerts.append({"time": now.isoformat(), "level": "INFO", "component": "Market", "message": "Market is closed"})
+        except Exception:
+            pass
+        return alerts
+    
     alerts = []
-    if _use_panels_json():
-        pj = _read_panel_json("alerts")
-        if isinstance(pj, list):
-            alerts = pj
-    if not alerts and status:
-        alerts = status.get("alerts") or status.get("events") or []
+    
+    # Get errors from centralized error handler (non-collector errors)
+    try:
+        from src.error_handling import get_error_handler
+        handler = get_error_handler()
+        centralized_alerts = handler.get_errors_for_alerts_panel(count=50)
+        alerts.extend(centralized_alerts)
+    except Exception as e:
+        handle_ui_error(e, component="alerts_panel", context={"op": "get_centralized"})
+        logging.warning(f"Could not get centralized alerts: {e}")
+    
+    if not FLAG_V2:
+        if _use_panels_json():
+            pj = _read_panel_json("alerts")
+            if isinstance(pj, list):
+                alerts.extend(pj)
+    
+    # Status-based alerts
+    if status:
+        if not FLAG_V2:
+            status_alerts = status.get("alerts") or status.get("events") or []
+            if isinstance(status_alerts, list):
+                alerts.extend(status_alerts)
+            alerts.extend(generate_non_system_alerts(status))
+    # Under V2 we rely entirely on builder persistence; just read log
+    if FLAG_V2:
+        alerts.extend(_get_rolling_alerts_log())
+    else:
+        alerts.extend(_get_rolling_alerts_log())
+    
     tbl = Table(box=box.SIMPLE_HEAD)
-    tbl.add_column("Time")
-    tbl.add_column("Level")
-    tbl.add_column("Component")
+    tbl.add_column("Time", min_width=8)
+    tbl.add_column("Level", min_width=8)
+    tbl.add_column("Component", min_width=10)
     tbl.add_column("Message", overflow="fold")
+    
     count = 0
-    # Pre-compute counts over full list for header
+    # Use more rows to fill the available alert panel space
+    # Alert panel has 70% of right column height, so significantly more space available
+    max_rows = 4 if compact else 15
+    
+    # Count alert levels
     nE = nW = nI = 0
     if isinstance(alerts, list):
         for a in alerts:
@@ -34,20 +138,61 @@ def alerts_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_co
                 nW += 1
             else:
                 nI += 1
-        for a in reversed(alerts):  # most recent
+        
+        # Sort by timestamp (most recent first)
+        try:
+            sorted_alerts = sorted(alerts, key=lambda x: x.get("time", ""), reverse=True)
+        except Exception as e:
+            handle_ui_error(e, component="alerts_panel", context={"op": "sort"})
+            sorted_alerts = alerts
+        
+        for a in sorted_alerts[:max_rows]:
             if not isinstance(a, dict):
                 continue
             t = a.get("time") or a.get("timestamp") or ""
-            lvl = a.get("level", "")
-            comp = a.get("component", "")
-            msg = a.get("message", "")
-            ts_short = fmt_hms(t) or (str(t) if t else "")
-            tbl.add_row(ts_short or "", str(lvl), str(comp), str(msg))
+            lvl = str(a.get("level", "")).upper()
+            comp = str(a.get("component", ""))
+            msg = str(a.get("message", ""))
+            
+            ts_short = fmt_hms(t) or (str(t)[:8] if t else "")
+            
+            # Color code levels
+            if lvl in ("ERR", "ERROR", "CRITICAL"):
+                lvl_display = f"[red]{lvl}[/]"
+            elif lvl in ("WARN", "WARNING"):
+                lvl_display = f"[yellow]{lvl}[/]"
+            else:
+                lvl_display = f"[blue]{lvl}[/]"
+            
+            tbl.add_row(ts_short, lvl_display, clip(comp, 12), clip(msg, 40))
             count += 1
-            if count >= (1 if compact else 3):
-                break
-    if count == 0:
+    
+    # Fill empty rows
+    while count < max_rows:
         tbl.add_row("—", "—", "—", "—")
-    w = effective_panel_width("alerts") or 40
-    title = f"⚠️ Alerts (E:{nE} W:{nW} I:{nI})" if (nE or nW or nI) else "⚠️ Alerts"
-    return Panel(tbl, title=title, border_style=("white" if low_contrast else "red"), width=w)
+        count += 1
+    
+    # Footer with alert summary
+    footer = Table.grid()
+    if nE + nW + nI > 0:
+        summary = []
+        if nE > 0:
+            summary.append(f"[red]{nE} Critical[/]")
+        if nW > 0:
+            summary.append(f"[yellow]{nW} Warning[/]")
+        if nI > 0:
+            summary.append(f"[blue]{nI} Info[/]")
+        
+        footer.add_row(f"[dim]Active: {' | '.join(summary)}[/dim]")
+    else:
+        footer.add_row("[green dim]No active alerts - All systems nominal[/]")
+    
+    title = "🚨 Alerts"
+    border_color = "red" if nE > 0 else ("yellow" if nW > 0 else "green")
+    
+    return Panel(
+        Group(tbl, footer), 
+        title=title, 
+        border_style=("white" if low_contrast else border_color), 
+        expand=True
+    )

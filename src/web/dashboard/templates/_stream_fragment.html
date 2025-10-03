@@ -1,6 +1,5 @@
 {% if snapshot and snapshot.stream_rows %}
 <div class="card stream-panel">
-  <h3>Rolling Stream</h3>
   <table class="table stream-table">
     <thead>
       <tr>
@@ -8,10 +7,11 @@
         <th>Index</th>
         <th>Legs</th>
         <th>Legs Avg</th>
-  <th>Legs Cum</th>
+  {% if debug %}<th>Legs Cum</th>{% endif %}
         <th>Succ %</th>
         <th>Succ Avg %</th>
         <th>Err</th>
+        <th>Reason</th>
         <th>Status</th>
       </tr>
     </thead>
@@ -23,10 +23,11 @@
         <td>{{ r.index }}</td>
         <td>{{ r.legs }}</td>
         <td>{{ r.legs_avg if r.legs_avg is not none else '-' }}</td>
-    <td>{{ r.legs_cum if r.legs_cum is not none else '-' }}</td>
+    {% if debug %}<td>{{ r.legs_cum if r.legs_cum is not none else '-' }}</td>{% endif %}
   <td>{% if r.succ is not none and r.succ == r.succ %}{{ '%.1f' % r.succ }}{% else %}-{% endif %}</td>
   <td>{% if r.succ_avg is not none and r.succ_avg == r.succ_avg %}{{ '%.1f' % r.succ_avg }}{% else %}-{% endif %}</td>
         <td>{{ r.err or '' }}</td>
+        <td>{{ r.status_reason or '' }}</td>
         <td>
           {% if r.status == 'ok' %}<span class="status-dot ok"></span>{% elif r.status == 'warn' %}<span class="status-dot warn"></span>{% else %}<span class="status-dot bad"></span>{% endif %}
         </td>
@@ -36,5 +37,5 @@
   </table>
 </div>
 {% else %}
-<div class="card stream-panel"><h3>Rolling Stream</h3><p>No data yet...</p></div>
+<div class="card stream-panel"><p>No data yet...</p></div>
 {% endif %}

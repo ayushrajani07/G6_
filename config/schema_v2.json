@@ -1,0 +1,122 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://g6/schema/v2",
+  "title": "G6 Platform Configuration Schema v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "application", "metrics", "collection", "storage", "indices", "features", "console"],
+  "properties": {
+    "version": {"type": "string", "const": "2.0", "description": "Static schema version; must be '2.0'"},
+    "application": {"type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9_-]+$", "description": "Short application identifier (alnum, dash, underscore)"},
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+        "host": {"type": "string", "default": "0.0.0.0"},
+        "option_details_enabled": {"type": "boolean", "description": "(Planned) Explicit flag to enable per-option metrics when cardinality guard present."}
+      },
+      "required": ["port", "host"]
+    },
+    "collection": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "interval_seconds": {"type": "integer", "minimum": 1}
+      },
+      "required": ["interval_seconds"]
+    },
+    "storage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "csv_dir": {"type": "string", "minLength": 1},
+        "influx": {
+          "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {"type": "boolean"},
+              "url": {"type": "string", "format": "uri", "default": "http://localhost:8086"},
+              "org": {"type": "string", "default": "g6"},
+              "bucket": {"type": "string", "default": "g6_data"}
+            },
+            "required": ["enabled"]
+        },
+        "parquet": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": {"type": "boolean", "default": false},
+            "dir": {"type": "string"}
+          }
+        }
+      },
+      "required": ["csv_dir"]
+    },
+    "overlays": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "weekday": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "alpha": {"type": "number", "minimum": 0, "maximum": 1},
+            "output_dir": {"type": "string"}
+          }
+        }
+      }
+    },
+    "indices": {
+      "type": "object",
+      "description": "Per index configuration keyed by symbol (e.g., NIFTY). Uppercase letters, digits, and underscores only.",
+      "minProperties": 1,
+      "patternProperties": {
+        "^[A-Z0-9_]{3,15}$": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enable": {"type": "boolean", "default": true},
+            "provider": {"type": "string", "description": "Optional provider name resolving to an object in src.providers"},
+            "strikes_itm": {"type": "integer", "minimum": 0, "maximum": 200},
+            "strikes_otm": {"type": "integer", "minimum": 0, "maximum": 200},
+            "expiries": {"type": "array", "items": {"type": "string", "pattern": "(^[0-9]{4}-[0-9]{2}-[0-9]{2}$)|^(this_week|next_week|this_month|next_month)$"}, "minItems": 1, "description": "List of expiry dates (YYYY-MM-DD) or rule tokens (this_week,next_week,this_month,next_month)"}
+          },
+            "required": ["enable", "strikes_itm", "strikes_otm", "expiries"]
+        }
+      },
+      "additionalProperties": false
+    },
+    "features": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "analytics_startup": {"type": "boolean"}
+      },
+      "required": ["analytics_startup"]
+    },
+    "console": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fancy_startup": {"type": "boolean"},
+        "live_panel": {"type": "boolean"},
+        "startup_banner": {"type": "boolean"},
+        "force_ascii": {"type": "boolean"},
+        "runtime_status_file": {"type": "string"}
+      },
+      "required": ["fancy_startup", "live_panel", "startup_banner", "force_ascii", "runtime_status_file"]
+    },
+    "providers": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "(Optional) Provider definitions; not required for dummy/mock mode."
+    },
+    "_legacy": {
+      "type": "object",
+      "description": "Container for explicitly acknowledged legacy keys if retained (optional).",
+      "additionalProperties": true
+    }
+  },
+  "$comment": "Removed deprecated definitions block for validator compatibility."
+}

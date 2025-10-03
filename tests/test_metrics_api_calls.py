@@ -1,5 +1,5 @@
 import math
-from src.metrics.metrics import MetricsRegistry, isolated_metrics_registry
+from src.metrics import MetricsRegistry, isolated_metrics_registry  # facade import
 from prometheus_client import REGISTRY
 
 

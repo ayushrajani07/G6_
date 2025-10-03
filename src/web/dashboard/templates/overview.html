@@ -1,30 +1,131 @@
 {% extends 'layout.html' %}
 {% block title %}G6 Overview{% endblock %}
 {% block body %}
-<div class="container">
-  <h1>G6 Platform Dashboard</h1>
-  <div class="layout-grid">
-    <div class="col stream-col" id="stream-fragment" hx-get="/stream/fragment" hx-trigger="load, every 6s" hx-swap="innerHTML">
-      <p>Loading stream...</p>
-    </div>
-    <div class="col mid-col">
-      <div id="metrics-fragment" hx-get="/metrics/fragment" hx-trigger="load, every 5s" hx-swap="innerHTML">
-        <p>Loading metrics...</p>
-      </div>
-      <div id="storage-fragment" hx-get="/storage/fragment" hx-trigger="load, every 9s" hx-swap="innerHTML" style="margin-top:10px;">
-        <p>Loading storage...</p>
-      </div>
-      <div id="errors-fragment" hx-get="/errors/fragment" hx-trigger="load, every 7s" hx-swap="innerHTML" style="margin-top:10px;">
-        <p>Loading errors...</p>
-      </div>
-    </div>
-    <div class="col logs-col">
-      <h2 style="margin-top:0;">Logs</h2>
-      <div id="logs-fragment" hx-get="/logs/fragment" hx-trigger="load, every 7s" hx-swap="innerHTML">
-        <p>Loading logs...</p>
-      </div>
+<div class="container-fluid p-10">
+  <div class="dash-header">
+    <h1>G6 Platform Dashboard</h1>
+    <div class="dash-actions">
+      <button id="save-layout" class="btn">Save Layout</button>
+      <button id="reset-layout" class="btn btn-secondary">Reset</button>
     </div>
   </div>
-  <div id="footer-fragment" hx-get="/footer/fragment" hx-trigger="load, every 8s" hx-swap="innerHTML"></div>
+  <div class="grid-stack" id="g6-grid" data-core-refresh="{{ core_refresh|default(6) }}" data-secondary-refresh="{{ secondary_refresh|default(12) }}"></div>
+  <div id="footer-fragment" class="footer" hx-get="/footer/fragment" hx-trigger="load, every {{ secondary_refresh|default(12) }}s" hx-swap="innerHTML"></div>
 </div>
+
+<script>
+  (function() {
+    const gridEl = document.getElementById('g6-grid');
+    const coreRefresh = parseInt(gridEl?.dataset.coreRefresh || '6', 10);
+    const secondaryRefresh = parseInt(gridEl?.dataset.secondaryRefresh || '12', 10);
+    const grid = GridStack.init({
+      column: 12,
+      cellHeight: 86,
+      margin: 8,
+      float: true,
+      animate: true,
+      disableOneColumnMode: false
+    }, '#g6-grid');
+
+    const defaultWidgets = [
+      {x:0,y:0,w:6,h:5,id:'stream', title:'Rolling Stream', url:'/stream/fragment', refresh: coreRefresh},
+      {x:6,y:0,w:6,h:5,id:'metrics', title:'System & Performance', url:'/metrics/fragment', refresh: coreRefresh},
+      {x:8,y:5,w:4,h:4,id:'memory', title:'Memory', url:'/memory/fragment', refresh: secondaryRefresh},
+      {x:0,y:5,w:4,h:4,id:'adaptive', title:'Adaptive Alerts', url:'/static/partials/adaptive_placeholder.html', refresh: coreRefresh},
+      {x:0,y:9,w:6,h:4,id:'storage', title:'Storage & Backup', url:'/storage/fragment', refresh: secondaryRefresh},
+      {x:6,y:9,w:6,h:4,id:'errors', title:'Error Events', url:'/errors/fragment', refresh: secondaryRefresh},
+      {x:0,y:13,w:12,h:5,id:'logs', title:'Logs', url:'/logs/fragment', refresh: secondaryRefresh}
+    ];
+
+    function loadLayout() {
+      try {
+        const raw = localStorage.getItem('g6_dash_layout');
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return null;
+        return parsed;
+      } catch { return null; }
+    }
+
+    function saveLayout(items) {
+      try { localStorage.setItem('g6_dash_layout', JSON.stringify(items)); } catch {}
+    }
+
+  let widgets = loadLayout() || defaultWidgets;
+  // Back-compat: purge removed panels (e.g., indices)
+  widgets = widgets.filter(w => w.id !== 'indices');
+    widgets.forEach(w => {
+      const el = document.createElement('div');
+      el.className = 'grid-stack-item';
+      el.innerHTML = `
+        <div class="grid-stack-item-content panel">
+          <div class="panel-header">
+            <div class="title">${w.title}</div>
+            <div class="actions">
+              <button class="icon refresh" title="Refresh"><i class="fa-solid fa-rotate"></i></button>
+              <button class="icon fullscreen" title="Fullscreen"><i class="fa-solid fa-maximize"></i></button>
+            </div>
+          </div>
+          <div class="panel-body${(w.id==='logs'||w.id==='errors')?' scrollable':''}" id="panel-${w.id}" hx-get="${w.url}" hx-trigger="load, every ${w.refresh}s" hx-swap="innerHTML">
+            <div class="placeholder">Loading...</div>
+          </div>
+        </div>`;
+      grid.addWidget(el, {x:w.x,y:w.y,w:w.w,h:w.h});
+    });
+
+    function serialize() {
+      const nodes = grid.engine.nodes;
+      return nodes.map(n => {
+        const body = n.el.querySelector('.panel-body');
+        const id = (body && body.id || '').replace('panel-','');
+        const title = n.el.querySelector('.panel-header .title')?.textContent || id;
+        const url = body?.getAttribute('hx-get') || '';
+        const trig = body?.getAttribute('hx-trigger') || '';
+        const m = trig.match(/every\s+(\d+)s/);
+        const refresh = m ? parseInt(m[1],10) : secondaryRefresh;
+        return {x:n.x,y:n.y,w:n.w,h:n.h,id, title, url, refresh};
+      });
+    }
+
+    document.getElementById('save-layout').addEventListener('click', () => saveLayout(serialize()));
+    document.getElementById('reset-layout').addEventListener('click', () => { localStorage.removeItem('g6_dash_layout'); location.reload(); });
+
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('button.icon');
+      if (!btn) return;
+      const item = btn.closest('.grid-stack-item');
+      const body = item.querySelector('.panel-body');
+      if (btn.classList.contains('refresh')) {
+        body.dispatchEvent(new Event('htmx:refresh')); // htmx will refetch on next interval
+      } else if (btn.classList.contains('fullscreen')) {
+        const node = grid.engine.nodes.find(n => n.el === item);
+        if (!node) return;
+        if (item.classList.contains('fullscreen')) {
+          // restore
+          grid.update(item, {x:node._ox, y:node._oy, w:node._ow, h:node._oh});
+          item.classList.remove('fullscreen');
+          btn.innerHTML = '<i class="fa-solid fa-maximize"></i>';
+        } else {
+          node._ox = node.x; node._oy = node.y; node._ow = node.w; node._oh = node.h;
+          grid.update(item, {x:0,y:0,w:12,h:12});
+          item.classList.add('fullscreen');
+          btn.innerHTML = '<i class="fa-solid fa-minimize"></i>';
+        }
+      }
+    });
+  })();
+</script>
+<script>
+  // Configure adaptive theme endpoint (catalog_http server) before loader
+  window.G6 = window.G6 || {}; window.G6.adaptive = window.G6.adaptive || { endpoint: (function(){
+    try { const loc = window.location; return loc.protocol + '//' + loc.hostname + ':9315/adaptive/theme'; } catch(_) { return 'http://127.0.0.1:9315/adaptive/theme'; }
+  })(), refreshMs: 3000 };
+  // Lazy initialize adaptive panel once DOM ready
+  document.addEventListener('DOMContentLoaded', function(){
+    // Replace placeholder content with adaptive root container
+    const adaptiveBody = document.getElementById('panel-adaptive');
+    if(adaptiveBody){ adaptiveBody.innerHTML = '<div id="adaptive-theme-root"><small>Loading adaptive theme...</small></div>'; }
+  });
+</script>
+<script src="/static/js/adaptive_theme.js"></script>
 {% endblock %}

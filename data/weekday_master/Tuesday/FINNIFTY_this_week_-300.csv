@@ -1,0 +1,2 @@
+timestamp,tp_mean,tp_ema,counter_tp,avg_tp_mean,avg_tp_ema,counter_avg_tp,index,expiry_tag,offset
+23-09-2025 14:19:00,489.800000,489.800000,1,428.390000,428.390000,1,FINNIFTY,this_week,-300

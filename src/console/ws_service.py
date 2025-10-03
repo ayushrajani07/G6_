@@ -24,12 +24,24 @@ from __future__ import annotations
 import os, json, asyncio, time
 from typing import Set, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from contextlib import asynccontextmanager
 from fastapi.responses import JSONResponse
 
 STATUS_FILE = os.environ.get("STATUS_FILE", "data/runtime_status.json")
 POLL_INTERVAL = float(os.environ.get("POLL_INTERVAL", "1.0"))
 
-app = FastAPI(title="G6 Runtime Status WebSocket Service", version="1.0.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):  # type: ignore[override]
+    # Startup: begin background watch loop
+    try:
+        await broadcaster.start()
+    except Exception:
+        pass
+    yield
+    # Shutdown: nothing special; background task will end with process
+    # (could add cancellation if needed in future)
+
+app = FastAPI(title="G6 Runtime Status WebSocket Service", version="1.0.0", lifespan=lifespan)
 
 class StatusBroadcaster:
     def __init__(self, path: str):
@@ -85,10 +97,6 @@ class StatusBroadcaster:
             await asyncio.sleep(POLL_INTERVAL)
 
 broadcaster = StatusBroadcaster(STATUS_FILE)
-
-@app.on_event("startup")
-async def _startup():
-    await broadcaster.start()
 
 @app.get("/status")
 async def get_status():

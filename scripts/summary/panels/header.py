@@ -1,11 +1,15 @@
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from datetime import datetime, timezone
+import os
+
+if TYPE_CHECKING:  # pragma: no cover
+    from rich.panel import Panel as _Panel
 
 def header_panel(app_title: str, version: str, indices: List[str], *, low_contrast: bool = False, status: Optional[Dict[str, Any]] = None, interval: Optional[float] = None) -> Any:
-    from rich import box  # type: ignore
-    from rich.panel import Panel  # type: ignore
-    from rich.table import Table  # type: ignore
+    from rich import box
+    from rich.panel import Panel
+    from rich.table import Table
     from scripts.summary.derive import (
         fmt_hms_from_dt,
         derive_market_summary,
@@ -26,7 +30,7 @@ def header_panel(app_title: str, version: str, indices: List[str], *, low_contra
             if nxt is not None:
                 nxt_utc = nxt.astimezone(timezone.utc)
                 delta = (nxt_utc - datetime.now(timezone.utc)).total_seconds()
-                extra = f"next open: {nxt_utc.isoformat().replace('+00:00','Z')} (in {fmt_timedelta_secs(delta)})"
+                extra = f"next open: {fmt_hms_from_dt(nxt_utc)} (in {fmt_timedelta_secs(delta)})"
     except Exception:
         pass
     t = Table.grid(expand=True)
@@ -35,7 +39,7 @@ def header_panel(app_title: str, version: str, indices: List[str], *, low_contra
     t.add_column(justify="right")
     # Data source indicator
     try:
-        from scripts.summary.data_source import _use_panels_json  # type: ignore
+        from scripts.summary.data_source import _use_panels_json
         src = "Panels" if _use_panels_json() else "Status"
     except Exception:
         src = "—"
@@ -47,6 +51,29 @@ def header_panel(app_title: str, version: str, indices: List[str], *, low_contra
             mid_parts.append(f"Cycle Interval: {int(float(interval))}s")
         except Exception:
             mid_parts.append(f"Cycle Interval: {interval}s")
+    # Snapshot integrity badge (need_full indicator)
+    try:
+        # Default: show indicator unless explicitly disabled via env
+        show_flag = os.getenv("G6_SUMMARY_SHOW_NEED_FULL", "").strip().lower()
+        show_indicator = show_flag not in ("0", "off", "no", "false")
+        meta = status.get("panel_push_meta") if (status and isinstance(status, dict)) else None
+        if show_indicator and isinstance(meta, dict) and meta.get("need_full"):
+            reason = meta.get("need_full_reason") or "snapshot_required"
+            gen = meta.get("panel_generation")
+            badge_core = "FULL SNAPSHOT REQUIRED"
+            # Only append reason if it adds clarity beyond default
+            if reason and reason not in ("snapshot_required",):
+                badge_core += f" ({reason})"
+            if gen is not None:
+                badge_core += f" g={gen}"
+            # High contrast badge plus plain token for downstream parsing/tests
+            styled = f"[bold white on red] {badge_core} [/]"
+            sentinel = "FULL_SNAPSHOT_REQUIRED"
+            # Prepend so even if later clipping occurs, likely survives
+            mid_parts.insert(0, f"{sentinel} {styled}")
+    except Exception:
+        # Non-fatal: never break header rendering
+        pass
     if extra:
         mid_parts.append(extra)
     up_txt = "—"

@@ -8,13 +8,21 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, cast
 from datetime import datetime, timedelta
+from src.error_handling import handle_api_error
 
 # Central time helpers (UTC aware)
 try:
     from src.utils.timeutils import ensure_utc_helpers  # type: ignore
-    utc_now, isoformat_z = ensure_utc_helpers()
+    _utc_now, _isoformat_z = ensure_utc_helpers()
+    def utc_now():  # type: ignore
+        return _utc_now()
+    def isoformat_z(ts):  # type: ignore
+        try:
+            return _isoformat_z(ts)
+        except Exception:
+            return str(ts)
 except Exception:  # fallback if utilities unavailable early
     from datetime import datetime, timezone
     def utc_now():  # type: ignore
@@ -26,9 +34,11 @@ except Exception:  # fallback if utilities unavailable early
             return str(ts)
 
 try:
-    import redis
+    import redis as _redis  # type: ignore
+    redis = _redis  # ensure name bound for type checkers
     REDIS_AVAILABLE = True
-except ImportError:
+except ImportError:  # pragma: no cover
+    redis = None  # type: ignore[assignment]
     REDIS_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
@@ -55,14 +65,14 @@ class RedisCache:
         self.fallback_to_memory = fallback_to_memory
         self._memory_cache: Dict[str, Any] = {}
         self._redis_available = False
-        self._client: Optional[redis.Redis] = None
+        self._client = None  # type: ignore[assignment]
         
         if not REDIS_AVAILABLE:
             logger.warning("Redis not available, using memory fallback")
             return
             
         try:
-            pool = redis.ConnectionPool(
+            pool = redis.ConnectionPool(  # type: ignore[union-attr]
                 host=host,
                 port=port,
                 db=db,
@@ -72,7 +82,7 @@ class RedisCache:
                 decode_responses=decode_responses
             )
             
-            self._client = redis.Redis(connection_pool=pool)
+            self._client = redis.Redis(connection_pool=pool)  # type: ignore[union-attr]
             
             # Test connection
             self._client.ping()
@@ -80,6 +90,7 @@ class RedisCache:
             logger.info(f"Redis cache connected: {host}:{port}")
             
         except Exception as e:
+            handle_api_error(e, component="analytics.redis_cache", context={"stage": "connect"})
             logger.warning(f"Redis connection failed: {e}, using fallback")
             if not self.fallback_to_memory:
                 raise
@@ -116,6 +127,7 @@ class RedisCache:
             return False
             
         except Exception as e:
+            handle_api_error(e, component="analytics.redis_cache", context={"op": "set", "key": key})
             logger.warning(f"Cache set failed for {key}: {e}")
             if self.fallback_to_memory:
                 self._memory_cache[key] = {'value': value, 'expires': None}
@@ -127,7 +139,8 @@ class RedisCache:
         try:
             if self._redis_available and self._client:
                 value = self._client.get(key)
-                return self._deserialize(value) if value else None
+                value_str = cast(Optional[str], value) if value is not None else None
+                return self._deserialize(value_str) if value_str else None
             elif self.fallback_to_memory:
                 cached = self._memory_cache.get(key)
                 if cached:
@@ -139,6 +152,7 @@ class RedisCache:
             return None
             
         except Exception as e:
+            handle_api_error(e, component="analytics.redis_cache", context={"op": "get", "key": key})
             logger.warning(f"Cache get failed for {key}: {e}")
             return None
     
@@ -156,6 +170,7 @@ class RedisCache:
             return False
             
         except Exception as e:
+            handle_api_error(e, component="analytics.redis_cache", context={"op": "delete", "key": key})
             logger.warning(f"Cache delete failed for {key}: {e}")
             return False
     
@@ -173,6 +188,7 @@ class RedisCache:
             return False
             
         except Exception as e:
+            handle_api_error(e, component="analytics.redis_cache", context={"op": "exists", "key": key})
             logger.warning(f"Cache exists check failed for {key}: {e}")
             return False
     
@@ -218,6 +234,7 @@ class RedisCache:
             return False
             
         except Exception as e:
+            handle_api_error(e, component="analytics.redis_cache", context={"op": "flush_all"})
             logger.warning(f"Cache flush failed: {e}")
             return False
     
@@ -226,12 +243,13 @@ class RedisCache:
         try:
             if self._redis_available and self._client:
                 info = self._client.info()
+                info_dict = cast(Dict[str, Any], info)
                 return {
                     "type": "redis",
                     "connected": True,
-                    "memory_usage": info.get("used_memory_human", "unknown"),
-                    "connected_clients": info.get("connected_clients", 0),
-                    "total_commands_processed": info.get("total_commands_processed", 0)
+                    "memory_usage": info_dict.get("used_memory_human", "unknown"),
+                    "connected_clients": info_dict.get("connected_clients", 0),
+                    "total_commands_processed": info_dict.get("total_commands_processed", 0)
                 }
             elif self.fallback_to_memory:
                 return {
@@ -247,6 +265,7 @@ class RedisCache:
                 }
                 
         except Exception as e:
+            handle_api_error(e, component="analytics.redis_cache", context={"op": "get_info"})
             logger.warning(f"Failed to get cache info: {e}")
             return {"type": "error", "connected": False, "error": str(e)}
     
@@ -263,5 +282,6 @@ class RedisCache:
             return False
             
         except Exception as e:
+            handle_api_error(e, component="analytics.redis_cache", context={"op": "health_check"})
             logger.warning(f"Cache health check failed: {e}")
             return False

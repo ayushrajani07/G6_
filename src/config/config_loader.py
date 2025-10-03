@@ -12,6 +12,7 @@ import logging
 import sys  # retained only if needed elsewhere (currently unused beyond compatibility)
 
 logger = logging.getLogger(__name__)
+from src.error_handling import get_error_handler, ErrorCategory, ErrorSeverity
 
 class ConfigLoader:
     """Configuration loader for G6 Platform."""
@@ -48,11 +49,39 @@ def load_config(config_path):
             default_config = create_default_config()
             
             # Ensure directory exists
-            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            try:
+                os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            except Exception as e:
+                try:
+                    get_error_handler().handle_error(
+                        e,
+                        category=ErrorCategory.FILE_IO,
+                        severity=ErrorSeverity.MEDIUM,
+                        component="config_loader",
+                        function_name="load_config",
+                        message="Failed to create config directory",
+                        context={"path": config_path},
+                    )
+                except Exception:
+                    pass
             
             # Write default config
-            with open(config_path, 'w') as f:
-                json.dump(default_config, f, indent=2)
+            try:
+                with open(config_path, 'w') as f:
+                    json.dump(default_config, f, indent=2)
+            except Exception as e:
+                try:
+                    get_error_handler().handle_error(
+                        e,
+                        category=ErrorCategory.FILE_IO,
+                        severity=ErrorSeverity.MEDIUM,
+                        component="config_loader",
+                        function_name="load_config",
+                        message="Failed to write default config",
+                        context={"path": config_path},
+                    )
+                except Exception:
+                    pass
                 
             logger.info(f"Created default configuration at {config_path}")
             return default_config
@@ -64,11 +93,35 @@ def load_config(config_path):
         logger.info(f"Loaded configuration from {config_path}")
         return config
     
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON in configuration file: {config_path}")
+        try:
+            get_error_handler().handle_error(
+                e,
+                category=ErrorCategory.CONFIGURATION,
+                severity=ErrorSeverity.HIGH,
+                component="config_loader",
+                function_name="load_config",
+                message="Invalid JSON in configuration file",
+                context={"path": config_path},
+            )
+        except Exception:
+            pass
         return create_default_config()
     except Exception as e:
         logger.error(f"Error loading configuration: {e}")
+        try:
+            get_error_handler().handle_error(
+                e,
+                category=ErrorCategory.FILE_IO,
+                severity=ErrorSeverity.MEDIUM,
+                component="config_loader",
+                function_name="load_config",
+                message="Error loading configuration",
+                context={"path": config_path},
+            )
+        except Exception:
+            pass
         return create_default_config()
 
 def create_default_config():

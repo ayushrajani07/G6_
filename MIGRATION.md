@@ -1,6 +1,7 @@
 # Migration Guide
 
 This guide documents schema, configuration, and behavioral changes introduced in the recent platform evolution so existing users can upgrade smoothly.
+> HISTORICAL: This section documents completed removals. Older rows may be pruned or archived if this table grows large.
 
 ## Scope
 Applies to deployments moving from the legacy multi‑row overview & no‑Greeks system to the unified orchestrator with IV estimation, Greeks, and aggregated overview snapshots.
@@ -16,6 +17,9 @@ Applies to deployments moving from the legacy multi‑row overview & no‑Greeks
 | Influx fields | Added iv + Greeks fields on `option_data` | Additive | Update dashboards to include new series |
 | Metrics | Added IV success/failure counters & avg iterations gauge | Additive | Scrape new metrics endpoints |
 | CLI flags | Deprecated for greeks/IV control | Breaking (soft) | Remove reliance on CLI flags; use JSON config |
+| Orchestrator runner | New preferred entry `scripts/run_orchestrator_loop.py` with generalized `run_loop` + `G6_LOOP_MAX_CYCLES` | Additive | Migrate any automation from legacy `unified_main` / `run_live.py` |
+| Legacy loop deprecation | One-time warning on legacy `collection_loop` usage | Deprecation | Plan removal after 2 stable releases |
+| `scripts/run_live.py` | Removed | Removal | Use orchestrator runner (`scripts/run_orchestrator_loop.py`) |
 
 ## Versioning Assumptions
 If you previously ran without an explicit semantic version, treat your state as "pre‑analytics" baseline. After migration, tag your deployment to reflect the new analytics feature set (e.g. `v1.0.0-analytics`).
@@ -75,9 +79,14 @@ Action: Remove obsolete command line usage in scripts / systemd units. Ensure `c
 2. Backup existing `data/` directory (CSV snapshots) and config JSON.
 3. Add a `greeks` block to `config/g6_config.json` if absent (see example below).
 4. (Optional) Enable Influx in `storage.influx` section to persist Greeks & IV.
-5. Restart the service using the unified entrypoint.
+5. Restart the service using the new orchestrator runner:
+  ```
+  python scripts/run_orchestrator_loop.py --config config/g6_config.json --interval 60 --cycles 0
+  ```
+  (Use `--cycles N` for bounded dev loops; sets `G6_LOOP_MAX_CYCLES` internally.)
 6. Validate Prometheus endpoint exposes new metrics.
 7. Update downstream analytics: adjust overview expectations (single row) & include new columns/fields.
+8. (Completed) `scripts/run_live.py` removed. Ensure automation uses orchestrator runner.
 
 Example greeks block:
 ```json
@@ -98,6 +107,7 @@ Example greeks block:
 - [ ] `missing_mask` remains 0 during normal operation
 - [ ] Prometheus shows IV success > 0 and failures stable/low
 - [ ] Influx `option_data` points include Greeks fields matching CSV rows
+- [ ] Orchestrator runner (`scripts/run_orchestrator_loop.py`) in use; no new logs from legacy loop warning; `run_live.py` not used in automation
 
 ## Rollback Plan
 If issues arise:
@@ -121,3 +131,51 @@ A: Extend expiry resolution logic (see collectors) and update masks table if int
 
 ---
 End of Migration Guide.
+\n## Legacy Removal Changelog (Historical)
+| Date | Change | Rationale | Safeguards |
+|------|--------|-----------|------------|
+| 2025-09-28 | `src/unified_main.py` removed (fail-fast stub) | Consolidated execution paths under orchestrator loop | Import-time hard failure + safeguard test |
+| 2025-09-28 | Deprecated flags removed (`G6_ENABLE_LEGACY_LOOP`, etc.) | Eliminate dead branching | Safeguard test scans active src |
+| 2025-09-28 | Archived stubs raise with guidance | Preserve messaging without code path risk | Archived excluded from scans |
+| 2025-09-28 | Docs updated to new runner | Single canonical invocation | Planned doc lint (future) |
+| 2025-09-28 | Added `test_safeguard_legacy_loop_removed.py` | Prevent resurrection | Targeted pattern scan |
+| 2025-10-01 | Removed legacy unified snapshot assembler | Reduce dual maintenance surface | Parity test + model adoption |
+
+### Upgrading Automation
+If any scheduler invokes `python -m src.unified_main`, update to:
+```
+python scripts/run_orchestrator_loop.py --config config/g6_config.json --interval 60
+```
+Fail-fast stub ensures misconfigurations surface early.
+
+### Adding New Entrypoints Going Forward
+Add thin wrappers under `scripts/` over orchestrator APIs; avoid new monolithic module entrypoints in `src/`.
+
+### Safeguard Test Maintenance
+Keep legacy pattern assertions narrow; relocate historical text to docs instead of broadening allowlist.
+
+## Deferred Unified Follow-Ups (Planned Work)
+| Area | Item | Description | Planned Artifact / Location |
+|------|------|-------------|-----------------------------|
+| SSE Events | Classification tests | Validate full vs diff event tagging + metrics | `tests/test_sse_event_classification.py` |
+| SSE Merge | Diff merge helper (IMPLEMENTED) | `merge_panel_diff` merges `panel_diff` into memory panels | `src/web/dashboard/diff_merge.py` |
+| Curated Layout | Model-first rewire | Use `UnifiedStatusSnapshot` directly | `src/summary/curated_layout.py` |
+| Rolling Stats | Model integration | Add rolling success/error & latency percentiles | `src/summary/unified/model.py` |
+| Plugins | WebSocket broadcaster | Real-time push (diff/full multiplex) | `scripts/summary/plugins/websocket.py` |
+| Plugins | Dossier rolling windows | Multi-cycle trend aggregation | `scripts/summary/plugins/dossier.py` |
+| Metrics | Plugin scheduling metadata | Per-plugin cadence control | Loop + plugin contract |
+
+Tracking: Remove related TODO anchors & add dated row here on completion.
+| 2025-09-28 | Added `tests/test_safeguard_legacy_loop_removed.py` | Prevent accidental reintroduction of removed flags/entrypoint | Test scans only active `src/` (excludes archived & stub) |
+| 2025-10-01 | Removed legacy unified snapshot assembler (`src/summary/unified/snapshot.py`) and tests | Native model builder fully adopted; eliminates dual maintenance & reduces surface | New parity test `test_model_snapshot_parity.py`; full suite green post-removal |
+| 2025-10-01 | Dual emission enabled in unified loop | Begin Phase 2: attach `snapshot.model` each cycle | Backward compatible (plugins opt-in) |
+\n+### Upgrading Automation
+If any external scheduler (systemd, Windows Task Scheduler, cron) still invokes `python -m src.unified_main`, update it to:
+```
+python scripts/run_orchestrator_loop.py --config config/g6_config.json --interval 60
+```
+The stub will now fail fast; do not suppress the error—fix the caller instead.
+\n+### Adding New Entrypoints Going Forward
+Add new specialized runners under `scripts/` and keep them thin wrappers around orchestrator APIs (`bootstrap_runtime`, `run_loop`, `run_cycle`). Avoid resurrecting module-level monoliths inside `src/`.
+\n+### Safeguard Test Maintenance
+If you intentionally reintroduce historical strings (e.g., in a retrospective doc), ensure they live in docs or `src/archived/`. Do not widen the test allowlist for convenience—relocate the text instead.

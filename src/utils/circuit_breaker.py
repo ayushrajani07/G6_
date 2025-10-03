@@ -12,6 +12,13 @@ from typing import Callable, Any, Dict, Optional
 from functools import wraps
 
 logger = logging.getLogger(__name__)
+try:
+    # Late import to avoid heavy deps and circulars in early boot
+    from src.error_handling import get_error_handler, ErrorCategory, ErrorSeverity  # type: ignore
+except Exception:  # pragma: no cover - fallback when error system unavailable
+    get_error_handler = None  # type: ignore
+    ErrorCategory = None  # type: ignore
+    ErrorSeverity = None  # type: ignore
 
 class CircuitState(Enum):
     """Circuit breaker states."""
@@ -124,11 +131,41 @@ class CircuitBreaker:
                 
                 if self.state == CircuitState.HALF_OPEN:
                     self.logger.warning(f"Circuit {self.name} reopening after failed half-open call: {e}")
+                    try:
+                        if get_error_handler and ErrorCategory and ErrorSeverity:
+                            get_error_handler().handle_error(
+                                exception=e,
+                                category=ErrorCategory.RESOURCE,
+                                severity=ErrorSeverity.MEDIUM,
+                                component="utils.circuit_breaker",
+                                function_name="call",
+                                message="Half-open probe failed; reopening circuit",
+                                context={"circuit": self.name, "state": self.state.name},
+                                should_log=False,
+                                should_reraise=False,
+                            )
+                    except Exception:
+                        pass
                     self.state = CircuitState.OPEN
                 elif self.state == CircuitState.CLOSED:
                     self.failure_count += 1
                     if self.failure_count >= self.failure_threshold:
                         self.logger.warning(f"Circuit {self.name} opening after {self.failure_count} failures")
+                        try:
+                            if get_error_handler and ErrorCategory and ErrorSeverity:
+                                get_error_handler().handle_error(
+                                    exception=e,
+                                    category=ErrorCategory.RESOURCE,
+                                    severity=ErrorSeverity.MEDIUM,
+                                    component="utils.circuit_breaker",
+                                    function_name="call",
+                                    message="Circuit opening after consecutive failures",
+                                    context={"circuit": self.name, "failures": self.failure_count},
+                                    should_log=False,
+                                    should_reraise=False,
+                                )
+                        except Exception:
+                            pass
                         self.state = CircuitState.OPEN
                         
             raise

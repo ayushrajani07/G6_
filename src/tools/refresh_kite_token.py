@@ -12,6 +12,10 @@ import sys
 import logging
 import webbrowser
 from dotenv import load_dotenv
+try:
+    from src.error_handling import handle_api_error  # type: ignore
+except Exception:  # pragma: no cover
+    handle_api_error = None  # type: ignore
 
 # Configure logging
 logging.basicConfig(
@@ -58,7 +62,7 @@ def main():
         
         # Generate session and get access token
         data = kite.generate_session(request_token, api_secret=api_secret)
-        access_token = data["access_token"]
+        access_token = data.get("access_token") if isinstance(data, dict) else None  # type: ignore[assignment]
         
         if not access_token:
             logger.error("Failed to get access token")
@@ -86,6 +90,11 @@ def main():
     
     except Exception as e:
         logger.error(f"Error refreshing token: {e}")
+        try:
+            if handle_api_error:
+                handle_api_error(e, component="tools.refresh_kite_token", context={"op": "refresh"})
+        except Exception:
+            pass
         return 1
 
 if __name__ == "__main__":

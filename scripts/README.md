@@ -61,6 +61,20 @@ python scripts/init_menu.py
 Use the task panel to quickly launch the menu:
 - Run Task → `G6: Init Menu`
 
+#### One-click Panels Demo (VS Code)
+
+You can run the full Simulator → Panels Bridge → Summary chain via VS Code tasks:
+
+- Run Task → `Smoke: Summary (panels mode)`
+  - Starts the simulator in background
+  - Starts the panels bridge in background (writes `data/panels/*.json`)
+  - Launches the summary UI with panels mode enabled
+
+Tip: If you prefer to run steps individually, use:
+- `Smoke: Start Simulator`
+- `Smoke: Start Panels Bridge`
+- `Smoke: Summary (panels mode)`
+
 ### Windows PowerShell tips
 
 - If you started the simulator in background via the menu, a PID file is created next to your chosen status file (e.g., `data/.simulator.pid`). Use the menu Run → "Stop simulator (background)" to terminate it cleanly.
@@ -70,3 +84,33 @@ Use the task panel to quickly launch the menu:
 tasklist | findstr python
 taskkill /PID <pid> /T /F
 ```
+
+## Windows Quick Start: Simulator → Unified Summary (Panels In-Process)
+
+Fast path to see Rich dashboard with IST timestamps and DQ:
+
+1) Generate a demo status with seeded DQ (one-shot)
+
+```powershell
+python scripts/status_simulator.py --status-file data/runtime_status_demo.json --indices NIFTY,BANKNIFTY,FINNIFTY,SENSEX --interval 60 --refresh 0.1 --open-market --with-analytics --cycles 1
+```
+
+2) Launch the summary (panels auto-write/read via PanelsWriter; no separate bridge):
+
+```powershell
+python scripts/summary_view.py --refresh 0.5 --status-file data/runtime_status_demo.json
+```
+
+Continuous simulation + summary in two terminals:
+
+```powershell
+# Terminal 1: simulator
+python scripts/dev_tools.py simulate-status --status-file data/runtime_status.json --indices NIFTY BANKNIFTY FINNIFTY SENSEX --interval 60 --refresh 1.0 --open-market --with-analytics
+
+# Terminal 2: summary (panels mode auto-detected or force via env)
+$env:G6_SUMMARY_PANELS_MODE='on'; python scripts/summary_view.py --refresh 0.5 --status-file data/runtime_status.json
+```
+
+Notes:
+- Frontend displays use IST HH:MM:SS; backend JSON remains ISO.
+- Legacy bridge (`status_to_panels.py`) has been removed from the workflow; all panel JSON produced in-process.

@@ -1,0 +1,12 @@
+{
+  "timestamp": "2025-09-24 14:28:18",
+  "index": "NIFTY",
+  "expiry": "2025-09-25",
+  "expiry_code": "this_week",
+  "index_price": 20000.0,
+  "atm_strike": 20000,
+  "pcr": 1.2,
+  "day_width": 600.0,
+  "data_count": 6,
+  "rounded_timestamp": "24-09-2025 14:28:30"
+}

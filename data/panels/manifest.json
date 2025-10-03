@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "generator": "PanelsWriter",
+  "cycle": 315,
+  "ts": 1759329660.803057,
+  "files": [
+    "alerts.json",
+    "analytics.json",
+    "indices_panel.json",
+    "indices_stream.json",
+    "links.json",
+    "performance.json",
+    "system.json"
+  ],
+  "indices_count": 4,
+  "alerts_total": 0,
+  "hashes": {
+    "indices_panel.json": "b1d17e83346deed805455b576be88f6c7132e92a0175b357167bcb125e326790",
+    "indices_stream.json": "a1e35e3adf5ddc492bb1a2b58964a2331655c131ce06191a16b04d751450b208",
+    "alerts.json": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "system.json": "d9790f0e5ae27dabfdce980b71c5dae3c6cb695ce03cbba8a4affb1b368d19ba",
+    "performance.json": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "analytics.json": "6475e25f13820e9c68c5d0ff965aa06604996bc7b7da13991a24729c31ac8637",
+    "links.json": "c8ade8962804648f0a697b5eea49d1489056cc8cc93d201324473974c4f260fa"
+  },
+  "app_version": "dev"
+}

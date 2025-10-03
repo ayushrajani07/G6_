@@ -31,6 +31,27 @@ class StorageError(G6Exception):
     """Persistence layer failures (CSV/Influx/FS)."""
 
 
+# Collector step-specific exceptions for clearer diagnostics
+class ResolveExpiryError(G6Exception):
+    """Failure resolving expiry date from provider for a given rule/index."""
+
+
+class NoInstrumentsError(G6Exception):
+    """No option instruments found for index/expiry/strikes request."""
+
+
+class NoQuotesError(G6Exception):
+    """No quotes were returned for requested option instruments."""
+
+
+class CsvWriteError(StorageError):
+    """CSV persistence failure for options data or overview snapshots."""
+
+
+class InfluxWriteError(StorageError):
+    """InfluxDB persistence failure for options data or snapshots."""
+
+
 __all__ = [
     "G6Exception",
     "ConfigError",
@@ -38,4 +59,9 @@ __all__ = [
     "RetryError",
     "DataQualityError",
     "StorageError",
+    "ResolveExpiryError",
+    "NoInstrumentsError",
+    "NoQuotesError",
+    "CsvWriteError",
+    "InfluxWriteError",
 ]

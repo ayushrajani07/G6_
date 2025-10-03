@@ -1,0 +1,3 @@
+timestamp,index,expiry_tag,expiry_date,offset,index_price,atm,strike,ce,pe,tp,avg_ce,avg_pe,avg_tp,ce_vol,pe_vol,ce_oi,pe_oi,ce_iv,pe_iv,ce_delta,pe_delta,ce_theta,pe_theta,ce_vega,pe_vega,ce_gamma,pe_gamma,ce_rho,pe_rho
+29-09-2025 12:22:30,BANKNIFTY,next_month,2025-10-28,100,54296.25,54300,54400,898.0,556.0,1454.0,1005.63,499.27,1504.9,90090,133000,29190,43610,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+29-09-2025 12:33:30,BANKNIFTY,next_month,2025-10-28,100,54318.7,54300,54400,908.95,546.45,1455.4,1001.3,501.59,1502.8899999999999,94255,139160,30380,43120,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0

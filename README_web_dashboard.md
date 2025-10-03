@@ -1,31 +1,17 @@
-# G6 Web Dashboard (FastAPI)
+## Archived: Web Dashboard (FastAPI) Stub
 
-An alternative to the terminal dashboard providing a browser-based overview of key metrics.
+The standalone FastAPI web dashboard has been deprecated and its documentation merged into the unified `README.md` (Observability & Panels sections).
 
-## Features (Phase 1)
-- Overview page: core metrics, resource usage, per-index table (options processed, last collection timestamp, success %, PCR by expiry)
-- /metrics/json structured snapshot for programmatic access
-- /metrics/raw quick debugging view (cached)
-- /health endpoint (basic status and staleness)
+Replacement surfaces:
+1. Summary dashboard (`scripts/summary_view.py`)
+2. Panels JSON artifacts + optional lightweight consumers
+3. Grafana dashboards (see `grafana/`)
 
-## Environment Variable
-- `G6_METRICS_ENDPOINT` (default: http://localhost:9108/metrics)
-
-## Run
-Ensure collectors / metrics server are running (e.g. `python -m src.unified_main --run`). Then:
-
-```powershell
-pip install fastapi uvicorn jinja2
-uvicorn src.web.dashboard.app:app --host 0.0.0.0 --port 9300 --reload
+If you require the historical implementation details (endpoints, SSE diff mode, adaptive alerts UI) inspect git history:
 ```
-Open http://localhost:9300
+git log -- README_web_dashboard.md
+```
 
-## Next Steps (Planned)
-- Per-index detail page with PCR trend
-- Small timeseries charts (Plotly) using ring buffer in memory
-- Options snapshot endpoint (reads latest CSV per index/expiry)
-- WebSocket push for lower latency updates
-- Auth (API token) for restricted environments
+Deprecation timeline: Archived 2025-10-01 (R). Planned removal after R+1.
 
-## Notes
-All metrics are derived from the Prometheus exposition you already expose; no direct coupling to in-process objects, making this safe to run externally (even on another host) as long as it can reach the metrics port.
+Please update external links to point to the canonical README.

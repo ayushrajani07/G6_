@@ -227,5 +227,54 @@ def format_cycle_table(*,
     return header_line, value_line
 
 __all__ = [
-    'format_cycle', 'format_index', 'format_start', 'format_cycle_pretty', 'format_cycle_table'
+    'format_cycle', 'format_index', 'format_start', 'format_cycle_pretty', 'format_cycle_table', 'format_cycle_readable'
 ]
+
+def format_cycle_readable(*,
+    duration_s: float,
+    options: int,
+    options_per_min: float | None,
+    cpu: float | None,
+    mem_mb: float | None,
+    api_latency_ms: float | None,
+    api_success_pct: float | None,
+    collection_success_pct: float | None,
+    indices: int,
+    stall_flag: int | None = None,
+) -> str:
+    """Return a human-readable single line summary (no abbreviations).
+
+    Example:
+      CYCLE_READABLE duration=0.82s options=410 (per_min=1023.4) api_latency=83.1ms api_success=99.2% collection_success=98.7% cpu=12.4% mem=512.3MB indices=4 stall=- status=OK
+
+    Keeps machine-friendly key=value pairs while improving clarity for operators.
+    """
+    status_tokens: list[str] = []
+    if options == 0:
+        status_tokens.append('NO_DATA')
+    if (api_success_pct is not None and api_success_pct < 90) or (collection_success_pct is not None and collection_success_pct < 90):
+        status_tokens.append('DEGRADED')
+    if stall_flag:
+        status_tokens.append('STALL')
+    if not status_tokens:
+        status_tokens.append('OK')
+    status = '+'.join(status_tokens)
+    parts = ["CYCLE_READABLE"]
+    parts.append(f"duration={duration_s:.2f}s")
+    parts.append(f"options={options}")
+    if options_per_min is not None:
+        parts.append(f"per_min={options_per_min:.1f}")
+    if api_latency_ms is not None:
+        parts.append(f"api_latency={api_latency_ms:.1f}ms")
+    if api_success_pct is not None:
+        parts.append(f"api_success={api_success_pct:.1f}%")
+    if collection_success_pct is not None:
+        parts.append(f"collection_success={collection_success_pct:.1f}%")
+    if cpu is not None:
+        parts.append(f"cpu={cpu:.1f}%")
+    if mem_mb is not None:
+        parts.append(f"mem={mem_mb:.1f}MB")
+    parts.append(f"indices={indices}")
+    parts.append(f"stall={stall_flag if stall_flag is not None else '-'}")
+    parts.append(f"status={status}")
+    return ' '.join(parts)

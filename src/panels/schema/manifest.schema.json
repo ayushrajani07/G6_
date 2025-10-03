@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://g6.local/panels/manifest.schema.json",
+  "title": "PanelsWriter Manifest",
+  "type": "object",
+  "required": ["schema_version", "generator", "cycle", "ts", "files", "indices_count", "alerts_total"],
+  "properties": {
+    "schema_version": {"type": "integer", "minimum": 1},
+    "generator": {"type": "string", "const": "PanelsWriter"},
+    "cycle": {"type": "integer", "minimum": 0},
+    "ts": {"type": "number", "minimum": 0},
+    "files": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^.+\\.json$"},
+      "uniqueItems": true
+    },
+    "indices_count": {"type": ["integer", "null"], "minimum": 0},
+    "alerts_total": {"type": ["integer", "null"], "minimum": 0},
+    "app_version": {"type": ["string", "number"], "description": "Optional application version stringified"},
+    "hashes": {
+      "type": "object",
+      "description": "Optional mapping of panel filename -> sha256 hash (hex) over canonical JSON of 'data' block.",
+      "additionalProperties": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+    }
+  },
+  "additionalProperties": false
+}

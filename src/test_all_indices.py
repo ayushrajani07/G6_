@@ -146,6 +146,11 @@ def main():
             
         except Exception as e:
             logger.error(f"Error testing {index}: {e}", exc_info=True)
+            try:
+                from src.error_handling import handle_collector_error
+                handle_collector_error(e, component="tests.test_all_indices", index_name=index)
+            except Exception:
+                pass
     
     logger.info("\033[1;32m\n===== TESTING COMPLETED =====\033[0m")
     return 0

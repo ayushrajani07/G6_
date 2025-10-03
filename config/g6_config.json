@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "application": "G6 Options Trading Platform",
+  "application": "g6_platform",
   "metrics": {
     "port": 9108,
     "host": "0.0.0.0"

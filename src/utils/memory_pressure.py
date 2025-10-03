@@ -5,8 +5,13 @@ Defines tiers and actions to reduce memory footprint gracefully instead of hard 
 from __future__ import annotations
 try:
     import psutil  # type: ignore
-except Exception:  # pragma: no cover
+except Exception as e:  # pragma: no cover
     psutil = None  # fallback; sampling will no-op
+    try:
+        from src.error_handling import handle_api_error
+        handle_api_error(e, component="utils.memory_pressure.import_psutil")
+    except Exception:
+        pass
 import time
 import logging
 from dataclasses import dataclass
@@ -126,8 +131,12 @@ class MemoryPressureManager:
                 self.metrics.memory_depth_scale.set(self.depth_scale)
                 self.metrics.memory_per_option_metrics_enabled.set(1 if self.per_option_metrics_enabled else 0)
                 self.metrics.memory_greeks_enabled.set(1 if self.greeks_enabled else 0)
-            except Exception:
-                pass
+            except Exception as _e:
+                try:
+                    from src.error_handling import handle_api_error
+                    handle_api_error(_e, component="utils.memory_pressure.metrics_set", context={"stage": "evaluate"})
+                except Exception:
+                    pass
         return chosen
 
     def apply_actions(self, tier: PressureTier):
@@ -146,8 +155,12 @@ class MemoryPressureManager:
             if self.metrics:
                 try:
                     self.metrics.memory_pressure_actions.labels(action=action, tier=str(tier.level)).inc()
-                except Exception:
-                    pass
+                except Exception as _e:
+                    try:
+                        from src.error_handling import handle_api_error
+                        handle_api_error(_e, component="utils.memory_pressure.metrics_inc", context={"action": action, "tier": str(tier.level)})
+                    except Exception:
+                        pass
         # Compute depth scale (progressive) based on current level and EMA fraction if available
         self._compute_depth_scale()
         # Apply permanent disable flags
@@ -159,8 +172,20 @@ class MemoryPressureManager:
             self.per_option_metrics_enabled = False
 
     def _do_shrink_cache(self):
-        # Placeholder: integrate actual caches; for now just log.
-        logger.info("Shrink cache action invoked (implement actual cache trims)")
+        # Attempt to purge registered caches via MemoryManager emergency path
+        try:
+            from src.utils.memory_manager import get_memory_manager  # type: ignore
+            mm = get_memory_manager()
+            attempted = mm.emergency_cleanup(reason=f"pressure-level-{self.current_level}")
+            logger.info("Shrink cache invoked; purge_attempts=%s", attempted)
+        except Exception as _e:
+            # Fallback minimal log when MemoryManager not available
+            logger.info("Shrink cache action invoked (no MemoryManager available)")
+            try:
+                from src.error_handling import handle_api_error
+                handle_api_error(_e, component="utils.memory_pressure.shrink_cache")
+            except Exception:
+                pass
 
     def _compute_depth_scale(self):
         # Map level to scale; if high/critical compute gradient from EMA fraction
@@ -222,6 +247,11 @@ class MemoryPressureManager:
             return tiers
         except Exception as e:
             logger.error(f"Failed parsing G6_MEMORY_PRESSURE_TIERS; using defaults: {e}")
+            try:
+                from src.error_handling import handle_data_error
+                handle_data_error(e, component="utils.memory_pressure.load_tiers", context={"env": "G6_MEMORY_PRESSURE_TIERS"})
+            except Exception:
+                pass
             return DEFAULT_TIERS
 
     # Hooks for collector loop to query

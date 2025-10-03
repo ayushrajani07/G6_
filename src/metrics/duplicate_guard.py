@@ -1,0 +1,162 @@
+"""Duplicate metric registration guard.
+
+Detects cases where multiple attribute names in the metrics registry resolve to
+what appears to be the same underlying Prometheus collector object (e.g. alias
+shadowing, accidental double registration via legacy shim paths).
+
+Environment Controls
+--------------------
+G6_DUPLICATES_FAIL_ON_DETECT  : When truthy, raise RuntimeError if duplicates found.
+G6_DUPLICATES_LOG_DEBUG       : When truthy, log per-offender debug lines (otherwise only summary).
+
+Exposed Summary (attached to registry as _duplicate_metrics_summary):
+{
+  'duplicates': [ {'names': [...], 'type': 'Counter'} ],
+  'duplicate_group_count': int,
+  'total_attributes_scanned': int,
+  'failed': bool,
+}
+
+A Prometheus gauge `g6_metric_duplicates_total` is set to the number of duplicate
+collector groups (NOT total extra names) if present. Gauge created lazily here to
+avoid having to wire spec entry for a low-volume governance metric.
+"""
+from __future__ import annotations
+
+from typing import Any, Dict, List, Tuple
+import os, logging
+
+try:  # import only the needed primitive types for isinstance guards
+    from prometheus_client.core import CollectorRegistry  # type: ignore
+except Exception:  # pragma: no cover
+    CollectorRegistry = object  # type: ignore
+
+try:
+    from prometheus_client import Gauge  # type: ignore
+except Exception:  # pragma: no cover
+    Gauge = None  # type: ignore
+
+logger = logging.getLogger(__name__)
+
+
+def _parse_bool(val: str | None) -> bool:
+    if not val:
+        return False
+    return val.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _ensure_duplicates_gauge(registry: Any):  # pragma: no cover - trivial
+    if Gauge is None:
+        return None
+    # Reuse if exists
+    if hasattr(registry, 'metric_duplicates_total'):
+        try:
+            return registry.metric_duplicates_total  # type: ignore
+        except Exception:
+            return None
+    try:
+        g = Gauge('g6_metric_duplicates_total', 'Count of duplicate metric collector groups detected on initialization')
+        # Attach as attribute so tests can access & to avoid re-registration
+        registry.metric_duplicates_total = g  # type: ignore[attr-defined]
+        return g
+    except Exception:
+        return None
+
+
+def check_duplicates(registry: Any) -> dict | None:
+    # Heuristic: look at attributes of registry ending with known metric suffixes or having a _type attribute
+    attrs = dir(registry)
+    metric_like: Dict[int, List[Tuple[str, Any]]] = {}
+    total = 0
+    for name in attrs:
+        if name.startswith('_'):
+            continue
+        try:
+            obj = getattr(registry, name)
+        except Exception:
+            continue
+        # Skip callables (methods) and non-metrics
+        if callable(obj):  # type: ignore[arg-type]
+            continue
+        # Prometheus metric objects usually have ._type or ._name attributes
+        if not (hasattr(obj, '_type') or hasattr(obj, '_name') or hasattr(obj, '_value')):
+            continue
+        ident = id(obj)
+        metric_like.setdefault(ident, []).append((name, obj))
+        total += 1
+
+    duplicates: List[Dict[str, Any]] = []
+    for ident, entries in metric_like.items():
+        if len(entries) <= 1:
+            continue
+        names = sorted(e[0] for e in entries)
+        # Determine a representative type string
+        typ = None
+        for _, obj in entries:
+            typ = getattr(obj, '_type', None) or getattr(obj, '_name', None)
+            if typ:
+                break
+        duplicates.append({
+            'names': names,
+            'type': typ or 'unknown',
+            'name': getattr(entries[0][1], '_name', None) or 'n/a',
+            'count': len(names),
+        })
+
+    if not duplicates:
+        return None
+
+    fail = _parse_bool(os.getenv('G6_DUPLICATES_FAIL_ON_DETECT'))
+    debug = _parse_bool(os.getenv('G6_DUPLICATES_LOG_DEBUG'))
+    suppress_warn = _parse_bool(os.getenv('G6_SUPPRESS_DUPLICATE_METRICS_WARN'))
+    override_level = os.getenv('G6_DUPLICATES_LOG_LEVEL', '').strip().lower()
+
+    # Attach gauge
+    g = _ensure_duplicates_gauge(registry)
+    if g is not None:
+        try:
+            g.set(len(duplicates))  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
+    for d in duplicates[:5]:  # cap debug spam
+        if debug:
+            logger.debug('metrics.duplicates.detail names=%s type=%s', ','.join(d['names']), d['type'])
+
+    if not suppress_warn:
+        log_fn = logger.warning
+        if override_level in {'info','debug','error','critical'}:
+            log_fn = getattr(logger, 'critical' if override_level == 'fatal' else override_level, logger.warning)
+        try:
+            log_fn(
+                'metrics.duplicates.detected groups=%d total_attrs=%d sample=%s',
+                len(duplicates),
+                total,
+                duplicates[0]['names'] if duplicates else [],
+                extra={
+                    'event': 'metrics.duplicates.detected',
+                    'groups': duplicates[:10],  # cap payload
+                    'groups_total': len(duplicates),
+                }
+            )
+        except Exception:
+            # Never block startup on logging edge cases
+            pass
+
+    if fail:
+        raise RuntimeError(f"Duplicate metrics detected (groups={len(duplicates)})")
+
+    summary = {
+        'duplicates': duplicates,
+        'duplicate_group_count': len(duplicates),
+        'total_attributes_scanned': total,
+        'failed': False,
+    }
+    try:
+        registry._duplicate_metrics_summary = summary  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    return summary
+
+
+__all__ = ["check_duplicates"]

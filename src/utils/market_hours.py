@@ -19,6 +19,9 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MARKET_HOURS = {
     "equity": {
+        # New broader premarket initialization window (platform bootstrap, auth, health checks)
+        # Collection cycles remain gated until regular session opens at 09:15 IST.
+        "premarket": {"start": "08:00:00", "end": "09:15:00"},
         "pre_open": {"start": "09:00:00", "end": "09:15:00"},
         "regular": {"start": "09:15:00", "end": "15:30:00"},
         "post_close": {"start": "15:30:00", "end": "15:45:00"},
@@ -191,3 +194,25 @@ def sleep_until_market_open(
         # Sleep for check interval or remaining time, whichever is smaller
         sleep_time = min(check_interval, seconds_remaining)
         time.sleep(sleep_time)
+
+
+def is_premarket_window(reference_time: Optional[datetime] = None) -> bool:
+    """Return True if current time is within the premarket initialization window (IST 08:00–09:15) and
+    the regular session has not yet started.
+
+    This allows the platform to perform provider authentication, warm caches, and run integrity /
+    readiness checks without starting full data collection cycles prematurely.
+    """
+    # Within premarket session AND not yet regular session.
+    return (
+        is_market_open(market_type="equity", session_type="premarket", reference_time=reference_time)
+        and not is_market_open(market_type="equity", session_type="regular", reference_time=reference_time)
+    )
+
+
+__all__ = [
+    # Existing exports implicitly relied upon by other modules
+    'is_market_open', 'get_next_market_open', 'sleep_until_market_open',
+    # New helper
+    'is_premarket_window'
+]

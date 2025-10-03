@@ -1,9 +1,9 @@
 {
   "panel": "resources",
-  "updated_at": "2025-09-18T08:01:09.201647Z",
-  "kind": null,
+  "updated_at": "2025-09-30T12:01:39.797212Z",
+  "kind": "resources",
   "data": {
-    "cpu": 11.7,
-    "rss": 255430091
+    "cpu": 0.0,
+    "memory_mb": 0.0
   }
 }
