@@ -5,6 +5,8 @@ Activated when the rewrite flag is enabled and rich mode is disabled.
 from __future__ import annotations
 from typing import Mapping, Any
 import sys
+import os
+import hashlib
 
 from .panel_registry import build_all_panels
 from .domain import build_domain_snapshot
@@ -16,6 +18,9 @@ class PlainRenderer(OutputPlugin):
 
     def __init__(self, *, max_width: int = 160) -> None:
         self._max_width = max_width
+        self._last_hash: str | None = None
+        # Allow disabling diff suppression (e.g., for logging pipelines) via env flag
+        self._diff_enabled = os.getenv("G6_SUMMARY_PLAIN_DIFF", "1").lower() in ("1","true","yes","on")
 
     def setup(self, context: Mapping[str, Any]) -> None:  # pragma: no cover - trivial
         pass
@@ -32,11 +37,16 @@ class PlainRenderer(OutputPlugin):
                 clipped = (line[: self._max_width - 1] + '…') if len(line) > self._max_width else line
                 out_lines.append(clipped)
             out_lines.append("")
+        rendered = "\n".join(out_lines).rstrip() + "\n"
+        if self._diff_enabled:
+            h = hashlib.sha256(rendered.encode("utf-8")).hexdigest()
+            if self._last_hash == h:
+                return  # suppress unchanged frame
+            self._last_hash = h
         stream = sys.stdout
         try:
-            stream.write("\n".join(out_lines).rstrip() + "\n")
+            stream.write(rendered)
         except Exception:
-            # Best-effort; swallow write errors to avoid crashing loop
             pass
 
     def teardown(self) -> None:  # pragma: no cover - trivial

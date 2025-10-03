@@ -9,6 +9,7 @@ import time
 import logging
 import json
 import os
+import hashlib
 from typing import List, Mapping, Any, Iterable, Optional
 
 from .plugins.base import OutputPlugin, SummarySnapshot, MetricsEmitter
@@ -46,31 +47,38 @@ class UnifiedLoop:
             return None
 
     def _build_snapshot(self) -> SummarySnapshot:
-        # Phase 1 adapter: leverage snapshot_builder for core fields; map to generic SummarySnapshot.
+        # Phase 2: domain-first snapshot (still populate legacy derived for backward compatibility)
         status = self._read_status()  # concrete dict or None
         now = time.time()
         panels_dir = self._panels_dir if (self._panels_dir and os.path.isdir(self._panels_dir)) else None
-        # Use build_frame_snapshot only if status present or panels directory exists (to avoid unnecessary work)
+        errors: List[str] = []
         derived: Mapping[str, Any] = {}
         panel_map: Mapping[str, Any] = {}
-        errors: List[str] = []
+        domain_obj = None
         try:
-            if status is not None or panels_dir:
-                frame = snapshot_builder.build_frame_snapshot(status, panels_dir=panels_dir)
-                # Convert frame dataclass to dict for derived: keep semantic grouping minimal for now
+            if status is not None:
+                from scripts.summary.domain import build_domain_snapshot  # local import
+                domain_obj = build_domain_snapshot(status, ts_read=now)
+                # Legacy derived map population from domain
                 derived = {
-                    "cycle": frame.cycle.cycle,
-                    "indices_count": len(frame.indices),
-                    "alerts_total": frame.alerts.total,
+                    "cycle": domain_obj.cycle.number,
+                    "indices_count": domain_obj.coverage.indices_count,
+                    "alerts_total": domain_obj.alerts.total,
+                }
+        except Exception as e:  # noqa: BLE001
+            logger.exception("Domain snapshot build failure")
+            errors.append(str(e))
+        # Legacy frame builder for panels_mode / memory info still (transitional)
+        try:
+            if (status is not None or panels_dir):
+                frame = snapshot_builder.build_frame_snapshot(status, panels_dir=panels_dir)
+                derived = {**derived, **{
                     "memory_rss_mb": frame.memory.rss_mb,
                     "panels_mode": frame.panels_mode,
-                }
-                # Panels placeholder: future phases will build structured panel outputs prior to write
+                }}
                 panel_map = {"_legacy_panels_mode": frame.panels_mode}
         except Exception as e:  # noqa: BLE001
-            logger.exception("Snapshot build failure (unified loop)")
-            errors.append(str(e))
-        # Phase 2: Attempt unified model assembly (dual emission). Failures do not block legacy fields.
+            logger.debug("Frame builder fallback failed: %s", e)
         model_obj = None
         try:
             if status is not None or panels_dir:
@@ -78,7 +86,7 @@ class UnifiedLoop:
                 model_obj, _diag = assemble_model_snapshot(runtime_status=status or {}, panels_dir=panels_dir, include_panels=True)
         except Exception as e:  # noqa: BLE001
             logger.debug("Unified model assembly failed (dual emission fallback): %s", e)
-        snap = SummarySnapshot(
+        return SummarySnapshot(
             status=status or {},
             derived=derived,
             panels=panel_map,
@@ -87,8 +95,8 @@ class UnifiedLoop:
             cycle=self._cycle,
             errors=tuple(errors),
             model=model_obj,
+            domain=domain_obj,
         )
-        return snap
 
     def run(self, cycles: int | None = None) -> None:  # pragma: no cover - loop skeleton
         self._running = True

@@ -32,6 +32,7 @@ from typing import Protocol, Any, Mapping, Sequence, Optional, Dict, TYPE_CHECKI
 
 if TYPE_CHECKING:  # import only for type hints to avoid runtime cost
     from src.summary.unified.model import UnifiedStatusSnapshot  # pragma: no cover
+    from scripts.summary.domain import SummaryDomainSnapshot  # pragma: no cover
 import time
 import logging
 import os
@@ -55,6 +56,8 @@ class SummarySnapshot:
     errors: Sequence[str]
     # Phase 2 dual emission: unified model snapshot (authoritative structured representation)
     model: 'UnifiedStatusSnapshot | None' = None  # populated by loop when available
+    # Phase 2: domain snapshot (new structured representation replacing ad-hoc derived/panels maps gradually)
+    domain: 'SummaryDomainSnapshot | None' = None
 
 class OutputPlugin(Protocol):
     """Contract each output writer/renderer implements."""
@@ -155,11 +158,19 @@ class PanelsWriter(OutputPlugin):  # placeholder + minimal JSON artifact writer
             os.makedirs(self._dir, exist_ok=True)
         except Exception:
             return
+        # Prefer domain snapshot fields when available (Phase 2 migration)
+        if getattr(snap, 'domain', None) is not None:
+            d = snap.domain  # type: ignore[attr-defined]
+            indices_count = d.coverage.indices_count if d and d.coverage else snap.derived.get("indices_count")
+            alerts_total = d.alerts.total if d and d.alerts else snap.derived.get("alerts_total")
+        else:
+            indices_count = snap.derived.get("indices_count")
+            alerts_total = snap.derived.get("alerts_total")
         base_payload = {
             "cycle": snap.cycle,
             "ts_built": snap.ts_built,
-            "indices_count": snap.derived.get("indices_count"),
-            "alerts_total": snap.derived.get("alerts_total"),
+            "indices_count": indices_count,
+            "alerts_total": alerts_total,
             "errors": list(snap.errors),
         }
         # Always write the unified_snapshot summary (stable contract)
