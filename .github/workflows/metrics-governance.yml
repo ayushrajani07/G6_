@@ -1,0 +1,67 @@
+name: Metrics Governance
+
+on:
+  pull_request:
+    paths:
+      - 'metrics/spec/**'
+      - 'scripts/gen_metrics.py'
+      - 'scripts/gen_metrics_catalog.py'
+      - 'scripts/gen_metrics_docs.py'
+      - 'scripts/gen_metrics_glossary.py'
+      - 'scripts/metrics_drift_check.py'
+      - 'scripts/exercise_metrics.py'
+      - 'src/metrics/**'
+  push:
+    branches: [ main ]
+    paths:
+      - 'metrics/spec/**'
+      - 'scripts/gen_metrics.py'
+      - 'scripts/gen_metrics_catalog.py'
+      - 'scripts/gen_metrics_docs.py'
+      - 'scripts/gen_metrics_glossary.py'
+      - 'scripts/metrics_drift_check.py'
+      - 'scripts/exercise_metrics.py'
+      - 'src/metrics/**'
+
+jobs:
+  metrics-governance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Regenerate metrics module & catalog
+        run: |
+          python scripts/gen_metrics.py
+          python scripts/gen_metrics_catalog.py || true
+          python scripts/gen_metrics_docs.py || true
+          python scripts/gen_metrics_glossary.py || true
+
+      - name: Warm metrics & enforce drift (strict)
+        env:
+          G6_METRICS_STRICT: '1'
+        run: |
+          python scripts/exercise_metrics.py --run-drift-check --strict-drift
+
+      - name: Fail if generated changes not committed
+        run: |
+          git diff --exit-code || (echo 'Uncommitted generated metric artifacts found. Run generation locally and commit.' && exit 1)

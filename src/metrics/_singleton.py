@@ -1,0 +1,45 @@
+"""Central metrics singleton anchor.
+
+This module provides a single source of truth for the process-wide MetricsRegistry
+instance to avoid divergence when importing via different paths (facade vs legacy).
+
+Public helpers kept intentionally tiny to minimize import side-effects.
+"""
+from __future__ import annotations
+from typing import Optional, TYPE_CHECKING
+import threading
+if TYPE_CHECKING:  # pragma: no cover
+    from .metrics import MetricsRegistry  # type: ignore
+
+REGISTRY_SINGLETON: 'MetricsRegistry | None' = None
+_REGISTRY_LOCK = threading.Lock()
+
+
+def get_singleton():  # pragma: no cover - trivial
+    return REGISTRY_SINGLETON
+
+
+def set_singleton(reg):  # pragma: no cover - trivial
+    global REGISTRY_SINGLETON  # noqa: PLW0603
+    if REGISTRY_SINGLETON is reg:
+        return REGISTRY_SINGLETON
+    with _REGISTRY_LOCK:
+        if REGISTRY_SINGLETON is None:
+            REGISTRY_SINGLETON = reg
+    return REGISTRY_SINGLETON
+
+def create_if_absent(factory):  # pragma: no cover - tiny helper
+    """Atomically create and publish singleton using factory() if absent.
+
+    Returns existing singleton if already set; otherwise the newly created one.
+    The factory is only invoked inside the lock when the singleton is absent.
+    """
+    global REGISTRY_SINGLETON  # noqa: PLW0603
+    if REGISTRY_SINGLETON is not None:
+        return REGISTRY_SINGLETON
+    with _REGISTRY_LOCK:
+        if REGISTRY_SINGLETON is None:
+            REGISTRY_SINGLETON = factory()
+        return REGISTRY_SINGLETON
+
+__all__ = ["get_singleton", "set_singleton", "create_if_absent", "REGISTRY_SINGLETON"]

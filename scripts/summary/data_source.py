@@ -4,6 +4,8 @@ import json
 import re
 from typing import Any, Dict, Optional
 
+from .env_config import load_summary_env
+
 """Panels data source helpers (auto-detect only).
 
 Deprecated env vars `G6_SUMMARY_PANELS_MODE` / `G6_SUMMARY_READ_PANELS` fully purged.
@@ -50,7 +52,11 @@ def _use_panels_json() -> bool:  # backward compatibility internal name
 
 
 def _panels_dir() -> str:
-    return os.getenv("G6_PANELS_DIR", os.path.join("data", "panels"))
+    # Centralized via SummaryEnv (panels_dir)
+    try:
+        return load_summary_env().panels_dir
+    except Exception:
+        return os.path.join("data", "panels")
 
 
 def _read_json_with_retries(path: str, retries: int = 3, delay: float = 0.05) -> Optional[Any]:
@@ -149,7 +155,11 @@ def _parse_indices_metrics_from_text(text: str) -> Dict[str, Dict[str, Any]]:
 
 
 def _get_indices_metrics_from_log() -> Dict[str, Dict[str, Any]]:
-    p = os.getenv("G6_INDICES_PANEL_LOG")
+    try:
+        cfg = load_summary_env()
+        p = cfg.indices_panel_log
+    except Exception:
+        p = os.getenv("G6_INDICES_PANEL_LOG")  # last-resort fallback
     if p and os.path.exists(p):
         txt = _tail_read(p)
         if txt:

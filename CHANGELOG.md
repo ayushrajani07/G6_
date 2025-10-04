@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file. Dates use I
 - Pruned deprecated `scripts/run_live.py` (fully removed) and consolidated logging env var documentation block to eliminate duplicate governance warnings.
 - Tombstoned legacy README variants (`README_COMPREHENSIVE.md`, `README_CONSOLIDATED_DRAFT.md`, `README_web_dashboard.md`) pending final deletion after external reference audit.
  - Removed legacy README variants (2025-10-03) after confirming no test/external references.
+- Removed summary legacy fallback & `--no-unified` flag; unified loop is now sole execution path. Deleted `StatusCache` and `plain_fallback` shims (plain mode now uses `PlainRenderer` or minimal key listing). Added failure return code (1) when unified loop aborts instead of silent fallback.
 ### Maintenance
 - Squashed prior documentation/cleanup commits (run_live.py removal, legacy README tombstone + deletion, env var docs consolidation) into single commit `d5ebb30` for history hygiene (no functional changes). Original hashes consolidated: d049712, 7285c74, 01e0988.
 ### Added

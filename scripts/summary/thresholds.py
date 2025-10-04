@@ -26,6 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 import json, os, threading, logging
+from scripts.summary.env_config import load_summary_env
 
 _LOCK = threading.RLock()
 _LOADED = False
@@ -86,7 +87,10 @@ def _ensure_loaded():
         for k in REGISTRY.keys():
             attr = k.replace('.', '_')
             _ALIAS_MAP[attr] = k
-        raw = os.getenv("G6_SUMMARY_THRESH_OVERRIDES")
+        try:
+            raw = load_summary_env().threshold_overrides_raw
+        except Exception:
+            raw = os.getenv("G6_SUMMARY_THRESH_OVERRIDES")
         if raw:
             try:
                 obj = json.loads(raw)

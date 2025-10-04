@@ -44,6 +44,7 @@ CONTROLLED_GROUPS: set[str] = {
     MetricGroup.ADAPTIVE_CONTROLLER.value,
     MetricGroup.PROVIDER_FAILOVER.value,
     MetricGroup.EXPIRY_REMEDIATION.value,
+    MetricGroup.LIFECYCLE.value,
 }
 
 # Fallback alias (exported) so callers needing a conservative default can use

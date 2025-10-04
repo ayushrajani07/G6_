@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime, time as datetime_time, timedelta, timezone
+import os
 from typing import Dict, Optional, Tuple, Union
 
 # Add this before launching the subprocess
@@ -55,6 +56,9 @@ MARKET_HOLIDAYS_2025 = [
     "2025-12-25"
 ]
 
+def _weekend_mode() -> bool:
+    return os.getenv('G6_WEEKEND_MODE', '0').lower() in ('1','true','on','yes')
+
 def is_market_open(
     *, 
     market_type: str = "equity",
@@ -80,8 +84,8 @@ def is_market_open(
     ist_offset = timedelta(hours=5, minutes=30)
     ist_now = now + ist_offset
     
-    # Check weekday (0=Monday, 6=Sunday)
-    if ist_now.weekday() >= 5:  # Saturday or Sunday
+    # Check weekday (0=Monday, 6=Sunday) unless weekend override enabled
+    if ist_now.weekday() >= 5 and not _weekend_mode():  # Saturday or Sunday
         return False
         
     # Check holidays
@@ -145,9 +149,15 @@ def get_next_market_open(
     
     # Skip weekends and holidays
     holiday_list = holidays or MARKET_HOLIDAYS_2025
-    while target_date.weekday() >= 5 or target_date.strftime("%Y-%m-%d") in holiday_list:
-        target_date = target_date + timedelta(days=1)
-        target_datetime = datetime.combine(target_date, start_time)
+    if not _weekend_mode():
+        while target_date.weekday() >= 5 or target_date.strftime("%Y-%m-%d") in holiday_list:
+            target_date = target_date + timedelta(days=1)
+            target_datetime = datetime.combine(target_date, start_time)
+    else:
+        # Still skip holidays even if weekend mode is active
+        while target_date.strftime("%Y-%m-%d") in holiday_list:
+            target_date = target_date + timedelta(days=1)
+            target_datetime = datetime.combine(target_date, start_time)
     
     # Convert back to UTC
     utc_datetime = target_datetime - ist_offset

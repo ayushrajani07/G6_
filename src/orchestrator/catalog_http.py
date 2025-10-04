@@ -252,6 +252,50 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                     if type_filters and evt_type not in type_filters:
                         return
                     try:
+                        # Flush latency measurement (publish->flush) best-effort
+                        if os.environ.get('G6_SSE_FLUSH_LATENCY_CAPTURE','').lower() in ('1','on','true','yes'):
+                            try:
+                                pub_ts = None
+                                if isinstance(payload, dict):
+                                    inner = payload.get('payload')  # nested structure
+                                    if isinstance(inner, dict):
+                                        pub_ts = inner.get('publish_unixtime')
+                                if isinstance(pub_ts, (int,float)):
+                                    now_ts = time.time()
+                                    flush_latency = max(0.0, now_ts - pub_ts)
+                                    from src.metrics import get_metrics  # type: ignore
+                                    m = get_metrics()
+                                    if m and hasattr(m, 'sse_flush_seconds'):
+                                        try:
+                                            hist = getattr(m, 'sse_flush_seconds')
+                                            observe = getattr(hist, 'observe', None)
+                                            if callable(observe):
+                                                observe(flush_latency)
+                                        except Exception:
+                                            pass
+                            except Exception:
+                                pass
+                        # Trace context: flush stage
+                        if os.environ.get('G6_SSE_TRACE','').lower() in ('1','on','true','yes') and isinstance(payload, dict):
+                            try:
+                                inner = payload.get('payload')
+                                if isinstance(inner, dict):
+                                    tr = inner.get('_trace')
+                                    if isinstance(tr, dict) and 'flush_ts' not in tr:
+                                        tr['flush_ts'] = time.time()
+                                        # Metric stage counter
+                                        try:
+                                            from src.metrics import get_metrics  # type: ignore
+                                            m = get_metrics()
+                                            if m and hasattr(m, 'sse_trace_stages_total'):
+                                                ctr = getattr(m, 'sse_trace_stages_total')
+                                                inc = getattr(ctr, 'inc', None)
+                                                if callable(inc):
+                                                    inc()
+                                        except Exception:
+                                            pass
+                            except Exception:
+                                pass
                         self.wfile.write(f"id: {event.event_id}\n".encode('utf-8'))
                         if evt_type:
                             self.wfile.write(f"event: {evt_type}\n".encode('utf-8'))

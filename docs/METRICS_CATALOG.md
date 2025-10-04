@@ -1,6 +1,6 @@
 # G6 Metrics Catalog
 
-Auto-generated from declarative specification (`spec.py`). Do not edit manually.
+Auto-generated from YAML specification (`metrics/spec/base.yml`). Do not edit manually — regenerate via `scripts/gen_metrics.py`.
 
 Generated: (runtime)
 
@@ -43,6 +43,16 @@ root_cache_hit_ratio | g6_root_cache_hit_ratio | Gauge | perf_cache |  | low | a
 root_cache_hits | g6_root_cache_hits | Counter | perf_cache |  | low | rate(g6_root_cache_hits[5m]) | Root symbol cache hits | N
 root_cache_misses | g6_root_cache_misses | Counter | perf_cache |  | low | rate(g6_root_cache_misses[5m]) | Root symbol cache misses | N
 root_cache_size | g6_root_cache_size | Gauge | perf_cache |  | low | avg(g6_root_cache_size) | Current root symbol cache size | N
+serial_cache_hits | g6_serial_cache_hits_total | Counter | perf_cache |  | low | rate(g6_serial_cache_hits_total[5m]) | Serialization cache hits | N
+serial_cache_misses | g6_serial_cache_misses_total | Counter | perf_cache |  | low | rate(g6_serial_cache_misses_total[5m]) | Serialization cache misses | N
+serial_cache_evictions | g6_serial_cache_evictions_total | Counter | perf_cache |  | low | rate(g6_serial_cache_evictions_total[5m]) | Serialization cache evictions | N
+serial_cache_size | g6_serial_cache_size | Gauge | perf_cache |  | low | avg(g6_serial_cache_size) | Serialization cache current size | N
+serial_cache_hit_ratio | g6_serial_cache_hit_ratio | Gauge | perf_cache |  | low | avg(g6_serial_cache_hit_ratio) | Serialization cache hit ratio (0-1) | N
+sse_serialize_seconds | g6_sse_serialize_seconds | Histogram | perf_cache |  | low | rate(g6_sse_serialize_seconds_bucket[5m]) | Serialization time distribution for SSE payloads | Y
+sse_flush_seconds | g6_sse_flush_latency_seconds | Histogram | perf_cache |  | low | rate(g6_sse_flush_latency_seconds_bucket[5m]) | Publish-to-flush latency distribution | Y
+sse_trace_stages_total | g6_sse_trace_stages_total | Counter | perf_cache |  | low | rate(g6_sse_trace_stages_total[5m]) | Trace stage observations (serialize+flush) | Y
+adaptive_backlog_ratio | g6_adaptive_backlog_ratio | Gauge | perf_cache |  | low | avg(g6_adaptive_backlog_ratio) | Adaptive controller backlog ratio sample | Y
+adaptive_transitions_total | g6_adaptive_transitions_total | Counter | perf_cache | reason | low | rate(g6_adaptive_transitions_total[5m]) | Adaptive controller transitions | Y
 collection_cycles | g6_collection_cycles | Counter |  |  | low | rate(g6_collection_cycles[5m]) | Number of collection cycles run | N
 collection_duration | g6_collection_duration_seconds | Summary |  |  | low | quantile(0.9, g6_collection_duration_seconds_sum / g6_collection_duration_seconds_count) | Time spent collecting data | N
 collection_errors | g6_collection_errors | Counter |  | index,error_type | moderate | rate(g6_collection_errors[5m]) | Number of collection errors | N

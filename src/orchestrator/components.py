@@ -158,6 +158,7 @@ except Exception as _providers_import_err:  # pragma: no cover
                 self.logger.warning("[fallback Providers] enrich_with_quotes using degraded stub (no real quote API).")
                 self._degraded_warned_enrich = True
             out = {}
+            enriched_count = 0
             for inst in instruments:
                 sym = inst.get('tradingsymbol', '') if isinstance(inst, dict) else ''
                 if not sym:
@@ -169,6 +170,25 @@ except Exception as _providers_import_err:  # pragma: no cover
                 enriched.setdefault('avg_price', 0)
                 enriched['synthetic_quote'] = True
                 out[sym] = enriched
+                enriched_count += 1
+            # Emit minimal counters so dashboards are not empty in degraded mode
+            try:  # switch to generated metric helpers (lazy registration)
+                from src.metrics.generated import (
+                    m_quote_enriched_total_labels,
+                    m_api_calls_total_labels,
+                )
+                def _safe_inc(lbl, amt=1):
+                    try:
+                        if lbl:
+                            lbl.inc(amt)  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                if enriched_count:
+                    lbl_q = m_quote_enriched_total_labels('fallback'); _safe_inc(lbl_q, enriched_count)
+                if instruments:  # one synthetic API call per enrich invocation
+                    lbl_api = m_api_calls_total_labels('fallback_enrich','success'); _safe_inc(lbl_api)
+            except Exception:
+                pass
             return out
         def __getattr__(self, name):  # final fallback for unimplemented attrs
             raise AttributeError(name)

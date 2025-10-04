@@ -129,3 +129,48 @@ def refresh_layout(layout: Any, status: Dict[str, Any] | None, status_file: str,
     
     # Storage & Backup Metrics panel (bottom panel)
     layout["storage"].update(storage_backup_metrics_panel(status, low_contrast=low_contrast, compact=compact, show_title=True))
+
+
+def update_single_panel(layout: Any, panel_key: str, status: Dict[str, Any] | None, status_file: str, metrics_url: Optional[str], *, compact: bool = False, low_contrast: bool = False, rolling: Optional[Dict[str, Any]] = None) -> None:
+    """Update only a single panel region (if recognized) with fresh content.
+
+    Panel keys: header, indices, analytics, alerts, links, perfstore, storage
+    Unknown keys are ignored silently (defensive).
+    """
+    from scripts.summary.panels.header import header_panel
+    from scripts.summary.panels.indices import indices_panel
+    from scripts.summary.panels.analytics import analytics_panel
+    from scripts.summary.panels.alerts import alerts_panel
+    from scripts.summary.panels.links import links_panel
+    from scripts.summary.panels.monitoring import unified_performance_storage_panel, storage_backup_metrics_panel
+
+    if panel_key == 'header':
+        indices = derive_indices(status)
+        version = ""
+        if status:
+            if isinstance(status.get("app"), dict) and status["app"].get("version"):
+                version = str(status["app"]["version"])
+            elif status.get("version"):
+                version = str(status.get("version"))
+        interval = None
+        if status:
+            interval = status.get("interval")
+            if interval is None:
+                loop = status.get("loop") if isinstance(status, dict) else None
+                if isinstance(loop, dict):
+                    interval = loop.get("target_interval")
+        layout["header"].update(header_panel("", version, indices, low_contrast=low_contrast, status=status, interval=interval))
+    elif panel_key == 'indices':
+        layout["indices"].update(indices_panel(status, compact=compact, low_contrast=low_contrast, loop_for_footer=rolling))
+    elif panel_key == 'analytics':
+        layout["analytics"].update(analytics_panel(status, compact=compact, low_contrast=low_contrast))
+    elif panel_key == 'alerts':
+        layout["alerts"].update(alerts_panel(status, compact=compact, low_contrast=low_contrast))
+    elif panel_key == 'links':
+        layout["links"].update(links_panel(status_file, metrics_url, low_contrast=low_contrast))
+    elif panel_key == 'perfstore':
+        layout["perfstore"].update(unified_performance_storage_panel(status, low_contrast=low_contrast, compact=compact, show_title=True))
+    elif panel_key == 'storage':
+        layout["storage"].update(storage_backup_metrics_panel(status, low_contrast=low_contrast, compact=compact, show_title=True))
+    else:
+        return

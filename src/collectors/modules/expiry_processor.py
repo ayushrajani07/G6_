@@ -306,6 +306,40 @@ def process_expiry(
             strike_cov = _coverage_metrics(ctx, instruments, strikes, index_symbol, expiry_rule, expiry_date)
         with ctx.time_phase('field_coverage_metrics'):
             field_cov = _field_coverage_metrics(ctx, enriched_data, index_symbol, expiry_rule, expiry_date)
+        # Empty quotes diagnostics: if field coverage is 0 or None and options >0 instruments present
+        try:
+            if (field_cov is None or field_cov == 0) and enriched_data:
+                # Determine if every enriched quote lacks core fields (volume, oi, avg_price)
+                missing_all = True
+                for _sym,_row in enriched_data.items():
+                    if any(k in _row for k in ('volume','oi','avg_price')):
+                        missing_all = False
+                        break
+                if missing_all:
+                    logger.warning(
+                        'empty_quote_fields index=%s rule=%s expiry=%s instruments=%d',
+                        index_symbol, expiry_rule, expiry_date, len(enriched_data or {}),
+                    )
+                    if metrics:
+                        try:
+                            from prometheus_client import Counter as _C  # type: ignore
+                            if not hasattr(metrics, 'empty_quote_fields_total'):
+                                try:
+                                    metrics.empty_quote_fields_total = _C(
+                                        'g6_empty_quote_fields_total',
+                                        'Count of expiries where all quotes missing volume/oi/avg_price',
+                                        ['index','expiry_rule'],
+                                    )  # type: ignore[attr-defined]
+                                except Exception:
+                                    pass
+                            try:
+                                metrics.empty_quote_fields_total.labels(index=index_symbol, expiry_rule=expiry_rule).inc()  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
+                        except Exception:
+                            logger.debug('empty_quote_metric_creation_failed', exc_info=True)
+        except Exception:
+            logger.debug('empty_quote_diagnostics_failed', exc_info=True)
         with ctx.time_phase('iv_estimation'):
             try:
                 from src.collectors.modules.iv_estimation import run_iv_estimation  # type: ignore

@@ -38,6 +38,9 @@ except Exception:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
+# Track whether we've already emitted a warning for a given duplicate signature to reduce log noise.
+_EMITTED_SIGNATURES: set[tuple[int,int]] = set()
+
 
 def _parse_bool(val: str | None) -> bool:
     if not val:
@@ -124,24 +127,34 @@ def check_duplicates(registry: Any) -> dict | None:
             logger.debug('metrics.duplicates.detail names=%s type=%s', ','.join(d['names']), d['type'])
 
     if not suppress_warn:
-        log_fn = logger.warning
-        if override_level in {'info','debug','error','critical'}:
-            log_fn = getattr(logger, 'critical' if override_level == 'fatal' else override_level, logger.warning)
+        # Build a stable signature: (#groups, hash of first group's joined names) to de-noise repeated logs.
         try:
-            log_fn(
-                'metrics.duplicates.detected groups=%d total_attrs=%d sample=%s',
-                len(duplicates),
-                total,
-                duplicates[0]['names'] if duplicates else [],
-                extra={
-                    'event': 'metrics.duplicates.detected',
-                    'groups': duplicates[:10],  # cap payload
-                    'groups_total': len(duplicates),
-                }
-            )
+            first_sample = ','.join(duplicates[0]['names']) if duplicates else ''
+            sig = (len(duplicates), hash(first_sample))
         except Exception:
-            # Never block startup on logging edge cases
-            pass
+            sig = (len(duplicates), 0)
+        emit_always = _parse_bool(os.getenv('G6_DUPLICATES_ALWAYS_LOG'))
+        if emit_always or sig not in _EMITTED_SIGNATURES:
+            if not emit_always:
+                _EMITTED_SIGNATURES.add(sig)
+            log_fn = logger.warning
+            if override_level in {'info','debug','error','critical'}:
+                log_fn = getattr(logger, 'critical' if override_level == 'fatal' else override_level, logger.warning)
+            try:
+                log_fn(
+                    'metrics.duplicates.detected groups=%d total_attrs=%d sample=%s',
+                    len(duplicates),
+                    total,
+                    duplicates[0]['names'] if duplicates else [],
+                    extra={
+                        'event': 'metrics.duplicates.detected',
+                        'groups': duplicates[:10],  # cap payload
+                        'groups_total': len(duplicates),
+                        'dedup_suppressed': not emit_always,
+                    }
+                )
+            except Exception:
+                pass
 
     if fail:
         raise RuntimeError(f"Duplicate metrics detected (groups={len(duplicates)})")

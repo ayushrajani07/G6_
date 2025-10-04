@@ -5,10 +5,29 @@ Providers Interface for G6 Options Trading Platform.
 Serves as a facade for the various data providers.
 """
 
+from src.metrics.generated import (
+    m_api_calls_total_labels,
+    m_api_response_latency_ms,
+    m_quote_enriched_total_labels,
+    m_quote_missing_volume_oi_total_labels,
+    m_quote_avg_price_fallback_total_labels,
+    m_index_zero_price_fallback_total_labels,
+    m_expiry_resolve_fail_total_labels,
+)
+
 import logging
 import datetime
 from typing import Dict, List, Any, Optional, Tuple
-import os
+import os, time as _time
+try:  # Prometheus client optional during some tests
+    from prometheus_client import Counter as _C, Histogram as _H
+except Exception:  # pragma: no cover
+    class _Dummy:  # noqa: D401
+        def __init__(self,*a,**k): pass
+        def labels(self,*a,**k): return self
+        def inc(self,*a,**k): pass
+        def observe(self,*a,**k): pass
+    _C=_H=_Dummy
 
 # Add this before launching the subprocess
 import sys  # retained for potential future use
@@ -18,6 +37,13 @@ logger = logging.getLogger(__name__)
 
 # Global concise mode detection (default ON unless explicitly disabled)
 _CONCISE = os.environ.get('G6_CONCISE_LOGS', '1').lower() not in ('0','false','no','off')
+
+def _safe_inc(lbl, amount=1):  # helper to tolerate label None or unexpected metric type
+    try:
+        if lbl:
+            lbl.inc(amount)  # type: ignore[attr-defined]
+    except Exception:
+        pass
 
 class Providers:
     """Interface for all data providers."""
@@ -44,6 +70,8 @@ class Providers:
             provider_names.append(provider_class)
         # Downgrade to DEBUG; startup banner covers provider summary
         self.logger.debug(f"Providers initialized with: {', '.join(provider_names)}")
+        # Early metrics init so counters/gauges appear even before first enrichment
+        # Deprecated metrics init removed (spec-driven metrics register lazily when first used)
     
     def close(self):
         """Close all providers."""
@@ -105,7 +133,9 @@ class Providers:
                 if price == 0:
                     # Instrumentation: unexpected zero (mock provider should give >0)
                     try:
-                        self.logger.warning(f"get_index_data instrumentation: zero price from quote key={key} provider={type(self.primary_provider).__name__}")
+                        self.logger.warning(
+                            f"get_index_data instrumentation: zero price from quote key={key} provider={type(self.primary_provider).__name__}"
+                        )
                     except Exception:
                         pass
                     # Synthetic fallback price injection (single pass) to keep pipeline moving
@@ -123,6 +153,8 @@ class Providers:
                             base = price
                             ohlc = {'open': base, 'high': base * 1.001, 'low': base * 0.999, 'close': base}
                         self.logger.debug(f"Injected synthetic index price for {index_symbol}: {price}")
+                        lbl = m_index_zero_price_fallback_total_labels(index_symbol, 'quote')
+                        _safe_inc(lbl)
                 
                 if _CONCISE:
                     self.logger.debug(f"Index data for {index_symbol}: Price={price}, OHLC={ohlc}")
@@ -159,6 +191,8 @@ class Providers:
                     if index_symbol in synth_map:
                         price = synth_map[index_symbol]
                         self.logger.debug(f"Injected synthetic LTP for {index_symbol}: {price}")
+                        lbl = m_index_zero_price_fallback_total_labels(index_symbol, 'ltp')
+                        _safe_inc(lbl)
                 if _CONCISE:
                     self.logger.debug(f"LTP for {index_symbol}: {price}")
                 else:
@@ -261,12 +295,16 @@ class Providers:
 
         try:
             if not self.primary_provider or not hasattr(self.primary_provider, 'get_expiry_dates'):
+                lbl = m_expiry_resolve_fail_total_labels(index_symbol, str(expiry_rule).lower(), 'no_method')
+                _safe_inc(lbl)
                 raise ResolveExpiryError("Primary provider missing get_expiry_dates")
 
             raw_list = list(self.primary_provider.get_expiry_dates(index_symbol))  # type: ignore[attr-defined]
             today = datetime.date.today()
             expiries = sorted(d for d in raw_list if isinstance(d, datetime.date) and d >= today)
             if not expiries:
+                lbl = m_expiry_resolve_fail_total_labels(index_symbol, str(expiry_rule).lower(), 'empty_future')
+                _safe_inc(lbl)
                 raise ResolveExpiryError(f"No future expiries for {index_symbol}")
 
             nearest = expiries[0]
@@ -308,6 +346,8 @@ class Providers:
                 return this_month_date or nearest
             if rule == 'next_month':  # 2nd nearest monthly anchor
                 return next_month_date or this_month_date or second
+            lbl = m_expiry_resolve_fail_total_labels(index_symbol, str(expiry_rule).lower(), 'unknown_rule')
+            _safe_inc(lbl)
             raise ResolveExpiryError(f"Unknown expiry rule '{expiry_rule}'")
 
         except ResolveExpiryError:
@@ -315,6 +355,8 @@ class Providers:
         except Exception as e:  # pragma: no cover - defensive
             from src.utils.exceptions import ResolveExpiryError as _RE
             self.logger.error(f"Error resolving expiry (raw list mode): {e}")
+            lbl = m_expiry_resolve_fail_total_labels(index_symbol, str(expiry_rule).lower(), 'exception')
+            _safe_inc(lbl)
             raise _RE(f"Failed to resolve expiry for {index_symbol} using rule '{expiry_rule}': {e}")
     
     def get_option_instruments(self, index_symbol, expiry_date, strikes):
@@ -403,7 +445,20 @@ class Providers:
             if not self.primary_provider or not hasattr(self.primary_provider, 'get_quote'):
                 self.logger.error("Primary provider missing get_quote for option quotes")
                 return {}
+            q_start = _time.time()
             quotes = self.primary_provider.get_quote(quote_instruments)  # type: ignore
+            try:
+                lat_ms = max((_time.time()-q_start)*1000.0,0.0)
+                hist = m_api_response_latency_ms()
+                if hist:
+                    try:
+                        hist.observe(lat_ms)  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                lbl = m_api_calls_total_labels('get_quote','success')
+                _safe_inc(lbl)
+            except Exception:
+                pass
             try:
                 from src.broker.kite.tracing import trace as _trace  # type: ignore
                 sample_keys = list(quotes.keys())[:6]
@@ -411,6 +466,9 @@ class Providers:
             except Exception:
                 pass
             enriched_data = {}
+            enriched_count = 0
+            missing_volume_oi = 0
+            avg_price_fallback = 0
             for instrument in instruments:
                 symbol = instrument.get('tradingsymbol', '')
                 exchange = instrument.get('exchange', 'NFO')
@@ -435,11 +493,38 @@ class Providers:
                                 if fallback > 0:
                                     enriched['avg_price'] = fallback
                                     enriched['avg_price_fallback_used'] = True
+                                    avg_price_fallback += 1  # fixed indentation bug so counter increments
                         except Exception:
                             pass
                     if 'depth' in quote:
                         enriched['depth'] = quote.get('depth')
+                    enriched_count += 1
+                    if (not enriched.get('volume') and not enriched.get('oi')):
+                        missing_volume_oi += 1
                 enriched_data[symbol] = enriched
+            try:
+                if enriched_count:
+                    prov = _active_provider_name(self)
+                    # Prefer batching if enabled
+                    try:
+                        from src.metrics.emitter import metric_batcher
+                        metric_batcher.inc(m_quote_enriched_total_labels, enriched_count, prov)
+                        if missing_volume_oi:
+                            metric_batcher.inc(m_quote_missing_volume_oi_total_labels, missing_volume_oi, prov)
+                        if avg_price_fallback:
+                            metric_batcher.inc(m_quote_avg_price_fallback_total_labels, avg_price_fallback, prov)
+                    except Exception:
+                        le = m_quote_enriched_total_labels(prov); _safe_inc(le, enriched_count)
+                        if missing_volume_oi:
+                            lm = m_quote_missing_volume_oi_total_labels(prov); _safe_inc(lm, missing_volume_oi)
+                        if avg_price_fallback:
+                            lf = m_quote_avg_price_fallback_total_labels(prov); _safe_inc(lf, avg_price_fallback)
+                    if os.environ.get('G6_PROVIDER_METRICS_DEBUG'):
+                        self.logger.debug(
+                            f"[prov-metrics] enriched_count={enriched_count} missing_vol_oi={missing_volume_oi} avg_price_fb={avg_price_fallback} provider={prov}"
+                        )
+            except Exception:
+                pass
             return enriched_data
         except Exception as e:
             import traceback
@@ -469,3 +554,21 @@ __all__ = [
     'Providers',
     'ProvidersInterface',
 ]
+
+# ------------------ Metrics Helpers (provider instrumentation) ------------------
+# ------------------ Metrics Helpers (provider instrumentation) ------------------
+def _active_provider_name(providers) -> str:  # noqa: D401
+    try:
+        if getattr(providers, 'primary_provider', None):
+            return type(providers.primary_provider).__name__
+    except Exception:
+        pass
+    return 'unknown'
+
+def _ensure_provider_metrics():
+    """Deprecated no-op retained for backward compatibility with older imports."""
+    return
+
+def _record_api_call(endpoint: str, result: str):  # deprecated compatibility shim
+    lbl = m_api_calls_total_labels(endpoint, result)
+    _safe_inc(lbl)

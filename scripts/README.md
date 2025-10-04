@@ -98,7 +98,7 @@ python scripts/status_simulator.py --status-file data/runtime_status_demo.json -
 2) Launch the summary (panels auto-write/read via PanelsWriter; no separate bridge):
 
 ```powershell
-python scripts/summary_view.py --refresh 0.5 --status-file data/runtime_status_demo.json
+python -m scripts.summary.app --refresh 0.5 --status-file data/runtime_status_demo.json
 ```
 
 Continuous simulation + summary in two terminals:
@@ -108,9 +108,36 @@ Continuous simulation + summary in two terminals:
 python scripts/dev_tools.py simulate-status --status-file data/runtime_status.json --indices NIFTY BANKNIFTY FINNIFTY SENSEX --interval 60 --refresh 1.0 --open-market --with-analytics
 
 # Terminal 2: summary (panels mode auto-detected or force via env)
-$env:G6_SUMMARY_PANELS_MODE='on'; python scripts/summary_view.py --refresh 0.5 --status-file data/runtime_status.json
+python -m scripts.summary.app --refresh 0.5 --status-file data/runtime_status.json
 ```
 
 Notes:
 - Frontend displays use IST HH:MM:SS; backend JSON remains ISO.
 - Legacy bridge (`status_to_panels.py`) has been removed from the workflow; all panel JSON produced in-process.
+
+## Maintenance Utilities
+
+For quick developer hygiene actions (purge caches, verify summary app syntax, run targeted tests) use `maintenance.py`:
+
+```powershell
+# Purge __pycache__ + *.pyc and import-check summary app
+python scripts/maintenance.py --purge-cache --check-summary
+
+# Run a single test file after purge
+python scripts/maintenance.py --purge-cache --run tests/test_cadence.py
+
+# Full cycle: purge + check + full test suite (quiet)
+python scripts/maintenance.py --all
+```
+
+Flags:
+| Flag | Purpose |
+|------|---------|
+| `--purge-cache` | Remove all bytecode caches to avoid stale IndentationErrors |
+| `--check-summary` | Import `scripts.summary.app` and report success |
+| `--run <path>` | Run a specific pytest path for fast feedback |
+| `--full` | Run full pytest suite (`-q`) |
+| `--all` | Shortcut: purge + check-summary + full |
+| `--dry-run` | Show actions without executing destructive steps |
+
+Exit code is non-zero on first failure (import or pytest).

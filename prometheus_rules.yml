@@ -223,6 +223,25 @@ groups:
           clamp_min(sum by (type) (rate(g6_panel_event_latency_seconds_count[5m])), 1e-9)
         labels:
           job: g6_platform
+      # Publish->flush server-side latency quantiles (histogram exported as g6_sse_flush_latency_seconds)
+      - record: g6:sse_flush_latency_p95_seconds
+        expr: histogram_quantile(0.95, sum(rate(g6_sse_flush_latency_seconds_bucket[5m])) by (le))
+        labels:
+          job: g6_platform
+      - record: g6:sse_flush_latency_p99_seconds
+        expr: histogram_quantile(0.99, sum(rate(g6_sse_flush_latency_seconds_bucket[5m])) by (le))
+        labels:
+            job: g6_platform
+      # Adaptive degraded dwell seconds approximation: time since last adaptive exit (derivable if transition counter increments)
+      - record: g6_adaptive_backlog_ratio_last
+        expr: g6_adaptive_backlog_ratio
+        labels:
+          job: g6_platform
+      # Backpressure degraded mode flag (mirror gauge for downstream joins)
+      - record: g6_degraded_mode_flag
+        expr: g6_events_degraded_mode
+        labels:
+          job: g6_platform
   - name: g6_events_latency.alerts
     interval: 30s
     rules:
@@ -290,3 +309,259 @@ groups:
           summary: "Overall panel event p95 latency >400ms"
           description: |-
             Broad latency elevation across event types. Cross-check diff vs full breakdown to isolate driver.
+      # Server-side flush latency alerts
+      - alert: G6FlushLatencyHigh
+        expr: g6_market_session_open_flag == 1 and g6:sse_flush_latency_p95_seconds > 0.15
+        for: 10m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "SSE publish->flush p95 >150ms"
+          description: |-
+            Server-side flush path latency elevated. Investigate serialization hot spots, I/O flush blocking, or lock contention.
+      - alert: G6FlushLatencyCritical
+        expr: g6_market_session_open_flag == 1 and g6:sse_flush_latency_p95_seconds > 0.3
+        for: 5m
+        labels:
+          severity: critical
+          team: g6
+        annotations:
+          summary: "SSE publish->flush p95 >300ms"
+          description: |-
+            Severe server-side flush latency. Immediate action: profile event bus publish & network stack; consider temporary rate limiting.
+      # Adaptive degraded dwell: degraded flag stuck despite low backlog ratio (ratio < exit threshold ~0.4 default). Use 5m window.
+      - alert: G6AdaptiveDegradedStuck
+        expr: g6_market_session_open_flag == 1 and max_over_time(g6_events_degraded_mode[5m]) == 1 and avg_over_time(g6_adaptive_backlog_ratio[5m]) < 0.3
+        for: 5m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Degraded mode stuck though backlog low"
+          description: |-
+            Degraded mode active >5m while backlog ratio averaged below 0.3. Adaptive exit may be suppressed; inspect adaptive controller logs.
+      # Trace stagnation: no trace stage observations while events flowing (serialize+flush stages missing)
+      - alert: G6TraceStagesStalled
+        expr: sum(increase(g6_events_published_total{type="panel_diff"}[10m])) > 50 and increase(g6_sse_trace_stages_total[10m]) == 0
+        for: 10m
+        labels:
+          severity: info
+          team: g6
+        annotations:
+          summary: "Trace stage counter not advancing"
+          description: |-
+            Events publishing but trace stage counter static. Verify G6_SSE_TRACE env flag and instrumentation health.
+      # Adaptive exit scarcity: no adaptive transition increments over a long interval while degraded episodes occurred.
+      - alert: G6AdaptiveNoExits
+        expr: sum(increase(g6_events_backpressure_events_total{reason="enter_degraded"}[30m])) > 0 and increase(g6_adaptive_transitions_total[30m]) == 0
+        for: 10m
+        labels:
+          severity: info
+          team: g6
+        annotations:
+          summary: "Adaptive controller did not exit any degraded episodes in 30m"
+          description: |-
+            Degraded episodes detected but no adaptive exits recorded. Investigate backlog ratio thresholds and latency window settings.
+  - name: g6_lifecycle.rules
+    interval: 30s
+    rules:
+      # Retention deletions 5m rate (aggregate all labels)
+      - record: g6_retention_deletions_rate_5m
+        expr: sum(rate(g6_retention_files_deleted_total[5m]))
+      # Efficiency ratio (0-1) and percent (0-100). Candidates gauge updated per run.
+      - record: g6_retention_efficiency_ratio
+        expr: g6_retention_deletions_rate_5m / clamp_min(g6_retention_candidates, 1)
+      - record: g6_retention_efficiency_percent
+        expr: 100 * g6_retention_efficiency_ratio
+      # Retention scan latency p95 over 5m window.
+      - record: g6_retention_scan_latency_p95_seconds
+        expr: histogram_quantile(0.95, sum(rate(g6_retention_scan_seconds_bucket[5m])) by (le))
+      # Delete cap utilization percent (rate vs configured per-cycle limit). >80% sustained may indicate impending backlog growth.
+      - record: g6_retention_delete_cap_utilization_percent
+        expr: 100 * ( g6_retention_deletions_rate_5m / clamp_min(g6_retention_delete_limit, 1) )
+  - name: g6_lifecycle.alerts
+    interval: 30s
+    rules:
+      # Low retention efficiency sustained: deletions rate low relative to candidates present.
+      - alert: G6RetentionEfficiencyLow
+        expr: g6_retention_candidates > 10 and g6_retention_efficiency_percent < 30
+        for: 30m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Retention efficiency <30% with candidate backlog"
+          description: |-
+            Efficiency {{ $value | printf "%.1f" }}% (<30%) for >30m while candidates >10. Potential delete limit too low or IO issues.
+      # Critical inefficiency: near-stall with large backlog.
+      - alert: G6RetentionEfficiencyCritical
+        expr: g6_retention_candidates > 25 and g6_retention_efficiency_percent < 15
+        for: 15m
+        labels:
+          severity: critical
+          team: g6
+        annotations:
+          summary: "Retention efficiency critically low (<15%)"
+          description: |-
+            Critical retention stall: efficiency <15% and candidates >25 for >15m. Consider increasing delete limit or investigating FS latency.
+      # Candidate surge: high candidate backlog irrespective of efficiency (tunable threshold placeholder 100).
+      - alert: G6RetentionCandidateSurge
+        expr: g6_retention_candidates > 100
+        for: 10m
+        labels:
+          severity: info
+          team: g6
+        annotations:
+          summary: "Retention candidate surge (>100)"
+          description: |-
+            Candidate backlog exceeded 100 for >10m. Tune threshold post baseline observation; may indicate compression behind or retention window too short.
+      # Scan latency elevated (p95) sustained.
+      - alert: G6RetentionScanLatencyHigh
+        expr: g6_retention_scan_latency_p95_seconds > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Retention scan p95 latency >500ms"
+          description: |-
+            Retention scan + delete phase p95 latency above 500ms for >10m. Investigate filesystem load or directory explosion.
+      # Critical scan latency.
+      - alert: G6RetentionScanLatencyCritical
+        expr: g6_retention_scan_latency_p95_seconds > 1.0
+        for: 5m
+        labels:
+          severity: critical
+          team: g6
+        annotations:
+          summary: "Retention scan p95 latency >1s"
+          description: |-
+            Severe retention scan latency indicates IO saturation or large directory traversal. Consider sharding directories or lowering per-cycle limits.
+      # High delete cap utilization sustained: operating near configured delete limit; risk of backlog growth if candidates rising.
+      - alert: G6RetentionDeleteCapHigh
+        expr: g6_retention_delete_cap_utilization_percent > 80 and g6_retention_candidates > 10
+        for: 15m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Delete cap utilization >80% sustained"
+          description: |-
+            Delete throughput using >80% of configured cap for >15m with candidates backlog present. Monitor efficiency & candidate trend; consider raising limit if IO headroom exists.
+      # Near-saturation delete cap: very little headroom; backlog growth likely unless efficiency recovers.
+      - alert: G6RetentionDeleteCapNearSaturation
+        expr: g6_retention_delete_cap_utilization_percent > 90 and g6_retention_candidates > 25
+        for: 10m
+        labels:
+          severity: critical
+          team: g6
+        annotations:
+          summary: "Delete cap utilization >90% sustained"
+          description: |-
+            Retention deletions running >90% of cap for >10m with sizable candidate backlog (>25). Increase delete limit temporarily or investigate IO constraints / scan latency before backlog escalates.
+  - name: g6_bus.rules
+    interval: 30s
+    rules:
+      # Bus publish rate (5m) per bus for alert joins / job tagging
+      - record: g6_bus_publish_rate_5m
+        expr: sum by (bus) (rate(g6_bus_events_published_total[5m]))
+        labels:
+          job: g6_platform
+      # Bus drop rate (5m) per bus (all reasons consolidated)
+      - record: g6_bus_drop_rate_5m
+        expr: sum by (bus) (rate(g6_bus_events_dropped_total[5m]))
+        labels:
+          job: g6_platform
+      # Publish latency p95 over 5m per bus
+      - record: g6:bus_publish_latency_p95_ms
+        expr: histogram_quantile(0.95, sum(rate(g6_bus_publish_latency_ms_bucket[5m])) by (le,bus))
+        labels:
+          job: g6_platform
+      # Publish latency p99 (helps debugging before paging)
+      - record: g6:bus_publish_latency_p99_ms
+        expr: histogram_quantile(0.99, sum(rate(g6_bus_publish_latency_ms_bucket[5m])) by (le,bus))
+        labels:
+          job: g6_platform
+      # Queue saturation ratio (current retained vs high water assumption). If max_retained exported later, adjust denominator.
+      - record: g6_bus_queue_retained_ratio
+        expr: clamp_max(g6_bus_queue_retained_events / 50000, 1)  # assumes default capacity 50k
+        labels:
+          job: g6_platform
+  - name: g6_bus.alerts
+    interval: 30s
+    rules:
+      # Sustained drop rate indicates overflow pressure.
+      - alert: G6BusDropRateElevated
+        expr: g6_bus_drop_rate_5m > 5
+        for: 10m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Bus drop rate >5 eps (5m avg)"
+          description: |-
+            Drop rate {{ $value | printf "%.2f" }} eps sustained >10m. Likely ring buffer overflow. Investigate consumer lag or raise capacity cautiously.
+      - alert: G6BusDropRateCritical
+        expr: g6_bus_drop_rate_5m > 20
+        for: 5m
+        labels:
+          severity: critical
+          team: g6
+        annotations:
+          summary: "Bus drop rate >20 eps"
+          description: |-
+            Severe sustained event loss. Immediate action: profile slow subscribers, consider sharding events or increasing buffer; confirm not a burst artifact.
+      # Publish latency regression (p95)
+      - alert: G6BusPublishLatencyHigh
+        expr: g6:bus_publish_latency_p95_ms > 10
+        for: 10m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Bus publish p95 >10ms"
+          description: |-
+            Publish path p95 above 10ms for >10m. Check lock contention or payload serialization cost.
+      - alert: G6BusPublishLatencyCritical
+        expr: g6:bus_publish_latency_p95_ms > 25
+        for: 5m
+        labels:
+          severity: critical
+          team: g6
+        annotations:
+          summary: "Bus publish p95 >25ms"
+          description: |-
+            Severe publish latency. Potential deadlock risk or CPU saturation. Triage with profiler and inspect recent deployment changes.
+      # Subscriber lag: top lag > 5k events for prolonged period.
+      - alert: G6BusSubscriberLagHigh
+        expr: topk(1, g6_bus_subscriber_lag_events) > 5000
+        for: 15m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Subscriber lag >5000 events"
+          description: |-
+            A subscriber is >5000 events behind for >15m. Investigate slow consumer or implement filtering / partitioning.
+      # Queue saturation ratio near 1 (>=0.9) indicates imminent overflow risk.
+      - alert: G6BusQueueSaturationHigh
+        expr: g6_bus_queue_retained_ratio > 0.9
+        for: 10m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Bus queue >90% full"
+          description: |-
+            Ring buffer occupancy >90% for >10m. Evaluate increasing capacity or reducing publish rate; verify downstream consumers keeping up.
+      - alert: G6BusQueueSaturationCritical
+        expr: g6_bus_queue_retained_ratio > 0.97
+        for: 5m
+        labels:
+          severity: critical
+          team: g6
+        annotations:
+          summary: "Bus queue >97% full"
+          description: |-
+            Buffer nearly full for >5m—overflow/drops imminent. Immediate mitigation: throttle publishers, scale consumers, or expand capacity temporarily.

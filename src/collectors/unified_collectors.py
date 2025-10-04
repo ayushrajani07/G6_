@@ -727,7 +727,99 @@ def run_unified_collectors(
         try:
             for blk in human_blocks:
                 logger.info("\n" + blk)
-            footer = ("\n" + "=" * 70 + f"\nALL INDICES TOTAL LEGS: {overall_legs_total}   |   FAILS: {overall_fail_total}   |   SYSTEM STATUS: {'GREEN' if overall_fail_total==0 else 'DEGRADED'}\n" + "=" * 70)
+            # Determine system status: previously based only on fail count. Now degrade if any index cycle_status not OK.
+            system_status = 'GREEN'
+            stale_present = False
+            try:
+                for idx_entry in indices_struct:
+                    st = (idx_entry.get('status') or '').upper()
+                    if st == 'STALE':
+                        stale_present = True
+                        system_status = 'DEGRADED'
+                        break
+                if not stale_present:
+                    for idx_entry in indices_struct:
+                        st = (idx_entry.get('status') or '').upper()
+                        if st not in ('OK','SYNTH'):
+                            system_status = 'DEGRADED'
+                            break
+            except Exception:
+                pass
+            if overall_fail_total > 0 and system_status == 'GREEN':
+                system_status = 'DEGRADED'
+            # Abort logic for stale cycles when mode=abort
+            import os as _os
+            stale_mode = _os.getenv('G6_STALE_WRITE_MODE','mark').strip().lower()
+            abort_cycles =  int(_os.getenv('G6_STALE_ABORT_CYCLES','10') or 10)
+            # Track consecutive stale cycles via module attribute
+            try:
+                if not hasattr(_os, '_g6_consec_stale'):  # store on os module as simple singleton
+                    setattr(_os, '_g6_consec_stale', 0)
+                consec = getattr(_os, '_g6_consec_stale')
+                if stale_present:
+                    consec += 1
+                else:
+                    consec = 0
+                setattr(_os, '_g6_consec_stale', consec)
+                # System-level stale metrics (lazy create)
+                if metrics is not None:
+                    try:  # pragma: no cover - metrics wiring
+                        from prometheus_client import Counter as _C, Gauge as _G  # type: ignore
+                        if not hasattr(metrics, 'stale_system_cycles_total'):
+                            try:
+                                metrics.stale_system_cycles_total = _C(
+                                    'g6_stale_system_cycles_total',
+                                    'Count of cycles where any index stale (system perspective)',
+                                    ['mode'],
+                                )  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
+                        if not hasattr(metrics, 'stale_consecutive_cycles'):
+                            try:
+                                metrics.stale_consecutive_cycles = _G(
+                                    'g6_stale_consecutive_cycles',
+                                    'Consecutive stale cycles (system scope)',
+                                    ['mode'],
+                                )  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
+                        if not hasattr(metrics, 'stale_system_active'):
+                            try:
+                                metrics.stale_system_active = _G(
+                                    'g6_stale_system_active',
+                                    'Whether any index stale in current cycle (system scope)',
+                                    ['mode'],
+                                )  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
+                        # Update
+                        try:
+                            metrics.stale_system_active.labels(mode=stale_mode).set(1 if stale_present else 0)  # type: ignore[attr-defined]
+                        except Exception:
+                            pass
+                        try:
+                            metrics.stale_consecutive_cycles.labels(mode=stale_mode).set(consec)  # type: ignore[attr-defined]
+                        except Exception:
+                            pass
+                        if stale_present:
+                            try:
+                                metrics.stale_system_cycles_total.labels(mode=stale_mode).inc()  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
+                    except Exception:
+                        logger.debug('stale_system_metrics_failed', exc_info=True)
+                if stale_mode == 'abort' and stale_present and consec >= abort_cycles:
+                    logger.critical(f"stale_abort_trigger system_status={system_status} consec_stale={consec} threshold={abort_cycles}")
+                    try:
+                        import sys as _sys
+                        _sys.exit(32)
+                    except SystemExit:
+                        raise
+                    except Exception:
+                        pass
+            except Exception:
+                logger.debug('stale_abort_evaluation_failed', exc_info=True)
+            footer = ("\n" + "=" * 70 + f"\nALL INDICES TOTAL LEGS: {overall_legs_total}   |   FAILS: {overall_fail_total}   |   SYSTEM STATUS: {system_status}\n" + "=" * 70)
             logger.info(footer)
         except Exception:
             logger.debug("Failed to emit human summary footer", exc_info=True)

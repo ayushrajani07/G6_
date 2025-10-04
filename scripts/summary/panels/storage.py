@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Any, Dict, TYPE_CHECKING
 import os
+from scripts.summary.env_config import load_summary_env
 
 if TYPE_CHECKING:  # pragma: no cover
     from rich.panel import Panel as _Panel
@@ -115,7 +116,10 @@ def sinks_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, sh
         pj = _read_panel_json("sinks")
         if isinstance(pj, dict):
             sinks = pj
-    env_sinks = os.getenv("G6_OUTPUT_SINKS", "stdout,logging")
+    try:
+        env_sinks = load_summary_env().output_sinks_raw
+    except Exception:
+        env_sinks = os.getenv("G6_OUTPUT_SINKS", "stdout,logging")
     tbl = Table.grid()
     tbl.add_row(clip(f"Configured: {env_sinks}"))
     if isinstance(sinks, dict):

@@ -23,6 +23,16 @@ Dates use ISO (YYYY-MM-DD). "R+n" refers to n stable release cycles after initia
 | `G6_EXPIRY_MISCLASS_SKIP` | Policy superseded by `G6_EXPIRY_MISCLASS_POLICY=reject` semantics | 2025-09-26 | R+1 | Set `G6_EXPIRY_MISCLASS_POLICY=reject` (or `rewrite`/`quarantine`) | Currently mapped internally; new features target policy flag only. |
 | `G6_SUPPRESS_EXPIRY_MATRIX_WARN` | Obsolete after removal of legacy fallback in `scripts/expiry_matrix.py` | 2025-09-27 | Next release | Remove usage; flag will be dropped from env docs once deleted. | Present only to satisfy env var coverage until deletion. |
 
+### 2.1 Summary Flag Retirement (2025-10-03)
+The summary subsystem is consolidating multiple rollout flags now that the unified path and SSE streaming have stabilized.
+One-time deprecation warnings are emitted at config load for:
+* `G6_SUMMARY_REWRITE` – replacement always-on (removal target R+1)
+* `G6_SUMMARY_PLAIN_DIFF` – diff suppression default; flag removed (target R+2)
+* `G6_SSE_ENABLED` – will auto-enable when `G6_SSE_HTTP=1`; flag removal target R+2
+* `G6_SUMMARY_RESYNC_HTTP` – resync endpoint becomes default; opt-out flag `G6_DISABLE_RESYNC_HTTP` will supersede (target R+2)
+
+See root `DEPRECATIONS.md` for full timeline, migration actions, and rollback strategy.
+
 ## 3. Removal Preconditions (Examples)
 Before deleting a deprecated component, all of the following must be satisfied:
 1. Parity harness (if orchestration-related) shows no divergence for two consecutive green runs.
@@ -32,6 +42,7 @@ Before deleting a deprecated component, all of the following must be satisfied:
 
 ## 4. Historical (Removed) Items
 | `unified_main.collection_loop` | Removed (2025-09-28) | `src.orchestrator.loop.run_loop` | N/A | Use orchestrator runner (`scripts/run_orchestrator_loop.py`). Flags `G6_ENABLE_LEGACY_LOOP`, `G6_SUPPRESS_LEGACY_LOOP_WARN` obsolete. |
+| `scripts/summary_view.py` | Removed (2025-10-03) | `scripts/summary/app.py` | N/A | Use unified summary (`python -m scripts.summary.app`). Skipped legacy tests retained as placeholders to assert removal milestone. |
 
 ## 5. Guidance for Introducing New Deprecations
 When marking a new feature as deprecated:

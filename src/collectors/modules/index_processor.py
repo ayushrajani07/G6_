@@ -435,30 +435,100 @@ def process_index(
             hr = expiry_outcome.get('human_row')
             if hr: human_rows.append(hr)
 
-        # overview snapshot write
+        # ---------------- Stale Detection (pre snapshot writes) ----------------
+        # A future system-wide stale decision is made in unified_collectors; here we tag per-index condition.
+        # Index considered stale when every processed expiry has field_coverage present and <= threshold (or missing/0) while options >0 attempted.
+        import os as _os
         try:
-            from src.collectors.modules.aggregation_overview import emit_overview_aggregation  # type: ignore
-            representative_day_width, snapshot_base_time = emit_overview_aggregation(
-                ctx,
-                index_symbol,
-                pcr_snapshot,
-                aggregation_state,
-                per_index_ts,
-                expected_expiries,
-            )
+            stale_mode = _os.getenv('G6_STALE_WRITE_MODE', 'mark').strip().lower()  # allow|mark|skip|abort (abort handled system-wide)
+            field_thr_raw = _os.getenv('G6_STALE_FIELD_COV_THRESHOLD', '').strip()
+            stale_field_thr = 0.0
+            if field_thr_raw:
+                try: stale_field_thr = max(0.0, min(1.0, float(field_thr_raw)))
+                except Exception: stale_field_thr = 0.0
+            # Build a simple view of field coverage across expiries.
+            _expiry_field_cov = []
+            for _exp in expiry_details:
+                fc = _exp.get('field_coverage')
+                try:
+                    fc_f = float(fc) if fc is not None else -1.0
+                except Exception:
+                    fc_f = -1.0
+                _expiry_field_cov.append(fc_f)
+            index_stale = False
+            if expiry_details:
+                # Stale if all expiries have fc_f < 0 (missing) or <= threshold.
+                if all(fc < 0 or fc <= stale_field_thr for fc in _expiry_field_cov):
+                    index_stale = True
+            # Attach early flag (consumed later when building indices_struct_entry & human block)
         except Exception:
-            representative_day_width = aggregation_state.representative_day_width
-            snapshot_base_time = aggregation_state.snapshot_base_time or per_index_ts
+            index_stale = False
+            stale_mode = 'mark'
+            stale_field_thr = 0.0
+
+        # Emit stale metrics (per-index) before any potential snapshot gating
+        if metrics:
+            try:  # pragma: no cover - metrics side-effects
+                from prometheus_client import Counter as _C, Gauge as _G  # type: ignore
+                # Lazy metric creation (attributes cached on metrics registry object)
+                if not hasattr(metrics, 'stale_cycles_total'):
+                    try:
+                        metrics.stale_cycles_total = _C(
+                            'g6_stale_cycles_total',
+                            'Count of cycles where index or system classified stale',
+                            ['index','mode'],
+                        )  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                if not hasattr(metrics, 'stale_active'):
+                    try:
+                        metrics.stale_active = _G(
+                            'g6_stale_active',
+                            'Whether index stale in current cycle (1 stale, 0 ok)',
+                            ['index'],
+                        )  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                # Update gauges & counters (best-effort)
+                try:
+                    metrics.stale_active.labels(index=index_symbol).set(1 if index_stale else 0)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                if index_stale:
+                    try:
+                        metrics.stale_cycles_total.labels(index=index_symbol, mode=stale_mode).inc()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+            except Exception:
+                logger.debug('stale_metrics_update_failed', exc_info=True)
+
+        # overview snapshot write (skip when stale_mode=skip and index_stale)
+        if not (stale_mode == 'skip' and index_stale):
             try:
-                if pcr_snapshot:
-                    ctx.csv_sink.write_overview_snapshot(index_symbol, pcr_snapshot, snapshot_base_time, representative_day_width, expected_expiries=expected_expiries)
-                    if ctx.influx_sink:
-                        try:
-                            ctx.influx_sink.write_overview_snapshot(index_symbol, pcr_snapshot, snapshot_base_time, representative_day_width, expected_expiries=expected_expiries)
-                        except Exception as ie:  # pragma: no cover
-                            logger.debug(f"Influx overview snapshot failed for {index_symbol}: {ie}")
-            except Exception as snap_e:  # pragma: no cover
-                logger.error(f"Failed to write aggregated overview snapshot for {index_symbol}: {snap_e}")
+                from src.collectors.modules.aggregation_overview import emit_overview_aggregation  # type: ignore
+                representative_day_width, snapshot_base_time = emit_overview_aggregation(
+                    ctx,
+                    index_symbol,
+                    pcr_snapshot,
+                    aggregation_state,
+                    per_index_ts,
+                    expected_expiries,
+                )
+            except Exception:
+                representative_day_width = aggregation_state.representative_day_width
+                snapshot_base_time = aggregation_state.snapshot_base_time or per_index_ts
+                try:
+                    if pcr_snapshot:
+                        ctx.csv_sink.write_overview_snapshot(index_symbol, pcr_snapshot, snapshot_base_time, representative_day_width, expected_expiries=expected_expiries)
+                        if ctx.influx_sink:
+                            try:
+                                ctx.influx_sink.write_overview_snapshot(index_symbol, pcr_snapshot, snapshot_base_time, representative_day_width, expected_expiries=expected_expiries)
+                            except Exception as ie:  # pragma: no cover
+                                logger.debug(f"Influx overview snapshot failed for {index_symbol}: {ie}")
+                except Exception as snap_e:  # pragma: no cover
+                    logger.error(f"Failed to write aggregated overview snapshot for {index_symbol}: {snap_e}")
+        else:
+            logger.warning(f"stale_write_skip index={index_symbol} mode=skip field_cov_thr={stale_field_thr}")
         if metrics:
             try:
                 from src.collectors.modules.metrics_updater import update_per_index_metrics  # type: ignore
@@ -491,33 +561,69 @@ def process_index(
                         metrics.index_success_rate.labels(index=index_symbol).set(rate)
                 except Exception: logger.debug(f"Failed index aggregate metrics for {index_symbol}")
         try:
-            last_age=0.0; pcr_val=None
+            # Derive index status from aggregated expiry statuses (coverage aware) instead of simple fail count heuristic.
+            from src.collectors.helpers.status_reducer import aggregate_cycle_status as _agg_status, compute_expiry_status as _comp_status, get_status_thresholds
+            last_age = 0.0; pcr_val = None
             try:
                 if pcr_snapshot:
-                    first_key = sorted(pcr_snapshot.keys())[0]; pcr_val=pcr_snapshot[first_key]
-            except Exception: pass
-            if per_index_option_count>0:
-                if per_index_failures==0 and per_index_attempts>0 and per_index_option_count>0: status='ok'
-                else: status='partial'
-            else: status='bad'
+                    first_key = sorted(pcr_snapshot.keys())[0]; pcr_val = pcr_snapshot[first_key]
+            except Exception:
+                pass
+            # Ensure each expiry_detail has a definitive status reflecting coverage metrics.
+            for _exp in expiry_details:
+                try:
+                    # Recompute status if missing or legacy placeholder
+                    _exp_status = _exp.get('status')
+                    if not _exp_status or _exp_status.lower() in ('bad','unknown'):
+                        _exp['status'] = _comp_status(_exp)
+                except Exception:
+                    continue
+            cycle_status = _agg_status(expiry_details)
+            if index_stale:
+                # Preserve original classification but mark explicitly as STALE for visibility.
+                cycle_status = 'STALE'
+            # Format index summary line (non-concise mode) using cycle_status (ok/partial/empty)
             from src.logstream.formatter import format_index as _format_index
-            line = _format_index(index=index_symbol, legs=per_index_option_count, legs_avg=None, legs_cum=None,
-                                 succ_pct=None, succ_avg_pct=None, attempts=per_index_attempts, failures=per_index_failures, last_age_s=last_age, pcr=pcr_val,
-                                 atm=atm_strike if isinstance(atm_strike,(int,float)) else None, err=None if per_index_failures==0 else 'fail', status=status)
-            if concise_mode: logger.debug(line)
-            else: logger.info(line)
+            line = _format_index(
+                index=index_symbol,
+                legs=per_index_option_count,
+                legs_avg=None,
+                legs_cum=None,
+                succ_pct=None,
+                succ_avg_pct=None,
+                attempts=per_index_attempts,
+                failures=per_index_failures,
+                last_age_s=last_age,
+                pcr=pcr_val,
+                atm=atm_strike if isinstance(atm_strike,(int,float)) else None,
+                err=None if per_index_failures==0 else 'fail',
+                status=cycle_status.lower(),
+            )
             if concise_mode:
-                block_lines=["-------------------------", f"INDEX: {index_symbol}", "-------------------------", "Time   Price     ATM   Expiry      Tag         Legs  CE   PE   PCR   Range          Step", "-------------------------------------------------------------------------------"]
+                logger.debug(line)
+            else:
+                logger.info(line)
+            if concise_mode:
+                block_lines = [
+                    "-------------------------",
+                    f"INDEX: {index_symbol}",
+                    "-------------------------",
+                    "Time   Price     ATM   Expiry      Tag         Legs  CE   PE   PCR   Range          Step",
+                    "-------------------------------------------------------------------------------",
+                ]
                 for (t, price_disp, atm_disp, exp_str, tag, legs, ce_c, pe_c, pcr_v, rng_disp, step_v) in human_rows:
                     block_lines.append(f"{t:<6} {price_disp:>8} {atm_disp:>6} {exp_str:<11} {tag:<11} {legs:>4} {ce_c:>3} {pe_c:>3} {pcr_v:>5} {rng_disp:<14} {step_v:>4}")
                 block_lines.append("-------------------------------------------------------------------------------")
-                block_lines.append(f"{index_symbol} TOTAL LEGS: {per_index_option_count} | FAILS: {per_index_failures} | STATUS: {status.upper()}")
+                block_lines.append(f"{index_symbol} TOTAL LEGS: {per_index_option_count} | FAILS: {per_index_failures} | STATUS: {cycle_status.upper()}{' (SKIPPED)' if (stale_mode=='skip' and index_stale) else ''}")
                 result['human_block'] = "\n".join(block_lines)
                 result['overall_legs'] += per_index_option_count
                 result['overall_fails'] += per_index_failures
-        except Exception: logger.debug('Failed to emit index stream line', exc_info=True)
+        except Exception:
+            logger.debug('Failed to emit index stream line', exc_info=True)
         try:
             cycle_status = aggregate_cycle_status(expiry_details)
+            if index_stale:
+                cycle_status = 'STALE'
             result['indices_struct_entry'] = {
                 'index': index_symbol,
                 'attempts': per_index_attempts,
@@ -525,6 +631,7 @@ def process_index(
                 'option_count': per_index_option_count,
                 'status': cycle_status,
                 'expiries': expiry_details,
+                'stale': index_stale,
             }
         except Exception: logger.debug('Failed to append structured index summary', exc_info=True)
     except Exception as e:

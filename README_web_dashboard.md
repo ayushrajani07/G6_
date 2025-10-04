@@ -3,7 +3,7 @@
 The standalone FastAPI web dashboard has been deprecated and its documentation merged into the unified `README.md` (Observability & Panels sections).
 
 Replacement surfaces:
-1. Summary dashboard (`scripts/summary_view.py`)
+1. Summary dashboard (`python -m scripts.summary.app`)
 2. Panels JSON artifacts + optional lightweight consumers
 3. Grafana dashboards (see `grafana/`)
 

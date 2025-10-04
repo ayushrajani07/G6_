@@ -18,9 +18,11 @@ from typing import Callable, Tuple
 from prometheus_client import start_http_server, CollectorRegistry, REGISTRY  # type: ignore
 
 from .metrics import MetricsRegistry  # local import to avoid circular: class defined there
+from . import _singleton  # central singleton anchor
 
 logger = logging.getLogger(__name__)
 
+# Local variables retained only for ancillary metadata; registry stored centrally.
 _METRICS_SINGLETON = None  # type: ignore[var-annotated]
 _METRICS_PORT = None       # type: ignore[var-annotated]
 _METRICS_HOST = None       # type: ignore[var-annotated]
@@ -53,7 +55,8 @@ def setup_metrics_server(port: int = 9108, host: str = "0.0.0.0", *,
     """
     global _METRICS_SINGLETON, _METRICS_PORT, _METRICS_HOST, _METRICS_META  # noqa: PLW0603
     force_new = os.environ.get('G6_FORCE_NEW_REGISTRY','').lower() in {'1','true','yes','on'}
-    if _METRICS_SINGLETON is not None and not reset and not force_new:
+    existing = _singleton.get_singleton()
+    if existing is not None and not reset and not force_new:
         if (port != _METRICS_PORT) or (host != _METRICS_HOST):
             logger.warning(
                 "setup_metrics_server called again with different host/port (%s:%s) != (%s:%s); reusing existing server",
@@ -61,7 +64,8 @@ def setup_metrics_server(port: int = 9108, host: str = "0.0.0.0", *,
             )
         else:
             logger.debug("setup_metrics_server called again; returning existing singleton")
-        return _METRICS_SINGLETON, (lambda: None)
+        _METRICS_SINGLETON = existing
+        return existing, (lambda: None)
 
     if reset or force_new:
         _clear_default_registry()
@@ -85,7 +89,10 @@ def setup_metrics_server(port: int = 9108, host: str = "0.0.0.0", *,
     log_fn(f"Metrics server started on {host}:{port}")
     log_fn(f"Metrics available at http://{host}:{port}/metrics")
 
-    metrics = MetricsRegistry()
+    # Atomically create registry if absent to prevent race between concurrent imports/tests.
+    def _build():  # local factory
+        return MetricsRegistry()
+    metrics = _singleton.create_if_absent(_build)
     _METRICS_SINGLETON = metrics
 
     # Background threads
@@ -118,7 +125,7 @@ def setup_metrics_server(port: int = 9108, host: str = "0.0.0.0", *,
 
 
 def get_server_singleton():  # pragma: no cover - thin accessor
-    return _METRICS_SINGLETON
+    return _singleton.get_singleton()
 
 
 __all__ = ["setup_metrics_server", "get_server_singleton"]

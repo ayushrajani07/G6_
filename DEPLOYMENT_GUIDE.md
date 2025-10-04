@@ -382,7 +382,7 @@ You can build your own custom viewer or extend `src/console/terminal.py` to peri
 Included helper: terminal summary
 
 ```powershell
-python scripts/summary_view.py --refresh 1.0
+python -m scripts.summary.app --refresh 1.0
 ```
 Panels JSON artifacts are generated in-process (no external bridge required). The summary auto-detects panels mode when `data/panels/` exists (deprecated env vars `G6_SUMMARY_PANELS_MODE` / `G6_SUMMARY_READ_PANELS` have been removed; remove them from any deployment scripts).
 

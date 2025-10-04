@@ -132,6 +132,25 @@ A: Extend expiry resolution logic (see collectors) and update masks table if int
 ---
 End of Migration Guide.
 \n## Legacy Removal Changelog (Historical)
+### Summary Dashboard Unification (2025-10-03)
+The legacy `scripts/summary_view.py` entrypoint was removed. All invocations must migrate to:
+```
+python -m scripts.summary.app --refresh 1
+```
+Key changes:
+* Plain fallback + StatusCache paths merged into unified app.
+* Diff suppression for plain mode always on (former `G6_SUMMARY_PLAIN_DIFF` flag removed).
+* SSE publisher no longer gated by `G6_SSE_ENABLED`; constructing the unified app with `G6_SSE_HTTP=1` enables streaming automatically.
+* Resync HTTP endpoint auto-enabled alongside SSE (`G6_SUMMARY_RESYNC_HTTP` removed; opt-out via `G6_DISABLE_RESYNC_HTTP=1`).
+
+Action checklist:
+1. Replace any `python scripts/summary_view.py` usages in automation with module form.
+2. Remove deprecated env exports: `G6_SSE_ENABLED`, `G6_SUMMARY_REWRITE`, `G6_SUMMARY_PLAIN_DIFF`, `G6_SUMMARY_RESYNC_HTTP`.
+3. Validate dashboards / scripts still function (no behavioral flag toggles required).
+4. If custom wrappers existed, update help text to reference unified module.
+
+Rollback guidance: Re-introducing the legacy script is NOT recommended; instead, file an issue if a missing capability is identified so it can be added to the unified app.
+
 | Date | Change | Rationale | Safeguards |
 |------|--------|-----------|------------|
 | 2025-09-28 | `src/unified_main.py` removed (fail-fast stub) | Consolidated execution paths under orchestrator loop | Import-time hard failure + safeguard test |
@@ -179,3 +198,98 @@ The stub will now fail fast; do not suppress the error—fix the caller instead.
 Add new specialized runners under `scripts/` and keep them thin wrappers around orchestrator APIs (`bootstrap_runtime`, `run_loop`, `run_cycle`). Avoid resurrecting module-level monoliths inside `src/`.
 \n+### Safeguard Test Maintenance
 If you intentionally reintroduce historical strings (e.g., in a retrospective doc), ensure they live in docs or `src/archived/`. Do not widen the test allowlist for convenience—relocate the text instead.
+\n+## Streaming Bus Prototype (Migration Phase 3 - PARTIAL)
+Date: 2025-10-04
+
+Status: Prototype in-memory event bus implemented with foundational metrics & dashboard. External pluggable backends (e.g., Redis / NATS) and durability not yet in scope; this phase establishes the contract & observability.
+
+### Summary
+An in-process ring-buffer based event bus (`src/bus/in_memory_bus.py`) has been added to decouple future streaming publishers (e.g., snapshot diffs, analytics plugin emissions) from downstream consumers. The design emphasizes minimal allocation overhead and first-class instrumentation.
+
+### Event Envelope
+`Event` (`src/bus/event.py`):
+| Field | Type | Description |
+|-------|------|-------------|
+| id | int | Monotonic sequence id per bus |
+| ts | float | Publish time (epoch seconds) |
+| type | str | Event type/classifier (e.g., `snapshot.diff`) |
+| key | str | Optional grouping key (index, panel, etc.) |
+| payload | dict | JSON-serializable body (opaque to bus) |
+| meta | dict | Free-form metadata (reserved for future routing / tracing) |
+
+### Metrics Added (bus family)
+| Metric | Type | Labels | Purpose |
+|--------|------|--------|---------|
+| g6_bus_events_published_total | counter | bus | Publish volume tracking |
+| g6_bus_events_dropped_total | counter | bus,reason | Overflow / rejection accounting |
+| g6_bus_queue_retained_events | gauge | bus | Current ring buffer occupancy |
+| g6_bus_subscriber_lag_events | gauge | bus,subscriber | Backpressure signal per subscriber |
+| g6_bus_publish_latency_ms | histogram | bus | Latency of publish critical path (ms) |
+
+Histogram Buckets (ms): 0.1, 0.25, 0.5, 1, 2, 5, 10, 25, 50 (focus on sub-50ms path; revise when external transports introduced).
+
+### Dashboard
+New Grafana dashboard: `grafana/dashboards/g6_bus_health.json` featuring:
+* Stat + timeseries: publish rate & drop rate
+* Retained events gauge
+* Top subscriber lag (topk(5))
+* Publish latency p95 + heatmap distribution
+
+### Overflow & Backpressure Semantics
+* Ring buffer (deque) `max_retained` (default from class constant) caps memory usage.
+* On overflow: oldest events dropped (reason=`overflow_oldest`) and drop counter increments.
+* Subscriber lag computed as `last_published_id - last_consumed_id` per subscriber; updated on every poll and publish.
+
+### Guarantees (Current Prototype)
+* Ordering: Per-bus FIFO sequencing (monotonic id)
+* At-Most-Once: Dropped events are not retried
+* In-Memory Only: No persistence or replay across process restarts
+* Single-Process Scope: Not safe for multi-process fan-out yet
+
+### Non-Goals (Deferred)
+* Cross-process / distributed transport
+* Durable persistence / replay
+* Exactly-once or at-least-once delivery semantics
+* Per-subscriber selective filtering (future optimization)
+
+### Testing
+Added `tests/test_in_memory_bus.py` covering:
+* Publish ordering & id continuity
+* Overflow drop behavior and head advancement
+* Subscriber lag via partial poll sequencing
+
+### Upgrade / Adoption Guidance
+No action required for existing deployments unless integrating early with bus. Early adopters can publish experimental events by obtaining a bus via `from src.bus.in_memory_bus import get_bus` and invoking `publish(type, payload, key=...)`.
+
+### Forward Roadmap (Next Steps)
+| Item | Description | Planned Metric / Artifact |
+|------|-------------|---------------------------|
+| External backend abstraction | Interface for alternative transports (Redis, NATS) | Potential: `g6_bus_transport_latency_ms` |
+| Durable queue option | Pluggable persistence with replay window | Replay counters / lag histogram |
+| Subscriber filtering | Predicate-based routing to reduce deserialization cost | Filter miss counter |
+| End-to-end tracing hooks | Inject trace/span ids for cross-service correlation | Trace enrichment metrics |
+| Backpressure policy | Dynamic publisher throttling on sustained lag | Throttle activation counter |
+
+### Rollback
+Remove imports/usages of `get_bus` and delete the bus dashboard. No schema changes; metrics family removal would require Prometheus rule/dashboard cleanup if reverted.
+
+---
+End Phase 3 (Prototype) notes.
+\n+### Bus Alert Runbook (Initial)
+Alert Glossary:
+| Alert | Trigger | First Actions |
+|-------|---------|---------------|
+| G6BusDropRateElevated | drop rate >5 eps 10m | Inspect `topk` lag; confirm consumer health; consider raising `max_retained` temporarily |
+| G6BusDropRateCritical | drop rate >20 eps 5m | Immediate: throttle publishers or shard; capture pprof / stack traces |
+| G6BusPublishLatencyHigh | p95 >10ms 10m | Check lock contention, recent deployment diffs, payload size growth |
+| G6BusPublishLatencyCritical | p95 >25ms 5m | Enable profiler, isolate hot path; consider temporary feature flag reduction |
+| G6BusSubscriberLagHigh | lag >5000 15m | Identify subscriber (label); assess throughput; add filtering or spin new consumer instance |
+| G6BusQueueSaturationHigh | occupancy >90% 10m | Preempt overflow: increase capacity or reduce publish rate bursts |
+| G6BusQueueSaturationCritical | occupancy >97% 5m | Emergency: pause non-critical publishers; drain backlog; raise capacity cautiously |
+
+Mitigation Heuristics:
+* Drops + High Lag: Prefer fixing slow consumer vs. unbounded capacity growth.
+* Latency + No Lag: Indicates internal critical path overhead (serialization or locking) rather than backpressure.
+* Saturation without Drops Yet: Safe window to profile before data loss begins.
+
+Future Integration: When external transports added, latency & drop thresholds will be re-baselined; update this table accordingly.

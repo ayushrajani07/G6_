@@ -1,0 +1,56 @@
+name: PR Checklist Comment
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/pr_checklist.py'
+      - 'scripts/release_readiness.py'
+      - 'README.md'
+      - 'docs/env_dict.md'
+      - 'scripts/**'
+      - 'clients/**'
+      - 'tests/**'
+
+jobs:
+  comment:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies (minimal)
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Run checklist
+        id: checklist
+        run: |
+          python scripts/pr_checklist.py --run-readiness --strict > PR_CHECKLIST.md || true
+          SUMMARY=$(python scripts/pr_checklist.py --run-readiness --strict --summary-line || true)
+          echo "summary_line=$SUMMARY" >> $GITHUB_OUTPUT
+      - name: Prepare comment body
+        id: prep
+        run: |
+          echo "BODY<<'EOF'" >> $GITHUB_OUTPUT
+          echo "**PR Checklist Result**" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo '\`'${{ steps.checklist.outputs.summary_line }}'\`' >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "<details><summary>Full Checklist</summary>" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          cat PR_CHECKLIST.md >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "</details>" >> $GITHUB_OUTPUT
+          echo 'EOF' >> $GITHUB_OUTPUT
+      - name: Upsert PR comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+            issue-number: ${{ github.event.pull_request.number }}
+            body: ${{ steps.prep.outputs.BODY }}
+            search-body: '**PR Checklist Result**'

@@ -101,12 +101,12 @@ def run_auth_validation(require_success: bool) -> bool:
 
 
 def run_summary_view() -> int:
-    summary_script = _SCRIPT_DIR / "summary_view.py"
+    summary_script = _SCRIPT_DIR / "summary" / "app.py"
     if not summary_script.exists():
-        logger.error("summary_view script missing: %s", summary_script)
+        logger.error("summary/app.py script missing: %s", summary_script)
         return 5
     cmd = [sys.executable, str(summary_script), "--refresh", "1.0"]
-    logger.info("Launching summary view: %s", ' '.join(cmd))
+    logger.info("Launching unified summary: %s", ' '.join(cmd))
     return subprocess.call(cmd)
 
 
@@ -162,7 +162,7 @@ def main(argv: list[str]) -> int:
     if args.auth_only:
         planned.append("auth_only_exit")
     elif args.summary:
-        planned.append("summary_view")
+        planned.append("summary_app")
     elif args.panels:
         planned.append("deprecated_panels_flag")
     else:
@@ -188,7 +188,6 @@ def main(argv: list[str]) -> int:
         return run_summary_view()
     if args.panels:
         _warn_panels_flag()
-        # No env mutation; summary auto-detect handles panels artifacts
         return run_summary_view()
     return run_orchestrator(args)
 

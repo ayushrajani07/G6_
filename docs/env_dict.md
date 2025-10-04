@@ -38,6 +38,21 @@ Legend: bool accepts (1,true,yes,on) case-insensitive; unset implies default.
 ### Catalog & HTTP Hot Reload
  - G6_CATALOG_HTTP_FORCE_RELOAD – bool – off – On next catalog HTTP access triggers controlled server restart (hot reload) for testing.
 
+### Summary / SSE Streaming & Security (New Section)
+Authoritative documentation for summary Server-Sent Events (SSE) streaming hardening & tuning variables. These were added during SSE security & performance phases and are required for release readiness gating.
+- G6_SSE_API_TOKEN – str – (unset) – When set, required token value for SSE HTTP requests provided via X-API-Token header. Missing/incorrect token returns 401. Leave unset to disable token auth (development only).
+- G6_SSE_IP_ALLOW – csv – (unset) – Comma list of IPs (string compare against remote_addr) allowed to connect. When set and client IP not in list returns 403. Accepts IPv4 only currently.
+- G6_SSE_MAX_CONNECTIONS – int – 50 – Hard upper bound of concurrently active SSE connections; excess attempts receive 503 until slots free.
+- G6_SSE_ALLOW_ORIGIN – str – (unset) – If set, value echoed as Access-Control-Allow-Origin header on SSE endpoint responses enabling basic CORS for browser clients.
+- G6_SSE_IP_CONNECT_RATE – str – (unset) – Per-IP connection rate limit window expressed as N/seconds (e.g. 3/60). Exceeding attempts within rolling window returns 429. Unset disables per-IP connect rate limiting.
+- G6_SSE_UA_ALLOW – csv – (unset) – Comma list of allowed User-Agent prefixes. When set and request UA does not start with any allowed prefix returns 403. Comparison is case-sensitive.
+- G6_SSE_MAX_EVENT_BYTES – int – 65536 – Maximum serialized SSE event data payload size. Events exceeding are truncated and a synthetic 'truncated' event metadata field emitted (metrics still record original size). Protects against oversized diff bursts.
+- G6_SSE_EVENTS_PER_SEC – int – 100 – Soft emission rate limit for non-heartbeat events (burst bucket size ~2x). Excess events dropped (metrics increment) to protect slow clients/backpressure scenarios.
+- G6_SSE_STRUCTURED – bool – off – Enable structured diff events (panel_diff) instead of legacy panel_update list-of-changes. When on, per-event payload contains only changed panels map plus metadata.
+- G6_DISABLE_RESYNC_HTTP – bool – off – When enabled, disables /summary/resync endpoint (returns 403) forcing clients to rely solely on streaming recovery logic. Use in locked-down production clusters.
+- G6_SSE_PERF_PROFILE – bool – off – Enable publisher performance histograms (diff build latency & emit latency) for Prometheus under names g6_sse_pub_diff_build_seconds and g6_sse_pub_emit_latency_seconds. Adds minimal timing overhead when active.
+
+
 ### Quiet / Logging Enhancements
  - G6_QUIET_MODE – bool – off – Quiet mode: elevate root log level and suppress verbose trace chatter (implies concise logs).
  - G6_SUMMARY_DEBUG_LOG – bool – off – High-volume summary internals logging (loop timings, panel store metadata).
@@ -497,6 +512,7 @@ These variables were used only by the removed legacy panels bridge (`status_to_p
 - G6_WEEKDAY_OVERLAYS_META – path – weekday_overlays_meta.json – Output metadata path for weekday overlays (legacy dashboard).
 
 ## 14. Summary / Reporting Cadence
+- G6_WEEKEND_MODE – bool – off – When enabled (1/true/on/yes) the platform treats Saturday and Sunday as regular trading days for scheduling/gating purposes (demo / soak / backtest mode). Normal intraday open/close hours still apply; holidays continue to be honored.
 - G6_SUMMARY_REFRESH_SEC – int – 5 – Main summary refresh cadence.
 - G6_SUMMARY_META_REFRESH_SEC – int – 15 – Metadata refresh cadence.
 - G6_SUMMARY_RES_REFRESH_SEC – int – 30 – Resource / utilization refresh cadence.

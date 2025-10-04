@@ -21,12 +21,29 @@ except Exception:
     pass
 
 from scripts.summary.layout import build_layout, refresh_layout
+from scripts.summary.env_config import load_summary_env
 from scripts.summary.derive import derive_cycle
-from scripts.summary_view import StatusCache, plain_fallback
 from scripts.summary.unified_loop import UnifiedLoop
 from scripts.summary.plugins.base import TerminalRenderer, PanelsWriter, OutputPlugin, SummarySnapshot
 from src.error_handling import handle_ui_error
 from typing import Protocol, Callable, Union
+
+def _load_status(path: str) -> Dict[str, Any] | None:
+    """Minimal status loader (legacy StatusCache removed)."""
+    try:
+        from src.utils.status_reader import get_status_reader  # optional optimized reader
+    except Exception:
+        get_status_reader = None  # type: ignore
+    try:
+        if get_status_reader is not None:
+            reader = get_status_reader(path)
+            data = reader.get_raw_status()
+            return data if isinstance(data, dict) else None
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else None
+    except Exception:
+        return None
 
 # Optional event bus for reactive refresh
 try:  # Optional event bus (guarded)
@@ -59,29 +76,10 @@ def _get_output_lazy():
 
 
 def compute_cadence_defaults() -> Dict[str, float]:
-    """
-    Returns effective refresh intervals (seconds) for meta/status and resource polling.
-    Uses unified knob G6_SUMMARY_REFRESH_SEC when set; otherwise defaults to 15s.
-    Per-knob overrides: G6_SUMMARY_META_REFRESH_SEC, G6_SUMMARY_RES_REFRESH_SEC.
-    Ensures each value is at least 1.0.
-    """
-    # Step 1: explicit summary override takes precedence
-    unified = os.getenv("G6_SUMMARY_REFRESH_SEC")
-    # Step 2: otherwise, try the shared master cadence if present
-    master = os.getenv("G6_MASTER_REFRESH_SEC") if (unified is None or unified.strip() == "") else None
-    try:
-        if unified is not None and unified.strip() != "":
-            unified_v = max(1.0, float(unified))
-        elif master is not None and master.strip() != "":
-            unified_v = max(1.0, float(master))
-        else:
-            # Default refresh cadence if not set: 15s (as per tests and docs)
-            unified_v = 15.0
-    except Exception:
-        unified_v = 15.0
-    meta = max(1.0, float(os.getenv("G6_SUMMARY_META_REFRESH_SEC", str(unified_v))))
-    res = max(1.0, float(os.getenv("G6_SUMMARY_RES_REFRESH_SEC", str(unified_v))))
-    return {"meta": meta, "res": res}
+    """Return effective refresh intervals using centralized SummaryEnv."""
+    # Force reload so tests that monkeypatch os.environ see fresh values each call
+    env = load_summary_env(force_reload=True)
+    return {"meta": env.refresh_meta_sec, "res": env.refresh_res_sec}
 
 
 def run(argv: Optional[List[str]] = None) -> int:
@@ -97,20 +95,20 @@ def run(argv: Optional[List[str]] = None) -> int:
     parser.add_argument("--panels", choices=["auto", "on", "off"], default="auto", help="Prefer data/panels JSON (on/off/auto, default auto-detect)")
     parser.add_argument("--panels-dir", help="Override panels directory (sets G6_PANELS_DIR for this process)")
     parser.add_argument("--sse-url", default=os.getenv("G6_SUMMARY_SSE_URL"), help="Subscribe to SSE endpoint for live updates (e.g., http://127.0.0.1:9315/events)")
-    parser.add_argument("--no-unified", action="store_true", help="Disable unified loop (fallback to legacy dual-path logic)")
     parser.add_argument("--no-write-panels", action="store_true", help="(Unified) Do not write panels JSON artifact")
     parser.add_argument("--sse-types", default=os.getenv("G6_SUMMARY_SSE_TYPES", "panel_full,panel_diff"), help="Comma-separated event types to consume from SSE (default panel_full,panel_diff)")
     parser.add_argument("--cycles", type=int, default=None, help="(Unified) Run only N cycles then exit (CI / deterministic testing)")
     args = parser.parse_args(argv)
 
-    mode = os.getenv("G6_SUMMARY_MODE", "").strip().lower()
+    env = load_summary_env()
+    mode = (env.summary_mode or "").strip().lower()
     if mode in ("condensed", "compact") and not args.compact:
         args.compact = True
     elif mode in ("expanded", "full") and args.compact:
         args.compact = False
 
     out = _get_output_lazy()
-    cache = StatusCache(args.status_file)
+    status = _load_status(args.status_file)
 
     # Panels directory override only; panels mode now auto-detected (ignore --panels except for future removal notice)
     if args.panels_dir:
@@ -119,14 +117,13 @@ def run(argv: Optional[List[str]] = None) -> int:
         except Exception:
             pass
 
-    status = cache.refresh()
+    # status already loaded above (single shot; unified loop owns subsequent refreshes)
 
     # Optional one-time model debug emission (replacement for deprecated G6_SUMMARY_UNIFIED_SNAPSHOT gate)
     try:
-        if os.getenv("G6_UNIFIED_MODEL_INIT_DEBUG","0").lower() in ("1","true","yes","on"):
+        if env.unified_model_init_debug:
             from src.summary.unified.model import assemble_model_snapshot
-            panels_dir_for_snap = os.getenv("G6_PANELS_DIR")
-            model_snap, model_diag = assemble_model_snapshot(runtime_status=status, panels_dir=panels_dir_for_snap, include_panels=True)
+            model_snap, model_diag = assemble_model_snapshot(runtime_status=status, panels_dir=env.panels_dir, include_panels=True)
             debug_payload = {
                 'schema_version': model_snap.schema_version,
                 'cycle': {
@@ -155,12 +152,14 @@ def run(argv: Optional[List[str]] = None) -> int:
         pass
 
     # Rewrite flag (Phase 1): activates new domain + plain renderer path
-    rewrite_active = os.getenv("G6_SUMMARY_REWRITE", "0").lower() in ("1","true","yes","on")
+    from scripts.summary.config import SummaryConfig
+    cfg = SummaryConfig.load()
+    rewrite_active = cfg.rewrite_active
 
-    # --- Unified loop fast-path (default unless --no-unified) ---
-    if not args.no_unified:
-        panels_dir = os.getenv("G6_PANELS_DIR", "data/panels")
-        write_panels = not args.no_write_panels
+    # --- Unified loop (sole execution path) ---
+    if True:
+        panels_dir = cfg.panels_dir
+        write_panels = (not args.no_write_panels) and cfg.write_panels
         try:
             if write_panels:
                 os.makedirs(panels_dir, exist_ok=True)
@@ -168,39 +167,46 @@ def run(argv: Optional[List[str]] = None) -> int:
             write_panels = False
         # Plugin assembly: if rewrite flag + no-rich => PlainRenderer, else traditional TerminalRenderer
         plugins: List[OutputPlugin] = []
-        if rewrite_active and args.no_rich:
+        # Always prefer PlainRenderer for --no-rich if available; rewrite gating removed
+        if args.no_rich:
             try:
-                from scripts.summary.plain_renderer import PlainRenderer  # lazy import
+                from scripts.summary.plain_renderer import PlainRenderer
                 plugins.append(PlainRenderer())
             except Exception:
-                # Fallback to legacy terminal renderer if plain renderer import fails
-                plugins.append(TerminalRenderer(rich_enabled=not args.no_rich))
+                plugins.append(TerminalRenderer(rich_enabled=False))
         else:
-            plugins.append(TerminalRenderer(rich_enabled=not args.no_rich))
+            plugins.append(TerminalRenderer(rich_enabled=True))
         if write_panels:
             # Legacy bridge removed; always enable PanelsWriter when write_panels is true.
             plugins.append(PanelsWriter(panels_dir=panels_dir))
         # Optional metrics emitter (prometheus) gated by G6_UNIFIED_METRICS
-        try:
-            if os.getenv("G6_UNIFIED_METRICS", "0").lower() in ("1","true","yes","on"):
+        if cfg.unified_metrics:
+            try:
                 from scripts.summary.plugins.base import MetricsEmitter
                 plugins.append(MetricsEmitter())
-        except Exception:
-            pass
+            except Exception:
+                pass
+        # Optional SSE publisher (Phase 4) - internal event queue only (no network yet)
+        if cfg.sse_enabled:
+            try:
+                from scripts.summary.plugins.sse import SSEPublisher
+                plugins.append(SSEPublisher(diff=True))
+            except Exception:
+                pass
         # Optional dossier writer (unified path only): activate if path present
-        try:
-            if os.getenv("G6_SUMMARY_DOSSIER_PATH"):
+        if cfg.dossier_path:
+            try:
                 from scripts.summary.plugins.dossier import DossierWriter
                 plugins.append(DossierWriter())
-        except Exception:
-            pass
+            except Exception:
+                pass
         # Optional SSE panels ingestor (Phase 1) - activates if G6_PANELS_SSE_URL set
-        try:
-            if os.getenv("G6_PANELS_SSE_URL"):
+        if cfg.panels_sse_url:
+            try:
                 from scripts.summary.plugins.sse_panels import SSEPanelsIngestor
                 plugins.append(SSEPanelsIngestor())
-        except Exception:
-            pass
+            except Exception:
+                pass
         loop = UnifiedLoop(plugins, panels_dir=panels_dir, refresh=args.refresh)
         try:
             loop.run(cycles=args.cycles)
@@ -208,43 +214,44 @@ def run(argv: Optional[List[str]] = None) -> int:
         except KeyboardInterrupt:
             return 0
         except Exception as e:  # noqa: BLE001
-            out.error(f"Unified loop failure -> falling back to legacy path: {e}")
-            # Fall through to legacy implementation below
+            out.error(f"Unified loop failure: {e}")
+            return 1
 
-    # Plain fallback
+    # Plain one-shot rendering path (retained only for non-rich mode) -----------------------------
     try:
         import rich  # noqa: F401
         RICH_AVAILABLE = True
     except Exception:
         RICH_AVAILABLE = False
     if not RICH_AVAILABLE or args.no_rich:
-        if rewrite_active:
-            # One-shot plain render using domain + panel registry (no loop)
-            try:
-                from scripts.summary.plain_renderer import PlainRenderer
-                renderer = PlainRenderer()
-                snap = SummarySnapshot(
-                    status=status or {},
-                    derived={},
-                    panels={},
-                    ts_read=time.time(),
-                    ts_built=time.time(),
-                    cycle=0,
-                    errors=tuple(),
-                    model=None,
-                )
-                renderer.process(snap)
-            except Exception:
-                # Fallback to legacy plain_fallback if anything goes wrong
-                print(plain_fallback(status, args.status_file, args.metrics_url))
-        else:
-            print(plain_fallback(status, args.status_file, args.metrics_url))
-        # One-shot dossier write in plain mode when a dossier path is provided
+        # One-shot plain render using PlainRenderer if importable; otherwise print minimal JSON keys
         try:
-            dossier_path = os.getenv("G6_SUMMARY_DOSSIER_PATH")
+            from scripts.summary.plain_renderer import PlainRenderer
+            renderer = PlainRenderer()
+            snap = SummarySnapshot(
+                status=status or {},
+                derived={},
+                panels={},
+                ts_read=time.time(),
+                ts_built=time.time(),
+                cycle=0,
+                errors=tuple(),
+                model=None,
+            )
+            renderer.process(snap)
+        except Exception:
+            try:
+                keys = ", ".join(sorted(list((status or {}).keys())[:12]))
+                print(f"G6 Summary (plain) | keys: {keys or '—'} | file: {args.status_file}")
+            except Exception:
+                print(f"G6 Summary (plain) | file: {args.status_file}")
+    # One-shot dossier write in plain mode when a dossier path is provided
+        try:
+            env = load_summary_env()
+            dossier_path = env.dossier_path
             if dossier_path:
                 from src.summary.unified.model import assemble_model_snapshot
-                model_snap, _diag = assemble_model_snapshot(runtime_status=status, panels_dir=os.getenv("G6_PANELS_DIR"), include_panels=True)
+                model_snap, _diag = assemble_model_snapshot(runtime_status=status, panels_dir=env.panels_dir, include_panels=True)
                 os.makedirs(os.path.dirname(dossier_path), exist_ok=True)
                 tmp = dossier_path + ".tmp"
                 with open(tmp, 'w', encoding='utf-8') as f:
@@ -305,7 +312,7 @@ def run(argv: Optional[List[str]] = None) -> int:
     last_res = 0.0
     last_status: Dict[str, Any] | None = status
     last_cycle_id: Any = None
-    # Dossier writer state (legacy loop path only)
+    # Dossier writer state (rich loop)
     _dossier_state: Dict[str, Any] = {
         'last_write': 0.0,
     }
@@ -376,8 +383,7 @@ def run(argv: Optional[List[str]] = None) -> int:
         sse_full_recovery_attempted: bool = False
         # Auto recovery flag (env gated; default on)
         try:
-            _auto_rec_raw = os.getenv('G6_SUMMARY_AUTO_FULL_RECOVERY', 'on').strip().lower()
-            sse_auto_full_recovery = _auto_rec_raw in ('1','true','yes','on')
+            sse_auto_full_recovery = env.auto_full_recovery
         except Exception:
             sse_auto_full_recovery = True
     # Severity and followup events are now handled via PanelStateStore in plugin (sse_panels_ingestor)
@@ -513,7 +519,7 @@ def run(argv: Optional[List[str]] = None) -> int:
             def _sse_consumer_loop() -> None:
                 nonlocal sse_last_event_id, sse_full_recovery_attempted
                 backoff = 1.0
-                timeout_sec = float(os.getenv('G6_SUMMARY_SSE_TIMEOUT', '45'))
+                timeout_sec = env.client_sse_timeout_sec
                 while sse_stop is not None and not sse_stop.is_set():
                     try:
                         target_url = _build_sse_url(sse_last_event_id)
@@ -606,7 +612,7 @@ def run(argv: Optional[List[str]] = None) -> int:
 
         # Use alternate screen to keep the frame static (no scroll). Default off on Windows to avoid flicker; env can force on.
         default_alt = "off" if os.name == "nt" else "on"
-        use_alt_screen = os.getenv("G6_SUMMARY_ALT_SCREEN", default_alt).strip().lower() in ("1","true","yes","on")
+        use_alt_screen = env.alt_screen if env.alt_screen is not None else (default_alt == "on")
         fps = max(1, int(round(1.0 / max(0.1, args.refresh))))
         if Live is None or console is None:
             # Fallback plain mode if rich became unavailable after initial check
@@ -627,16 +633,16 @@ def run(argv: Optional[List[str]] = None) -> int:
                     now = time.time()
                     # Dossier interval writer: Build snapshot & write if path + interval
                     try:
-                        _dossier_path = os.getenv("G6_SUMMARY_DOSSIER_PATH")
+                        _dossier_path = env.dossier_path
                         if _dossier_path:
                             try:
-                                _dossier_int = float(os.getenv("G6_SUMMARY_DOSSIER_INTERVAL_SEC", "5") or 5)
+                                _dossier_int = env.dossier_interval_sec
                             except Exception:
                                 _dossier_int = 5.0
                             lw = _dossier_state.get('last_write', 0.0)
                             if now - float(lw) >= max(0.5, float(_dossier_int)):
                                 from src.summary.unified.model import assemble_model_snapshot as _assemble_model
-                                model_loop, _diag_loop = _assemble_model(runtime_status=last_status, panels_dir=os.getenv("G6_PANELS_DIR"), include_panels=True)
+                                model_loop, _diag_loop = _assemble_model(runtime_status=last_status, panels_dir=env.panels_dir, include_panels=True)
                                 try:
                                     os.makedirs(os.path.dirname(_dossier_path), exist_ok=True)
                                 except Exception:
@@ -833,9 +839,9 @@ def run(argv: Optional[List[str]] = None) -> int:
 
                     # Optional unified model build (lightweight) using in-memory panels to avoid FS reads
                     try:
-                        if os.getenv('G6_SUMMARY_BUILD_MODEL','0').lower() in ('1','true','yes','on'):
+                        if env.rich_diff_demo_enabled:  # repurpose existing flag for model build demo gating (temporary)
                             from src.summary.unified.model import assemble_model_snapshot as _assemble_model_live
-                            model_live, _diag_live = _assemble_model_live(runtime_status=effective_status, panels_dir=os.getenv('G6_PANELS_DIR'), include_panels=True, in_memory_panels=in_memory_panels)
+                            model_live, _diag_live = _assemble_model_live(runtime_status=effective_status, panels_dir=env.panels_dir, include_panels=True, in_memory_panels=in_memory_panels)
                             # Attach a minimal subset into panel_push_meta (avoid heavy duplication)
                             meta_bucket_live = effective_status.setdefault('panel_push_meta', {}) if isinstance(effective_status.get('panel_push_meta'), dict) else effective_status.setdefault('panel_push_meta', {})
                             if isinstance(meta_bucket_live, dict):

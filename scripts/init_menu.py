@@ -9,7 +9,7 @@ from typing import List, Optional, Dict
 # G6 Unified Summary Init Menu
 # =============================
 # This menu now centers around scripts/summary/app.py (unified summary view) and
-# exposes explicit variants, curated layout mode, legacy summary_view options,
+# exposes explicit variants, curated layout mode (legacy summary_view removed),
 # panels toggles, and data/diagnostic utilities (CSV audit/backfill, simulator).
 #
 # Key Environment Flags surfaced:
@@ -19,7 +19,7 @@ from typing import List, Optional, Dict
 #  - G6_SUMMARY_CURATED_MODE=1 (enable curated adaptive layout)
 #  - G6_EXPIRY_EXPAND_CONFIG=1 (collector expiry expansion – informational toggle here)
 #
-# Legacy script (scripts/summary_view.py) still available for plain / fallback modes.
+# Unified summary script (scripts/summary/app.py) provides all modes (plain / Rich / curated).
 #
 # Utilities integrated:
 #  - CSV Audit (scripts/csv_audit.py)
@@ -55,7 +55,7 @@ def _path(*parts: str) -> str:
 
 # Canonical script file paths
 SUMMARY_APP = _path("scripts", "summary", "app.py")
-LEGACY_SUMMARY = _path("scripts", "summary_view.py")
+LEGACY_SUMMARY = _path("scripts", "summary", "app.py")  # retained variable name for backward compatibility
 STATUS_SIM = _path("scripts", "status_simulator.py")
 DEV_TOOLS = _path("scripts", "dev_tools.py")
 CSV_AUDIT = _path("scripts", "csv_audit.py")
@@ -137,7 +137,7 @@ def _stop_background_processes() -> int:
         import psutil  # type: ignore
     except Exception:
         print("psutil not available. Please stop processes via Task Manager or install psutil.")
-        print("Look for python processes running summary_view.py or dev_tools.py simulate-status.")
+        print("Look for python processes running 'python -m scripts.summary.app' or dev_tools.py simulate-status.")
         return 1
     try:
         for p in psutil.process_iter(["pid", "name", "cmdline"]):

@@ -21,8 +21,16 @@ The following execution paths or scripts are deprecated or have been removed. Hi
 | `unified_main.collection_loop` (legacy orchestration loop) | `src.orchestrator.loop.run_loop` + `run_cycle` | 2025-09-26 (post parity harness) | GATED (R+1 removal target) | Use orchestrator bootstrap; set `G6_ENABLE_LEGACY_LOOP=1` only for transitional tests. | Disabled by default; temporary enable: `G6_ENABLE_LEGACY_LOOP=1`; suppress warn: `G6_SUPPRESS_LEGACY_LOOP_WARN=1`. Max cycles env alias resolved (`G6_LOOP_MAX_CYCLES` prefers, `G6_MAX_CYCLES` still honored). |
 | (REMOVED) `scripts/run_live.py` | `scripts/run_orchestrator_loop.py` | 2025-09-26 | REMOVED 2025-10-01 | Use orchestrator runner: `python scripts/run_orchestrator_loop.py --config ... --interval 30 --cycles 5` | Removed; fully replaced. |
 | (REMOVED) `scripts/terminal_dashboard.py` | `scripts/summary_view.py` | 2025-09-30 | REMOVED 2025-10-01 | Use summary view: `python scripts/summary_view.py --refresh 1` | Removed; unified summary preferred. |
+| (REMOVED) `scripts/summary_view.py` | `scripts/summary/app.py` (unified) | 2025-10-01 | REMOVED 2025-10-03 | Use unified summary application: `python -m scripts.summary.app --refresh 1`; legacy plain fallback consolidated (StatusCache + plain_fallback now in app). | File deleted; launcher scripts updated (g6, dev_tools, launch_platform). |
+| (REMOVED) `--no-unified` flag & summary legacy fallback (StatusCache/plain_fallback) | Always-on unified loop + PlainRenderer for --no-rich | 2025-10-03 (post consolidation) | REMOVED 2025-10-03 | Remove flag usage; call `python -m scripts.summary.app` directly. Non-rich mode auto-selects PlainRenderer; failures return exit code 1. | Fast-path removal (N+0) justified: zero external test references; parity harness green; improves failure visibility. |
 | `start_live_dashboard_v2.ps1` (deprecated launcher) | `scripts/start_live_dashboard.ps1` | 2025-10-01 | R+1 | Use canonical launcher: `powershell -File scripts/start_live_dashboard.ps1` | Shim prints deprecation banner; scheduled removal next release. |
 | `scripts/benchmark_cycles.py` (cycle timing script) | Internal profiling / test harness | 2025-09-30 (Phase 1 cleanup) | R+1 | Use pytest benchmarks or profiling docs | Stub preserves `run_benchmark` for tests. |
+| (REMOVED) `G6_SUMMARY_REWRITE` (enable new summary path) | Always-on unified summary | 2025-10-03 | REMOVED 2025-10-03 | Remove env export; no effect | Path permanently enabled. |
+| (REMOVED) `G6_SUMMARY_PLAIN_DIFF` (suppress unchanged plain frames) | Always-on diff suppression (hash reuse) | 2025-10-03 | REMOVED 2025-10-03 | Remove env; behavior default; no opt-out implemented | Stable hashing validated; revisit only if operational issue arises. |
+| (REMOVED) `G6_SSE_ENABLED` (enable SSE publisher) | Auto activation when SSE HTTP/panels active | 2025-10-03 | REMOVED 2025-10-03 | Remove env; publisher constructed automatically via unified app when `G6_SSE_HTTP=1` | Env gate eliminated; code path unconditional on instantiation. |
+| (REMOVED) `G6_SUMMARY_RESYNC_HTTP` (enable resync HTTP server) | Auto-on with SSE (opt-out via `G6_DISABLE_RESYNC_HTTP=1`) | 2025-10-03 | REMOVED 2025-10-03 | Remove env; use opt-out variable if needed | Simplifies enablement surface. |
+| (REMOVED) `scripts/summary_view.py` (legacy summary shim) | `scripts/summary/app.py` unified modular summary | 2025-10-03 | REMOVED 2025-10-03 | Replace panel & derive imports with modular equivalents (`scripts.summary.panels.*`, `scripts.summary.derive`) | Completed early after consolidation; zero external import telemetry. |
+| `G6_DISABLE_RESYNC_HTTP` (new) | (Opt-out only) | 2025-10-03 | — | Set `G6_DISABLE_RESYNC_HTTP=1` to suppress resync server when SSE active | Not a deprecation; governance listing for discoverability. |
 | `g6_vol_surface_quality_score_legacy` (duplicate gauge) | `g6_vol_surface_quality_score` | 2025-10-02 (metrics modularization cleanup) | R+1 | Dashboards should reference canonical `g6_vol_surface_quality_score`; update panels/alerts. | Duplicate maintained for one release window; removal planned after confirming no external scrapes rely on legacy name. |
 | `src/metrics/cache.py` direct registrations | `src/metrics/cache_metrics.py` (`init_cache_metrics`) | 2025-10-02 | R+1 | Import stays valid; no action unless depending on internal implementation details. | File now a thin shim delegating to new module (no behavior change). |
 | `scripts/bench_aggregate.py` / `bench_diff.py` / `bench_verify.py` | `scripts/bench_tools.py` | 2025-09-30 (Phase 2) | R+1 | Use unified subcommands (aggregate, diff, verify) | Wrappers emit deprecation warning unless suppressed. |
@@ -90,7 +98,7 @@ Deleted after successful migration and doc convergence:
 ### Documentation Consolidation (2025-10-01)
 Multiple historical README variants (`README_COMPREHENSIVE.md`, `README_web_dashboard.md`, `README_CONSOLIDATED_DRAFT.md`) were archived and merged into the canonical `README.md`. (Removed 2025-10-03) – delete completed; update any external references accordingly.
 
-All automation must point to `scripts/run_orchestrator_loop.py` and summary consumers to `scripts/summary_view.py` or `scripts/summary/app.py`.
+All automation must point to `scripts/run_orchestrator_loop.py` and summary consumers to `scripts/summary/app.py` (legacy `summary_view.py` removed).
 
 ### Deprecation Warning Consolidation (2025-10-02)
 Central emission now handled by `src.utils.deprecations.emit_deprecation` with:
@@ -181,6 +189,37 @@ Planned Follow-up:
 
 Owner: Broker/Provider maintainers.
 Tracking: Add removal checklist issue referencing this section before starting Phase C.
+
+### Summary Flag Retirement Roadmap (2025-10-03)
+
+The following summary-related environment flags now emit one-time deprecation warnings via `SummaryConfig.load()` using the centralized `emit_deprecation` helper:
+
+| Flag | Current Behavior | Planned Change | Replacement / Post-Removal Behavior | Earliest Removal |
+|------|------------------|----------------|--------------------------------------|------------------|
+| `G6_SUMMARY_REWRITE` | Toggles new summary path (if set) | Ignored (path always on) | Remove flag entirely; unified path unconditional | R+1 |
+| `G6_SUMMARY_PLAIN_DIFF` | Disables diff suppression when set to 0 | Flag removed; suppression always on | Optional future opt-out only if regression emerges | R+2 |
+| `G6_SSE_ENABLED` | Enables SSE publisher plugin | Auto-enable when `G6_SSE_HTTP=1` (or panels ingest URL set) | No flag; capability / config driven | R+2 |
+| `G6_SUMMARY_RESYNC_HTTP` | Enables resync HTTP endpoint | Endpoint always on with SSE unless disabled | Introduce `G6_DISABLE_RESYNC_HTTP=1` (opt-out) | R+2 |
+
+Rationales:
+* Reduce cognitive load and environment surface area; defaults now safe & production-ready.
+* Observability (metrics + tests) indicates stable operation without manual gating.
+* Aligns with governance policy: once replacement path is battle-tested (>=2 phases) gating flag enters removal window.
+
+Operational Notes:
+* CI / tests relying on explicit enabling should remove setenv lines; warnings guarantee early visibility during transition.
+* A global suppression env `G6_SUPPRESS_DEPRECATIONS=1` silences the warnings (unchanged policy).
+* After removal, exporting the retired flag becomes a no-op (no warning) for one release before being fully purged from docs.
+
+Migration Checklist (apply before each flag deletion PR):
+1. Grep repository for the flag name (code + docs + scripts/launchers).
+2. Confirm no tests still set the flag (except deprecation coverage tests).
+3. Update this section marking the flag as REMOVED with date.
+4. Add CHANGELOG entry summarizing removal & replacement behavior.
+5. Validate metrics / integration tests pass with environment unset.
+
+Rollback Plan:
+If unexpected operational regressions occur post-removal, reintroduce a shim in `SummaryConfig` reading the env but producing a warning (fast-follow hotfix). Metrics will track resumed usage to refine guidance.
 
 ### Panels Schema Transitional Field Duplication Removal (indices/system panel)
 

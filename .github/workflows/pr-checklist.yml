@@ -1,0 +1,37 @@
+name: PR Checklist Validation
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/pr_checklist.py'
+      - 'scripts/release_readiness.py'
+      - 'README.md'
+      - 'docs/env_dict.md'
+      - 'scripts/summary/**'
+      - 'clients/**'
+      - 'scripts/**'
+      - 'tests/**'
+
+jobs:
+  pr-checklist:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies (minimal)
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Run PR checklist (strict)
+        run: |
+          python scripts/pr_checklist.py --run-readiness --strict > PR_CHECKLIST.md
+      - name: Upload checklist artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-checklist
+          path: PR_CHECKLIST.md

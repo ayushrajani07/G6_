@@ -1,0 +1,595 @@
+# G6 Metrics Specification (authoritative source)
+# Each metric entry defines semantic ownership, labels, cardinality budget, and generation options.
+
+version: 1
+families:
+  provider:
+    owner: collectors/providers_interface.py
+    metrics:
+      - name: g6_api_calls_total
+        type: counter
+        help: Provider API calls
+        labels: [endpoint, result]
+        cardinality_budget: 50   # endpoints * {success,error,...}
+        panels:
+          - kind: rate
+            promql: sum(rate(g6_api_calls_total[5m]))
+            title: API Call Rate
+        alerts:
+          - alert: G6ApiErrorRateHigh
+            expr: sum(rate(g6_api_calls_total{result="error"}[5m])) / clamp_min(sum(rate(g6_api_calls_total[5m])),1) > 0.05
+            for: 5m
+            severity: warning
+            summary: "API error rate >5% (5m)"
+            description: "Error rate above 5% over 5m window; investigate upstream provider stability."
+          - alert: G6ApiErrorRateCritical
+            expr: sum(rate(g6_api_calls_total{result="error"}[5m])) / clamp_min(sum(rate(g6_api_calls_total[5m])),1) > 0.15
+            for: 2m
+            severity: critical
+            summary: "API error rate >15% (5m)"
+            description: "Severe API error rate >15% sustain 2m; likely provider outage or auth issues."
+      - name: g6_api_response_latency_ms
+        type: histogram
+        help: Upstream API response latency (ms)
+        buckets: [5,10,20,50,100,200,400,800,1600,3200]
+        labels: []
+        cardinality_budget: 1
+        panels:
+          - kind: latency_p95
+            title: API Latency p95 (5m)
+            promql: |
+              histogram_quantile(0.95, sum by (le) (rate(g6_api_response_latency_ms_bucket[5m])))
+            unit: ms
+          - kind: latency_p99
+            title: API Latency p99 (5m)
+            promql: |
+              histogram_quantile(0.99, sum by (le) (rate(g6_api_response_latency_ms_bucket[5m])))
+            unit: ms
+          - kind: latency_rate
+            title: API Latency Bucket Rates
+            promql: |
+              sum by (le) (rate(g6_api_response_latency_ms_bucket[5m]))
+            panel_type: timeseries
+      - name: g6_quote_enriched_total
+        type: counter
+        help: Quotes enriched
+        labels: [provider]
+        cardinality_budget: 5
+        panels:
+          - kind: rate_total
+            title: Enriched Quotes Rate (5m)
+            promql: sum(rate(g6_quote_enriched_total[5m]))
+          - kind: rate_by_provider
+            title: Enriched Quotes Rate by Provider (5m)
+            promql: sum by (provider) (rate(g6_quote_enriched_total[5m]))
+      - name: g6_quote_missing_volume_oi_total
+        type: counter
+        help: Enriched quotes missing volume & oi
+        labels: [provider]
+        cardinality_budget: 5
+        panels:
+          - kind: rate_by_provider
+            title: Missing Vol/OI Rate by Provider (10m)
+            promql: sum by (provider) (rate(g6_quote_missing_volume_oi_total[10m]))
+      - name: g6_quote_avg_price_fallback_total
+        type: counter
+        help: Avg price fallback usage
+        labels: [provider]
+        cardinality_budget: 5
+        panels:
+            - kind: rate_total
+              title: Avg Price Fallback Rate (10m)
+              promql: sum(rate(g6_quote_avg_price_fallback_total[10m]))
+      - name: g6_index_zero_price_fallback_total
+        type: counter
+        help: Index zero price synthetic fallback applied
+        labels: [index, path]
+        cardinality_budget: 30   # few indices * 2 paths
+        panels:
+          - kind: rate_by_path
+            title: Zero Price Fallback Rate by Path (10m)
+            promql: sum by (path) (rate(g6_index_zero_price_fallback_total[10m]))
+          - kind: rate_by_index
+            title: Zero Price Fallback Rate by Index (10m)
+            promql: sum by (index) (rate(g6_index_zero_price_fallback_total[10m]))
+        alerts:
+          - alert: G6ZeroPriceFallbackSpike
+            expr: sum(rate(g6_index_zero_price_fallback_total[10m])) > 5
+            for: 5m
+            severity: warning
+            summary: "Zero price fallbacks >5/10m"
+            description: "Elevated zero-price fallback usage (>5 per 10m); potential upstream quote feed anomalies."
+          - alert: G6ZeroPriceFallbackCritical
+            expr: sum(rate(g6_index_zero_price_fallback_total[10m])) > 20
+            for: 5m
+            severity: critical
+            summary: "Zero price fallbacks >20/10m"
+            description: "Critical spike in zero-price fallbacks; confirm provider integrity and circuit breakers."
+      - name: g6_expiry_resolve_fail_total
+        type: counter
+        help: Expiry resolution failures
+        labels: [index, rule, reason]
+        cardinality_budget: 120  # bounded small enums
+        panels:
+          - kind: rate_by_reason
+            title: Expiry Failures by Reason (10m)
+            promql: sum by (reason) (rate(g6_expiry_resolve_fail_total[10m]))
+          - kind: rate_by_rule
+            title: Expiry Failures by Rule (10m)
+            promql: sum by (rule) (rate(g6_expiry_resolve_fail_total[10m]))
+        alerts:
+          - alert: G6ExpiryFailureSpike
+            expr: sum(rate(g6_expiry_resolve_fail_total[15m])) > 3
+            for: 10m
+            severity: warning
+            summary: "Expiry resolution failures >3/15m"
+            description: "Sustained elevation in expiry resolution failures; review rule logic and upstream calendar data."
+          - alert: G6ExpiryFailureCritical
+            expr: sum(rate(g6_expiry_resolve_fail_total[15m])) > 10
+            for: 5m
+            severity: critical
+            summary: "Expiry failures >10/15m"
+            description: "Critical surge in expiry resolution failures; trading logic may degrade."
+      - name: g6_metrics_batch_queue_depth
+        type: gauge
+        help: Current queued batched counter increments awaiting flush
+        labels: []
+        cardinality_budget: 1
+        panels:
+          - kind: gauge
+            title: Batch Queue Depth
+            promql: g6_metrics_batch_queue_depth
+      - name: g6_cardinality_series_total
+        type: gauge
+        help: Observed unique label sets registered per metric name
+        labels: [metric]
+        cardinality_budget: 200
+        panels:
+          - kind: top_cardinality
+            title: Cardinality Series Count (Top 10)
+            promql: topk(10, g6_cardinality_series_total)
+            panel_type: table
+          - kind: max_cardinality
+            title: Max Series Count
+            promql: max(g6_cardinality_series_total)
+          - kind: unique_metrics
+            title: Unique Metrics Tracked
+            promql: count(g6_cardinality_series_total)
+        alerts:
+          - alert: G6CardinalityBudgetApproaching
+            expr: max(g6_cardinality_series_total) / 200 > 0.8
+            for: 10m
+            severity: warning
+            summary: "Some metric >80% of cardinality budget"
+            description: "A metric's unique label set count exceeded 80% of declared budget; monitor for potential explosion."
+          - alert: G6CardinalityBudgetBreached
+            expr: max(g6_cardinality_series_total) / 200 > 1
+            for: 2m
+            severity: critical
+            summary: "Metric cardinality budget breached"
+            description: "Cardinality budget exceeded; investigate new labels or unbounded dimensions."
+  system:
+    owner: metrics/api_call.py
+    metrics:
+      - name: g6_api_success_rate_percent
+        type: gauge
+        help: Successful API call percentage (rolling window)
+        labels: []
+        cardinality_budget: 1
+        panels:
+          - kind: gauge
+            title: API Success Rate %
+            promql: g6_api_success_rate_percent
+            unit: percent
+      - name: g6_api_response_time_ms
+        type: gauge
+        help: Average upstream API response time (ms, rolling)
+        labels: []
+        cardinality_budget: 1
+        panels:
+          - kind: gauge
+            title: API Avg Response Time (ms)
+            promql: g6_api_response_time_ms
+            unit: ms
+  provider_mode:
+    owner: metrics/provider_failover.py
+    metrics:
+      - name: g6_provider_mode
+        type: gauge
+        help: Active provider mode (one-hot by mode label)
+        labels: [mode]
+        cardinality_budget: 6
+        panels:
+          - kind: one_hot_modes
+            title: Provider Mode State
+            promql: sum by (mode) (g6_provider_mode)
+            panel_type: timeseries
+      - name: g6_provider_failover_total
+        type: counter
+        help: Provider failovers
+        labels: []
+        cardinality_budget: 1
+        panels:
+          - kind: rate
+            title: Provider Failover Rate (6h)
+            promql: sum(rate(g6_provider_failover_total[6h]))
+  governance:
+    owner: metrics/spec_hash
+    metrics:
+      - name: g6_metrics_spec_hash_info
+        type: gauge
+        help: Static gauge labeled with current metrics spec content hash (value always 1)
+        labels: [hash]
+        cardinality_budget: 1
+        panels:
+          - kind: spec_hash
+            title: Metrics Spec Hash
+            promql: label_replace(g6_metrics_spec_hash_info, "hash", "$1", "hash", "(.*)")
+            panel_type: table
+      - name: g6_build_config_hash_info
+        type: gauge
+        help: Static gauge labeled with current build/config content hash (value always 1)
+        labels: [hash]
+        cardinality_budget: 1
+        panels:
+          - kind: config_hash
+            title: Build/Config Hash
+            promql: label_replace(g6_build_config_hash_info, "hash", "$1", "hash", "(.*)")
+            panel_type: table
+      - name: g6_metric_duplicates_total
+        type: counter
+        help: Count of duplicate metric registration attempts (same metric name registered more than once)
+        labels: [name]
+        cardinality_budget: 50
+        panels:
+          - kind: dup_rate
+            title: Duplicate Registrations (5m)
+            promql: sum(rate(g6_metric_duplicates_total[5m]))
+          - kind: dup_by_metric
+            title: Duplicates by Metric (5m)
+            promql: topk(10, sum by (name) (rate(g6_metric_duplicates_total[5m])))
+      - name: g6_cardinality_guard_offenders_total
+        type: gauge
+        help: "Number of offending metric groups exceeding allowed growth threshold during last cardinality guard evaluation"
+        labels: []
+        cardinality_budget: 1
+        panels:
+          - kind: offenders
+            title: Cardinality Offending Groups
+            promql: g6_cardinality_guard_offenders_total
+        alerts:
+          - alert: G6CardinalityOffendersDetected
+            expr: g6_cardinality_guard_offenders_total > 0
+            for: 10m
+            severity: warning
+            summary: ">0 cardinality offenders"
+            description: "One or more metric groups exceeded allowed growth threshold. Investigate new high-cardinality labels."
+      - name: g6_cardinality_guard_new_groups_total
+        type: gauge
+        help: "Number of entirely new metric groups discovered relative to baseline during last guard evaluation"
+        labels: []
+        cardinality_budget: 1
+        panels:
+          - kind: new_groups
+            title: New Metric Groups Detected
+            promql: g6_cardinality_guard_new_groups_total
+      - name: g6_cardinality_guard_last_run_epoch
+        type: gauge
+        help: "Unix epoch seconds timestamp of last successful cardinality guard evaluation"
+        labels: []
+        cardinality_budget: 1
+        panels:
+          - kind: last_run
+            title: Cardinality Guard Last Run (s)
+            promql: g6_cardinality_guard_last_run_epoch
+      - name: g6_cardinality_guard_allowed_growth_percent
+        type: gauge
+        help: "Allowed growth threshold percent configured for cardinality guard at last evaluation"
+        labels: []
+        cardinality_budget: 1
+      - name: g6_cardinality_guard_growth_percent
+        type: gauge
+        help: "Observed growth percent for a metric group exceeding baseline (labels: group)"
+        labels: [group]
+        cardinality_budget: 100
+        panels:
+          - kind: top_growth
+            title: Top Cardinality Growth % (Top 10)
+            promql: topk(10, g6_cardinality_guard_growth_percent)
+  option_chain:
+    owner: metrics/option_chain_aggregator.py
+    metrics:
+      - name: g6_option_contracts_active
+        type: gauge
+        help: Active option contracts per moneyness & DTE bucket (snapshot)
+        labels: [mny, dte]
+        cardinality_budget: 25
+        panels:
+          - kind: heatmap_table
+            title: Active Contracts by Bucket
+            promql: sum by (mny,dte) (g6_option_contracts_active)
+            panel_type: table
+          - kind: dist_mny
+            title: Active Contracts by Moneyness
+            promql: sum by (mny) (g6_option_contracts_active)
+          - kind: dist_dte
+            title: Active Contracts by DTE
+            promql: sum by (dte) (g6_option_contracts_active)
+      - name: g6_option_open_interest
+        type: gauge
+        help: Aggregated open interest per bucket
+        labels: [mny, dte]
+        cardinality_budget: 25
+        panels:
+          - kind: oi_mny
+            title: Open Interest by Moneyness
+            promql: sum by (mny) (g6_option_open_interest)
+          - kind: oi_dte
+            title: Open Interest by DTE
+            promql: sum by (dte) (g6_option_open_interest)
+          - kind: oi_heatmap
+            title: OI Heatmap (Mny x DTE)
+            promql: sum by (mny,dte) (g6_option_open_interest)
+            panel_type: heatmap
+          - kind: oi_total
+            title: Total Open Interest
+            promql: sum(g6_option_open_interest)
+      - name: g6_option_volume_24h
+        type: gauge
+        help: 24h traded volume aggregated per bucket
+        labels: [mny, dte]
+        cardinality_budget: 25
+        panels:
+          - kind: vol_mny
+            title: 24h Volume by Moneyness
+            promql: sum by (mny) (g6_option_volume_24h)
+          - kind: vol_dte
+            title: 24h Volume by DTE
+            promql: sum by (dte) (g6_option_volume_24h)
+          - kind: vol_heatmap
+            title: 24h Volume Heatmap (Mny x DTE)
+            promql: sum by (mny,dte) (g6_option_volume_24h)
+            panel_type: heatmap
+          - kind: vol_total
+            title: Total 24h Volume
+            promql: sum(g6_option_volume_24h)
+      - name: g6_option_iv_mean
+        type: gauge
+        help: Mean implied volatility annualized per bucket
+        labels: [mny, dte]
+        cardinality_budget: 25
+        panels:
+          - kind: iv_mny
+            title: Mean IV by Moneyness
+            promql: sum by (mny) (g6_option_iv_mean) / count by (mny) (g6_option_iv_mean)
+          - kind: iv_dte
+            title: Mean IV by DTE
+            promql: sum by (dte) (g6_option_iv_mean) / count by (dte) (g6_option_iv_mean)
+          - kind: iv_heatmap
+            title: Mean IV Heatmap (Mny x DTE)
+            promql: sum by (mny,dte) (g6_option_iv_mean) / clamp_min(sum by (mny,dte) (count_values("v", g6_option_iv_mean)),1)
+            panel_type: heatmap
+      - name: g6_option_spread_bps_mean
+        type: gauge
+        help: Mean bid-ask spread (basis points of mid) per bucket
+        labels: [mny, dte]
+        cardinality_budget: 25
+        panels:
+          - kind: spread_mny
+            title: Mean Spread bps by Moneyness
+            promql: sum by (mny) (g6_option_spread_bps_mean) / count by (mny) (g6_option_spread_bps_mean)
+          - kind: spread_dte
+            title: Mean Spread bps by DTE
+            promql: sum by (dte) (g6_option_spread_bps_mean) / count by (dte) (g6_option_spread_bps_mean)
+          - kind: spread_heatmap
+            title: Mean Spread bps Heatmap (Mny x DTE)
+            promql: sum by (mny,dte) (g6_option_spread_bps_mean) / clamp_min(sum by (mny,dte) (count_values("v", g6_option_spread_bps_mean)),1)
+            panel_type: heatmap
+      - name: g6_option_contracts_new_total
+        type: counter
+        help: Newly listed option contracts aggregated by DTE bucket
+        labels: [dte]
+        cardinality_budget: 5
+        panels:
+          - kind: new_contracts_rate
+            title: New Contracts Rate (5m)
+            promql: sum(rate(g6_option_contracts_new_total[5m]))
+          - kind: new_contracts_dte_rate
+            title: New Contracts Rate by DTE (5m)
+            promql: sum by (dte) (rate(g6_option_contracts_new_total[5m]))
+        alerts:
+          - alert: G6OptionNewListingSpike
+            expr: sum(rate(g6_option_contracts_new_total[10m])) > 200
+            for: 10m
+            severity: warning
+            summary: "New option listings spike"
+            description: "Spike in new option listings (>200 / 10m). Validate listing feed cadence or potential duplication."
+          - alert: G6OptionNewListingCritical
+            expr: sum(rate(g6_option_contracts_new_total[10m])) > 500
+            for: 5m
+            severity: critical
+            summary: "New option listings surge"
+            description: "Surge in new option listings (>500 / 10m). Possible feed duplication or schedule anomaly."
+  bus:
+    owner: bus/in_memory_bus.py
+    metrics:
+      - name: g6_bus_events_published_total
+        type: counter
+        help: Total events published to a named in-process bus
+        labels: [bus]
+        cardinality_budget: 5
+        panels:
+          - kind: pub_rate
+            title: Bus Events Publish Rate (5m)
+            promql: sum by (bus) (rate(g6_bus_events_published_total[5m]))
+      - name: g6_bus_events_dropped_total
+        type: counter
+        help: Total events dropped (overflow or serialization) by bus
+        labels: [bus, reason]
+        cardinality_budget: 10
+        panels:
+          - kind: drop_rate
+            title: Bus Event Drops (5m)
+            promql: sum by (bus,reason) (rate(g6_bus_events_dropped_total[5m]))
+      - name: g6_bus_queue_retained_events
+        type: gauge
+        help: Current retained event count in ring buffer per bus
+        labels: [bus]
+        cardinality_budget: 5
+        panels:
+          - kind: retained
+            title: Bus Retained Events
+            promql: g6_bus_queue_retained_events
+      - name: g6_bus_subscriber_lag_events
+        type: gauge
+        help: Subscriber lag (events behind head) per bus & subscriber id
+        labels: [bus, subscriber]
+        cardinality_budget: 25
+        panels:
+          - kind: lag_top
+            title: Top Subscriber Lag
+            promql: topk(5, g6_bus_subscriber_lag_events)
+      - name: g6_bus_publish_latency_ms
+        type: histogram
+        help: Publish path latency per bus (milliseconds)
+        buckets: [0.1,0.25,0.5,1,2,5,10,25,50]
+        labels: [bus]
+        cardinality_budget: 5
+        panels:
+          - kind: pub_latency_p95
+            title: Bus Publish Latency p95 (5m)
+            promql: histogram_quantile(0.95, sum by (le,bus) (rate(g6_bus_publish_latency_ms_bucket[5m])))
+            unit: ms
+  emission:
+    owner: metrics/safe_emit.py
+    metrics:
+      - name: g6_emission_failures_total
+        type: counter
+        help: Total emission wrapper failures (exception during metric emission) labeled by emitter signature
+        labels: [emitter]
+        cardinality_budget: 50
+        panels:
+          - kind: failure_rate
+            title: Emission Failures Rate (10m)
+            promql: sum(rate(g6_emission_failures_total[10m]))
+          - kind: failure_top
+            title: Top Failing Emitters (10m)
+            promql: topk(10, sum by (emitter) (rate(g6_emission_failures_total[10m])))
+      - name: g6_emission_failure_once_total
+        type: counter
+        help: Unique emitters that have failed at least once (incremented once per emitter signature)
+        labels: [emitter]
+        cardinality_budget: 50
+        panels:
+          - kind: failure_once
+            title: Emitters With Any Failure
+            promql: count(g6_emission_failure_once_total)
+      - name: g6_metrics_batch_flush_duration_ms
+        type: histogram
+        help: Flush execution latency for emission batcher (milliseconds)
+        buckets: [1,2,5,10,25,50,100,250,500,1000]
+        labels: []
+        cardinality_budget: 1
+        panels:
+          - kind: batch_flush_p95
+            title: Batch Flush Latency p95 (5m)
+            promql: histogram_quantile(0.95, sum(rate(g6_metrics_batch_flush_duration_ms_bucket[5m])) by (le))
+            unit: ms
+      - name: g6_metrics_batch_flush_increments
+        type: gauge
+        help: Number of distinct counter entries flushed in last batch
+        labels: []
+        cardinality_budget: 1
+        panels:
+          - kind: batch_flush_size
+            title: Batch Flush Size
+            promql: g6_metrics_batch_flush_increments
+      - name: g6_metrics_batch_adaptive_target
+        type: gauge
+        help: Current adaptive target batch size (distinct entries) computed by EWMA rate model
+        labels: []
+        cardinality_budget: 1
+        panels:
+          - kind: batch_target
+            title: Adaptive Target Batch Size
+            promql: g6_metrics_batch_adaptive_target
+  column_store:
+    owner: storage/column_store_pipeline.py
+    metrics:
+      - name: g6_cs_ingest_rows_total
+        type: counter
+        help: Rows successfully ingested into column store (post-batch commit)
+        labels: [table]
+        cardinality_budget: 10
+        panels:
+          - kind: rows_rate
+            title: CS Ingest Rows Rate (5m)
+            promql: sum by (table) (rate(g6_cs_ingest_rows_total[5m]))
+          - kind: rows_rate_total
+            title: CS Ingest Rows Total Rate (5m)
+            promql: sum(rate(g6_cs_ingest_rows_total[5m]))
+      - name: g6_cs_ingest_bytes_total
+        type: counter
+        help: Uncompressed bytes ingested (pre-compression) per table
+        labels: [table]
+        cardinality_budget: 10
+        panels:
+          - kind: bytes_rate
+            title: CS Ingest Bytes Rate (5m)
+            promql: sum by (table) (rate(g6_cs_ingest_bytes_total[5m]))
+      - name: g6_cs_ingest_latency_ms
+        type: histogram
+        help: End-to-end ingest batch latency (ms) including serialization + network + commit
+        labels: [table]
+        buckets: [5,10,25,50,100,250,500,1000,2500,5000]
+        cardinality_budget: 10
+        panels:
+          - kind: ingest_p95
+            title: CS Ingest Batch Latency p95 (5m)
+            promql: histogram_quantile(0.95, sum by (le,table) (rate(g6_cs_ingest_latency_ms_bucket[5m])))
+            unit: ms
+      - name: g6_cs_ingest_failures_total
+        type: counter
+        help: Ingest failures (exceptions / rejected batches) per table
+        labels: [table, reason]
+        cardinality_budget: 30
+        panels:
+          - kind: failures_rate
+            title: CS Ingest Failures Rate (10m)
+            promql: sum by (table,reason) (rate(g6_cs_ingest_failures_total[10m]))
+      - name: g6_cs_ingest_backlog_rows
+        type: gauge
+        help: Pending rows buffered for ingest per table
+        labels: [table]
+        cardinality_budget: 10
+        panels:
+          - kind: backlog_rows
+            title: CS Ingest Backlog Rows
+            promql: g6_cs_ingest_backlog_rows
+      - name: g6_cs_ingest_backpressure_flag
+        type: gauge
+        help: Backpressure active (1) when backlog exceeds threshold for table
+        labels: [table]
+        cardinality_budget: 10
+        panels:
+          - kind: backpressure_active
+            title: CS Backpressure Active
+            promql: g6_cs_ingest_backpressure_flag
+      - name: g6_cs_ingest_retries_total
+        type: counter
+        help: Retry attempts for failed batches per table
+        labels: [table]
+        cardinality_budget: 10
+        panels:
+          - kind: retries_rate
+            title: CS Ingest Retry Rate (10m)
+            promql: sum by (table) (rate(g6_cs_ingest_retries_total[10m]))
+
+# Generation directives
+codegen:
+  module: src/metrics/generated.py
+  catalog_markdown: METRICS_CATALOG.md
+  guard: src/metrics/cardinality_guard.py
+  emit_accessors: true
+  accessor_prefix: m_
+  safe_wrapper: true

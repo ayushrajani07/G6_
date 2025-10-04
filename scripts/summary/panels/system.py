@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Tuple, TYPE_CHECKING
+from scripts.summary.env_config import load_summary_env
 
 if TYPE_CHECKING:  # pragma: no cover
     from rich.panel import Panel as _Panel
@@ -46,7 +47,10 @@ def health_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, c
                 try:
                     import os
                     from datetime import datetime, timezone
-                    window_ms = float(os.getenv("G6_SUMMARY_BACKOFF_BADGE_MS", "120000") or "120000")
+                    try:
+                        window_ms = load_summary_env().backoff_badge_window_ms
+                    except Exception:
+                        window_ms = 120000.0
                     now = datetime.now(timezone.utc)
                     def _ts_in_window(ts: Any) -> bool:
                         if ts is None:
@@ -139,9 +143,9 @@ def health_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, c
                         rtbl.add_row("", "Token Expiry", clip(short), _dot("OK"))
                     if prov.get("latency_ms") is not None:
                         try:
-                            import os
-                            warn_ms = float(os.getenv("G6_PROVIDER_LAT_WARN_MS", "400") or "400")
-                            err_ms = float(os.getenv("G6_PROVIDER_LAT_ERR_MS", "800") or "800")
+                            env_cfg = load_summary_env()
+                            warn_ms = env_cfg.provider_latency_warn_ms
+                            err_ms = env_cfg.provider_latency_err_ms
                         except Exception:
                             warn_ms, err_ms = 400.0, 800.0
                         try:

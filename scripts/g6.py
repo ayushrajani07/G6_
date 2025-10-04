@@ -2,7 +2,7 @@
 """Unified G6 CLI (Phase B Roadmap – initial scaffold).
 
 Subcommands:
-  summary          Launch summary view (wraps summary_view.py)
+    summary          Launch summary view (unified summary/app.py)
   simulate         Run status simulator (wraps status_simulator.py)
   panels-bridge    Run legacy status->panels bridge (wraps status_to_panels.py)
   integrity        Run one-shot panels integrity check (wraps panels_integrity_check.py)
@@ -41,7 +41,8 @@ def _run(cmd: list[str]) -> int:
 
 
 def cmd_summary(args: argparse.Namespace) -> int:
-    cmd = [sys.executable, str(ROOT / 'scripts' / 'summary_view.py')]
+    # Use unified summary/app.py (legacy summary_view removed)
+    cmd = [sys.executable, str(ROOT / 'scripts' / 'summary' / 'app.py')]
     if args.no_rich:
         cmd.append('--no-rich')
     if args.compact:

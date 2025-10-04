@@ -65,13 +65,25 @@ def test_panels_factory_includes_adaptive_panel():
         assert adap.get('detail_mode_str') == 'agg'
 
 
-def test_plain_fallback_renders_detail_mode():
-    from scripts.summary_view import plain_fallback
-    with tempfile.TemporaryDirectory() as d:
-        p = Path(d)/'status.json'
-        obj = _write_status(p, mode=1, band_window=5)
-        out = plain_fallback(obj, str(p), None)
-        # Expect 'Detail mode:' line present with band window
-        assert 'Detail mode:' in out
-        assert 'band' in out
-        assert '±5' in out or '+-5' in out  # depending on locale/char
+def test_plain_renderer_renders_cycle_and_indices():
+    from scripts.summary.plain_renderer import PlainRenderer
+    from scripts.summary.domain import build_domain_snapshot
+    from scripts.summary.plugins.base import SummarySnapshot
+    status = {'indices': ['NIFTY'], 'cycle': 5}
+    domain = build_domain_snapshot(status, ts_read=0.0)
+    snap = SummarySnapshot(status=status, derived={}, panels={}, ts_read=0.0, ts_built=0.0, cycle=5, errors=[], model=None, domain=domain)
+    import io, sys
+    buf, old = io.StringIO(), sys.stdout
+    try:
+        sys.stdout = buf
+        PlainRenderer().process(snap)
+    finally:
+        sys.stdout = old
+    out = buf.getvalue()
+    assert 'NIFTY' in out
+    assert 'Cycle' in out or 'cycle' in out
+
+import pytest
+@pytest.mark.skip(reason="Legacy plain_fallback detail mode test removed (summary_view deleted)")
+def test_legacy_plain_fallback_deprecated():  # pragma: no cover - intentionally skipped
+    assert True

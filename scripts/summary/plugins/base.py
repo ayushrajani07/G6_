@@ -30,7 +30,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol, Any, Mapping, Sequence, Optional, Dict, TYPE_CHECKING
 
-if TYPE_CHECKING:  # import only for type hints to avoid runtime cost
+if TYPE_CHECKING:  # pragma: no cover
     from src.summary.unified.model import UnifiedStatusSnapshot  # pragma: no cover
     from scripts.summary.domain import SummaryDomainSnapshot  # pragma: no cover
 import time
@@ -58,6 +58,8 @@ class SummarySnapshot:
     model: 'UnifiedStatusSnapshot | None' = None  # populated by loop when available
     # Phase 2: domain snapshot (new structured representation replacing ad-hoc derived/panels maps gradually)
     domain: 'SummaryDomainSnapshot | None' = None
+    # Phase 4 optimization: optional shared panel hash map (populated by first hashing plugin)
+    panel_hashes: Optional[Dict[str, str]] = None
 
 class OutputPlugin(Protocol):
     """Contract each output writer/renderer implements."""
@@ -90,6 +92,26 @@ class TerminalRenderer(OutputPlugin):  # Phase 1 rich integration
         self._layout = None
         self._live = None
         self._console = None
+        # Phase 3: per-panel diff hashing (rich selective updates)
+        self._panel_hashes: dict[str,str] | None = None
+        # Centralized config: prefer SummaryEnv parsed boolean; fallback to direct env read if loader fails
+        try:
+            from scripts.summary.env_config import load_summary_env  # local import to avoid heavy startup cost if unused
+            try:
+                _env = load_summary_env()
+                self._rich_diff_enabled = bool(getattr(_env, "rich_diff_demo_enabled", False))
+            except Exception:  # pragma: no cover - defensive; fallback preserves legacy behavior
+                self._rich_diff_enabled = os.getenv("G6_SUMMARY_RICH_DIFF", "0").lower() in {"1","true","yes","on"}
+        except Exception:  # pragma: no cover - extremely defensive catch (import path issues)
+            self._rich_diff_enabled = os.getenv("G6_SUMMARY_RICH_DIFF", "0").lower() in {"1","true","yes","on"}
+        # Phase 4 metrics: diff statistics
+        self._diff_total_cycles = 0
+        self._diff_unchanged_cycles = 0
+        self._diff_total_panel_updates = 0
+        self._diff_panel_update_hist: list[int] = []  # small running log of counts per cycle
+        # Phase 4 metrics: per-panel timing aggregates
+        self._panel_timing_ns = {}
+        self._panel_timing_calls = {}
 
     def setup(self, context: Mapping[str, Any]) -> None:  # pragma: no cover - minimal side effects
         logger.debug("TerminalRenderer setup (rich=%s)", self._rich)
@@ -114,13 +136,112 @@ class TerminalRenderer(OutputPlugin):  # Phase 1 rich integration
             logger.debug("[terminal/plain] cycle=%s indices=%s alerts=%s", snap.cycle, snap.derived.get("indices_count"), snap.derived.get("alerts_total"))
             return
         try:
-            from scripts.summary.layout import refresh_layout  # type: ignore
-            if self._layout is not None:
-                # Type narrowing: layout.refresh expects Dict or None; underlying status is a mutable dict from builder
-                status_obj = dict(snap.status) if isinstance(snap.status, Mapping) else None
+            from scripts.summary.layout import refresh_layout, update_single_panel  # type: ignore
+            if self._layout is None:
+                return
+            status_obj = dict(snap.status) if isinstance(snap.status, Mapping) else None
+            # If rich diff not enabled fallback to full refresh
+            if not self._rich_diff_enabled:
                 refresh_layout(self._layout, status_obj, self._status_file, self._metrics_url, compact=self._compact, low_contrast=self._low_contrast)
+                return
+            # Centralized hashes: expect loop-populated snap.panel_hashes
+            hashes = snap.panel_hashes
+            if hashes is None:
+                # Fallback: disable diff mode and perform full refresh this cycle
+                logger.debug("[terminal] panel_hashes missing; disabling rich diff for session")
+                self._rich_diff_enabled = False
+                refresh_layout(self._layout, status_obj, self._status_file, self._metrics_url, compact=self._compact, low_contrast=self._low_contrast)
+                return
+            # First cycle (no baseline) => full refresh + store
+            if self._panel_hashes is None:
+                refresh_layout(self._layout, status_obj, self._status_file, self._metrics_url, compact=self._compact, low_contrast=self._low_contrast)
+                self._panel_hashes = dict(hashes)
+                # Metrics init
+                self._diff_total_cycles = 1
+                self._diff_panel_update_hist.append(len(hashes))
+                self._diff_total_panel_updates += len(hashes)
+                return
+            # Determine changed panels
+            changed = [k for k,v in hashes.items() if self._panel_hashes.get(k) != v]
+            self._diff_total_cycles += 1
+            if not changed:
+                self._diff_unchanged_cycles += 1
+            if not changed:
+                logger.debug("[terminal] cycle=%s no panel changes (rich diff)", snap.cycle)
+                if isinstance(status_obj, dict):
+                    status_obj.setdefault("panel_push_meta", {})["diff_stats"] = self._render_diff_stats()
+                return
+            for key in changed:
+                try:
+                    import time as _t
+                    _start = _t.perf_counter_ns()
+                    update_single_panel(self._layout, key, status_obj, self._status_file, self._metrics_url, compact=self._compact, low_contrast=self._low_contrast)
+                    _dur = _t.perf_counter_ns() - _start
+                    self._panel_timing_ns[key] = self._panel_timing_ns.get(key, 0) + _dur
+                    self._panel_timing_calls[key] = self._panel_timing_calls.get(key, 0) + 1
+                    # Metrics: record per-panel render duration & update count
+                    try:
+                        from scripts.summary import summary_metrics as _sm  # local import
+                        _sm.panel_render_seconds_hist.labels(panel=key).observe(_dur / 1_000_000_000)
+                        _sm.panel_updates_total.labels(panel=key).inc()
+                    except Exception:
+                        pass
+                except Exception as e:  # noqa: BLE001
+                    logger.debug("[terminal] panel update failed; falling back full refresh key=%s err=%s", key, e)
+                    refresh_layout(self._layout, status_obj, self._status_file, self._metrics_url, compact=self._compact, low_contrast=self._low_contrast)
+                    self._panel_hashes = dict(hashes)
+                    self._diff_panel_update_hist.append(len(hashes))
+                    self._diff_total_panel_updates += len(hashes)
+                    return
+            for key in changed:
+                self._panel_hashes[key] = hashes[key]
+            self._diff_total_panel_updates += len(changed)
+            self._diff_panel_update_hist.append(len(changed))
+            if len(self._diff_panel_update_hist) > 50:
+                self._diff_panel_update_hist = self._diff_panel_update_hist[-50:]
+            if isinstance(status_obj, dict):
+                meta = status_obj.setdefault("panel_push_meta", {})
+                meta["diff_stats"] = self._render_diff_stats()
+                meta["timing"] = self._render_panel_timing()
+            # Cycle-level metrics update (hit ratio + last updates)
+            try:
+                from scripts.summary import summary_metrics as _sm
+                stats = self._render_diff_stats()
+                _sm.diff_hit_ratio_gauge.set(stats["hit_ratio"])  # already rounded
+                _sm.panel_updates_last_gauge.set(len(changed))
+                # Anomaly churn tracking (changed vs total panels)
+                total_panels = len(hashes)
+                _sm.record_churn(len(changed), total_panels)
+            except Exception:
+                pass
         except Exception as e:  # noqa: BLE001
             logger.warning("TerminalRenderer process error: %s", e)
+
+    def _render_diff_stats(self) -> dict[str, Any]:  # pragma: no cover - simple formatting
+        total_cycles = max(self._diff_total_cycles, 1)
+        hit_ratio = (self._diff_unchanged_cycles / total_cycles) if total_cycles else 0.0
+        avg_updates = (self._diff_total_panel_updates / total_cycles) if total_cycles else 0.0
+        last = self._diff_panel_update_hist[-1] if self._diff_panel_update_hist else None
+        return {
+            "cycles": total_cycles,
+            "unchanged_cycles": self._diff_unchanged_cycles,
+            "hit_ratio": round(hit_ratio, 4),
+            "total_panel_updates": self._diff_total_panel_updates,
+            "avg_updates_per_cycle": round(avg_updates, 3),
+            "last_cycle_updates": last,
+        }
+
+    def _render_panel_timing(self) -> dict[str, Any]:  # pragma: no cover - simple formatting
+        out: dict[str, Any] = {}
+        for k, total_ns in self._panel_timing_ns.items():
+            calls = self._panel_timing_calls.get(k, 0)
+            avg_ns = total_ns / calls if calls else 0
+            out[k] = {
+                "calls": calls,
+                "total_ms": round(total_ns / 1_000_000, 3),
+                "avg_ms": round(avg_ns / 1_000_000, 3),
+            }
+        return out
 
     def teardown(self) -> None:  # pragma: no cover
         if self._live is not None:
@@ -137,7 +258,21 @@ class PanelsWriter(OutputPlugin):  # placeholder + minimal JSON artifact writer
         self._dir = panels_dir
         # Expanded mode can be disabled via env to reduce IO in constrained environments
         import os as _os
-        basic_flag = _os.getenv("G6_PANELS_WRITER_BASIC", "0").lower() in {"1","true","yes","on"}
+        # Centralize via SummaryEnv extension: fallback to direct env read while migration stabilizes
+        try:
+            from scripts.summary.env_config import load_summary_env  # local import
+            try:
+                _env = load_summary_env()
+                # If future field added (panels_writer_basic), prefer it; else fallback to env
+                _basic_cfg = getattr(_env, "panels_writer_basic", None)
+                if _basic_cfg is None:
+                    basic_flag = _os.getenv("G6_PANELS_WRITER_BASIC", "0").lower() in {"1","true","yes","on"}
+                else:
+                    basic_flag = bool(_basic_cfg)
+            except Exception:  # pragma: no cover
+                basic_flag = _os.getenv("G6_PANELS_WRITER_BASIC", "0").lower() in {"1","true","yes","on"}
+        except Exception:  # pragma: no cover
+            basic_flag = _os.getenv("G6_PANELS_WRITER_BASIC", "0").lower() in {"1","true","yes","on"}
         self._expanded = not basic_flag  # if basic flag set, only unified_snapshot.json
         # Lazy import to avoid cost if validation disabled
         self._validate_fn = None
@@ -386,6 +521,12 @@ class MetricsEmitter(OutputPlugin):  # placeholder
         self._families["conflict"] = Gauge("g6_unified_conflict_detected", "1 when legacy panels bridge conflict detected")
         self._families["last_ts"] = Gauge("g6_unified_last_cycle_timestamp", "Last unified cycle completion timestamp")
         self._families["errors_total"] = Counter("g6_unified_errors_total", "Total snapshot build errors")
+        # SSE metrics families (lazy observed if SSE enabled)
+        self._families["sse_events_total"] = Counter("g6_sse_events_total", "Total SSE events emitted")
+        self._families["sse_full_snapshots"] = Counter("g6_sse_full_snapshots_total", "Total SSE full_snapshot events")
+        self._families["sse_panel_updates"] = Counter("g6_sse_panel_updates_total", "Total SSE panel_update events")
+        self._families["sse_heartbeats"] = Counter("g6_sse_heartbeats_total", "Total SSE heartbeat events")
+        self._families["sse_errors"] = Counter("g6_sse_errors_total", "Total SSE error events")
         logger.debug("MetricsEmitter Prometheus families registered")
 
     def setup(self, context: Mapping[str, Any]) -> None:  # pragma: no cover - trivial
@@ -423,6 +564,34 @@ class MetricsEmitter(OutputPlugin):  # placeholder
                 self._families["errors_total"].inc(errors)  # type: ignore[attr-defined]
             self._families["last_ts"].set(time.time())  # type: ignore[attr-defined]
         except Exception:  # pragma: no cover - defensive
+            pass
+
+    def observe_sse_metrics(self, sse_metrics: Mapping[str,int]) -> None:
+        if not self._enabled or not self._have_prom:
+            return
+        try:
+            # We increment counters by delta between provided value and last seen; store last seen in object.
+            prev = getattr(self, '_sse_prev', {}) or {}
+            deltas = {}
+            for k in ("events_total","full_snapshots","panel_updates","heartbeats","errors"):
+                v = int(sse_metrics.get(k, 0))
+                pv = int(prev.get(k, 0))
+                if v > pv:
+                    deltas[k] = v - pv
+            # update prev snapshot
+            self._sse_prev = {k:int(sse_metrics.get(k,0)) for k in ("events_total","full_snapshots","panel_updates","heartbeats","errors")}
+            fam_map = {
+                'events_total': 'sse_events_total',
+                'full_snapshots': 'sse_full_snapshots',
+                'panel_updates': 'sse_panel_updates',
+                'heartbeats': 'sse_heartbeats',
+                'errors': 'sse_errors',
+            }
+            for k, delta in deltas.items():
+                fam = self._families.get(fam_map[k])
+                if fam and delta > 0:
+                    fam.inc(delta)  # type: ignore[attr-defined]
+        except Exception:
             pass
 
     def observe_plugin(self, plugin: str, duration: float, had_error: bool) -> None:

@@ -2,6 +2,7 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 from datetime import datetime, timezone
 import os
+from scripts.summary.env_config import load_summary_env
 import sys
 
 import logging
@@ -31,9 +32,18 @@ def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_cont
 
     def _get_memory_pressure_level(rss_bytes: float) -> tuple[int, str]:
         """Get memory pressure level and description."""
-        level1_mb = float(os.getenv("G6_MEMORY_LEVEL1_MB", "200") or "200")
-        level2_mb = float(os.getenv("G6_MEMORY_LEVEL2_MB", "300") or "300") 
-        level3_mb = float(os.getenv("G6_MEMORY_LEVEL3_MB", "500") or "500")
+        env_cfg = None
+        try:
+            env_cfg = load_summary_env()
+        except Exception:
+            env_cfg = None
+        level1_mb = (env_cfg.memory_level1_mb if env_cfg else 200.0)
+        level2_mb = (env_cfg.memory_level2_mb if env_cfg else 300.0)
+        # Level3 not centralized yet
+        try:
+            level3_mb = float(os.getenv("G6_MEMORY_LEVEL3_MB", "500") or "500")
+        except Exception:
+            level3_mb = 500.0
         
         rss_mb = rss_bytes / (1024 * 1024)
         

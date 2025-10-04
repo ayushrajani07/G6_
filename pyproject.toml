@@ -1,0 +1,105 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "g6-platform"
+# Version managed dynamically via src/version.py:get_version and env override G6_VERSION
+version = "0.0.0-dev"
+description = "G6 Market Data & Analytics Streaming Platform"
+readme = "README.md"
+authors = [
+  { name = "G6 Platform Team" }
+]
+license = { text = "Proprietary" }
+requires-python = ">=3.11"
+keywords = ["market-data", "streaming", "sse", "analytics", "dashboards"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "License :: Other/Proprietary License",
+  "Intended Audience :: Developers",
+  "Topic :: Internet :: WWW/HTTP :: Dynamic Content :: Streaming",
+]
+# Core runtime dependencies (exclude pure dev/test tooling)
+dependencies = [
+  "kiteconnect>=4.0.0",
+  "orjson>=3.8.0",
+  "tenacity>=8.2.0",
+  "filelock>=3.12.0",
+  "pytz>=2023.3",
+  "influxdb-client>=1.36.0",
+  "prometheus-client>=0.17.0",
+  "flask>=3.0.0",
+  "redis>=4.5.0",
+  "psutil>=5.9.0",
+  "orjson>=3.8.0",
+  "python-dotenv>=1.0.0",
+  "fastapi>=0.110.0",
+  "uvicorn[standard]>=0.27.0",
+  "rich>=13.7.0",
+  "PyYAML>=6.0.0",
+  "jsonschema>=4.0.0"
+]
+
+[project.optional-dependencies]
+# Install with: pip install g6-platform[dev]
+dev = [
+  "pytest>=7.4.0",
+  "pytest-asyncio>=0.21.0",
+  "pytest-mock>=3.11.0",
+  "plotly>=5.22.0",
+  "pandas>=2.0.0",
+  "kaleido>=0.2.1",
+  "pre-commit>=3.7.0",
+  "ruff>=0.6.1",
+  "mypy>=1.10.0",
+  "detect-secrets>=1.5.0",
+  "types-requests>=2.32.0.20240914"
+]
+
+sbom = [
+  "cyclonedx-bom>=4.0.0"
+]
+
+[project.urls]
+Homepage = "https://example.invalid/g6"
+Documentation = "https://example.invalid/g6/docs"
+Source = "https://example.invalid/g6/source"
+
+[project.scripts]
+# Provide stable CLI entrypoints wrapping existing scripts
+g6-readiness = "scripts.release_readiness:main"
+g6-pr-checklist = "scripts.pr_checklist:main"
+g6-dashboards-package = "scripts.package_dashboards:main"
+# Future placeholders (to be implemented in this phase)
+g6-release-automation = "scripts.release_automation:main"
+g6-dashboards-diff = "scripts.dashboard_diff:main"
+g6-dashboards-sign = "scripts.sign_dashboards:main"
+g6-sbom = "scripts.gen_sbom:main"
+g6-test-flakiness = "scripts.test_flakiness:main"
+g6-provenance = "scripts.gen_provenance:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.package-data]
+# Include grafana dashboards, prometheus rules, and panels assets in wheel
+"" = [
+  "grafana/dashboards/*.json",
+  "prometheus/*.yml",
+  "data/panels/*.json"
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["*"]
+exclude = ["tests", "scripts"]
+
+[tool.ruff]
+# Mirror existing ruff.toml minimal settings if needed override
+line-length = 120
+
+[tool.g6]
+# Central config for internal tooling (example reserved section)
+version-module = "version:get_version"

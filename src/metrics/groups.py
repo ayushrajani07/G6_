@@ -26,6 +26,7 @@ class MetricGroup(str, Enum):
     ADAPTIVE_CONTROLLER = "adaptive_controller"
     PROVIDER_FAILOVER = "provider_failover"
     EXPIRY_REMEDIATION = "expiry_remediation"
+    LIFECYCLE = "lifecycle"
 
 
 ALWAYS_ON = {

@@ -1,4 +1,8 @@
-"""Storage & persistence related metric registrations (extracted)."""
+"""Storage & persistence related metric registrations (extracted).
+
+Lifecycle hygiene metrics have been extracted to `lifecycle_category` (lifecycle group)
+to keep taxonomy clean.
+"""
 from __future__ import annotations
 from prometheus_client import Counter, Gauge
 

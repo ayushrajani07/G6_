@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Mapping, Any
 import sys
 import os
+from scripts.summary.env_config import load_summary_env
 import hashlib
 
 from .panel_registry import build_all_panels
@@ -19,8 +20,8 @@ class PlainRenderer(OutputPlugin):
     def __init__(self, *, max_width: int = 160) -> None:
         self._max_width = max_width
         self._last_hash: str | None = None
-        # Allow disabling diff suppression (e.g., for logging pipelines) via env flag
-        self._diff_enabled = os.getenv("G6_SUMMARY_PLAIN_DIFF", "1").lower() in ("1","true","yes","on")
+        # Diff suppression always on (legacy G6_SUMMARY_PLAIN_DIFF flag removed 2025-10-03)
+        self._diff_enabled = True
 
     def setup(self, context: Mapping[str, Any]) -> None:  # pragma: no cover - trivial
         pass

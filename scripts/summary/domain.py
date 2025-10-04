@@ -32,6 +32,17 @@ class ResourceInfo:
     memory_mb: Optional[float] = None
 
 @dataclass(frozen=True)
+class StorageInfo:
+    lag: Optional[float] = None  # generic backlog/lag seconds or units
+    queue_depth: Optional[int] = None
+    last_flush_age_sec: Optional[float] = None
+
+@dataclass(frozen=True)
+class PerfInfo:
+    # Placeholder for performance counters (latencies, throughput)
+    metrics: Mapping[str, float] = field(default_factory=dict)
+
+@dataclass(frozen=True)
 class CoverageInfo:
     indices_count: Optional[int] = None
 
@@ -42,6 +53,8 @@ class SummaryDomainSnapshot:
     cycle: CycleInfo
     alerts: AlertsInfo
     resources: ResourceInfo
+    storage: StorageInfo
+    perf: PerfInfo
     coverage: CoverageInfo
     indices: List[str]
 
@@ -147,6 +160,40 @@ def build_domain_snapshot(raw_status: Mapping[str, Any] | None, *, ts_read: Opti
         pass
     resources = ResourceInfo(cpu_pct=cpu_pct, memory_mb=memory_mb)
 
+    # Storage extraction (best-effort)
+    storage = StorageInfo()
+    try:
+        st_obj = raw.get("storage") if isinstance(raw, dict) else None
+        if isinstance(st_obj, dict):
+            lag = st_obj.get("lag") or st_obj.get("backlog")
+            if isinstance(lag, (int, float)):
+                lag_val: float = float(lag)
+            else:
+                lag_val = None  # type: ignore[assignment]
+            depth = st_obj.get("queue_depth") or st_obj.get("pending")
+            if not isinstance(depth, (int, float)):
+                depth = None
+            age = st_obj.get("last_flush_age") or st_obj.get("flush_age_sec")
+            if not isinstance(age, (int, float)):
+                age = None
+            storage = StorageInfo(lag=lag_val, queue_depth=int(depth) if depth is not None else None, last_flush_age_sec=float(age) if age is not None else None)
+    except Exception:
+        pass
+
+    # Performance extraction (coarse)
+    perf = PerfInfo()
+    try:
+        perf_obj = raw.get("performance") if isinstance(raw, dict) else None
+        metrics: Dict[str, float] = {}
+        if isinstance(perf_obj, dict):
+            for k, v in perf_obj.items():
+                if isinstance(v, (int, float)):
+                    metrics[str(k)] = float(v)
+        if metrics:
+            perf = PerfInfo(metrics=metrics)
+    except Exception:
+        pass
+
     coverage = CoverageInfo(indices_count=len(indices) if indices else None)
 
     return SummaryDomainSnapshot(
@@ -156,6 +203,8 @@ def build_domain_snapshot(raw_status: Mapping[str, Any] | None, *, ts_read: Opti
         alerts=alerts,
         resources=resources,
         coverage=coverage,
+        storage=storage,
+        perf=perf,
         indices=indices,
     )
 
@@ -163,6 +212,8 @@ __all__ = [
     "CycleInfo",
     "AlertsInfo",
     "ResourceInfo",
+    "StorageInfo",
+    "PerfInfo",
     "CoverageInfo",
     "SummaryDomainSnapshot",
     "build_domain_snapshot",

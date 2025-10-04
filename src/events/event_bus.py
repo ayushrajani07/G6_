@@ -129,6 +129,24 @@ class EventBus:
         self._coalesce_counts = Counter()
         # Forced full guard bookkeeping (reason -> last forced unixtime) future phase
         self._forced_full_last_reason_ts = {}
+        # Backpressure / degrade state
+        self._degraded_mode = False  # when True future diff events may be downgraded
+        self._m_backpressure_events = None  # Counter labeled by reason
+        self._m_degraded_mode = None  # Gauge 0/1
+        self._backlog_warn = self._env_int('G6_EVENTS_BACKLOG_WARN', int(max_events * 0.6))
+        self._backlog_degrade = self._env_int('G6_EVENTS_BACKLOG_DEGRADE', int(max_events * 0.8))
+        # Adaptive degrade controller (Phase 9)
+        try:
+            from src.events.adaptive_degrade import AdaptiveController  # type: ignore
+            self._adaptive = AdaptiveController()
+        except Exception:  # pragma: no cover - controller optional if import fails
+            self._adaptive = None  # type: ignore
+
+    def _env_int(self, name: str, default: int) -> int:
+        try:
+            return int(os.environ.get(name, str(default)))
+        except Exception:
+            return default
 
     # ------------------------------------------------------------------
     # Internal metric helper utilities (DRY guarded interactions)
@@ -229,11 +247,31 @@ class EventBus:
             raise TypeError("payload must be a dict")
         if not event_type:
             raise ValueError("event_type cannot be empty")
+        import time as _t
+        serialize_start = _t.time()
         with self._lock:
             if coalesce_key:
                 self._evict_coalesced(coalesce_key)
             event_id = self._next_id()
             ts = timestamp_ist or self._now_ist_iso()
+            # Backpressure pre-check: if backlog (prospective) exceeds degrade threshold set degraded mode
+            cur_len_pre = len(self._events)
+            prospective_len = cur_len_pre + 1  # event about to be appended
+            if not self._degraded_mode and prospective_len >= self._backlog_degrade:
+                self._degraded_mode = True
+                EventBus._inc_labeled_metric(getattr(self, '_m_backpressure_events', None), {'reason': 'enter_degraded'})
+                # Notify adaptive controller we entered degraded via static threshold
+                try:
+                    if self._adaptive is not None:
+                        self._adaptive.notify_enter_degraded()
+                except Exception:
+                    pass
+            # If degraded and this is a diff, downgrade payload
+            if self._degraded_mode and event_type == 'panel_diff':
+                try:
+                    payload = {'degraded': True, 'reason': 'backpressure', 'orig_keys': list(payload.keys())[:5]}
+                except Exception:
+                    payload = {'degraded': True, 'reason': 'backpressure'}
             record = EventRecord(
                 event_id=event_id,
                 event_type=event_type,
@@ -252,6 +290,13 @@ class EventBus:
             cur_len = len(self._events)
             if cur_len > self._highwater:
                 self._highwater = cur_len
+            # Warn threshold event (single edge trigger)
+            if cur_len >= self._backlog_warn and getattr(self, '_m_backpressure_events', None) is not None:
+                # Record once per crossing via metric label + gauge reflect state
+                EventBus._inc_labeled_metric(self._m_backpressure_events, {'reason': 'warn_threshold'})
+            # Update degraded mode gauge
+            if self._m_degraded_mode is not None:
+                EventBus._set_gauge(self._m_degraded_mode, 1 if self._degraded_mode else 0)
             # Metrics (lazy registration to avoid import cost when unused)
             self._maybe_register_metrics()
             # New emitted counter & last id gauge
@@ -280,6 +325,15 @@ class EventBus:
                     if event_type in ('panel_full','panel_diff') and 'publish_unixtime' not in record.payload:
                         import time as _t
                         record.payload['publish_unixtime'] = _t.time()
+                    # Trace context (Phase 9) gated by env G6_SSE_TRACE
+                    if event_type in ('panel_full','panel_diff') and os.environ.get('G6_SSE_TRACE','').lower() in ('1','on','true','yes'):
+                        if '_trace' not in record.payload:
+                            try:
+                                import uuid as _uuid, time as _t
+                                trace_id = _uuid.uuid4().hex[:16]
+                                record.payload['_trace'] = {'id': trace_id, 'publish_ts': _t.time()}
+                            except Exception:
+                                pass
                 except Exception:
                     pass
             EventBus._set_gauge(self._m_generation, self._generation)
@@ -304,26 +358,123 @@ class EventBus:
                             pass
                 except Exception:
                     pass
-            return record
+            # Record serialization (shared cache) outside lock after minimal mutation.
+            record_ref = record
+        # Outside lock: perform serialization & latency metrics (best-effort)
+        try:
+            from src.utils.serialization_cache import serialize_event  # type: ignore
+            serialized_bytes = serialize_event(event_type, record_ref.payload if isinstance(record_ref.payload, dict) else {'value': record_ref.payload})
+            serialize_elapsed = max(_t.time() - serialize_start, 0.0)
+            if isinstance(record_ref.payload, dict) and '_serialized_len' not in record_ref.payload:
+                record_ref.payload['_serialized_len'] = len(serialized_bytes)
+            # Trace context: add serialize timestamp + metric
+            if isinstance(record_ref.payload, dict) and os.environ.get('G6_SSE_TRACE','').lower() in ('1','on','true','yes'):
+                try:
+                    tr = record_ref.payload.get('_trace')
+                    if isinstance(tr, dict) and 'serialize_ts' not in tr:
+                        import time as _t2
+                        tr['serialize_ts'] = _t2.time()
+                        # Observe stage counter best-effort
+                        try:
+                            from src.metrics import get_metrics  # type: ignore
+                            m = get_metrics()
+                            if m and hasattr(m, 'sse_trace_stages_total'):
+                                ctr = getattr(m, 'sse_trace_stages_total')
+                                inc = getattr(ctr, 'inc', None)
+                                if callable(inc):
+                                    inc()
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
+            if os.environ.get('G6_SSE_EMIT_LATENCY_CAPTURE','').lower() in ('1','on','true','yes'):
+                try:
+                    from src.metrics import get_metrics  # type: ignore
+                    m = get_metrics()
+                    if m and hasattr(m, 'sse_serialize_seconds'):
+                        m.sse_serialize_seconds.observe(serialize_elapsed)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+            # Adaptive controller update (outside lock) when degraded mode potentially active
+            try:
+                if self._adaptive is not None and self._degraded_mode:
+                    cur_backlog = len(self._events)
+                    # If backlog collapsed sharply below half the configured exit backlog ratio, reset samples to accelerate exit
+                    try:
+                        exit_ratio = getattr(getattr(self._adaptive, 'config'), 'exit_backlog_ratio', 0.4)
+                        if self._max_events > 0 and (cur_backlog / self._max_events) <= (exit_ratio * 0.5):
+                            # Clear internal sample deques (best-effort)
+                            try:
+                                self._adaptive._backlog_samples.clear()  # type: ignore[attr-defined]
+                                self._adaptive._latency_samples.clear()  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+                    decision = self._adaptive.update(backlog=cur_backlog, capacity=self._max_events, serialize_latency_s=serialize_elapsed)
+                    # Record backlog ratio gauge if metrics present
+                    try:
+                        if 'adaptive_backlog_ratio' in dir(__import__('src.metrics', fromlist=['get_metrics']).get_metrics()):  # type: ignore
+                            pass  # fallback path if dynamic detection fails below
+                    except Exception:
+                        pass
+                    try:
+                        from src.metrics import get_metrics  # type: ignore
+                        m = get_metrics()
+                        gauge = getattr(m, 'adaptive_backlog_ratio', None)
+                        if gauge is not None and hasattr(gauge, 'set'):
+                            try:
+                                ratio = max(0.0, min(1.0, cur_backlog / float(self._max_events)))
+                                gauge.set(ratio)
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+                    if decision == 'exit_degraded':
+                        self._degraded_mode = False
+                        EventBus._inc_labeled_metric(getattr(self, '_m_backpressure_events', None), {'reason': 'adaptive_exit'})
+                        if self._m_degraded_mode is not None:
+                            EventBus._set_gauge(self._m_degraded_mode, 0)
+                        try:
+                            self._adaptive.notify_manual_exit()
+                        except Exception:
+                            pass
+                        # Adaptive transition counter
+                        try:
+                            from src.metrics import get_metrics  # type: ignore
+                            m = get_metrics()
+                            ctr = getattr(m, 'adaptive_transitions_total', None)
+                            if ctr is not None and hasattr(ctr, 'inc'):
+                                try:
+                                    ctr.inc()
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+            except Exception:  # pragma: no cover
+                pass
+        except Exception:
+            pass
+        return record_ref
 
     # ------------------------------------------------------------------
-    # Phase 4: Snapshot guard main entrypoint
+    # Snapshot guard (forced full emission logic) re-exposed as method
     # ------------------------------------------------------------------
     def enforce_snapshot_guard(self) -> Optional[EventRecord]:
-        """Force emit a panel_full snapshot if guard conditions breached.
+        """Evaluate snapshot guard and emit a forced panel_full if needed.
 
-        Conditions (all configurable via env):
-          1. Missing baseline: no panel_full ever published and at least one diff seen.
-          2. Generation regression: latest diff payload has _generation lower than bus generation.
-          3. Gap exceeded: (latest_id - last_full_id) > G6_EVENTS_SNAPSHOT_GAP_MAX (default 500).
+        Reasons:
+          - missing_baseline: diffs published but no baseline full yet
+          - gap_exceeded: number of events since last full exceeds threshold
+          - generation_mismatch: latest diff generation < bus generation
 
-        Returns EventRecord if a panel_full was forced, else None.
+        Controlled by env:
+          G6_EVENTS_SNAPSHOT_GAP_MAX (int, default 500)
+          G6_EVENTS_FORCE_FULL_RETRY_SECONDS (cooldown between forced fulls)
         """
-        # Fast reject if no events yet
         with self._lock:
             if not self._events:
                 return None
-            # Identify latest panel_full id
             last_full_id = 0
             for ev in reversed(self._events):
                 if ev.event_type == 'panel_full':
@@ -336,7 +487,6 @@ class EventBus:
                 gap_max = 500
             need_full_reason: Optional[str] = None
             if last_full_id == 0:
-                # Have we emitted any diff? If so baseline missing.
                 for ev in self._events:
                     if ev.event_type == 'panel_diff':
                         need_full_reason = 'missing_baseline'
@@ -344,7 +494,6 @@ class EventBus:
             else:
                 if latest_id - last_full_id > gap_max:
                     need_full_reason = 'gap_exceeded'
-            # Generation mismatch check: latest diff generation lower than bus generation
             if need_full_reason is None:
                 for ev in reversed(self._events):
                     if ev.event_type in ('panel_diff','panel_full') and isinstance(ev.payload, dict):
@@ -354,17 +503,15 @@ class EventBus:
                         break
             if need_full_reason is None:
                 return None
-        # Outside lock: produce snapshot (copy) and publish forced full (coalesce key panel_full)
+        # Build snapshot outside lock
         snap = self.latest_full_snapshot()
         if snap is None:
-            # Build synthetic snapshot from latest diff status if possible
             with self._lock:
                 for ev in reversed(self._events):
                     if ev.event_type == 'panel_diff' and isinstance(ev.payload, dict):
-                        # diff payload does not contain full status; cannot reconstruct -> abort
                         snap = {}
                         break
-        if not self._record_forced_full(need_full_reason):  # cooldown enforced
+        if not self._record_forced_full(need_full_reason):
             return None
         try:
             if isinstance(snap, dict):
@@ -481,6 +628,9 @@ class EventBus:
                 self._m_last_id = _cast(GaugeLike, _safe(_Gauge, 'g6_events_last_id', 'Last emitted event id'))
                 self._m_forced_full_total = _cast(CounterLike, _safe(_Counter, 'g6_events_forced_full_total', 'Forced panel_full emissions by snapshot guard', labelnames=['reason']))
                 self._m_conn_duration = _cast(HistogramLike, _safe(_Histogram, 'g6_events_sse_connection_duration_seconds', 'SSE connection duration in seconds'))
+                # Backpressure metrics
+                self._m_backpressure_events = _cast(CounterLike, _safe(_Counter, 'g6_events_backpressure_events_total', 'Backpressure related events (warn/degrade transitions)', labelnames=['reason']))
+                self._m_degraded_mode = _cast(GaugeLike, _safe(_Gauge, 'g6_events_degraded_mode', 'Degraded mode active (1) or inactive (0)'))
             # If helper path failed to create the last_full gauge, perform a direct best-effort registration.
             if self._m_last_full_unixtime is None:
                 try:

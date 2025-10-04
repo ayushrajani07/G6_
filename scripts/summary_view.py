@@ -1,15 +1,24 @@
 from __future__ import annotations
-# DEPRECATION NOTICE:
-# This module is deprecated in favor of `scripts/summary/app.py` (unified summary application).
-# It is retained only as a thin compatibility layer providing:
-#   * StatusCache
-#   * plain_fallback (used by some tests / plain mode)
-#   * Legacy wrapper functions (indices_panel, analytics_panel, alerts_panel, links_panel, build_layout)
-# New feature work should target the unified summary under scripts/summary/.* and NOT this file.
+"""DEPRECATED summary_view shim.
+
+This file will be removed after the deprecation window (see DEPRECATIONS.md).
+Only retained for:
+    * StatusCache
+    * plain_fallback
+    * Legacy panel wrapper functions (indices_panel, analytics_panel, alerts_panel, links_panel, build_layout)
+
+DO NOT add new functionality here. All new work must target `scripts/summary/app.py`
+and related modular packages.
+
+Removal Plan (proposed):
+    - R+1: Emit runtime deprecation warning on import (already active)
+    - R+2: Convert wrappers to raising ImportError with migration message when env G6_STRICT_DEPRECATIONS=1
+    - R+3: Delete file
+"""
 try:  # Emit a one-time deprecation warning on first import (non-fatal)
     import warnings as _warnings  # noqa: F401
     _warnings.warn(
-        "scripts.summary_view is deprecated; use scripts.summary.app (unified summary). This shim will be removed in a future release.",
+        "scripts.summary_view is deprecated; use scripts.summary.app (unified summary). Removal planned (see DEPRECATIONS.md).",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -39,42 +48,7 @@ except Exception:
     ensure_sys_path()
 from typing import Any, Dict, List, Optional, Tuple, Protocol, Callable
 from datetime import datetime, timezone, timedelta
-try:
-    # Prefer canonical derive helpers from modular summary package
-    from scripts.summary.derive import (
-        fmt_hms_from_dt, fmt_hms, fmt_timedelta_secs, parse_iso,
-        derive_cycle, derive_health, derive_provider, estimate_next_run,
-    )  # noqa: F401
-except Exception:  # pragma: no cover
-    # Fallback: local minimal implementations retained (de-duplicated below if needed)
-    from src.utils.timeutils import format_any_to_ist_hms_30s as _fmt_ist_hms_30s  # type: ignore
-    def fmt_hms_from_dt(dt: datetime) -> str:  # type: ignore
-        try:
-            s = _fmt_ist_hms_30s(dt)
-            if isinstance(s, str):
-                return s
-        except Exception:
-            pass
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        return dt.astimezone(timezone(timedelta(hours=5, minutes=30))).strftime("%H:%M:%S")
-    def fmt_hms(ts: Any) -> Optional[str]:  # type: ignore
-        if isinstance(ts, datetime):
-            return fmt_hms_from_dt(ts)
-        return None
-    def fmt_timedelta_secs(secs: Optional[float]) -> str:  # type: ignore
-        if secs is None: return "—"
-        if secs < 0: secs = 0
-        if secs < 60: return f"{secs:.1f}s"
-        m, s = divmod(int(secs), 60); h, m = divmod(m, 60)
-        return f"{h}h {m}m {s}s" if h else f"{m}m {s}s"
-    def parse_iso(ts: Any) -> Optional[datetime]:  # type: ignore
-        try:
-            if isinstance(ts, (int,float)):
-                return datetime.fromtimestamp(float(ts), tz=timezone.utc)
-        except Exception:
-            return None
-        return None
+from scripts.summary.derive import fmt_hms_from_dt  # narrow import; other helpers unused here
     
 # Optional psutil for local resource collection helpers that still reference it
 try:
@@ -247,87 +221,7 @@ def derive_market_summary(status: Dict[str, Any] | None) -> Tuple[str, str]:  # 
     from scripts.summary.derive import derive_market_summary as _dms  # type: ignore
     return _dms(status)
 
-def _estimate_lines_market(status: Dict[str, Any] | None, interval: Optional[float]) -> int:  # relies on derive module
-    from scripts.summary.derive import derive_market_summary as _dms  # type: ignore
-    state, extra = _dms(status)
-    return max(1, 1 + (1 if interval else 0) + (1 if extra else 0))
-
-
-def _estimate_lines_loop(status: Dict[str, Any] | None, rolling: Optional[Dict[str, Any]], interval: Optional[float]) -> int:
-    from scripts.summary.derive import derive_cycle as _dc, estimate_next_run as _enr  # type: ignore
-    cy = _dc(status)
-    lines = 1
-    if cy.get("last_start"): lines += 1
-    if cy.get("last_duration") is not None: lines += 1
-    if cy.get("success_rate") is not None: lines += 1
-    if rolling and (rolling.get("avg") is not None or rolling.get("p95") is not None):
-        lines += (1 if rolling.get("avg") is not None else 0) + (1 if rolling.get("p95") is not None else 0)
-    if interval and _enr(status, interval) is not None:
-        lines += 1
-    return max(1, lines)
-
-
-def _estimate_lines_health(status: Dict[str, Any] | None, compact: bool) -> int:
-    from scripts.summary.derive import derive_health as _dh  # type: ignore
-    _, _, items = _dh(status)
-    return 1 + min(len(items), 3 if compact else 6)
-
-
-def _estimate_lines_sinks(status: Dict[str, Any] | None) -> int:
-    sinks = status.get("sinks", {}) if status else {}
-    n = 0
-    if isinstance(sinks, dict):
-        n = min(4, len(sinks))
-    # +1 for configured line
-    return 1 + n
-
-
-def _estimate_lines_provider(status: Dict[str, Any] | None) -> int:
-    from scripts.summary.derive import derive_provider as _dp  # type: ignore
-    p = _dp(status)
-    lines = 1
-    if p.get("auth") is not None: lines += 1
-    if p.get("expiry"): lines += 1
-    if p.get("latency_ms") is not None: lines += 1
-    return lines
-
-
-def _estimate_lines_resources(status: Dict[str, Any] | None) -> int:
-    # CPU + Memory
-    return 2
-
-
-def _estimate_lines_analytics(status: Dict[str, Any] | None, compact: bool) -> int:
-    data = (status or {}).get("analytics") if status else None
-    if not isinstance(data, dict):
-        return 1  # placeholder row
-    count = 0
-    # Prefer per-index dict
-    for _, vals in data.items():
-        if isinstance(vals, dict):
-            count += 1
-    if count == 0:
-        # Fall back to global metrics
-        if "max_pain" in data and isinstance(data["max_pain"], dict):
-            count = len(data["max_pain"])  # may be large, will be limited in panel
-        elif "pcr" in data:
-            count = 1
-    limit = 3 if compact else 6
-    return 1 + min(count, limit)  # header + rows
-
-
-def _estimate_lines_alerts(status: Dict[str, Any] | None, compact: bool) -> int:
-    alerts: List[Any] = []
-    if status:
-        alerts = status.get("alerts") or status.get("events") or []
-    count = len(alerts) if isinstance(alerts, list) else 0
-    limit = 1 if compact else 3
-    return 1 + min(count, limit)  # header + rows
-
-
-def _estimate_lines_links(metrics_url: Optional[str]) -> int:
-    # Status file always shown; metrics optional
-    return 1 + (1 if metrics_url else 0)
+## Removed legacy line estimation helpers (migrated to modular panels & layout)
 
 
 def derive_indices(status: Dict[str, Any] | None) -> List[str]:
@@ -414,84 +308,12 @@ This module now primarily provides:
 """
 
 
-def derive_cycle(status: Dict[str, Any] | None) -> Dict[str, Any]:
-    """DEPRECATED: Use scripts.summary.derive.derive_cycle.
-
-    This local implementation remains for backward compatibility with
-    external imports. It will be removed in a future release once callers
-    migrate to the centralized derive module.
-    """
-    d: Dict[str, Any] = {
-        "cycle": None,
-        "last_start": None,
-        "last_duration": None,
-        "success_rate": None,
-    }
-    if not status:
-        return d
-    cycle = status.get("cycle") or status.get("last_cycle")
-    if isinstance(cycle, (int, float)):
-        d["cycle"] = int(cycle)
-    elif isinstance(cycle, dict):
-        d["cycle"] = cycle.get("number")
-        d["last_start"] = cycle.get("start")
-        d["last_duration"] = cycle.get("duration")
-        d["success_rate"] = cycle.get("success_rate")
-    # Support enriched schema under "loop"
-    loop = status.get("loop") if status else None
-    if isinstance(loop, dict):
-        d["cycle"] = d["cycle"] or loop.get("cycle") or loop.get("number")
-        d["last_start"] = d["last_start"] or loop.get("last_run") or loop.get("last_start")
-        d["last_duration"] = d["last_duration"] or loop.get("last_duration")
-    # Alternate keys
-    d["last_start"] = d["last_start"] or status.get("last_cycle_start")
-    d["last_duration"] = d["last_duration"] or status.get("last_cycle_duration")
-    return d
-
-
-def estimate_next_run(status: Dict[str, Any] | None, interval: Optional[float]) -> Optional[float]:
-    """DEPRECATED: Use scripts.summary.derive.estimate_next_run"""
-    if not status or not interval:
-        return None
-    # If enriched schema provides a countdown, prefer it
-    loop = status.get("loop") if isinstance(status, dict) else None
-    if isinstance(loop, dict) and isinstance(loop.get("next_run_in_sec"), (int, float)):
-        return max(0.0, float(loop["next_run_in_sec"]))
-    last_start = derive_cycle(status).get("last_start")
-    if not last_start:
-        return None
-    dt = parse_iso(last_start)
-    if not dt:
-        return None
-    next_dt = dt.timestamp() + float(interval)
-    return max(0.0, next_dt - datetime.now(timezone.utc).timestamp())
+## Removed deprecated derive_cycle / estimate_next_run local shims (use scripts.summary.derive instead)
 
 
 _DERIVE_WARNED = {"health": False, "provider": False}
 
-def derive_health(status: Dict[str, Any] | None) -> Tuple[int, int, List[Tuple[str, str]]]:
-    """DEPRECATED shim. Use scripts.summary.derive.derive_health instead.
-
-    This wrapper will be removed after downstream callers migrate.
-    """
-    global _DERIVE_WARNED
-    if not _DERIVE_WARNED["health"]:
-        import warnings
-        warnings.warn("derive_health imported from summary_view is deprecated; use scripts.summary.derive", DeprecationWarning, stacklevel=2)
-        _DERIVE_WARNED["health"] = True
-    from scripts.summary.derive import derive_health as _h  # lazy import
-    return _h(status)
-
-
-def derive_provider(status: Dict[str, Any] | None) -> Dict[str, Any]:
-    """DEPRECATED shim. Use scripts.summary.derive.derive_provider instead."""
-    global _DERIVE_WARNED
-    if not _DERIVE_WARNED["provider"]:
-        import warnings
-        warnings.warn("derive_provider imported from summary_view is deprecated; use scripts.summary.derive", DeprecationWarning, stacklevel=2)
-        _DERIVE_WARNED["provider"] = True
-    from scripts.summary.derive import derive_provider as _p
-    return _p(status)
+## Removed derive_health / derive_provider legacy shims (callers must update imports)
 
 
 def collect_resources() -> Dict[str, Any]:

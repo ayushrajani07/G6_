@@ -178,8 +178,8 @@ def cmd_full_tests(args: argparse.Namespace) -> int:
 
 
 def cmd_summary(args: argparse.Namespace) -> int:
-    """Launch the summarizer UI (Rich if available, else ASCII)."""
-    cmd = [sys.executable, str(ROOT / 'scripts' / 'summary_view.py')]
+    """Launch the summarizer UI (Rich if available, else ASCII). Uses unified summary/app.py."""
+    cmd = [sys.executable, str(ROOT / 'scripts' / 'summary' / 'app.py')]
     if args.no_rich:
         cmd.append('--no-rich')
     cmd += ['--status-file', args.status_file, '--metrics-url', args.metrics_url, '--refresh', str(args.refresh)]
@@ -191,19 +191,87 @@ def cmd_summary(args: argparse.Namespace) -> int:
 
 
 def cmd_simulate_status(args: argparse.Namespace) -> int:
-    """Run a lightweight simulator that writes runtime_status.json periodically."""
-    cmd = [sys.executable, str(ROOT / 'scripts' / 'status_simulator.py'),
-           '--status-file', args.status_file,
-           '--indices', ','.join(args.indices),
-           '--interval', str(args.interval),
-           '--refresh', str(args.refresh)]
+    """Run the status simulator and optionally inject demo metrics for dashboards.
+
+    When --inject-empty-quotes / --inject-csv-activity are supplied we keep a lightweight
+    background thread that periodically increments Prometheus counters so Grafana panels
+    (Empty Quote Fields, CSV Write Errors, CSV Records Written) show activity during demos.
+    """
+    base_cmd = [sys.executable, str(ROOT / 'scripts' / 'status_simulator.py'),
+                '--status-file', args.status_file,
+                '--indices', ','.join(args.indices),
+                '--interval', str(args.interval),
+                '--refresh', str(args.refresh)]
     if args.cycles:
-        cmd += ['--cycles', str(args.cycles)]
+        base_cmd += ['--cycles', str(args.cycles)]
     if args.open_market:
-        cmd.append('--open-market')
+        base_cmd.append('--open-market')
     if args.with_analytics:
-        cmd.append('--with-analytics')
-    return subprocess.call(cmd)
+        base_cmd.append('--with-analytics')
+
+    inject = args.inject_empty_quotes or args.inject_csv_activity
+    if not inject:
+        return subprocess.call(base_cmd)
+
+    try:
+        from prometheus_client import Counter  # type: ignore
+    except Exception:
+        print('[simulate-status] prometheus_client not available; skipping metric injection.')
+        return subprocess.call(base_cmd)
+
+    # Register required counters (ignore errors if already exist in shared registry)
+    empty_counter = None
+    csv_records = None
+    csv_errors = None
+    try:
+        if args.inject_empty_quotes:
+            empty_counter = Counter('g6_empty_quote_fields_total', 'Count of expiries where all quotes missing volume/oi/avg_price', ['index','expiry_rule'])
+        if args.inject_csv_activity:
+            csv_records = Counter('g6_csv_records_written_total', 'CSV records written')
+            csv_errors = Counter('g6_csv_write_errors_total', 'CSV write errors')
+    except Exception as e:  # noqa: BLE001
+        # Likely duplicate registration. Attempt to locate existing collectors instead of re-registering.
+        print(f'[simulate-status] counter registration issue (reuse existing if possible): {e}')
+        try:
+            from prometheus_client import REGISTRY  # type: ignore
+            # Build a name->sample mapping to confirm existence; direct object retrieval is not public API.
+            existing_names = {c.name for c in REGISTRY.collect()}  # type: ignore[attr-defined]
+            if 'g6_empty_quote_fields_total' in existing_names:
+                # We can't easily get the original Counter object; skip injection for this metric to avoid double counting risk.
+                empty_counter = None
+            if 'g6_csv_records_written_total' in existing_names:
+                csv_records = None
+            if 'g6_csv_write_errors_total' in existing_names:
+                csv_errors = None
+        except Exception:
+            pass
+
+    import random, threading
+    stop_evt = threading.Event()
+
+    def _loop():
+        expiry_rules = ['weekly','monthly']
+        while not stop_evt.is_set():
+            try:
+                if empty_counter is not None:
+                    idx = random.choice(args.indices)
+                    rule = random.choice(expiry_rules)
+                    empty_counter.labels(index=idx, expiry_rule=rule).inc()
+                if csv_records is not None:
+                    csv_records.inc(random.randint(40, 120))
+                    if csv_errors is not None and random.random() < 0.07:
+                        csv_errors.inc()
+            except Exception:
+                pass
+            stop_evt.wait(args.interval)
+
+    t = threading.Thread(target=_loop, name='metric-injector', daemon=True)
+    t.start()
+    try:
+        return subprocess.call(base_cmd)
+    finally:
+        stop_evt.set()
+        t.join(timeout=2)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -251,6 +319,8 @@ def build_parser() -> argparse.ArgumentParser:
     sim.add_argument('--cycles', type=int, default=0, help='Number of updates (0=infinite)')
     sim.add_argument('--open-market', action='store_true', help='Mark market as open')
     sim.add_argument('--with-analytics', action='store_true', help='Include dummy analytics PCR/Max Pain')
+    sim.add_argument('--inject-empty-quotes', action='store_true', help='Inject demo increments for g6_empty_quote_fields_total')
+    sim.add_argument('--inject-csv-activity', action='store_true', help='Inject demo CSV records plus occasional write errors')
     sim.set_defaults(func=cmd_simulate_status)
 
     return p

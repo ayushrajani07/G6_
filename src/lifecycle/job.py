@@ -58,24 +58,57 @@ def _retention_prune(base: pathlib.Path, metrics, now: float) -> int:
     limit = int(os.getenv('G6_LIFECYCLE_RETENTION_DELETE_LIMIT','100') or '100')
     cutoff = now - days * 86400
     deleted = 0
+    start_scan = time.time()
+    candidates = 0
     try:
         for root, _d, files in os.walk(base):
             for f in files:
                 if deleted >= limit:
-                    return deleted
+                    # early exit; still record candidates gauge below
+                    break
                 if not f.endswith('.gz'):
                     continue
                 p = pathlib.Path(root) / f
                 try:
-                    if p.stat().st_mtime < cutoff:
+                    mt = p.stat().st_mtime
+                    if mt < cutoff:
+                        candidates += 1
+                        # Observe candidate age (now - mtime) even if not deleted (limit reached)
+                        if metrics and hasattr(metrics, 'retention_candidate_age_seconds'):
+                            try:
+                                metrics.retention_candidate_age_seconds.observe(now - mt)  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
                         try:
-                            p.unlink()
-                            deleted += 1
+                            if deleted < limit:
+                                p.unlink()
+                                deleted += 1
                         except Exception:
                             pass
+                    else:
+                        # aged candidate must strictly be older than cutoff; not candidate if newer
+                        pass
                 except Exception:
                     continue
     finally:
+        # Record candidates (pre-limit but only counted when aged & eligible) even if zero deletions
+        if metrics and hasattr(metrics, 'retention_candidates'):
+            try:
+                metrics.retention_candidates.set(candidates)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        # Record scan seconds histogram
+        if metrics and hasattr(metrics, 'retention_scan_seconds'):
+            try:
+                metrics.retention_scan_seconds.observe(time.time() - start_scan)  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        # Publish configured delete limit for visibility (last value wins each cycle)
+        if metrics and hasattr(metrics, 'retention_delete_limit'):
+            try:
+                metrics.retention_delete_limit.set(limit)  # type: ignore[attr-defined]
+            except Exception:
+                pass
         if deleted and metrics and hasattr(metrics, 'retention_files_deleted'):
             try:
                 metrics.retention_files_deleted.inc(deleted)
@@ -120,8 +153,18 @@ def run_lifecycle_once(base_dir: str = 'data/g6_data') -> None:
                 continue
     if compressed and metrics and hasattr(metrics, 'compressed_files_total'):
         try:
-            # dynamic metric attribute present only when lifecycle group enabled
-            metrics.compressed_files_total.labels(type='option').inc(compressed)  # type: ignore[attr-defined]
+            # Use batching layer if enabled to reduce contention on hot counter
+            try:
+                from src.metrics.emission_batcher import get_batcher  # type: ignore
+                batcher = get_batcher()
+                if batcher._config.enabled:  # type: ignore[attr-defined]
+                    # Access underlying prometheus client counter via generated attribute
+                    metrics.compressed_files_total.labels(type='option')  # warm ensure label child
+                    batcher.batch_increment(metrics.compressed_files_total, value=compressed, labels={'type':'option'})  # type: ignore[attr-defined]
+                else:
+                    metrics.compressed_files_total.labels(type='option').inc(compressed)  # type: ignore[attr-defined]
+            except Exception:
+                metrics.compressed_files_total.labels(type='option').inc(compressed)  # fallback, type: ignore[attr-defined]
         except Exception:
             pass
     # Retention pruning (after compression so freshly gz files not immediately deleted)

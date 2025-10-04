@@ -61,6 +61,32 @@ This document maps high-level platform concerns to the Grafana dashboards now in
 
 Removed legacy dashboards: `g6_observability.json`, `g6_storage_minimal.json` (superseded by structured thematic boards).
 
+## SSE & Panels Additions (New Dashboards)
+
+Additional focused dashboards introduced in the observability hardening phase:
+
+| UID | File | Purpose | Key Metrics |
+|-----|------|---------|-------------|
+| g6-perf-001 | `grafana/dashboards/g6_perf_latency.json` | SSE publisher build & emit latency, event size & queue pressure | `g6_sse_pub_diff_build_seconds_*`, `g6_sse_pub_emit_latency_seconds_*`, `g6_sse_http_event_size_bytes_*`, `g6_sse_http_event_queue_latency_seconds_*` |
+| g6-sec-001  | `grafana/dashboards/g6_sse_security.json` | Auth / ACL / rate limit & security drops | `g6_sse_http_auth_fail_total`, `g6_sse_http_forbidden_ip_total`, `g6_sse_http_forbidden_ua_total`, `g6_sse_http_rate_limited_total`, `g6_sse_http_security_events_dropped_total` |
+| g6-panels-001 | `grafana/dashboards/g6_panels_integrity.json` | Panels integrity + diff vs full efficiency & need_full episodes | `g6_panels_integrity_ok`, `g6_panels_integrity_fail_total`, `g6_sse_http_events_sent_total{event_type=...}`, `g6_sse_need_full_total` |
+> NOTE: The unified data quality dashboard now uses `g6_panels_integrity_failures_total` (plural) and `g6_panel_diff_writes_total{type=diff|full}` instead of the older `g6_panels_integrity_fail_total` and SSE event_type based queries. Update this table and legacy dashboard JSON (`g6_panels_integrity.json`) when deprecating the old metric names to avoid confusion.
+
+Guidance:
+1. Use Performance board when evaluating latency regressions flagged by readiness performance budgets.
+2. Use Security board during incident response for suspicious connection churn or auth failures.
+3. Use Panels board to confirm diff dominance after deploys and to correlate integrity failures with need_full recoveries.
+
+Recommended Alert Seeds (extend existing ruleset):
+| Condition | Expression (example) | Window |
+|-----------|----------------------|--------|
+| High diff build latency | `histogram_quantile(0.95, sum(rate(g6_sse_pub_diff_build_seconds_bucket[10m])) by (le)) > 0.012` | 10m |
+| Elevated security drops | `sum(rate(g6_sse_http_security_events_dropped_total[5m])) > 1` | 5m |
+| Diff ratio below target | `(sum(rate(g6_sse_http_events_sent_total{event_type="panel_diff"}[15m])) / sum(rate(g6_sse_http_events_sent_total{event_type=~"panel_diff|full_snapshot"}[15m]))) < 0.85` | 15m |
+| Need full spike | `sum(rate(g6_sse_need_full_total[5m])) > 0` | 5m |
+
+Import & provisioning follow the same pattern (shared `DS_PROM` variable). Increment the dashboard `version` field when adding panels.
+
 ## Suggested Recording Rules
 (Implemented separately — see `prometheus/recording_rules.yml` once added.)
 

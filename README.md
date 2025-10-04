@@ -30,12 +30,12 @@ pip install -r requirements.txt
 $env:G6_USE_MOCK_PROVIDER='1'
 python scripts/run_orchestrator_loop.py --config config/g6_config.json --interval 30 --cycles 2
 
-# Launch summary (Rich if available, falls back to plain)
-python scripts/summary_view.py --refresh 1
+# Launch summary (unified loop; Rich if available, automatic plain renderer with --no-rich)
+python -m scripts.summary.app --refresh 1
 
 # Simulator + summary demo (panels auto-managed)
 python scripts/status_simulator.py --status-file data/runtime_status_demo.json --indices NIFTY,BANKNIFTY,FINNIFTY,SENSEX --interval 60 --refresh 0.1 --open-market --with-analytics --cycles 1
-python scripts/summary_view.py --refresh 0.5 --status-file data/runtime_status_demo.json
+python -m scripts.summary.app --refresh 0.5 --status-file data/runtime_status_demo.json
 ```
 
 VS Code Tasks (recommended):
@@ -53,7 +53,7 @@ VS Code Tasks (recommended):
 | Analytics | `src/analytics/option_greeks.py`, `src/analytics/option_chain.py` | IV estimation, Greeks, PCR, breadth |
 | Storage | `src/storage/csv_sink.py`, `src/storage/influx_sink.py` | Persistent per‑option & overview writes |
 | Metrics | `src/metrics/metrics.py` | Registration, grouped gating, metadata dump |
-| Panels & Summary | `scripts/summary_view.py`, `src/panels/*` | Real‑time textual panels & JSON artifact emission |
+| Panels & Summary | `scripts/summary/app.py`, `src/panels/*` | Real‑time textual panels & JSON artifact emission |
 | Panel Integrity | `src/panels/validate.py` | Manifest hash verification & schema validation |
 | Health & Resilience | `src/health/*`, `src/utils/*` | Circuit breakers, retries, memory pressure, symbol hygiene |
 | Token / Auth | `src/tools/token_manager.py`, `src/tools/token_providers/*` | Provider token acquisition (headless & interactive) |
@@ -73,7 +73,7 @@ Legend: [C] Completed & stable  |  [P] Planned / design accepted  |  [IP] In Pro
 | Adaptive / Cardinality | `adaptive/`, `metrics/cardinality_manager.py` | Dynamic emission gating & adaptive detail modes | [IP] | Additional feedback loops & band window tuning (P) |
 | Storage CSV | `storage/csv_sink.py` | Durable per-option & overview rows | [C] | Retention / pruning engine (P) |
 | Storage Influx | `storage/influx_sink.py` | Optional time-series writes | [C] | Evaluate migration to client batching (P) |
-| Panels Writer & Summary | `panels/`, `scripts/summary_view.py`, `summary/` | Real-time textual + JSON panels emission | [C] | Per-index enrichment additions (P) |
+| Panels Writer & Summary | `panels/`, `scripts/summary/app.py`, `summary/` | Real-time textual + JSON panels emission | [C] | Per-index enrichment additions (P) |
 | Panel Integrity | `panels/validate.py`, `panels/integrity_monitor.py` | Hash manifest, integrity verification loop | [C] | Consider checksum streaming API (P) |
 | Metrics Facade | `metrics/__init__.py`, `metrics/metrics.py` | Registry acquisition, grouped registration, placeholders | [IP] | Continued modular extraction (Phase 3.x) |
 | Metrics Group Registry | `metrics/group_registry.py`, `metrics/placeholders.py` | Controlled families, always-on safety sets | [C] | Monitor for alias deprecation removals (D: `perf_cache` soon) |
@@ -158,6 +158,16 @@ Guidelines:
 
 Related: `docs/env_dict.md`, `docs/CONFIG_FEATURE_TOGGLES.md`, `docs/ENVIRONMENT.md`.
 
+### 6.1.1 Automation Enhancements (CI)
+The following automation layers reinforce governance and performance:
+| Workflow | Purpose | Notes |
+|----------|---------|-------|
+| `pr-checklist.yml` | Strict gating (env docs, readiness run) | Fails PR if critical items missing |
+| `pr-checklist-comment.yml` | Posts/upserts a summarized checklist comment | Uses `--summary-line` output for quick scan |
+| `nightly-sse-soak.yml` | Long-run SSE stability monitoring | Soft-fail; artifacts retained (gaps, reconnect counts) |
+
+The checklist script (`scripts/pr_checklist.py`) supports a compact machine-readable line (`--summary-line`) consumed by the PR comment workflow, while full markdown is retained for manual audit.
+
 ### 6.2 Config Key Governance
 * Test: `tests/test_config_doc_coverage.py`
 * Schema sync: `tests/test_config_schema_doc_sync.py`
@@ -184,6 +194,83 @@ Infinite retention (no auto pruning) by design; see `docs/RETENTION_POLICY.md` f
 
 ## 7. Metrics & Observability
 Prometheus exporter embedded. Metrics grouped & gated to control cardinality.
+
+### 7.1 SSE Streaming Security & Hardening
+See `docs/SSE_SECURITY.md` for end-to-end details on:
+* Authentication & IP allow list
+* Per-IP connection rate limiting
+* User-Agent allow list enforcement
+* Request correlation (X-Request-ID)
+* Event size truncation & sanitization
+* Metrics reference (counters + histograms)
+* Structured diff mode & latency tracking
+
+The SSE server (and unified HTTP server) now auto-enable when summary runs; legacy gating flags are ignored (documented in the security guide). Use `G6_DISABLE_RESYNC_HTTP=1` only if you must disable the resync endpoint.
+
+### 7.2 Structured Diff & Clients (Phase 7)
+Structured diff mode (`G6_SSE_STRUCTURED=1`) emits `panel_diff` events containing only changed panels instead of `panel_update` lists. Reference clients:
+* Python: `clients/python_sse_client.py` (reconnect, state merge, heartbeat handling)
+* JavaScript: `clients/js_sse_client.js` (Node/browser compatible, manual SSE frame parsing)
+
+### 7.3 Performance Instrumentation & Benchmark
+Optional publisher performance profiling: set `G6_SSE_PERF_PROFILE=1` to enable histograms:
+* `g6_sse_pub_diff_build_seconds`
+* `g6_sse_pub_emit_latency_seconds`
+
+Micro-benchmark harness:
+```powershell
+python scripts/bench_sse_loop.py --cycles 500 --panels 80 --change-ratio 0.15 --structured
+```
+Outputs per-cycle processing latencies (avg/p50/p95/p99) and events/sec.
+
+### 7.4 Release Readiness Automation
+Pre-release gate script consolidates critical checks:
+```powershell
+python scripts/release_readiness.py --strict --check-deprecations --check-sse --check-metrics
+```
+Optional short performance smoke:
+```powershell
+python scripts/release_readiness.py --check-sse --bench --bench-cycles 120
+```
+Ensures env docs coverage, absence of deprecated scripts, core SSE security metrics presence, and initial event emission.
+
+### 7.5 Soak & Stability Harness
+Long-running stability validation for SSE streaming:
+```powershell
+python scripts/sse_soak.py --duration 900 `
+  --budget-max-reconnects 5 `
+  --budget-max-gap-p95 12 `
+  --budget-max-rss-growth-mb 50
+```
+Outputs aggregate stats (events, reconnects, p95 inter-event gap, RSS growth). Non-zero exit on any budget breach; integrate into nightly CI for regression detection. RSS sampling uses psutil when available or /proc fallback.
+
+### 7.6 Performance Budgets (Benchmark Gate)
+Synthetic micro-benchmark latency enforcement via readiness script:
+```powershell
+python scripts/release_readiness.py --perf-budget-p95-ms 5.0 `
+  --perf-budget-cycles 220 `
+  --perf-budget-panels 70 `
+  --perf-budget-change-ratio 0.12 `
+  --perf-budget-structured
+```
+Fails if `SSEPublisher.process()` p95 latency exceeds budget. Use alongside `--strict --check-deprecations --check-env` for holistic gating.
+
+### 7.7 Grafana Dashboards (Extended)
+Additional focused dashboards for SSE performance, security, and panels integrity are provided under `grafana/dashboards/`:
+| Domain | File | Purpose |
+|--------|------|---------|
+| SSE Performance | `g6_perf_latency.json` | Diff build & emit latency, queue delay, event size distribution |
+| SSE Security | `g6_sse_security.json` | Auth failures, forbidden IP/UA, rate limiting, security drops |
+| Panels Integrity | `g6_panels_integrity.json` | Diff vs full ratio, integrity health, need_full episodes |
+
+See `docs/OBSERVABILITY_DASHBOARDS.md` for PromQL mappings, alert suggestions, and provisioning notes.
+
+### 7.8 Dashboard Distribution Bundle
+Package all production dashboards and a manifest with:
+```powershell
+python scripts/package_dashboards.py --version 1.0.0 --out dist
+```
+Outputs: `dashboards_<ver>.tar.gz`, checksum, and `dashboards_manifest_<ver>.json`. See `docs/DASHBOARD_DISTRIBUTION.md` for integrity verification and CI automation (workflow `dashboards-package.yml`).
 
 ### 7.0 Metrics Modularization Facade (2025-10)
 The historical monolithic `src/metrics/metrics.py` has begun phased extraction into smaller focused modules while preserving backward compatibility. A lightweight facade in `src/metrics/__init__.py` now exposes the stable public API:
@@ -325,7 +412,7 @@ _No metric annotations found._
 <!-- METRICS_GLOSSARY_END -->
 
 ### 7.3 Observability Surfaces
-1. Summary dashboard (`scripts/summary_view.py` Rich / plain)
+1. Summary dashboard (`scripts/summary/app.py` Rich / plain)
 2. Panels JSON artifacts (consumable by lightweight UI or tests)
 3. Grafana dashboards over Prometheus metrics (`grafana/` JSON)
 4. (Deprecated) Standalone FastAPI web dashboard → replaced by above; remaining code is legacy and subject to removal.
@@ -466,6 +553,304 @@ coverage xml && python scripts/coverage_hotspots.py --json > prev_hotspots.json
 coverage xml && python scripts/coverage_hotspots.py --baseline prev_hotspots.json --top 15
 ```
 
+## 21. Release Automation & Supply Chain Tooling (New)
+
+### 21.1 Unified Release Orchestrator
+`g6-release-automation` (wrapper for `scripts/release_automation.py`) bundles readiness, dashboard packaging, optional signing, and SBOM generation into a single JSON-emitting step.
+
+Example (local dry run, manifest only):
+```powershell
+g6-release-automation --manifest-only --perf-budget-p95-ms 5 --perf-budget-panels 60 --perf-budget-cycles 160 --sbom --allow-soft-fail sign
+```
+JSON summary fields:
+| Field | Meaning |
+|-------|---------|
+| `version` | Resolved version (env / git describe / explicit) |
+| `stages.readiness.ok` | Readiness script succeeded |
+| `stages.dashboards.manifest` | Path to generated manifest |
+| `stages.dashboards.archive` | Archive path (if built) |
+| `stages.sign` | Signing result / skipped reason |
+| `stages.sbom` | SBOM artifact path |
+
+GitHub Workflow: `.github/workflows/release-automation.yml` triggers on tag `v*` and creates a GitHub Release with attached dashboards + SBOM.
+
+### 21.2 Dashboard Diff & Changelog
+`dashboard_diff` compares two manifests, producing added / removed / changed lists and prepending to `CHANGELOG_DASHBOARDS.md`.
+```powershell
+python scripts/dashboard_diff.py --prev dist/dashboards_manifest_v1.1.0.json `
+  --curr dist/dashboards_manifest_v1.2.0.json --version v1.2.0 `
+  --changelog CHANGELOG_DASHBOARDS.md --json
+```
+Use with CI to fail if no changes when a dashboard-only release is expected (`--fail-if-no-change`).
+
+### 21.3 Dashboard Signing
+`sign_dashboards.py` adds detached integrity metadata for packaged dashboards.
+Priority: Ed25519 key (base64 private) via `G6_SIGN_KEY`; fallback HMAC via `G6_SIGN_SECRET` if key absent.
+```powershell
+python scripts/sign_dashboards.py --archive dist/dashboards_1.2.0.tar.gz
+```
+Outputs `<archive>.sig` JSON metadata (algorithm, public key when Ed25519). Verification:
+```powershell
+python scripts/sign_dashboards.py --archive dist/dashboards_1.2.0.tar.gz --verify --signature dist/dashboards_1.2.0.tar.gz.sig --public-key <base64_pub>
+```
+
+### 21.4 SBOM Generation
+`gen_sbom.py` emits CycloneDX-lite JSON (`sbom_<version>.json`). Workflow `.github/workflows/sbom.yml` publishes artifacts on `main` pushes and tags. Enable partial hashing with:
+```
+G6_SBOM_INCLUDE_HASH=1
+```
+(_Partial hashing limits scanned files for performance_).
+
+### 21.5 Prometheus Recording & Alert Rules (SSE Extensions)
+Added files:
+| File | Purpose |
+|------|---------|
+| `prometheus/recording_rules_g6.yml` | Derived SSE rates, diff ratio, latency p95, security drops |
+| `prometheus/alert_rules_g6.yml` | Queue latency, diff efficiency, security drop, auth failure, rate-limited spikes |
+
+Key Derived Metrics:
+| Record | Description |
+|--------|-------------|
+| `g6_sse_panel_diff_ratio_15m` | Efficiency ratio (diff vs diff+full) |
+| `g6_sse_http_event_queue_latency_p95_5m` | Enqueue→write p95 |
+| `g6_sse_http_security_drop_rate_5m` | Sanitization drop rate |
+
+Alert Threshold Rationale:
+| Condition | Threshold | Justification |
+|-----------|-----------|---------------|
+| Queue p95 warn | 400ms | Above typical internal budget (diff build+emit < ~200ms) |
+| Queue p95 crit | 750ms | Indicates backlog or client blocking writes |
+| Diff ratio warn | <0.85 | Efficiency regression; more full snapshots than expected |
+| Security drops | >1/s | Sustained anomalies / malicious clients |
+
+### 21.6 Flaky Test & Slow Test Profiler
+`test_flakiness.py` executes multiple pytest runs (default 3):
+```powershell
+python scripts/test_flakiness.py --runs 5 --json --fail-on-flaky
+```
+JSON output includes `flaky`, `always_fail`, and `top_slow` arrays. Integrate as an optional CI job to quarantine unstable tests early.
+
+### 21.7 CLI Entry Points Summary
+| Command | Script | Purpose |
+|---------|--------|---------|
+| `g6-readiness` | `release_readiness.py` | Pre-release gate & perf budget |
+| `g6-pr-checklist` | `pr_checklist.py` | PR governance summary line / markdown |
+| `g6-dashboards-package` | `package_dashboards.py` | Bundle dashboards + manifest |
+| `g6-dashboards-diff` | `dashboard_diff.py` | Manifest diff + changelog update |
+| `g6-dashboards-sign` | `sign_dashboards.py` | Sign / verify dashboard archive |
+| `g6-release-automation` | `release_automation.py` | Orchestrated release pipeline |
+| `g6-sbom` | `gen_sbom.py` | CycloneDX-lite SBOM generation |
+| `g6-test-flakiness` | `test_flakiness.py` | Flaky & slow test detection |
+
+### 21.8 Operational Workflow (End-to-End)
+1. Developer adds/updates dashboards & code.
+2. PR triggers checklist + readiness (strict). Nightly soak keeps latency budgets honest.
+3. Tag push (`vX.Y.Z`): release workflow runs orchestrator → readiness, packaging, (optional sign), SBOM, GitHub Release.
+4. (Optional) Dashboard diff job compares previous version manifest to generate changelog.
+5. Prometheus ingests new recording/alert rules; Grafana dashboards auto-refresh reflect new derived metrics.
+
+### 21.9 Future Enhancements (Planned)
+| Area | Candidate |
+|------|-----------|
+| Signing | Cosign-style OCI artifact attestation |
+| SBOM | Merge with `pip_audit` vulnerability snapshot |
+| Release | Provenance statement (SLSA draft) |
+| Flakiness | Historical trend storage & regression gating |
+| Alerts | Adaptive thresholds (EWMA-based) |
+
+### 21.10 Provenance Statement (Experimental v0)
+Lightweight supply-chain provenance describing release artifacts.
+
+Generation (included automatically in tag release workflow):
+```powershell
+g6-release-automation --provenance --sbom --sign --allow-soft-fail sign
+```
+Standalone:
+```powershell
+g6-provenance --version 1.2.3 --auto
+```
+Outputs: `dist/provenance_<version>.json` (schema `g6.provenance.v0`).
+
+Key Fields:
+| Field | Purpose |
+|-------|---------|
+| `builder` | Tool & version producing artifacts |
+| `source.git_commit` | Immutable commit identifier |
+| `artifacts[]` | Each artifact with sha256 + size |
+| `signing` | Archive signature metadata (if present) |
+| `metrics_snapshot` | Alert threshold context baked into release |
+
+Verification:
+```powershell
+python scripts/verify_provenance.py --provenance dist/provenance_1.2.3.json --strict
+```
+JSON mode (`--json`) facilitates pipeline gating. Fails on checksum mismatch or missing artifacts.
+
+Signing (optional): run release automation with `--sign` to produce archive signature; provenance JSON captures algorithm & public key (Ed25519). Future enhancement may sign the provenance file itself.
+
+Trust Model: Provides evidence of artifact origin & integrity; does not yet attest build steps or environment reproducibility. Suitable as a precursor to in-toto/SLSA integration.
+
+## 22. Adaptive Degrade Exit, Flush Latency & Tracing (Phase 9)
+Focus: minimize time spent in degraded mode while preventing thrash, add server publish→flush latency visibility, and introduce lightweight end‑to‑end trace context.
+
+Motivation:
+* Static thresholds (Phase 8) entered degraded mode but used only backlog size to exit → risk of lingering longer than needed.
+* Operators lacked direct metric for publish→flush latency (only serialization phase captured).
+* Difficult to correlate serialization vs flush without a minimal trace timeline.
+
+### 22.1 Adaptive Degrade Exit Controller
+File: `src/events/adaptive_degrade.py`
+
+State Machine:
+| State | Meaning |
+|-------|---------|
+| NORMAL | Not degraded |
+| DEGRADED | Static threshold triggered (diff minimization active) |
+| EXIT_PENDING | Exit pre‑conditions satisfied; hysteresis window validating stability |
+
+Exit Preconditions (evaluated while degraded):
+1. Average backlog ratio over sliding window ≤ `G6_ADAPT_EXIT_BACKLOG_RATIO`.
+2. P95 serialization latency within budget (`G6_ADAPT_LAT_BUDGET_MS`).
+3. Minimum samples collected (`G6_ADAPT_MIN_SAMPLES`).
+4. Stability persists for entire `G6_ADAPT_EXIT_WINDOW_SECONDS` while in EXIT_PENDING.
+
+On success: transition emits `'exit_degraded'`; caller restores normal diff behavior and increments `g6_adaptive_transitions_total{reason="exit"}`.
+
+Hysteresis / Anti‑Thrash:
+* Cooldown (`G6_ADAPT_REENTRY_COOLDOWN_SECONDS`) timestamp recorded on exit (used by caller logic to avoid immediate re‑entry loops—future enhancement may expose a labeled metric for re‑entry suppression events).
+* Abort exit if backlog or latency regress before window elapses (revert to DEGRADED).
+
+Metrics:
+| Metric | Type | Description |
+|--------|------|-------------|
+| `g6_adaptive_backlog_ratio` | Gauge | Latest backlog ratio sample (0‑1) |
+| `g6_adaptive_transitions_total{reason}` | Counter | Transition counts (`exit`, future: `enter`, `abort`) |
+
+Environment Variables (Adaptive):
+| Var | Default | Purpose |
+|-----|---------|---------|
+| `G6_ADAPT_EXIT_BACKLOG_RATIO` | 0.4 | Target avg backlog ratio to start exit sequence |
+| `G6_ADAPT_EXIT_WINDOW_SECONDS` | 5.0 | Stability window length / EXIT_PENDING dwell |
+| `G6_ADAPT_LAT_BUDGET_MS` | 50.0 | P95 serialization latency budget |
+| `G6_ADAPT_REENTRY_COOLDOWN_SECONDS` | 10.0 | Cooldown after exit before allowing new degraded period |
+| `G6_ADAPT_MIN_SAMPLES` | 10 | Min samples before evaluating exit conditions |
+
+Operational Guidance:
+* Lower `EXIT_BACKLOG_RATIO` only if you observe frequent oscillations; too low increases dwell time.
+* Increase `LAT_BUDGET_MS` if legitimate spikes (e.g., large full snapshot) delay exit; prefer optimizing serialization first.
+* Shorten `EXIT_WINDOW_SECONDS` cautiously—very small windows (<2s) may cause flapping under bursty load.
+
+### 22.2 Flush Latency Instrumentation
+Metric: `g6_sse_flush_latency_seconds` (Histogram)
+Scope: Measures server internal publish timestamp → network flush (write + flush to `wfile`).
+Buckets: `[1ms,2ms,5ms,10ms,20ms,50ms,100ms,200ms,500ms,1s]`.
+Activation: `G6_SSE_FLUSH_LATENCY_CAPTURE=1`.
+
+Interpretation:
+* P95 > 100ms indicates I/O contention or downstream client slowness.
+* Divergence between `sse_serialize_seconds` p95 and flush p95 highlights network / write path bottlenecks vs serialization CPU.
+
+### 22.3 Lightweight Trace Context
+When `G6_SSE_TRACE=on`, each event payload embeds a `_trace` dict:
+| Field | Description |
+|-------|-------------|
+| `id` | Monotonic or UUID style identifier (per event) |
+| `publish_ts` | Timestamp captured at `EventBus.publish` entry |
+| `serialize_ts` | Timestamp after serialization (if instrumentation enabled) |
+| `flush_ts` | Timestamp just before/after flush in SSE HTTP handler |
+
+Metric: `g6_sse_trace_stages_total` increments per stage (serialize + flush) aiding detection of stalled stage emission (alert uses rate). Future work may add client apply timestamp for full diff→apply latency.
+
+### 22.4 Snapshot Guard (Re‑exposed)
+Method `enforce_snapshot_guard` reinstated to guarantee full snapshot emission after certain diff patterns—ensures downstream parity correctness post degraded recovery.
+
+### 22.5 Alerting Extensions
+Added (Prometheus) conditions (file: `prometheus_rules.yml`):
+| Alert | Condition (example) | Purpose |
+|-------|---------------------|---------|
+| FlushLatencyHigh | `p95 > 0.1s` sustained | Early I/O / write path pressure |
+| FlushLatencyCritical | `p95 > 0.25s` | Severe downstream blockage |
+| AdaptiveDegradedStuck | `g6_events_degraded_mode==1` AND no exit > window | Detect lingering degraded state |
+| TraceStagesStalled | Low rate of `g6_sse_trace_stages_total` while publishes occur | Trace pipeline stall |
+| AdaptiveNoRecentExits | No `exit` transition over long horizon while degraded periods observed | Mis-tuned thresholds or logic fault |
+
+Tune thresholds based on baseline post‑deployment—initial suggestions: warn at 100ms, crit at 250ms for flush p95.
+
+### 22.6 Testing Additions
+`tests/test_adaptive_trace.py` accelerates controller timing via env overrides (tiny window, minimal samples) to deterministically assert exit & cooldown behavior without long sleeps. Snapshot guard tests validate post‑publish enforcement.
+
+### 22.7 Future Enhancements (Planned)
+| Area | Candidate |
+|------|----------|
+| Tracing | Add diff→apply client timestamp to realize full E2E latency metric |
+| Adaptive | Labelled transitions (`enter`, `abort_exit`) & reentry suppression counter |
+| Metrics | Rolling backlog variance gauge for burstiness detection |
+| Alerts | Dynamic adaptive latency budget (EWMA) experiment |
+
+### 22.8 Quick Ops Checklist
+1. Enable tracing (temp) for diagnosis: `G6_SSE_TRACE=1` (disable in steady state to keep payload lean).
+2. Enable flush latency histogram in staging to baseline p95 before production: `G6_SSE_FLUSH_LATENCY_CAPTURE=1`.
+3. Monitor `g6_adaptive_backlog_ratio` & transitions counter after synthetic load—ensure exit within target window.
+4. Set alert thresholds once p95 steady (<50ms typical); adjust budgets only after verifying no serialization regression.
+
+---
+
+## 22. Performance & Scalability Enhancements (Phase 8)
+Focus: reduce CPU per fan-out, add observability for serialization and backlog health, introduce controlled degrade mode.
+
+New Components:
+- Serialization Cache (`utils/serialization_cache.py`): LRU keyed by (event_type, payload hash).
+- Backpressure & Degraded Mode in Event Bus: thresholds trigger diff downgrades to conserve resources.
+- Benchmark Harness: `scripts/perf_bench.py` produces latency & cache efficiency snapshot.
+
+Environment Variables:
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `G6_SERIALIZATION_CACHE_MAX` | 1024 | Max cached payload encodings (0 disables) |
+| `G6_SERIALIZATION_CACHE_HASH` | sha256 | Hash mode (sha256|fast) |
+| `G6_SSE_EMIT_LATENCY_CAPTURE` | off | Enable serialization latency histogram |
+| `G6_EVENTS_BACKLOG_WARN` | 60% max | Backlog size warning threshold |
+| `G6_EVENTS_BACKLOG_DEGRADE` | 80% max | Enter degraded mode (diffs replaced) |
+
+Metrics Added:
+- `g6_serial_cache_hits_total`, `g6_serial_cache_misses_total`, `g6_serial_cache_evictions_total`, `g6_serial_cache_size`, `g6_serial_cache_hit_ratio`
+- `g6_sse_serialize_seconds` (histogram serialization latency)
+- `g6_events_backpressure_events_total{reason}` (warn_threshold, enter_degraded)
+- `g6_events_degraded_mode` (gauge 0/1)
+
+Operational Flow:
+1. Normal: panel_diff events serialized once; cache yields high hit ratio with many subscribers.
+2. Warn Threshold: metric increments; monitor capacity planning.
+3. Degraded Mode: further panel_diff events replaced by minimal marker payload until backlog recovers.
+
+Benchmark Example:
+```powershell
+python scripts/perf_bench.py --events 1000 --panel-diffs 200 --subscribers 800 --json
+```
+Sample Output:
+```json
+{
+  "events": 1000,
+  "panel_diffs": 200,
+  "subscribers": 800,
+  "serialize_p95_ms": 1.4,
+  "cache_hit_ratio": 0.82,
+  "avg_payload_bytes": 540.0
+}
+```
+
+Tuning Guidance:
+- Increase `G6_SERIALIZATION_CACHE_MAX` if hit ratio < 0.5 and memory headroom available.
+- Use `fast` hash mode for lower CPU at small collision risk (suitable when payload variance high and integrity validated elsewhere).
+- Set explicit numeric `G6_EVENTS_BACKLOG_WARN/DEGRADE` for deterministic thresholds in load tests.
+- Alert on sustained `g6_events_degraded_mode == 1` > 2m (indicates persistent overload or consumer slowness).
+
+Future Extensions:
+- Flush latency measurement (publish -> client flush) histogram.
+- Adaptive backlog scaling & dynamic degrade exit criteria.
+- Memory growth sentinel metrics.
+
+
 ## Panels & Manifest Integrity Monitor
 
 An optional background thread periodically verifies that emitted panel files match the hashes recorded in `manifest.json` (panels directory). Disabled by default for zero overhead.
@@ -556,7 +941,7 @@ Operational Guidance:
 
 Example:
 ```
-G6_PANELS_VALIDATE=strict python scripts/summary_view.py --refresh 1
+G6_PANELS_VALIDATE=strict python -m scripts.summary.app --refresh 1
 ```
 
 Future Enhancements (candidates):

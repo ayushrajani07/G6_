@@ -22,8 +22,8 @@ Register-EngineEvent -SourceIdentifier PowerShell.Exiting -SupportEvent -Action 
 }
 
 try {
-    # Start the main dashboard
-    & "C:/Users/ASUS/Documents/G6/qq/g6_reorganized/.venv/Scripts/python.exe" scripts/summary_view.py --refresh 2
+    # Start the unified summary app (legacy summary_view.py removed 2025-10-03)
+    & "C:/Users/ASUS/Documents/G6/qq/g6_reorganized/.venv/Scripts/python.exe" -m scripts.summary.app --refresh 2
 }
 finally {
     Write-Host "`nCleaning up..." -ForegroundColor Yellow

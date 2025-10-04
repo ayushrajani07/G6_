@@ -5,7 +5,8 @@ consume identical structured content. Rich renderers can still choose to
 provide more elaborate formatting later (Phase 2+).
 """
 from __future__ import annotations
-from typing import List, Sequence
+from typing import List, Sequence, Dict
+import time
 from .panel_types import PanelData, PanelProvider
 from .domain import SummaryDomainSnapshot
 
@@ -53,20 +54,102 @@ class ResourcesPanelProvider:
         ]
         return PanelData(key=self.key, title="Resources", lines=lines, meta={"cpu_pct": r.cpu_pct, "memory_mb": r.memory_mb})
 
+class StoragePanelProvider:
+    key = "storage"
+    def build(self, snapshot: SummaryDomainSnapshot) -> PanelData:  # pragma: no cover - thin
+        s = snapshot.storage
+        lines = [
+            f"lag: {s.lag:.2f}" if isinstance(s.lag, (int,float)) else "lag: —",
+            f"queue_depth: {s.queue_depth}" if s.queue_depth is not None else "queue_depth: —",
+            f"last_flush_age_sec: {s.last_flush_age_sec:.2f}" if isinstance(s.last_flush_age_sec, (int,float)) else "last_flush_age_sec: —",
+        ]
+        return PanelData(key=self.key, title="Storage", lines=lines, meta={"lag": s.lag, "queue_depth": s.queue_depth, "last_flush_age_sec": s.last_flush_age_sec})
+
+class PerfPanelProvider:
+    key = "perfstore"
+    def build(self, snapshot: SummaryDomainSnapshot) -> PanelData:  # pragma: no cover - thin
+        p = snapshot.perf
+        metrics = getattr(p, 'metrics', {}) or {}
+        # Render top few metrics deterministically sorted
+        items = sorted(metrics.items())[:6]
+        if not items:
+            lines = ["metrics: —"]
+        else:
+            rendered = [f"{k}={v:.2f}" for k,v in items]
+            lines = [", ".join(rendered)[:120]]
+        return PanelData(key=self.key, title="Performance", lines=lines, meta={"count": len(metrics)})
+
 DEFAULT_PANEL_PROVIDERS: Sequence[PanelProvider] = (
     CyclePanelProvider(),
     IndicesPanelProvider(),
     AlertsPanelProvider(),
     ResourcesPanelProvider(),
+    StoragePanelProvider(),
+    PerfPanelProvider(),
 )
+
+# Failure backoff state (module-level; lightweight and reset on process restart)
+_provider_failures: Dict[str, int] = {}
+_provider_cooldown_until: Dict[str, float] = {}
+_FAIL_THRESHOLD = 3
+_COOLDOWN_SEC = 30.0  # can be tuned later or env driven
+
+def _should_skip(pkey: str) -> bool:
+    # Cooldown skip if threshold exceeded and still within cooldown window
+    if pkey in _provider_cooldown_until:
+        if time.time() < _provider_cooldown_until[pkey]:
+            return True
+        # Cooldown expired -> reset counters
+        _provider_cooldown_until.pop(pkey, None)
+        _provider_failures.pop(pkey, None)
+    return False
+
+def _record_failure(pkey: str) -> None:
+    cnt = _provider_failures.get(pkey, 0) + 1
+    _provider_failures[pkey] = cnt
+    if cnt >= _FAIL_THRESHOLD:
+        _provider_cooldown_until[pkey] = time.time() + _COOLDOWN_SEC
 
 def build_all_panels(snapshot: SummaryDomainSnapshot, providers: Sequence[PanelProvider] | None = None) -> List[PanelData]:
     out: List[PanelData] = []
     for p in providers or DEFAULT_PANEL_PROVIDERS:
+        pkey = getattr(p, 'key', 'unknown')
+        if _should_skip(pkey):
+            out.append(PanelData(key=pkey, title="ERROR", lines=["provider suppressed (cooldown)"], meta={"error": True, "cooldown": True}))
+            continue
         try:
             out.append(p.build(snapshot))
+            # Success resets failure counter
+            if pkey in _provider_failures:
+                _provider_failures.pop(pkey, None)
         except Exception as e:  # pragma: no cover - defensive
-            out.append(PanelData(key=getattr(p, 'key', 'unknown'), title="ERROR", lines=[f"provider error: {e}"], meta={"error": True}))
+            _record_failure(pkey)
+            out.append(PanelData(key=pkey, title="ERROR", lines=[f"provider error: {e}"], meta={"error": True, "failures": _provider_failures.get(pkey, 0)}))
+    return out
+
+def build_panels_subset(snapshot: SummaryDomainSnapshot, keys: Sequence[str]) -> List[PanelData]:
+    """Build only the panels for the provided keys.
+
+    Falls back to empty list if keys empty. Unknown keys are ignored.
+    """
+    if not keys:
+        return []
+    key_set = set(keys)
+    out: List[PanelData] = []
+    for prov in DEFAULT_PANEL_PROVIDERS:
+        pkey = getattr(prov, 'key', None)
+        if pkey in key_set:
+            if pkey and _should_skip(pkey):
+                out.append(PanelData(key=pkey, title="ERROR", lines=["provider suppressed (cooldown)"], meta={"error": True, "cooldown": True}))
+                continue
+            try:
+                out.append(prov.build(snapshot))
+                if pkey in _provider_failures:
+                    _provider_failures.pop(pkey, None)
+            except Exception as e:  # pragma: no cover - defensive
+                if pkey:
+                    _record_failure(pkey)
+                out.append(PanelData(key=pkey or 'unknown', title="ERROR", lines=[f"provider error: {e}"], meta={"error": True, "failures": _provider_failures.get(pkey, 0)}))
     return out
 
 __all__ = [
@@ -78,4 +161,7 @@ __all__ = [
     "IndicesPanelProvider",
     "AlertsPanelProvider",
     "ResourcesPanelProvider",
+    "StoragePanelProvider",
+    "PerfPanelProvider",
+    "build_panels_subset",
 ]

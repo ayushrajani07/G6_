@@ -17,7 +17,7 @@ set G6_PANELS_DIR=data/panels
 
 echo Launching unified summary dashboard...
 echo.
-C:/Users/ASUS/Documents/G6/qq/g6_reorganized/.venv/Scripts/python.exe scripts/summary_view.py --refresh 2
+C:/Users/ASUS/Documents/G6/qq/g6_reorganized/.venv/Scripts/python.exe -m scripts.summary.app --refresh 2
 echo.
 echo Dashboard stopped.
 pause

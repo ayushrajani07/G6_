@@ -7,6 +7,7 @@ Consolidated time utilities from various modules.
 from __future__ import annotations
 
 from datetime import datetime, date, time as dt_time, timedelta, timezone
+import os
 from zoneinfo import ZoneInfo
 from typing import Optional, Tuple, Union
 
@@ -64,22 +65,41 @@ def utc_to_ist(utc_dt: datetime) -> datetime:
         utc_dt = utc_dt.replace(tzinfo=UTC)
     return utc_dt.astimezone(IST)
 
+def _weekend_mode() -> bool:
+    """Return True if weekend trading override is enabled.
+
+    Controlled by G6_WEEKEND_MODE (values: 1/true/on/yes). When enabled, weekend
+    days (Saturday/Sunday) are treated the same as weekdays for the purposes of
+    platform run gating. This is intended for demo / backtesting / continuous
+    soak scenarios where collectors should keep cycling on weekends.
+    """
+    return os.getenv('G6_WEEKEND_MODE', '0').lower() in ('1','true','on','yes')
+
 def is_market_open(check_time: Optional[datetime] = None) -> bool:
-    """Check if market is currently open."""
+    """Check if market is currently open.
+
+    Weekend gating can be disabled via G6_WEEKEND_MODE to allow continuous
+    operation with normal intraday hour checks still enforced.
+    """
     if check_time is None:
         check_time = get_ist_now()
     elif check_time.tzinfo != IST:
         check_time = check_time.astimezone(IST)
     
-    # Check if weekday (Monday=0, Sunday=6)
-    if check_time.weekday() >= 5:  # Saturday or Sunday
+    # Check weekday unless weekend override enabled (Monday=0, Sunday=6)
+    if check_time.weekday() >= 5 and not _weekend_mode():  # Saturday or Sunday
         return False
         
     current_time = check_time.time()
     return MARKET_OPEN <= current_time <= MARKET_CLOSE
 
 def market_hours_check(check_time: Optional[datetime] = None) -> Tuple[bool, str]:
-    """Detailed market hours check with status message."""
+    """Detailed market hours check with status message.
+
+    Respects G6_WEEKEND_MODE override: when enabled, weekend days are not
+    treated as automatically closed; normal intraday phase classification
+    applies instead.
+    """
     if check_time is None:
         check_time = get_ist_now()
     elif check_time.tzinfo != IST:
@@ -88,7 +108,7 @@ def market_hours_check(check_time: Optional[datetime] = None) -> Tuple[bool, str
     weekday = check_time.weekday()
     current_time = check_time.time()
     
-    if weekday >= 5:  # Weekend
+    if weekday >= 5 and not _weekend_mode():  # Weekend
         return False, "market_closed_weekend"
         
     if current_time < PRE_MARKET_START:
@@ -103,7 +123,12 @@ def market_hours_check(check_time: Optional[datetime] = None) -> Tuple[bool, str
         return False, "market_closed"
 
 def next_market_open(from_time: Optional[datetime] = None) -> datetime:
-    """Get next market opening time."""
+    """Get next market opening time.
+
+    In weekend mode, weekends are not skipped when computing the next open –
+    the next open may be later the same day (if before open) or the following
+    calendar day regardless of weekday.
+    """
     if from_time is None:
         from_time = get_ist_now()
     elif from_time.tzinfo != IST:
@@ -111,12 +136,13 @@ def next_market_open(from_time: Optional[datetime] = None) -> datetime:
     
     # Start from next day if market is closed today
     check_date = from_time.date()
-    if from_time.time() > MARKET_CLOSE or from_time.weekday() >= 5:
+    if from_time.time() > MARKET_CLOSE or (from_time.weekday() >= 5 and not _weekend_mode()):
         check_date = from_time.date() + timedelta(days=1)
         
     # Find next weekday
-    while check_date.weekday() >= 5:  # Skip weekends
-        check_date = check_date + timedelta(days=1)
+    if not _weekend_mode():
+        while check_date.weekday() >= 5:  # Skip weekends
+            check_date = check_date + timedelta(days=1)
     
     return datetime.combine(check_date, MARKET_OPEN, tzinfo=IST)
 

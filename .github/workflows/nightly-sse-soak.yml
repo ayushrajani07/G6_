@@ -1,0 +1,46 @@
+name: Nightly SSE Soak
+
+on:
+  schedule:
+    - cron: '7 1 * * *'  # Daily at 01:07 UTC
+  workflow_dispatch:
+
+jobs:
+  soak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies (minimal)
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Launch unified summary publisher (background)
+        env:
+          G6_SSE_HTTP: "1"
+        run: |
+          nohup python -m scripts.summary.app --refresh 1 > summary.log 2>&1 &
+          echo $! > summary_pid.txt
+          sleep 5
+      - name: Run soak harness (15m) with budgets
+        continue-on-error: true
+        run: |
+          python scripts/sse_soak.py --duration 900 --budget-max-reconnects 15 --budget-max-gap-p95 25 --budget-max-rss-growth-mb 120 > soak_out.txt 2>&1 || true
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sse-soak-artifacts
+          path: |
+            soak_out.txt
+            summary.log
+      - name: Evaluate result (soft fail)
+        run: |
+          if grep -q "[soak][BREACH]" soak_out.txt; then
+             echo "Soak breaches detected (non-fatal).";
+          fi

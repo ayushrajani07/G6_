@@ -2,6 +2,28 @@
 import importlib, sys, warnings
 
 
+def _purge_metrics_modules(*names: str) -> None:
+    """Remove specific metrics modules from sys.modules to force a clean import.
+
+    Targeted removal avoids nuking every 'src.metrics*' entry which is expensive
+    and slows the deprecation tests. We delete only the modules whose re-exec
+    is required to exercise the warning paths.
+    """
+    for n in names:
+        if n in sys.modules:
+            del sys.modules[n]
+    # Also clear cached attribute on parent package if present and submodule removed
+    pkg = sys.modules.get('src.metrics')
+    if pkg is not None:
+        for n in names:
+            leaf = n.rsplit('.', 1)[-1]
+            if hasattr(pkg, leaf):  # pragma: no branch - simple attr cleanup
+                try:
+                    delattr(pkg, leaf)
+                except Exception:
+                    pass
+
+
 def reload_module(mod_name):
     if mod_name in sys.modules:
         del sys.modules[mod_name]
@@ -31,10 +53,8 @@ def test_legacy_register_suppressed(monkeypatch):
 
 def test_direct_import_metrics_warns(monkeypatch):
     monkeypatch.delenv('G6_SUPPRESS_LEGACY_WARNINGS', raising=False)
-    # Remove both facade and implementation modules to ensure import path triggers warning
-    for m in list(sys.modules):
-        if m.startswith('src.metrics'):
-            del sys.modules[m]
+    # Targeted purge: only remove the core implementation module so import runs its body again
+    _purge_metrics_modules('src.metrics.metrics')
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter('always', DeprecationWarning)
         importlib.import_module('src.metrics.metrics')  # noqa: F401
@@ -43,9 +63,7 @@ def test_direct_import_metrics_warns(monkeypatch):
 
 def test_direct_import_suppressed(monkeypatch):
     monkeypatch.setenv('G6_SUPPRESS_LEGACY_WARNINGS','true')
-    for m in list(sys.modules):
-        if m.startswith('src.metrics'):
-            del sys.modules[m]
+    _purge_metrics_modules('src.metrics.metrics')
     with warnings.catch_warnings(record=True) as w:
         warnings.simplefilter('always', DeprecationWarning)
         importlib.import_module('src.metrics.metrics')  # noqa: F401

@@ -15,26 +15,50 @@ Long-term:
 """
 from __future__ import annotations
 
-from typing import Tuple, Callable
+from typing import Tuple, Callable  # noqa: F401 (retained for backward compat hints)
 from . import metrics as _legacy
+from . import _singleton as _anchor  # central anchor
 
 MetricsRegistry = _legacy.MetricsRegistry  # re-export for compatibility
 
-_singleton: MetricsRegistry | None = None
+def _new_registry() -> MetricsRegistry:
+    """Construct a fresh MetricsRegistry and publish to central anchor.
+
+    Avoid starting HTTP server (tests generally don't need duplicate port binds).
+    """
+    reg = MetricsRegistry()
+    try:  # publish to central anchor only if empty to avoid clobbering active server singleton
+        _anchor.set_singleton(reg)
+    except Exception:  # pragma: no cover - defensive
+        pass
+    return reg
 
 def get_registry(reset: bool = False) -> MetricsRegistry:
-    """Return process-wide MetricsRegistry (delegates to legacy setup initially).
+    """Return process-wide MetricsRegistry unified with central singleton anchor.
+
+    This replaces the earlier ad-hoc module-local singleton which produced a
+    second registry instance (breaking identity tests) when code imported
+    `src.metrics.registry` before calling the public `get_metrics()` facade.
 
     Parameters
     ----------
     reset : bool
-        If True, forces recreation (dev/test only)."""
-    global _singleton
-    if _singleton is not None and not reset:
-        return _singleton
-    # Leverage legacy setup function (without starting HTTP server again).
-    # We call underlying constructor directly to avoid side effects.
-    _singleton = MetricsRegistry()
-    return _singleton
+        If True, forces creation of a new MetricsRegistry (publishes it to the
+        central anchor only if no existing instance was present). Intended for
+        isolated test scenarios; production code should avoid reset semantics.
+    """
+    existing = _anchor.get_singleton()
+    if existing is not None and not reset:
+        return existing  # already unified
+    if reset:
+        return _new_registry()
+    # Defer to legacy bootstrap path (will set anchor); fallback to direct construction
+    try:
+        reg = _legacy.get_metrics_singleton()
+        if reg is None:  # legacy path failed (should be rare) -> direct new registry
+            reg = _new_registry()
+        return reg
+    except Exception:
+        return _new_registry()
 
 __all__ = ["MetricsRegistry", "get_registry"]

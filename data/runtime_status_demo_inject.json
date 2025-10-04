@@ -1,0 +1,119 @@
+{
+  "app": {
+    "name": "G6 Simulator",
+    "version": "dev",
+    "pid": 81616,
+    "host": "LAPTOP-E06PALHE",
+    "started_at": "2025-10-04T06:47:31.050638Z",
+    "uptime_sec": 10624.0
+  },
+  "market": {
+    "status": "OPEN",
+    "segment": "F&O"
+  },
+  "loop": {
+    "cycle": 10624,
+    "last_run": "2025-10-04T09:46:43.661560Z",
+    "next_run_in_sec": 30,
+    "avg_cycle_ms": 491,
+    "p95_cycle_ms": 0,
+    "last_duration": 1.019,
+    "success_rate": 85.5,
+    "target_interval": 30
+  },
+  "indices": {
+    "NIFTY": {
+      "ltp": 19797.37,
+      "change": -0.04
+    },
+    "BANKNIFTY": {
+      "ltp": 19791.26,
+      "change": -0.01
+    },
+    "FINNIFTY": {
+      "ltp": 19797.01,
+      "change": 0.04
+    },
+    "SENSEX": {
+      "ltp": 69399.3,
+      "change": -0.03
+    }
+  },
+  "indices_detail": {
+    "NIFTY": {
+      "status": "ok",
+      "ltp": 19797.37,
+      "age_sec": 4,
+      "legs": 26994,
+      "dq": {
+        "score_percent": 90.63,
+        "issues_total": 0
+      }
+    },
+    "BANKNIFTY": {
+      "status": "ok",
+      "ltp": 19791.26,
+      "age_sec": 1,
+      "legs": 26746,
+      "dq": {
+        "score_percent": 90.31,
+        "issues_total": 0
+      }
+    },
+    "FINNIFTY": {
+      "status": "ok",
+      "ltp": 19797.01,
+      "age_sec": 3,
+      "legs": 27345,
+      "dq": {
+        "score_percent": 92.62,
+        "issues_total": 0
+      }
+    },
+    "SENSEX": {
+      "status": "ok",
+      "ltp": 69399.3,
+      "age_sec": 3,
+      "legs": 26622,
+      "dq": {
+        "score_percent": 90.47,
+        "issues_total": 0
+      }
+    }
+  },
+  "provider": {
+    "name": "sim",
+    "latency_ms": 44
+  },
+  "health": {
+    "collector": "ok",
+    "sinks": "ok",
+    "provider": "ok"
+  },
+  "sinks": {
+    "csv": {
+      "last_write": "2025-10-04T06:47:31.050638Z"
+    }
+  },
+  "resources": {
+    "cpu": 27.3,
+    "rss": 698254418
+  },
+  "config": {
+    "env": "dev",
+    "output_level": "INFO"
+  },
+  "alerts": [],
+  "links": {
+    "metrics": "http://127.0.0.1:9108/metrics"
+  },
+  "analytics": {
+    "pcr": 0.73,
+    "max_pain": {
+      "NIFTY": 22924,
+      "BANKNIFTY": 19750,
+      "FINNIFTY": 20973,
+      "SENSEX": 18354
+    }
+  }
+}

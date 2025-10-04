@@ -189,7 +189,141 @@ def check_cardinality(reg: Any) -> dict | None:
             raise RuntimeError(f"Cardinality growth exceeded threshold (offenders={len(offenders)})")
     else:
         logger.info("metrics.cardinality.guard_ok evaluated=%d", summary["evaluated_groups"])
+
+    # --- Emit guard diagnostic metrics via generated accessors (best-effort) ---
+    try:  # encapsulate failures so guard doesn't break application
+        from src.metrics import generated as _g  # type: ignore
+        # Simple gauges
+        if hasattr(_g, 'm_cardinality_guard_offenders_total'):
+            g = _g.m_cardinality_guard_offenders_total()
+            if g: g.set(len(offenders))  # type: ignore[attr-defined]
+        if hasattr(_g, 'm_cardinality_guard_new_groups_total'):
+            g = _g.m_cardinality_guard_new_groups_total()
+            if g: g.set(len(new_groups))  # type: ignore[attr-defined]
+        if hasattr(_g, 'm_cardinality_guard_last_run_epoch'):
+            import time as _t
+            g = _g.m_cardinality_guard_last_run_epoch()
+            if g: g.set(int(_t.time()))  # type: ignore[attr-defined]
+        if hasattr(_g, 'm_cardinality_guard_allowed_growth_percent'):
+            g = _g.m_cardinality_guard_allowed_growth_percent()
+            if g: g.set(allow_pct)  # type: ignore[attr-defined]
+        # Per-group growth percent (only for offenders)
+        if hasattr(_g, 'm_cardinality_guard_growth_percent_labels'):
+            for off in offenders:
+                gp = off.get('growth_percent')
+                grp = off.get('group')
+                if gp is None or grp is None:
+                    continue
+                met = _g.m_cardinality_guard_growth_percent_labels(grp)
+                if met:
+                    try: met.set(gp)  # type: ignore[attr-defined]
+                    except Exception: pass
+    except Exception:
+        pass
     return summary
 
 
-__all__ = ["check_cardinality"]
+#############################################
+# Lightweight runtime registration guard
+#############################################
+
+import threading, time  # placed late to avoid impacting existing import cost
+from typing import Tuple, Set
+
+try:  # optional in some test paths
+    from prometheus_client import Counter as _GC_Counter, Gauge as _GC_Gauge, Histogram as _GC_Histogram  # type: ignore
+except Exception:  # pragma: no cover
+    _GC_Counter = _GC_Gauge = _GC_Histogram = None  # type: ignore
+
+_rg_lock = threading.RLock()
+_rg_metrics: dict[str, object] = {}
+_rg_seen: dict[str, Set[Tuple[str,...]]] = {}
+_rg_budget: dict[str, int] = {}
+_rg_last_log: dict[Tuple[str,str], float] = {}
+_RG_SUPPRESS = 60.0
+
+def _rg_rate_limited(key: Tuple[str,str], msg: str):  # pragma: no cover - timing based
+    now = time.time()
+    last = _rg_last_log.get(key, 0.0)
+    if now - last > _RG_SUPPRESS:
+        _rg_last_log[key] = now
+        logger.warning(msg)
+
+class _RegistryGuard:
+    def _register(self, kind: str, name: str, help_text: str, labels: list[str], budget: int, buckets=None):
+        with _rg_lock:
+            if name in _rg_metrics:
+                # Duplicate registration attempt – increment duplicates counter if available
+                try:
+                    from src.metrics.generated import m_metric_duplicates_total_labels  # type: ignore
+                    c = m_metric_duplicates_total_labels(name)
+                    if c:
+                        c.inc()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+                # Optional hard failure for CI / strict environments
+                try:
+                    import os
+                    if os.getenv('G6_METRICS_FAIL_ON_DUP'):
+                        raise RuntimeError(f"duplicate metric registration detected name={name}")
+                except RuntimeError:
+                    raise
+                except Exception:
+                    pass
+                return _rg_metrics[name]
+            try:
+                if _GC_Counter is None or _GC_Gauge is None or _GC_Histogram is None:
+                    # prometheus_client not installed in this runtime path; skip registration silently
+                    return None
+                if kind == 'counter':
+                    metric = _GC_Counter(name, help_text, labels) if labels else _GC_Counter(name, help_text)
+                elif kind == 'gauge':
+                    metric = _GC_Gauge(name, help_text, labels) if labels else _GC_Gauge(name, help_text)
+                elif kind == 'histogram':
+                    if buckets is not None:
+                        metric = _GC_Histogram(name, help_text, labels, buckets=buckets) if labels else _GC_Histogram(name, help_text, buckets=buckets)
+                    else:
+                        metric = _GC_Histogram(name, help_text, labels) if labels else _GC_Histogram(name, help_text)
+                else:
+                    raise ValueError(f"unknown metric kind {kind}")
+                _rg_metrics[name] = metric
+                _rg_seen[name] = set()
+                _rg_budget[name] = budget
+                return metric
+            except Exception as e:  # pragma: no cover
+                _rg_rate_limited((name,'register'), f"metric.register.failed name={name} err={e}")
+                return None
+
+    def counter(self, name: str, help_text: str, labels: list[str], budget: int):
+        return self._register('counter', name, help_text, labels, budget)
+    def gauge(self, name: str, help_text: str, labels: list[str], budget: int):
+        return self._register('gauge', name, help_text, labels, budget)
+    def histogram(self, name: str, help_text: str, labels: list[str], budget: int, buckets=None):
+        return self._register('histogram', name, help_text, labels, budget, buckets=buckets)
+
+    def track(self, name: str, label_values: Tuple[str,...]) -> bool:
+        try:
+            seen = _rg_seen.get(name)
+            if seen is None:
+                return True
+            if label_values in seen:
+                return True
+            if len(seen) >= _rg_budget.get(name, 10_000):
+                _rg_rate_limited((name,'budget'), f"metric.cardinality.exceeded name={name} budget={_rg_budget.get(name)} attempted={label_values}")
+                return False
+            seen.add(label_values)
+            # Update per-metric series count gauge if available
+            try:
+                from src.metrics.generated import m_cardinality_series_total_labels  # type: ignore
+                g = m_cardinality_series_total_labels(name)
+                if g:
+                    g.set(len(seen))  # type: ignore[attr-defined]
+            except Exception:
+                pass
+            return True
+        except Exception:
+            return False
+
+registry_guard = _RegistryGuard()
+
+__all__ = ["check_cardinality", "registry_guard"]

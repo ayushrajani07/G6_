@@ -21,11 +21,17 @@ def test_auto_dump_suppressed(monkeypatch, caplog):
     assert reg is not None
     # Ensure suppression log emitted and no pretty JSON markers present
     logs = "\n".join(f"{r.name}::{r.message}" for r in caplog.records)
-    # Match either message or event name presence
+    # Suppression log must be present
     assert 'metrics.dumps.suppressed' in logs
-    # The pretty markers would appear if dumps executed
-    assert 'METRICS_INTROSPECTION:' not in logs
-    assert 'METRICS_INIT_TRACE:' not in logs
+    # We now emit zero-value marker lines even when suppressed; ensure they reflect zero
+    if 'METRICS_INTROSPECTION:' in logs:
+        for line in logs.splitlines():
+            if 'METRICS_INTROSPECTION:' in line:
+                assert line.rstrip().endswith('0'), f"Expected zero introspection count on suppression, got: {line}"
+    if 'METRICS_INIT_TRACE:' in logs:
+        for line in logs.splitlines():
+            if 'METRICS_INIT_TRACE:' in line:
+                assert '0 steps' in line, f"Expected zero init trace steps on suppression, got: {line}"
 
 
 def test_auto_dump_not_suppressed(monkeypatch, caplog):

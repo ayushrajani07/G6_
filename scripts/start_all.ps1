@@ -7,6 +7,12 @@ Influx Usage:
  - Provide -SetupInflux (one-time) to run `influx setup` (requires CLI + parameters).
 
 NOTE: Do not run -SetupInflux more than once; it is idempotent only if it detects existing metadata.
+#
+# Added automation:
+#  -GrafanaSelfTest / -SelfTest : After launch, actively probes port & /api/health with diagnostics.
+#  -ProvisionPrometheusDatasource : Creates a Prometheus datasource provisioning YAML if missing.
+#  -SafeGrafana : already routes to -SafeMode for trimmed plugin load.
+#  -DeepGrafanaDebug : more verbose logging + immediate process detection.
 #>
 param(
   # Prometheus
@@ -21,8 +27,14 @@ param(
   [switch]$AltGrafanaPort,
   [switch]$AutoDetectGrafana = $true,
   [int]$GrafanaPort = 3000,
+  [switch]$DeepGrafanaDebug,
+  [switch]$SafeGrafana,
+  [switch]$GrafanaSelfTest,
+  [switch]$SelfTest,
+  [switch]$ProvisionPrometheusDatasource,
+  [switch]$ShowGrafanaLogOnFail,
 
-  # G6_ENHANCED_UI_MARKER: NEW paths and switches
+  # Paths / provisioning
   [string]$GrafanaDataRoot = 'C:\GrafanaData',
   [string]$ProvisioningRoot = 'C:\Users\ASUS\Documents\G6\qq\g6_reorganized\grafana\provisioning',
   [switch]$FixGrafanaProvisioning,
@@ -33,7 +45,6 @@ param(
   [switch]$SetupInflux,
   [switch]$AutoDetectInflux = $true,
   [string]$InfluxdExe = 'C:\influxdata\influxdb2\influxd.exe',
-  [string]$InfluxCliExe = 'C:\InfluxDB\influx.exe',
   [string]$InfluxDataDir = 'C:\InfluxDB\data',
   [int]$InfluxPort = 8086,
   [string]$InfluxConfigName = 'g6-config',
@@ -86,6 +97,120 @@ function Invoke-HttpHealth {
   }
 }
 
+# Consolidated quick verification for Grafana (port bind + /api/health)
+function Test-GrafanaQuick {
+  param(
+    [int]$Port,
+    [int]$BindTimeoutSeconds = 10,
+    [int]$HealthAttempts = 30,
+    [int]$HealthDelaySeconds = 2
+  )
+  if (-not (Test-PortListening -Port $Port -Name 'Grafana' -TimeoutSeconds $BindTimeoutSeconds -InitialDelayMs 1000)) {
+    return [pscustomobject]@{ Bound=$false; Healthy=$false; Code=$null }
+  }
+  for ($i=0; $i -lt $HealthAttempts; $i++) {
+    $h = Invoke-HttpHealth -Url ("http://localhost:{0}/api/health" -f $Port) -TimeoutSeconds 3
+    if ($h.Success -and $h.Code -eq 200) { return [pscustomobject]@{ Bound=$true; Healthy=$true; Code=$h.Code } }
+    Start-Sleep -Seconds $HealthDelaySeconds
+  }
+  return [pscustomobject]@{ Bound=$true; Healthy=$false; Code=$h.Code }
+}
+
+# Self-test routine for Grafana to reduce manual debugging.
+function Invoke-GrafanaSelfTest {
+  param(
+    [int]$Port,
+    [int]$MaxSeconds = 45,
+    [string]$DataRoot = 'C:\GrafanaData'
+  )
+  Write-Host "[SelfTest] Starting Grafana health probe on port $Port (timeout ${MaxSeconds}s)" -ForegroundColor Cyan
+  $start    = Get-Date
+  $bound    = $false
+  $healthy  = $false
+  $procId   = $null
+  $lastErr  = $null
+  $lastCode = $null
+  $attempt  = 0
+  $hosts    = @('localhost','127.0.0.1')
+
+  while ((Get-Date) - $start -lt [TimeSpan]::FromSeconds($MaxSeconds)) {
+    $attempt++
+    $p = Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.ProcessName -eq 'grafana-server' }
+    if ($p) { $procId = $p.Id }
+    $tcp = Get-NetTCPConnection -LocalPort $Port -ErrorAction SilentlyContinue
+    if ($tcp) { $bound = $true }
+    if ($bound) {
+      foreach ($h in $hosts) {
+        try {
+          $resp = Invoke-HttpHealth -Url ("http://{0}:{1}/api/health" -f $h,$Port) -TimeoutSeconds 4
+          $lastCode = $resp.Code
+          if ($resp.Success -and $resp.Code -eq 200) { $healthy = $true; break }
+        } catch {
+          $lastErr = $_.Exception.Message
+        }
+      }
+      if ($healthy) { break }
+    }
+    Start-Sleep -Milliseconds 900
+  }
+
+  if ($healthy) {
+    Write-Host "[SelfTest] SUCCESS: Grafana healthy on http://localhost:$Port/api/health (PID=$procId attempts=$attempt)" -ForegroundColor Green
+    return $true
+  }
+
+  Write-Host ("[SelfTest] FAILURE: Grafana not healthy (PID={0} Bound={1} LastHTTP={2} LastErr='{3}')" -f $procId,$bound,$lastCode,$lastErr) -ForegroundColor Yellow
+  $logPath = Join-Path $DataRoot 'log/grafana.log'
+  if (Test-Path $logPath) {
+    Write-Host "[SelfTest] Last 60 log lines:" -ForegroundColor DarkCyan
+    try {
+      Get-Content $logPath -Tail 60 | ForEach-Object { Write-Host $_ }
+    } catch {
+      Write-Host "[SelfTest] Unable to read log: $($_.Exception.Message)" -ForegroundColor Red
+    }
+  } else {
+    Write-Host "[SelfTest] grafana.log not found at $logPath" -ForegroundColor DarkYellow
+  }
+
+  if (-not $procId) {
+    Write-Host "[SelfTest] No grafana-server process detected. Foreground debug suggestion:" -ForegroundColor DarkYellow
+  } elseif (-not $bound) {
+  Write-Host "[SelfTest] Process exists but port $Port not bound - possible security tool/network filter or premature termination." -ForegroundColor DarkYellow
+  } else {
+    Write-Host "[SelfTest] Port bound but /api/health failed (code=$lastCode). Try foreground run and longer timeout." -ForegroundColor DarkYellow
+  }
+  Write-Host "[SelfTest] Next step (copy/paste):" -ForegroundColor Cyan
+  Write-Host "  powershell -ExecutionPolicy Bypass -File .\\scripts\\start_grafana.ps1 -Port $Port -Foreground -DebugGrafana -SafeMode" -ForegroundColor Gray
+  return $false
+}
+ 
+
+function Ensure-PrometheusDatasource {
+  param(
+    [string]$ProvisioningRoot,
+    [string]$PromURL = 'http://localhost:9090'
+  )
+  $dsDir = Join-Path $ProvisioningRoot 'datasources'
+  if (-not (Test-Path $dsDir)) { New-Item -ItemType Directory -Force -Path $dsDir | Out-Null }
+  $dsFile = Join-Path $dsDir 'prometheus.yml'
+  if (Test-Path $dsFile) {
+    Write-Host "Datasource provisioning already present: $dsFile" -ForegroundColor DarkGray
+    return
+  }
+  $yamlLines = @(
+    'apiVersion: 1',
+    'datasources:',
+    '  - name: Prometheus',
+    '    type: prometheus',
+    '    access: proxy',
+    "    url: $PromURL",
+    '    isDefault: true',
+    '    editable: true'
+  )
+  ($yamlLines -join [Environment]::NewLine) | Set-Content -Encoding UTF8 -Path $dsFile
+  Write-Host "Provisioned Prometheus datasource: $dsFile" -ForegroundColor Green
+}
+
 # G6_ENHANCED_UI_MARKER: NEW stop any existing grafana* to avoid DB locks
 function Stop-GrafanaIfRunning {
   try {
@@ -113,21 +238,21 @@ function Ensure-GrafanaProvisioning {
   $provFile = Join-Path $dashProvDir 'dashboard.yml'
   if (-not (Test-Path $provFile)) {
     # G6_ENHANCED_UI_MARKER: NEW YAML provider here-string (ASCII only)
-    $yaml = @"
-apiVersion: 1
-
-providers:
-  - name: 'G6 Dashboards'
-    orgId: 1
-    folder: 'G6 Platform'
-    type: file
-    disableDeletion: false
-    allowUiUpdates: true
-    updateIntervalSeconds: 30
-    options:
-      path: $DashboardsPath
-"@
-    $yaml | Set-Content -Encoding UTF8 -Path $provFile
+    $provLines = @(
+      'apiVersion: 1',
+      '',
+      'providers:',
+      "  - name: 'G6 Dashboards'",
+      '    orgId: 1',
+      "    folder: 'G6 Platform'",
+      '    type: file',
+      '    disableDeletion: false',
+      '    allowUiUpdates: true',
+      '    updateIntervalSeconds: 30',
+      '    options:',
+      "      path: $DashboardsPath"
+    )
+    ($provLines -join [Environment]::NewLine) | Set-Content -Encoding UTF8 -Path $provFile
     Write-Host "Wrote dashboards provider: $provFile" -ForegroundColor Green
   } else {
     Write-Host "Dashboards provider exists: $provFile" -ForegroundColor Green
@@ -253,18 +378,21 @@ if (-not (Test-Path $grafanaExeResolved)) {
   $homePath = $env:GF_PATHS_HOME
   if (-not $homePath) { $homePath = (Split-Path (Split-Path $grafanaExeResolved -Parent) -Parent) }
   if (Test-Path $startGraf) {
-    $grafArgs = @('-GrafanaHome', (Split-Path (Split-Path $grafanaExeResolved -Parent) -Parent))
-    if ($AltGrafanaPort) { $grafArgs += '-AltPort'; $GrafanaPort = 3001 }
+  $grafHomeValue = (Split-Path (Split-Path $grafanaExeResolved -Parent) -Parent)
+  # Pass GrafanaHome without embedding quotes; Start-Process preserves argument boundaries
+  $grafArgs = @('-GrafanaHome', $grafHomeValue)
+  if ($AltGrafanaPort) { $GrafanaPort = 3001; $grafArgs += '-Port'; $grafArgs += $GrafanaPort }
+  else { $grafArgs += '-Port'; $grafArgs += $GrafanaPort }
+  if ($DeepGrafanaDebug) { $grafArgs += '-DebugGrafana' }
+  if ($SafeGrafana) { $grafArgs += '-SafeMode' }
     if ($ForegroundGrafana) {
-      Write-Host "Launching Grafana (via script, foreground): $startGraf" -ForegroundColor Green
+      Write-Host "Launching Grafana (via script, foreground): $startGraf (Port=$GrafanaPort)" -ForegroundColor Green
       Push-Location $homePath
       try { & powershell -ExecutionPolicy Bypass -File $startGraf @grafArgs -Foreground } finally { Pop-Location }
     } else {
-      Write-Host "Launching Grafana in a new window (via script): $startGraf" -ForegroundColor Green
-      Start-Process "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" `
-        -ArgumentList @('-NoExit','-ExecutionPolicy','Bypass','-File',"`"$startGraf`"") `
-        -WorkingDirectory $homePath `
-        -WindowStyle Normal
+      Write-Host "Launching Grafana in a new window (via script): $startGraf (Port=$GrafanaPort)" -ForegroundColor Green
+      $psArgs = @('-NoExit','-ExecutionPolicy','Bypass','-File',"`"$startGraf`"") + $grafArgs
+      Start-Process "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -ArgumentList $psArgs -WorkingDirectory $homePath -WindowStyle Normal
     }
   } else {
     Write-Host "start_grafana.ps1 missing. Launching grafana-server directly." -ForegroundColor Yellow
@@ -326,29 +454,34 @@ $promOk = Test-PortListening -Port $PrometheusPort -Name 'Prometheus' -InitialDe
 if ($promOk) { Write-Host ("listening on: http://localhost:{0} (Prometheus)" -f $PrometheusPort) -ForegroundColor Green }
 else { Write-Host ("not listening: http://localhost:{0} (Prometheus)" -f $PrometheusPort) -ForegroundColor Yellow }
 
-# Grafana up to 60s
+# Grafana up to 60s using consolidated helper
 $effectiveGrafPort = $GrafanaPort; if ($AltGrafanaPort) { $effectiveGrafPort = 3001 }
-$grafOk = $false
-if (Test-PortListening -Port $effectiveGrafPort -Name 'Grafana' -TimeoutSeconds 10 -InitialDelayMs 1000) {
-  for ($g=0; $g -lt 30; $g++) {
-    $health = Invoke-HttpHealth -Url ("http://localhost:{0}/api/health" -f $effectiveGrafPort) -TimeoutSeconds 3
-    if ($health.Success -and $health.Code -eq 200) { $grafOk = $true; break }
-    Start-Sleep -Seconds 2
+$gq = Test-GrafanaQuick -Port $effectiveGrafPort
+if ($gq.Bound -and $gq.Healthy) {
+  Write-Host ("listening on: http://localhost:{0} (Grafana)" -f $effectiveGrafPort) -ForegroundColor Green
+  try { Start-Process msedge.exe "-new-window http://localhost:$effectiveGrafPort" } catch { Start-Process "http://localhost:$effectiveGrafPort" }
+} else {
+  Write-Host ("not listening: http://localhost:{0} (Grafana) -- check service logs (Bound={1} Code={2})" -f $effectiveGrafPort,$gq.Bound,$gq.Code) -ForegroundColor Yellow
+  Write-Host "Hint: ensure only one dashboards provider and only .yml/.yaml/.json in alerting provisioning." -ForegroundColor DarkYellow
+  if ($ShowGrafanaLogOnFail) {
+    try {
+      $logPath = Join-Path $GrafanaDataRoot 'log/grafana.log'
+      if (Test-Path $logPath) {
+        Write-Host "--- Last 80 lines of grafana.log ---" -ForegroundColor Cyan
+        Get-Content $logPath -Tail 80 | ForEach-Object { Write-Host $_ }
+        Write-Host "--- End of grafana.log tail ---" -ForegroundColor Cyan
+      } else { Write-Host "Grafana log not found at $logPath" -ForegroundColor DarkYellow }
+    } catch { Write-Host "Failed to tail grafana.log: $($_.Exception.Message)" -ForegroundColor Red }
   }
 }
-if ($grafOk) {
-  Write-Host ("listening on: http://localhost:{0} (Grafana)" -f $effectiveGrafPort) -ForegroundColor Green
 
-  # Optional: auto-open UI in new browser window (Edge) for better UX
-  try {
-    Start-Process msedge.exe "-new-window http://localhost:$effectiveGrafPort"
-  } catch {
-    Start-Process "http://localhost:$effectiveGrafPort"
+# Optional self-test (runs regardless of earlier quick probe result if requested)
+if ($GrafanaSelfTest -or $SelfTest) {
+  $st = Invoke-GrafanaSelfTest -Port $effectiveGrafPort -DataRoot $GrafanaDataRoot
+  if ($ProvisionPrometheusDatasource) {
+    Write-Host "[Provision] Creating Prometheus datasource (selfTestPassed=$st)" -ForegroundColor Cyan
+    Ensure-PrometheusDatasource -ProvisioningRoot $ProvisioningRoot
   }
-
-} else {
-  Write-Host ("not listening: http://localhost:{0} (Grafana) -- check service logs" -f $effectiveGrafPort) -ForegroundColor Yellow
-  Write-Host "Hint: ensure only one dashboards provider and only .yml/.yaml/.json in alerting provisioning." -ForegroundColor DarkYellow
 }
 
 # Influx up to 60s
