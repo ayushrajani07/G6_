@@ -269,6 +269,26 @@ def _efficiency_ratio_panels(metrics: List[Metric]) -> List[Dict]:
             "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
             "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
         })
+    # Backlog burn rate (minutes to drain) if backlog rows + rows ingest rate present
+    if "g6_cs_ingest_backlog_rows" in names and "g6_cs_ingest_rows_total" in names:
+        panels.append({
+            "type": "timeseries",
+            "title": "CS Backlog Drain ETA (mins auto)",
+            "targets": [{"expr": "(sum(g6_cs_ingest_backlog_rows) / clamp_min(sum(rate(g6_cs_ingest_rows_total[5m])),1)) / 60", "refId": "A"}],
+            "datasource": {"type": "prometheus", "uid": "PROM"},
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+            "fieldConfig": {"defaults": {"unit": "m"}, "overrides": []},
+        })
+    # Success ratio (1 - failures_rate/rows_rate) if failures and rows counters exist
+    if "g6_cs_ingest_failures_total" in names and "g6_cs_ingest_rows_total" in names:
+        panels.append({
+            "type": "timeseries",
+            "title": "CS Ingest Success Ratio (5m auto)",
+            "targets": [{"expr": "1 - (clamp_min(sum(rate(g6_cs_ingest_failures_total[5m])),0) / clamp_min(sum(rate(g6_cs_ingest_rows_total[5m])),1))", "refId": "A"}],
+            "datasource": {"type": "prometheus", "uid": "PROM"},
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+            "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+        })
     return panels
 
 

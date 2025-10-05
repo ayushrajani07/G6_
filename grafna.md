@@ -137,6 +137,8 @@ New focused dashboards & heuristic panels added:
 	- Cumulative Avg Diff Bytes per Write = total diff bytes / total diff writes
 	- Column Store Bytes per Row (5m rate) = rate(cs_ingest_bytes_total) / rate(cs_ingest_rows_total)
 	- Cumulative Avg CS Bytes per Row = total bytes / total rows
+	- CS Backlog Drain ETA (mins) = backlog_rows / rate(rows_total) / 60
+	- CS Ingest Success Ratio = 1 - failures_rate / rows_rate (floor clamped)
 * Heuristic function `_efficiency_ratio_panels` only activates for slugs: `panels_efficiency`, `column_store`, `lifecycle_storage`.
 * Safety: Panels appended after per-metric generation respecting 36 panel safety cap; failures are non-fatal (logged warning).
 
