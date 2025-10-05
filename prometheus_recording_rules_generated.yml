@@ -20,6 +20,21 @@ groups:
     labels:
       job: g6_platform
     record: g6_api_response_latency_ms:p99_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_api_response_latency_ms_bucket[5m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_api_response_latency_ms:p95_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_api_response_latency_ms_bucket[30m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_api_response_latency_ms:p95_30m
+  - expr: g6_api_response_latency_ms:p95_5m / clamp_min(g6_api_response_latency_ms:p95_30m,
+      0.001)
+    labels:
+      job: g6_platform
+    record: g6_api_response_latency_ms:p95_ratio_5m_30m
   - expr: sum(rate(g6_quote_enriched_total[5m])) by (provider)
     labels:
       job: g6_platform
@@ -154,6 +169,21 @@ groups:
     labels:
       job: g6_platform
     record: g6_bus_publish_latency_ms:p99_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_bus_publish_latency_ms_bucket[5m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_bus_publish_latency_ms:p95_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_bus_publish_latency_ms_bucket[30m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_bus_publish_latency_ms:p95_30m
+  - expr: g6_bus_publish_latency_ms:p95_5m / clamp_min(g6_bus_publish_latency_ms:p95_30m,
+      0.001)
+    labels:
+      job: g6_platform
+    record: g6_bus_publish_latency_ms:p95_ratio_5m_30m
   - expr: sum(rate(g6_emission_failures_total[5m])) by (emitter)
     labels:
       job: g6_platform
@@ -180,6 +210,21 @@ groups:
     labels:
       job: g6_platform
     record: g6_metrics_batch_flush_duration_ms:p99_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_metrics_batch_flush_duration_ms_bucket[5m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_metrics_batch_flush_duration_ms:p95_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_metrics_batch_flush_duration_ms_bucket[30m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_metrics_batch_flush_duration_ms:p95_30m
+  - expr: g6_metrics_batch_flush_duration_ms:p95_5m / clamp_min(g6_metrics_batch_flush_duration_ms:p95_30m,
+      0.001)
+    labels:
+      job: g6_platform
+    record: g6_metrics_batch_flush_duration_ms:p95_ratio_5m_30m
   - expr: sum(rate(g6_cs_ingest_rows_total[5m])) by (table)
     labels:
       job: g6_platform
@@ -206,6 +251,21 @@ groups:
     labels:
       job: g6_platform
     record: g6_cs_ingest_latency_ms:p99_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_cs_ingest_latency_ms_bucket[5m])) by
+      (le))
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_latency_ms:p95_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_cs_ingest_latency_ms_bucket[30m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_latency_ms:p95_30m
+  - expr: g6_cs_ingest_latency_ms:p95_5m / clamp_min(g6_cs_ingest_latency_ms:p95_30m,
+      0.001)
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_latency_ms:p95_ratio_5m_30m
   - expr: sum(rate(g6_cs_ingest_failures_total[5m])) by (table,reason)
     labels:
       job: g6_platform

@@ -170,6 +170,21 @@ Ratio Interpretation:
 
 Implementation: heuristics injected via `_efficiency_ratio_panels` for relevant dashboards (column_store, lifecycle_storage, panels_efficiency) respecting existing panel cap. Uses explicit histogram_quantile over both 5m & 30m windows rather than recording rules for immediate feedback; may migrate to recording rules if query cost grows.
 
+#### Phase 7 Extension: Recording Rules Optimization (Multi-Window p95 & Ratio)
+Expanded `scripts/gen_recording_rules.py` to synthesize for every histogram:
+* `<metric>:p95_30m` – 30m smoothing window p95 (histogram_quantile over 30m rate sum by le)
+* `<metric>:p95_ratio_5m_30m` – short-term vs baseline ratio (`p95_5m / clamp_min(p95_30m, 0.001)`)
+
+Motivation: dashboards previously executed duplicate `histogram_quantile` computations for both 5m and 30m windows; precomputing reduces query CPU and standardizes window semantics across panels & alerts.
+
+Implementation Details:
+* Generator preserves existing rules (checks `prometheus_rules.yml`) to avoid collisions.
+* Automatically back-fills `p95_5m` if not already in existing rules file (ensuring ratio expression validity).
+* Applies to all histograms (not only ingest/publish) giving broad future leverage for latency regression detection.
+* Denominator guarded with `clamp_min(..., 0.001)` to prevent spikes due to near-zero baseline.
+
+Next Step (optional): Update dashboards to prefer recorded series over inline quantile expressions for further cost savings; keep at least one raw quantile panel in governance dashboard for validation.
+
 Next Targets (Phase 7+):
 	- Add storage success ratio panels (success vs failures) and backlog burn rate (backlog_rows / rows_rate window).
 	- Introduce multi-window (5m/30m) comparative panels for ingestion latency p95.

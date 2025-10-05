@@ -111,6 +111,32 @@ def synth_rules(metrics: List[Metric], existing: set) -> Dict:
                     "expr": expr,
                     "labels": {"job": "g6_platform"},
                 })
+            # Additional multi-window p95 & ratio (Phase 7 optimization) only for p95
+            # Adds 30m p95 and a 5m/30m ratio rule to reduce repeated dashboard recalculation.
+            p95_5m = f"{m.name}:p95_5m"
+            p95_30m = f"{m.name}:p95_30m"
+            ratio_rec = f"{m.name}:p95_ratio_5m_30m"
+            # Only generate if histogram previously had p95 (implicitly) and not already existing
+            if m.kind == "histogram":
+                if p95_5m not in existing:
+                    rules.append({
+                        "record": p95_5m,
+                        "expr": f"histogram_quantile(0.95, sum(rate({bucket}[5m])) by (le))",
+                        "labels": {"job": "g6_platform"},
+                    })
+                if p95_30m not in existing:
+                    rules.append({
+                        "record": p95_30m,
+                        "expr": f"histogram_quantile(0.95, sum(rate({bucket}[30m])) by (le))",
+                        "labels": {"job": "g6_platform"},
+                    })
+                if ratio_rec not in existing:
+                    # Protect denominator with clamp_min to avoid div by zero.
+                    rules.append({
+                        "record": ratio_rec,
+                        "expr": f"{p95_5m} / clamp_min({p95_30m}, 0.001)",
+                        "labels": {"job": "g6_platform"},
+                    })
         # Gauges with labels → topk summary
         if m.kind == "gauge" and m.labels:
             rec = f"{m.name}:top5"
