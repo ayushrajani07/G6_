@@ -129,6 +129,25 @@ Future Enhancements (Phase 6+):
 	- Rules catalog auto-refresh with provenance hash similar to dashboards manifest.
 	- Optional slack/PR comment summarizing drift categories (added/removed/changed panels, new rules proposed).
 
+### Generator Enrichment Phase 7 (Efficiency & Lifecycle Coverage)
+New focused dashboards & heuristic panels added:
+* Dashboards: `panels_efficiency` (diff bytes per write, cumulative avg) and `lifecycle_storage` (column store ingest + emission batching) added to default plan set.
+* Efficiency Ratios (auto panels):
+	- Diff Bytes per Write (5m rate) = rate(diff_bytes_total) / rate(diff_writes_total)
+	- Cumulative Avg Diff Bytes per Write = total diff bytes / total diff writes
+	- Column Store Bytes per Row (5m rate) = rate(cs_ingest_bytes_total) / rate(cs_ingest_rows_total)
+	- Cumulative Avg CS Bytes per Row = total bytes / total rows
+* Heuristic function `_efficiency_ratio_panels` only activates for slugs: `panels_efficiency`, `column_store`, `lifecycle_storage`.
+* Safety: Panels appended after per-metric generation respecting 36 panel safety cap; failures are non-fatal (logged warning).
+
+Rationale: Provide immediate observability into compression/efficiency trends without manually curating panels for each environment.
+
+Next Targets (Phase 7+):
+	- Add storage success ratio panels (success vs failures) and backlog burn rate (backlog_rows / rows_rate window).
+	- Introduce multi-window (5m/30m) comparative panels for ingestion latency p95.
+	- Auto classify efficiency degradation (diff bytes per write 7d p95 vs last hour) for alert candidate generation.
+	- Add retention & pruning metrics (once implemented) into lifecycle dashboard automatically.
+
 ## Current Dashboard Snapshot (2025-10-05)
 Metrics (Prometheus spec-driven): 61 active metrics (see `docs/METRICS_CATALOG.md`). Newly added spec families: `stream`, `panels` (panel diff) migrated from dynamic registration into YAML; future governance uses spec as sole source.
 Generated via script (`scripts/gen_dashboards.py`):

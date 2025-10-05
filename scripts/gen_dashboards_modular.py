@@ -73,6 +73,9 @@ DEFAULT_PLANS: List[DashboardPlan] = [
     DashboardPlan(slug="column_store", title="Column Store", families=["column_store"], description="Column store refresh / errors"),
     DashboardPlan(slug="governance", title="Metrics Governance", families=["governance"], description="Governance invariants / catalog generation health"),
     DashboardPlan(slug="option_chain", title="Option Chain", families=["option_chain"], description="Option chain aggregates & IV health"),
+    # New focused dashboards (Phase 7 enrichment)
+    DashboardPlan(slug="panels_efficiency", title="Panels Efficiency", families=["panels"], description="Diff vs full efficiency & truncation health"),
+    DashboardPlan(slug="lifecycle_storage", title="Lifecycle & Storage", families=["column_store", "emission"], description="Ingest latency, backlog, retries & emission batching"),
 ]
 
 # ----------------------------- Spec Loading ----------------------------- #
@@ -220,6 +223,55 @@ def _auto_extra_panels(metric: Metric) -> List[Dict]:
     return extras
 
 
+def _efficiency_ratio_panels(metrics: List[Metric]) -> List[Dict]:
+    """Heuristic synthesis for efficiency ratio panels (Phase 7).
+
+    Looks for diff bytes vs total rows/bytes style metrics to compute compression/efficiency.
+    For now, specifically handles panel diff bytes efficiency:
+      diff_bytes_total / clamp_min(sum diff_bytes_total,1) is trivial; instead compute rolling bytes per diff write.
+    Also column store ingest bytes per row if both counters present.
+    """
+    panels: List[Dict] = []
+    names = {m.name: m for m in metrics}
+    # Panel diff efficiency: bytes per write (rate-based) and cumulative average (total bytes / total writes)
+    if "g6_panel_diff_bytes_total" in names and "g6_panel_diff_writes_total" in names:
+        panels.append({
+            "type": "timeseries",
+            "title": "Diff Bytes per Write (5m auto)",
+            "targets": [{"expr": "(sum(rate(g6_panel_diff_bytes_total[5m])) / clamp_min(sum(rate(g6_panel_diff_writes_total[5m])),1))", "refId": "A"}],
+            "datasource": {"type": "prometheus", "uid": "PROM"},
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+            "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+        })
+        panels.append({
+            "type": "timeseries",
+            "title": "Avg Diff Bytes per Write (Cumulative auto)",
+            "targets": [{"expr": "(sum(g6_panel_diff_bytes_total) / clamp_min(sum(g6_panel_diff_writes_total),1))", "refId": "A"}],
+            "datasource": {"type": "prometheus", "uid": "PROM"},
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+            "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+        })
+    # Column store bytes per row efficiency (compression opportunity indicator)
+    if "g6_cs_ingest_bytes_total" in names and "g6_cs_ingest_rows_total" in names:
+        panels.append({
+            "type": "timeseries",
+            "title": "CS Bytes per Row (5m auto)",
+            "targets": [{"expr": "(sum(rate(g6_cs_ingest_bytes_total[5m])) / clamp_min(sum(rate(g6_cs_ingest_rows_total[5m])),1))", "refId": "A"}],
+            "datasource": {"type": "prometheus", "uid": "PROM"},
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+            "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+        })
+        panels.append({
+            "type": "timeseries",
+            "title": "CS Avg Bytes per Row (Cumulative auto)",
+            "targets": [{"expr": "(sum(g6_cs_ingest_bytes_total) / clamp_min(sum(g6_cs_ingest_rows_total),1))", "refId": "A"}],
+            "datasource": {"type": "prometheus", "uid": "PROM"},
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+            "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+        })
+    return panels
+
+
 def layout_panels(panels: List[Dict]) -> None:
     """Assign grid positions in a simple row-major fashion (2 columns)."""
     col_w = 12
@@ -247,6 +299,18 @@ def synth_dashboard(plan: DashboardPlan, metrics: List[Metric], spec_hash: str) 
                 break
         if len(panels) >= 36:
             break
+
+    # Phase 7: append cross-metric efficiency ratio panels for specific dashboards
+    if plan.slug in {"panels_efficiency", "column_store", "lifecycle_storage"}:
+        try:
+            ratio_panels = _efficiency_ratio_panels(metrics)
+            for rp in ratio_panels:
+                if len(panels) >= 36:
+                    break
+                panels.append(rp)
+        except Exception as e:  # pragma: no cover
+            # Non-fatal; continue without ratio panels
+            print(f"WARN: efficiency ratio synthesis failed for {plan.slug}: {e}", file=sys.stderr)
 
     # Alert surfacing panel (aggregated spec alerts for included metrics)
     alert_rows = []
