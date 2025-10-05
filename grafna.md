@@ -144,6 +144,19 @@ New focused dashboards & heuristic panels added:
 
 Rationale: Provide immediate observability into compression/efficiency trends without manually curating panels for each environment.
 
+#### Phase 7 Extension: Suggested Alerts Automation
+Script `scripts/gen_alert_suggestions.py` generates a `prometheus_alert_suggestions.yml` file containing heuristic alert rules for newly derived efficiency metrics:
+* CS Ingest Success Ratio (warning <99.5% over 10m, critical <99% over 5m)
+* CS Backlog Drain ETA (warning >10m over 10m, critical >30m over 5m)
+
+Design Notes:
+* Uses direct expressions (no recording rule dependency) to reduce indirection; future enhancement may map to recording rules once stabilized.
+* Provides `--check` mode (exit code 9 on drift) mirroring recording rules & dashboards governance pattern.
+* Thresholds chosen to surface early degradation while avoiding noise from transient blips (>=5m sustained windows).
+* File intentionally separate (`prometheus_alert_suggestions.yml`) so operators can selectively merge into production rule files after review.
+
+Next alert suggestions candidates: diff truncation spike rate, backlog growth acceleration (2nd derivative), bytes-per-row regression vs 7d baseline, provider error ratio volatility.
+
 Next Targets (Phase 7+):
 	- Add storage success ratio panels (success vs failures) and backlog burn rate (backlog_rows / rows_rate window).
 	- Introduce multi-window (5m/30m) comparative panels for ingestion latency p95.
