@@ -399,6 +399,41 @@ Environment:
 | `G6_PANELS_INTEGRITY_INTERVAL` | Seconds between sweeps (≥5) |
 | `G6_PANELS_INTEGRITY_STRICT` | Fail fast on mismatch |
 
+## Git Push Menu Utility
+
+An interactive helper script to streamline common git push workflows (default behavior: push to `main`).
+
+Script: `scripts/git_push_menu.ps1`
+
+Usage examples (PowerShell):
+```powershell
+pwsh scripts/git_push_menu.ps1              # Interactive menu
+pwsh scripts/git_push_menu.ps1 -Option 1    # Push to main directly
+pwsh scripts/git_push_menu.ps1 -Option 1 -Message "chore: regenerate dashboards"  # Auto-commit & push
+pwsh scripts/git_push_menu.ps1 -Option 5 -Tag v0.6.0   # Create lightweight tag then push
+```
+
+Menu Options:
+1 Push to main (fetch + rebase onto origin/main, then push)
+2 Push current branch
+3 Pull --rebase then push current branch
+4 Force-with-lease push current branch (safe force)
+5 Create tag (lightweight) then push (requires -Tag)
+6 Push existing tag (requires -Tag)
+7 Push all tags
+8 Status + ahead/behind summary
+9 Dry-run push (no changes transferred)
+10 Fetch --prune (clean up deleted remote branches)
+0 Exit
+
+Flags:
+ -Option <n> Select menu item non-interactively.
+ -Tag <name> Provide tag for options 5/6.
+ -Message <msg> Auto-commit staged & unstaged changes (if any) before action.
+
+Safety: Aborts on uncommitted changes unless you confirm auto-commit or supply -Message. Uses `--force-with-lease` for safer force pushes.
+
+
 Panel Schema Validation (`G6_PANELS_VALIDATE`): `off` | `warn` (default) | `strict`.
 
 Manifest Hash Rationale: detect corruption / partial writes while excluding timestamp churn.
