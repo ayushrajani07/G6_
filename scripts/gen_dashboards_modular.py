@@ -289,6 +289,47 @@ def _efficiency_ratio_panels(metrics: List[Metric]) -> List[Dict]:
             "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
             "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
         })
+    # Multi-window latency comparison: ingest latency histogram & bus publish latency
+    if "g6_cs_ingest_latency_ms" in names:
+        panels.append({
+            "type": "timeseries",
+            "title": "CS Ingest p95 5m vs 30m (auto)",
+            "targets": [
+                {"expr": "histogram_quantile(0.95, sum by (le) (rate(g6_cs_ingest_latency_ms_bucket[5m])))", "refId": "A"},
+                {"expr": "histogram_quantile(0.95, sum by (le) (rate(g6_cs_ingest_latency_ms_bucket[30m])))", "refId": "B"}
+            ],
+            "datasource": {"type": "prometheus", "uid": "PROM"},
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+            "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []},
+        })
+        panels.append({
+            "type": "timeseries",
+            "title": "CS Ingest p95 Ratio (5m/30m auto)",
+            "targets": [{"expr": "(histogram_quantile(0.95, sum by (le) (rate(g6_cs_ingest_latency_ms_bucket[5m])))) / clamp_min(histogram_quantile(0.95, sum by (le) (rate(g6_cs_ingest_latency_ms_bucket[30m]))), 0.001)", "refId": "A"}],
+            "datasource": {"type": "prometheus", "uid": "PROM"},
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+            "fieldConfig": {"defaults": {"unit": "ratio"}, "overrides": []},
+        })
+    if "g6_bus_publish_latency_ms" in names:
+        panels.append({
+            "type": "timeseries",
+            "title": "Bus Publish p95 5m vs 30m (auto)",
+            "targets": [
+                {"expr": "histogram_quantile(0.95, sum by (le,bus) (rate(g6_bus_publish_latency_ms_bucket[5m])))", "refId": "A"},
+                {"expr": "histogram_quantile(0.95, sum by (le,bus) (rate(g6_bus_publish_latency_ms_bucket[30m])))", "refId": "B"}
+            ],
+            "datasource": {"type": "prometheus", "uid": "PROM"},
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+            "fieldConfig": {"defaults": {"unit": "ms"}, "overrides": []},
+        })
+        panels.append({
+            "type": "timeseries",
+            "title": "Bus Publish p95 Ratio (5m/30m auto)",
+            "targets": [{"expr": "(histogram_quantile(0.95, sum by (le,bus) (rate(g6_bus_publish_latency_ms_bucket[5m])))) / clamp_min(histogram_quantile(0.95, sum by (le,bus) (rate(g6_bus_publish_latency_ms_bucket[30m]))), 0.001)", "refId": "A"}],
+            "datasource": {"type": "prometheus", "uid": "PROM"},
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+            "fieldConfig": {"defaults": {"unit": "ratio"}, "overrides": []},
+        })
     return panels
 
 

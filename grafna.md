@@ -157,6 +157,19 @@ Design Notes:
 
 Next alert suggestions candidates: diff truncation spike rate, backlog growth acceleration (2nd derivative), bytes-per-row regression vs 7d baseline, provider error ratio volatility.
 
+#### Phase 7 Extension: Multi-Window Latency Panels
+Added automatic p95 latency comparison panels (5m vs 30m) with ratio panels (5m / 30m) for:
+* Column Store Ingest Latency (`g6_cs_ingest_latency_ms_bucket`)
+* Bus Publish Latency (`g6_bus_publish_latency_ms_bucket`)
+
+Purpose: expose short-term latency spikes relative to a longer smoothing window without requiring manual overlay creation.
+Ratio Interpretation:
+* ~1.0 steady state
+* >1 indicates short-term degradation (5m spike)
+* <1 sustained may indicate recent improvement or under-utilization
+
+Implementation: heuristics injected via `_efficiency_ratio_panels` for relevant dashboards (column_store, lifecycle_storage, panels_efficiency) respecting existing panel cap. Uses explicit histogram_quantile over both 5m & 30m windows rather than recording rules for immediate feedback; may migrate to recording rules if query cost grows.
+
 Next Targets (Phase 7+):
 	- Add storage success ratio panels (success vs failures) and backlog burn rate (backlog_rows / rows_rate window).
 	- Introduce multi-window (5m/30m) comparative panels for ingestion latency p95.
