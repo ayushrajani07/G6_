@@ -433,6 +433,14 @@ Flags:
 
 Safety: Aborts on uncommitted changes unless you confirm auto-commit or supply -Message. Uses `--force-with-lease` for safer force pushes.
 
+Python alternative (cross-platform):
+```powershell
+python scripts/git_push_menu.py --option 1 --message "chore: sync"   # push to main after auto-commit
+python scripts/git_push_menu.py          # interactive menu
+python scripts/git_push_menu.py --option 5 --tag v0.6.0
+```
+
+
 
 Panel Schema Validation (`G6_PANELS_VALIDATE`): `off` | `warn` (default) | `strict`.
 
