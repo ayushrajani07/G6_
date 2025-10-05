@@ -10,8 +10,7 @@ from src.providers.adapters.async_mock_adapter import AsyncMockProvider
 from src.storage.csv_sink import CsvSink
 
 
-@pytest.mark.asyncio
-async def test_parallel_collector_with_mock_provider(tmp_path):
+def test_parallel_collector_with_mock_provider(tmp_path):
     # Use temp dir for CSV writes
     base_dir = tmp_path / "g6_data_async"
     os.environ["G6_CSV_BUFFER_SIZE"] = "0"
@@ -36,7 +35,11 @@ async def test_parallel_collector_with_mock_provider(tmp_path):
     }
 
     collector = ParallelCollector(aprov, csv_sink, influx_sink=None, metrics=None, max_workers=2)
-    await collector.run_once(index_params)
+
+    async def _run():
+        await collector.run_once(index_params)
+
+    asyncio.run(_run())
 
     # Verify CSV directory created and contains summary folder for NIFTY
     nifty_dir = base_dir / "NIFTY"

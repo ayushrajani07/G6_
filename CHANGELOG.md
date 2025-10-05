@@ -1,8 +1,30 @@
+ - Further archival (Wave A prune): demo/static & helper artifacts `sample_by_index.html`, `sample_grid.html`, `overlays_demo.html`, `list_lines*.py`, `inspect_indent.py`, `walk1.py` moved to `archive/` with stubs.
 # Changelog
 
 All notable changes to this project will be documented in this file. Dates use ISO format (YYYY-MM-DD).
 
 ## [Unreleased]
+### Added
+- Cleanup scaffolding: inventory generator (`scripts/cleanup/gen_inventory.py`), env var scanner (`scripts/cleanup/env_scan.py`), initial validation stub (`scripts/cleanup/validate_cleanup.py`), documentation index (`docs/INDEX.md`), and consolidated cleanup plan (`docs/clean.md`).
+ - Shared SSE security & connection governance helper module `scripts/summary/sse_shared.py` (Phase 1 extraction: auth, IP allow, UA allow, per-IP connection rate limiting, rate spec parsing).
+ - Phase 2 SSE extraction: event framing (`write_sse_event`) and per-connection token bucket limiter (`allow_event_token_bucket`) centralized; legacy `sse_http` and `unified_http` now delegate for zero drift.
+### Changed
+- Archived debug & temp scripts: `debug_catalog_http*.py`, `temp_trend_check.py`, `temp_event_debug.py`, `temp_debug_unified_http.py` moved to `archive/` with stubs left in place.
+- Additional archival: `temp_http_trend_check.py`, `temp_sse_diag.py`, `temp_repro_health_test.py`, `temp_debug2.py` migrated to `archive/` with explanatory preserved copies. Originals replaced by inert stubs.
+ - `unified_http` now delegates all auth / ACL / rate limiting to `sse_shared.enforce_auth_and_rate` reducing duplication and flake surface for per-IP rate limit tests.
+ - `sse_http.SSEHandler` now delegates `_write_event` and `_allow_event` to shared helpers (metrics + truncation semantics preserved; fallback minimal framing retained for defensive import races).
+
+### Notes
+- No functional runtime changes; all additions are tooling / documentation groundwork for Wave A cleanup.
+ - SSE refactor intentionally preserved ordering of rejection codes (401 -> 403 -> 429) and UA precedence; full SSE & unified HTTP test matrix remained green after both extraction phases.
+### Stability (2025-10-05)
+- Test suite stabilization for order-dependent flakes:
+  - Panel transactions: resilient multi-path commit (copy + rescue) with optional fallback verification; added opt-in diagnostics (`G6_PANELS_TXN_AUTO_DEBUG=1`).
+  - SSE per-IP connect rate: cleared `_ip_conn_window` each test to prevent cross-test 429 leakage.
+  - Summary diff metrics: deterministic zero-inc label seeding + reseed on registry reset; env override forces diff enable when `G6_SUMMARY_RICH_DIFF` truthy.
+  - Rate limiter tests: replaced event loop time dependency with `perf_counter`.
+  - Added stabilization doc `CHANGELOG_STABILIZATION.md` with deeper rationale & follow-ups.
+  - New env: `G6_PANELS_TXN_AUTO_DEBUG` (previous implicit auto-on during pytest now gated).
 ### Cleanup
 - Pruned deprecated `scripts/run_live.py` (fully removed) and consolidated logging env var documentation block to eliminate duplicate governance warnings.
 - Tombstoned legacy README variants (`README_COMPREHENSIVE.md`, `README_CONSOLIDATED_DRAFT.md`, `README_web_dashboard.md`) pending final deletion after external reference audit.
@@ -15,6 +37,7 @@ All notable changes to this project will be documented in this file. Dates use I
 - G6_STRUCT_EVENTS_FORMAT env flag (json|human|both) enabling concise human-readable summaries for structured collector events alongside or instead of raw JSON lines.
 - G6_SUPPRESS_GROUPED_METRICS_BANNER to fully silence grouped metrics registration banner.
 - G6_SUPPRESS_DUPLICATE_METRICS_WARN and G6_DUPLICATES_LOG_LEVEL for fine-grained duplicate metrics warning control.
+- Metrics: Optional initialization profiling (`G6_METRICS_PROFILE_INIT=1`) recording per-phase timings (group_gating, spec_registration, provider_mode_seed, aliases_canonicalize) in `registry._init_profile` with total.
 ### Documentation / Governance
 - Documentation consolidation: unified environment variable reference now exclusively in `docs/env_dict.md`; converted `docs/ENVIRONMENT.md` into archival stub to eliminate duplication.
 - Added metrics facade modularization note to `docs/METRICS.md` (Phase 3.x) and config duplication policy update in `docs/config_dict.md`.
@@ -145,4 +168,15 @@ All notable changes to this project will be documented in this file. Dates use I
 ## 2025-09-16
 ### Added
 - Initial comprehensive architecture & operations guide (`README_COMPREHENSIVE.md`) later merged into unified `README.md` (2025-10-01).
+
+## Unreleased
+### Improved
+- Metrics: Enhanced duplicate guard suppression to ignore benign alias families (legacy_*, *_total, *_alias) and removed need for *_total_total fallback by preventing creation of redundant double-suffixed attributes in `aliases.ensure_canonical_counters`.
+- Added regression tests (`tests/test_metrics_duplicates.py`) ensuring benign alias sets produce no duplicate summary while true collisions are still detected.
+- Provider mode seeding hardened. Removed recursive call to set_provider_mode during registry init; direct seeding with a micro-timeout (`G6_PROVIDER_MODE_SEED_TIMEOUT`, default 0.25s) and optional force/skip env (`G6_METRICS_FORCE_PROVIDER_MODE_SEED`). Added regression test `test_provider_mode_seed`.
+- Stale gating: moved consecutive stale cycle counter from process-global os module state to registry-scoped attribute (`_consec_stale_cycles`) improving test isolation and eliminating cross-test leakage; added `test_stale_gating_isolated`.
+ - Panels hashing: hardened canonical hashing via `_canonical` normalization (float normalization including -0.0 -> 0.0, NaN/Inf sentinels `__NaN__` / `__Inf__` / `__-Inf__`, deterministic set ordering, dict key coercion to str, stable nested ordering). Added robustness tests (`test_panel_hash_hardening.py`) covering key order independence, float equivalence (1 vs 1.0), -0.0 handling, Inf/-Inf, NaN length sensitivity, and set ordering determinism. Ensures downstream diff, SSE, and resync logic remain stable across platform JSON float quirks.
+
+### Internal
+- Pruned obsolete duplicate suppression branch for `_total_total` patterns after source prevention.
 

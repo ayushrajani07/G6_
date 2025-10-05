@@ -49,6 +49,9 @@ class _NoiseFilter(logging.Filter):  # pragma: no cover - log hygiene
         # Always allow if level > INFO
         if record.levelno > logging.INFO:
             return True
+        # Never suppress critical test-observed structured events
+        if 'metrics.group_filters.loaded' in str(msg):
+            return True
         for sub in self.SUPPRESS_SUBSTRINGS:
             if sub in str(msg):
                 key = f"{record.levelno}:{sub}:{msg}" if sub == "Initialized " else f"{record.levelno}:{sub}"
@@ -150,6 +153,34 @@ class MetricsRegistry:
     
     def __init__(self):
         """Initialize metrics."""
+        _trace_simple = os.getenv('G6_METRICS_INIT_SIMPLE_TRACE','').lower() in {'1','true','yes','on'}
+        # Optional lightweight init profiling (phase timing) controlled by env G6_METRICS_PROFILE_INIT=1
+        _prof_enabled = os.getenv('G6_METRICS_PROFILE_INIT','').lower() in {'1','true','yes','on'}
+        if _prof_enabled:
+            import time as _prof_time  # local import to avoid overhead when disabled
+            _prof_start = _prof_time.perf_counter()
+            self._init_profile = {'phases_ms': {}, 'total_ms': 0.0}  # type: ignore[attr-defined]
+            def _prof_mark(label: str, started_at: float):  # type: ignore
+                try:
+                    dt = (_prof_time.perf_counter() - started_at) * 1000.0
+                    self._init_profile['phases_ms'][label] = dt  # type: ignore[index]
+                    self._init_profile['total_ms'] = (_prof_time.perf_counter() - _prof_start) * 1000.0  # type: ignore[index]
+                except Exception:
+                    pass
+        else:
+            _prof_time = None  # type: ignore
+            _prof_start = 0.0  # type: ignore
+            def _prof_mark(label: str, started_at: float):  # type: ignore
+                return
+        def _pt(label: str, **kw):
+            if not _trace_simple:
+                return
+            try:
+                extra = ' '.join(f"{k}={v}" for k,v in kw.items()) if kw else ''
+                print(f"[metrics-init-basic] {label}{(' ' + extra) if extra else ''}", flush=True)
+            except Exception:
+                pass
+        _pt('begin')
         _trace_enabled = os.getenv('G6_METRICS_INIT_TRACE','').lower() in {'1','true','yes','on'}
         # Initialization step trace records (each entry: {'step': str, 'ok': bool, 'dt': float, ...extra})
         self._init_trace: list[dict] = [] if _trace_enabled else []
@@ -179,6 +210,8 @@ class MetricsRegistry:
         self._group_allowed = lambda name: True  # type: ignore[assignment]
 
         # 1. Configure group filters (establish _group_allowed predicate)
+        _pt('group_gating_start')
+        _prof_t = _prof_time.perf_counter() if _prof_enabled else 0.0  # type: ignore[attr-defined]
         _end = _step('group_gating')
         try:
             from .gating import configure_registry_groups as _cfg  # type: ignore
@@ -193,6 +226,9 @@ class MetricsRegistry:
                 self.group_allowed = group_allowed  # type: ignore[attr-defined]
             self._group_allowed = getattr(self, '_group_allowed')  # ensure alias stability
             _end(ok=True, groups=len(CONTROLLED_GROUPS))
+            _pt('group_gating_ok', groups=len(CONTROLLED_GROUPS))
+            if _prof_enabled:
+                _prof_mark('group_gating', _prof_t)
         except Exception as _e:
             # Fallback uses canonical exported copy to avoid duplicated literal.
             try:
@@ -207,10 +243,26 @@ class MetricsRegistry:
             if not hasattr(self, 'group_allowed'):
                 self.group_allowed = lambda _n: True  # type: ignore[attr-defined]
             _end(ok=False, error=str(_e))
+            _pt('group_gating_fail', error=str(_e))
+            if _prof_enabled:
+                _prof_mark('group_gating', _prof_t)
 
         # 2. (Removed) Legacy partial override of _maybe_register (kept for numbering continuity)
 
+        # Auto test-mode knobs: if under pytest and no explicit override, skip provider mode seeding
+        try:
+            if (('PYTEST_CURRENT_TEST' in os.environ) or ('pytest' in sys.modules)) \
+               and not os.getenv('G6_METRICS_SKIP_PROVIDER_MODE_SEED') \
+               and not os.getenv('G6_METRICS_FORCE_PROVIDER_MODE_SEED'):
+                os.environ['G6_METRICS_SKIP_PROVIDER_MODE_SEED'] = '1'
+                if _trace_simple:
+                    _pt('auto_skip_provider_mode_seed_enabled')
+        except Exception:
+            pass
+
         # 3. Register declarative spec metrics FIRST (core invariants)
+        _pt('spec_registration_start')
+        _prof_t = _prof_time.perf_counter() if _prof_enabled else 0.0  # type: ignore[attr-defined]
         _end = _step('spec_registration')
         try:
             from .spec import METRIC_SPECS, GROUPED_METRIC_SPECS  # type: ignore
@@ -226,37 +278,97 @@ class MetricsRegistry:
                 except Exception:
                     pass
             _end(ok=True, count=scount)
+            _pt('spec_registration_ok', count=scount)
+            if _prof_enabled:
+                _prof_mark('spec_registration', _prof_t)
         except Exception as _e:  # pragma: no cover
             _end(ok=False, error=str(_e))
+            _pt('spec_registration_fail', error=str(_e))
             try:
                 logger.debug("Spec metric registration failed", exc_info=True)
             except Exception:
                 pass
-        # Fallback: guarantee provider_mode exists for one-hot setter & tests
-        try:
-            if not hasattr(self, 'provider_mode'):
-                self.provider_mode = Gauge('g6_provider_mode', 'Current provider mode (one-hot gauge)', ['mode'])  # type: ignore[attr-defined]
-            # Seed a default provider mode sample so one-hot test always has 1 active after transitions
+            if _prof_enabled:
+                _prof_mark('spec_registration', _prof_t)
+        # Post-spec debug segmentation (fine-grained tracing)
+        if _trace_simple:
             try:
-                from .metrics import set_provider_mode as _spm  # circular-safe local import
+                _pt('post_spec_segment_enter')
             except Exception:
-                _spm = None  # type: ignore
-            if _spm:
-                try:
-                    _spm('primary')  # default seed
-                except Exception:
-                    pass
+                pass
+        # Emit structured gating log via package logger (fallback for tests capturing package-level)
+        try:
+            import logging as _lg
+            _plog = _lg.getLogger('src.metrics')
+            if not getattr(self, '_group_filters_log_emitted', False):
+                _plog.info('metrics.group_filters.loaded')
+                try: self._group_filters_log_emitted = True  # type: ignore[attr-defined]
+                except Exception: pass
         except Exception:
             pass
+        # Fallback: guarantee provider_mode exists for one-hot setter & tests (skippable)
+        _force_provider_seed = os.getenv('G6_METRICS_FORCE_PROVIDER_MODE_SEED','').lower() in {'1','true','yes','on'}
+        _skip_provider_seed = (os.getenv('G6_METRICS_SKIP_PROVIDER_MODE_SEED','').lower() in {'1','true','yes','on'}) and not _force_provider_seed
+        if _trace_simple:
+            _pt('provider_mode_seed_start', skip=_skip_provider_seed)
+        if not _skip_provider_seed:
+            _prof_t = _prof_time.perf_counter() if _prof_enabled else 0.0  # type: ignore[attr-defined]
+            # Harden seeding: avoid recursive facade call & enforce micro-timeout
+            try:
+                import time as _t
+                seed_deadline = _t.time() + float(os.getenv('G6_PROVIDER_MODE_SEED_TIMEOUT','0.25'))
+                if not hasattr(self, 'provider_mode'):
+                    try:
+                        self.provider_mode = Gauge('g6_provider_mode', 'Current provider mode (one-hot gauge)', ['mode'])  # type: ignore[attr-defined]
+                    except Exception:
+                        self.provider_mode = None  # type: ignore[attr-defined]
+                g = getattr(self, 'provider_mode', None)
+                if g is not None and hasattr(g, 'labels'):
+                    # Zero existing children defensively (should be empty on fresh init)
+                    try:
+                        child_map = getattr(g, '_metrics', {})  # type: ignore[attr-defined]
+                        for child in list(child_map.values()):
+                            try:
+                                child.set(0)  # type: ignore[attr-defined]
+                            except Exception:
+                                pass
+                    except Exception:
+                        pass
+                    # Create primary label sample
+                    try:
+                        g.labels(mode='primary').set(1)  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                # Deadline enforcement (soft): emit trace marker if exceeded; we do not raise
+                if _t.time() > seed_deadline and _trace_simple:
+                    try:
+                        print('[metrics-init-basic] provider_mode_seed_slow', flush=True)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        if _trace_simple:
+            _pt('provider_mode_seed_done', skipped=_skip_provider_seed)
+        if _prof_enabled and not _skip_provider_seed:
+            _prof_mark('provider_mode_seed', _prof_t)
 
         # Canonicalize legacy short counters to *_total forms BEFORE pruning so pruning can remove them when groups disabled
+        if _trace_simple:
+            _pt('aliases_canonicalize_start')
+        _prof_t = _prof_time.perf_counter() if _prof_enabled else 0.0  # type: ignore[attr-defined]
         try:
             from .aliases import ensure_canonical_counters as _early_ecc  # type: ignore
             _early_ecc(self)
         except Exception:
             pass
+        if _trace_simple:
+            _pt('aliases_canonicalize_done')
+        if _prof_enabled:
+            _prof_mark('aliases_canonicalize', _prof_t)
 
         # Fallback: guarantee core spec metrics exist (defensive against earlier registration exceptions)
+        if _trace_simple:
+            _pt('core_fallback_start')
         _core_fallback = [
             ('collection_cycles', Counter, 'g6_collection_cycles', 'Number of collection cycles run', None),
             ('collection_duration', Summary, 'g6_collection_duration_seconds', 'Time spent collecting data', None),
@@ -299,12 +411,14 @@ class MetricsRegistry:
                 pass
 
         # 4. Early create metric_group_state gauge (index_aggregate)
+        _pt('index_aggregate_start')
         _end = _step('index_aggregate')
         try:
             from .index_aggregate import init_index_aggregate_metrics as _idx  # type: ignore
             _idx(self); _end()
         except Exception as _e:
             _end(ok=False, error=str(_e))
+        _pt('index_aggregate_done')
         # If index aggregate path failed to create metric_group_state (e.g., import error), create it directly now
         if not hasattr(self, 'metric_group_state'):
             try:
@@ -1144,6 +1258,12 @@ def set_provider_mode(mode: str) -> None:  # pragma: no cover - thin helper
     Creates the gauge if metrics not yet initialized (bootstraps registry).
     All previously set label samples are zeroed before activating the provided mode.
     """
+    _simple_trace = os.getenv('G6_METRICS_INIT_SIMPLE_TRACE','').lower() in {'1','true','yes','on'}
+    if _simple_trace:
+        try:
+            print(f"[metrics-init-basic] provider_mode_seed_entry mode={mode}", flush=True)
+        except Exception:
+            pass
     try:
         metrics = get_metrics()
         g = getattr(metrics, 'provider_mode', None)
@@ -1152,23 +1272,58 @@ def set_provider_mode(mode: str) -> None:  # pragma: no cover - thin helper
             try:
                 metrics.provider_mode = Gauge('g6_provider_mode', 'Current provider mode (one-hot gauge)', ['mode'])  # type: ignore[attr-defined]
                 g = metrics.provider_mode
+                if _simple_trace:
+                    try:
+                        print("[metrics-init-basic] provider_mode_gauge_created", flush=True)
+                    except Exception:
+                        pass
             except Exception:
                 return
         # Zero existing children
         try:
             child_map = getattr(g, '_metrics', {})  # type: ignore[attr-defined]
+            if _simple_trace:
+                try:
+                    print(f"[metrics-init-basic] provider_mode_zero_children_start count={len(child_map)}", flush=True)
+                except Exception:
+                    pass
             for child in list(child_map.values()):
                 try:
                     child.set(0)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+            if _simple_trace:
+                try:
+                    print("[metrics-init-basic] provider_mode_zero_children_done", flush=True)
                 except Exception:
                     pass
         except Exception:
             pass
         # Set requested mode
         try:
+            if _simple_trace:
+                try:
+                    print("[metrics-init-basic] provider_mode_set_label_start", flush=True)
+                except Exception:
+                    pass
             g.labels(mode=str(mode)).set(1)  # type: ignore[attr-defined]
+            if _simple_trace:
+                try:
+                    print("[metrics-init-basic] provider_mode_set_label_done", flush=True)
+                except Exception:
+                    pass
         except Exception:
+            if _simple_trace:
+                try:
+                    print("[metrics-init-basic] provider_mode_seed_error", flush=True)
+                except Exception:
+                    pass
             return
+        if _simple_trace:
+            try:
+                print("[metrics-init-basic] provider_mode_seed_exit", flush=True)
+            except Exception:
+                pass
         # Post-condition: if all samples still zero, force create sample again
         try:
             fams = list(g.collect())

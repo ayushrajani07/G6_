@@ -37,6 +37,10 @@ def force_new_metrics_registry(enable_resource_sampler: bool = False) -> Metrics
     skipping sampler threads unless explicitly requested.
     """
     # Set env flag so downstream logic sees explicit intent (mirrors runtime pattern)
+    # Temporarily request a fresh registry; restore prior value after creation so
+    # repeated get_metrics() calls within the same test do NOT keep forcing new
+    # instances (which breaks in-test stateful streak logic for adaptive alerts).
+    _prev_force = os.environ.get('G6_FORCE_NEW_REGISTRY')
     os.environ['G6_FORCE_NEW_REGISTRY'] = '1'
     _purge_default_registry()
     # Use reset path on server setup; disable resource sampler for test speed by default
@@ -45,6 +49,14 @@ def force_new_metrics_registry(enable_resource_sampler: bool = False) -> Metrics
     try:
         from .group_registry import register_group_metrics as _rgm  # type: ignore
         _rgm(metrics)
+    except Exception:
+        pass
+    # Restore/clear flag: one-shot semantics rather than persistent forcing
+    try:
+        if _prev_force is None:
+            os.environ.pop('G6_FORCE_NEW_REGISTRY', None)
+        else:
+            os.environ['G6_FORCE_NEW_REGISTRY'] = _prev_force
     except Exception:
         pass
     return metrics

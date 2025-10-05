@@ -40,16 +40,41 @@ def _load_schemas() -> dict[str, Any]:
 
 
 def validate_manifest(path: str | Path) -> bool:
-    if jsonschema is None:  # pragma: no cover - optional
-        return True
-    schemas = _load_schemas()
-    schema = schemas.get("manifest.schema.json")
-    if not schema:
-        return True
+    """Validate manifest.json.
+
+    Even when jsonschema dependency is absent we still perform a *minimal* structural
+    validation so negative tests (mutation removal of required keys) remain effective.
+    """
+    # Always attempt to load JSON first; if unreadable fail fast.
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = json.load(f)
+    except Exception as e:  # noqa: BLE001
+        logger.error("Manifest validation failed: unreadable: %s", e)
+        return False
+    required_keys = {"generator", "schema_version", "files", "cycle"}
+    # Minimal fallback path when jsonschema not installed
+    if jsonschema is None:
+        missing = [k for k in required_keys if k not in data]
+        if missing:
+            logger.error("Manifest validation failed (fallback missing=%s)", missing)
+            return False
+        return True
+    # Full schema path
+    schemas = _load_schemas()
+    schema = schemas.get("manifest.schema.json")
+    if not schema:
+        # Fall back to minimal required key check
+        missing = [k for k in required_keys if k not in data]
+        if missing:
+            logger.error("Manifest validation failed (no schema; missing=%s)", missing)
+            return False
+        return True
+    try:
         jsonschema.validate(instance=data, schema=schema)  # type: ignore[arg-type]
+        missing = [k for k in required_keys if k not in data]
+        if missing:
+            raise ValueError(f"manifest missing required keys: {missing}")
         return True
     except Exception as e:  # noqa: BLE001
         logger.error("Manifest validation failed: %s", e)
@@ -120,6 +145,10 @@ def runtime_validate_panel(payload: dict[str, Any]) -> None:
         return
     try:
         jsonschema.validate(instance=payload, schema=schema)  # type: ignore[arg-type]
+        # Additional strict-only enforcement: require updated_at present at top level
+        # Some tests mutate panels to remove updated_at expecting strict mode to fail fast.
+        if mode == "strict" and "updated_at" not in payload:
+            raise ValueError("runtime panel validation failed: missing 'updated_at'")
     except Exception as e:  # noqa: BLE001
         msg = f"runtime panel validation failed: {e}"
         if mode == "strict":

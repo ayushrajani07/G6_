@@ -1,0 +1,74 @@
+name: Metrics Governance Extended
+
+on:
+  pull_request:
+    paths:
+      - 'metrics/spec/**'
+      - 'scripts/gen_metrics.py'
+      - 'scripts/gen_metrics_catalog.py'
+      - 'scripts/gen_dashboards_modular.py'
+      - 'scripts/gen_recording_rules.py'
+      - 'grafana/dashboards/generated/**'
+      - 'prometheus_rules.yml'
+      - 'prometheus_recording_rules_generated.yml'
+  push:
+    branches: [ main ]
+    paths:
+      - 'metrics/spec/**'
+      - 'scripts/gen_metrics.py'
+      - 'scripts/gen_metrics_catalog.py'
+      - 'scripts/gen_dashboards_modular.py'
+      - 'scripts/gen_recording_rules.py'
+      - 'grafana/dashboards/generated/**'
+      - 'prometheus_rules.yml'
+      - 'prometheus_recording_rules_generated.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  governance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Generate metrics artifacts
+        run: |
+            python scripts/gen_metrics.py
+            python scripts/gen_metrics_catalog.py || true
+
+      - name: Verify dashboards semantic drift
+        run: |
+            python scripts/gen_dashboards_modular.py --verify --output grafana/dashboards/generated || EXIT=$?; if [ "${EXIT:-0}" != "0" ]; then exit $EXIT; fi
+
+      - name: Recording rules suggestion check
+        run: |
+            python scripts/gen_recording_rules.py --check --output prometheus_recording_rules_generated.yml || EXIT=$?; if [ "${EXIT:-0}" != "0" ]; then exit $EXIT; fi
+
+      - name: Fail if uncommitted generated changes
+        run: |
+          git diff --name-only --exit-code || (echo 'Generated artifacts drift detected. Regenerate locally and commit.' && exit 1)
+
+      - name: Summary
+        run: |
+          echo 'Metrics governance extended checks passed.'

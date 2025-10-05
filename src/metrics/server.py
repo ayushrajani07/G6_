@@ -72,6 +72,11 @@ def setup_metrics_server(port: int = 9108, host: str = "0.0.0.0", *,
         _METRICS_SINGLETON = None
         _METRICS_PORT = None
         _METRICS_HOST = None
+        try:  # ensure central anchor cleared so gating re-evaluates
+            from . import _singleton as _sing  # type: ignore
+            _sing.clear_singleton()
+        except Exception:
+            pass
 
     if use_custom_registry is None:
         use_custom_registry = False

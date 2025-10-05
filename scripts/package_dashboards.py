@@ -92,7 +92,7 @@ def build_manifest(files: List[Path], version: str) -> Dict[str, Any]:
         })
     return {
         'version': version,
-        'created_utc': datetime.datetime.utcnow().isoformat() + 'Z',
+    'created_utc': datetime.datetime.now(datetime.UTC).isoformat().replace('+00:00','Z'),
         'count': len(records),
         'files': records,
     }

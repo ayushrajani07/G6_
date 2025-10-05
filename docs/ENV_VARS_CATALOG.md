@@ -406,29 +406,24 @@ G6_STRIKE_POLICY_TARGET | int | 0 | Y | Baseline per-side strike depth target fo
 G6_STRIKE_POLICY_WINDOW | int | 0 | Y | Sliding performance window for evaluating strike policy adjustments (0 disables windowed evaluation).
 G6_STRIKE_UNIVERSE_CACHE_SIZE | int | 0 | Y | Cache size limit for strike universe candidate sets (0 unlimited).
 G6_SUMMARY_ALERTS_LOG_MAX | int | 500 | Y | Maximum number of alert entries retained in rolling `data/panels/alerts_log.json`. Older entries trimmed when snapshot…
-G6_SUMMARY_ALT_SCREEN | bool | off | Y | Use alternate terminal screen for summary UI (restores on exit).
-G6_SUMMARY_AUTO_FULL_RECOVERY | bool | on | Y | When enabled, the summary client automatically performs a single reconnection attempt with `force_full=1` appended to t…
-G6_SUMMARY_BACKOFF_BADGE_MS | int | 0 | Y | Minimum ms a backoff badge stays visible after condition clears.
-G6_SUMMARY_BUILD_MODEL | bool | off | Y | When enabled (1/true) the summary app performs an on-demand unified model snapshot build (structured `UnifiedStatusSnap…
-G6_SUMMARY_CURATED_MODE | bool | off | Y | Enable curated summary layout mode (adaptive block pruning / ordering). Auto-enabled in some CLI tools; when on, layout…
-G6_SUMMARY_DEBUG_LOG | bool | off | Y | High-volume summary internals logging (loop timings, panel store metadata).
-G6_SUMMARY_DEBUG_UPDATES | bool | off | Y | Emit per-cycle debug diagnostics about summary update decisions (e.g., signature skip, need_full gating) to aid trouble…
-G6_SUMMARY_DOSSIER_INTERVAL_SEC | float | 5.0 | Y | Minimum seconds between dossier (unified summary JSON) writes while the dossier path variable is set. 0 forces write ev…
-G6_SUMMARY_DOSSIER_PATH | path | (unset) | Y | When set activates the DossierWriter plugin writing a consolidated JSON summary (default path fallback `data/unified_su…
-G6_SUMMARY_LOOP_BACKOFF_MS | int | 500 | Y | Backoff between summary refresh loop iterations.
-G6_SUMMARY_META_REFRESH_SEC | int | 15 | Y | Metadata refresh cadence.
-G6_SUMMARY_MODE | str | (auto) | Y | Force specific summary mode variant (e.g., plain, rich, panels).
-G6_SUMMARY_READ_PANELS | bool | off | Y | Summary loop reads panel artifacts directly (bypassing in-memory status) to validate end-to-end writer output.
-G6_SUMMARY_REFRESH_SEC | int | 5 | Y | Main summary refresh cadence.
-G6_SUMMARY_RES_REFRESH_SEC | int | 30 | Y | Resource / utilization refresh cadence.
-G6_SUMMARY_SHOW_NEED_FULL | bool | on | Y | Controls visibility of the FULL SNAPSHOT REQUIRED integrity badge in the summary header when diff stream rejected (base…
-G6_SUMMARY_SIG_V2 | enum(on|off|auto) | auto | Y | Enhanced v2 summary signature gating: skips refresh when signature stable. auto enables when aggregation v2 active; on…
-G6_SUMMARY_SSE_TIMEOUT | float | 45 | Y | Timeout in seconds for the summary app's SSE client connections before triggering reconnection logic.
-G6_SUMMARY_SSE_TYPES | csv | panel_full,panel_diff | Y | Default comma-separated list of SSE event types to subscribe to when `--sse-types` not provided.
-G6_SUMMARY_SSE_URL | str | (unset) | Y | Optional override for the summary app SSE endpoint (e.g., `http://127.0.0.1:9315/events`).
-G6_SUMMARY_STATUS_FILE | path | data/runtime_status.json | Y | Overrides default runtime status source path for the unified summary loop (used by tests to point to synthetic status f…
-G6_SUMMARY_THRESH_OVERRIDES | JSON | (unset) | Y | JSON object overriding terminal summary/dashboard thresholds defined in `scripts/summary/thresholds.py`. Dot keys map t…
-G6_SUMMARY_V2_LOG_DEBUG | bool | off | Y | Extra debug logging for summary aggregation v2 (signature computation / prune decisions).
+G6_SUMMARY_ALT_SCREEN | bool | off | Y | Use alternate screen buffer for richer terminal rendering (default on; set 0 to disable)
+G6_SUMMARY_AUTO_FULL_RECOVERY | bool | on | Y | Enable automatic recovery to full refresh after degraded cycles (set 0 to require manual intervention)
+G6_SUMMARY_BACKOFF_BADGE_MS | int | 0 | Y | Milliseconds window for backoff severity badge decay (default 120000)
+G6_SUMMARY_CURATED_MODE | bool | off | Y | Enable curated (reduced/noise-filtered) summary presentation mode
+G6_SUMMARY_DOSSIER_INTERVAL_SEC | int | 0 | Y | Interval in seconds between dossier snapshot writes (default 5)
+G6_SUMMARY_DOSSIER_PATH | path | (unset) | Y | Path for dossier JSON output (omit to disable dossier emission)
+G6_SUMMARY_META_REFRESH_SEC | int | 0 | Y | Override metadata panel refresh cadence; applied only when unified refresh specified
+G6_SUMMARY_MODE | str | (auto) | Y | Select summary layout/mode variant (e.g. 'minimal','full'); leave unset for default adaptive
+G6_SUMMARY_REFRESH_SEC | int | 5 | Y | Unified refresh cadence (seconds) for summary loops; overrides per-type defaults when set
+G6_SUMMARY_RES_REFRESH_SEC | int | 30 | Y | Override resource panel refresh cadence; applied only when unified refresh specified
+G6_SUMMARY_RICH_DIFF | bool | off | Y | Enable rich diff demo panel instrumentation (experimental visual diff counters)
+G6_SUMMARY_SSE_TIMEOUT | float | 45 | Y | SSE client read timeout in seconds for terminal consumer (default 45)
+G6_SUMMARY_SSE_TYPES | csv | panel_full,panel_diff | Y | Comma list of SSE event types to consume (default panel_full,panel_diff)
+G6_SUMMARY_STATUS_FILE | path | data/runtime_status.json | Y | Path to runtime status JSON consumed by summary (default data/runtime_status.json)
+G6_SUMMARY_THRESH_OVERRIDES | JSON | (unset) | Y | JSON object of threshold overrides for badges/alerts
+G6_SUMMARY_UNIFIED_SNAPSHOT | N (deprecated) | Legacy gate for unified snapshot model; retained only for deprecation tracking
+G6_SUMMARY_PANELS_MODE | N (removed) | Legacy panels/plain mode selector replaced by auto-detect of panels dir
+G6_SUMMARY_READ_PANELS | N (removed) | Legacy flag for reading existing panels directory; superseded by automatic behavior
 G6_SUPPRESS_CLOSED_METRICS | bool | off | Y | Suppress metrics emission when market closed.
 G6_SUPPRESS_DEPRECATED_WARNINGS | bool | off | Y | Suppress deprecation warnings emitted by deprecated legacy scripts (currently `scripts/terminal_dashboard.py`; may exte…
 G6_SYMBOL_MATCH_MODE | enum(legacy|strict|loose) | legacy | Y | Matching algorithm variant.
@@ -500,7 +495,6 @@ G6_CSV_PRICE_SANITY | Y | needs docs
 G6_CYCLE_INTERVAL | Y | needs docs
 G6_DIAG_EXIT | Y | needs docs
 G6_DISABLE_PER_OPTION_METRICS | Y | needs docs
-G6_ENABLE_LEGACY_LOOP | Y | needs docs
 G6_ENABLE_METRIC_GROUPS | Y | needs docs
 G6_ENV_DOC_STRICT | Y | needs docs
 G6_EXPIRY_MISCLASS_DEBUG | Y | needs docs
@@ -560,7 +554,6 @@ G6_SUMMARY_LEGACY | Y | needs docs
 G6_SUMMARY_MAX_LINES | Y | needs docs
 G6_SUMMARY_MEM_PROJECTION | Y | needs docs
 G6_SUMMARY_METRICS | Y | needs docs
-G6_SUMMARY_PANELS_MODE | Y | needs docs
 G6_SUMMARY_PANEL_ISOLATION | Y | needs docs
 G6_SUMMARY_PARITY | Y | needs docs
 G6_SUMMARY_RICH_MODE | Y | needs docs
@@ -573,13 +566,12 @@ G6_SUMMARY_THEME | Y | needs docs
 G6_SUMMARY_TRENDS | Y | needs docs
 G6_SUMMARY_UNIFIED_SNAPSHOT | Y | needs docs
 G6_SUMMARY_V2_ONLY | Y | needs docs
-G6_SUPPRESS_BENCHMARK_DEPRECATED | Y | needs docs
-G6_SUPPRESS_DEPRECATED_RUN_LIVE | Y | needs docs
-G6_SUPPRESS_DEPRECATIONS | Y | needs docs
-G6_SUPPRESS_EXPIRY_MATRIX_WARN | Y | needs docs
-G6_SUPPRESS_KITE_DEPRECATIONS | Y | needs docs
-G6_SUPPRESS_LEGACY_LOOP_WARN | Y | needs docs
-G6_SUPPRESS_LEGACY_METRICS_WARN | Y | needs docs
+G6_SUPPRESS_BENCHMARK_DEPRECATED | N (deprecated alias) | Legacy per-script suppression; auto-mapped to G6_SUPPRESS_DEPRECATIONS (remove R+1)
+G6_SUPPRESS_DEPRECATED_RUN_LIVE | N (deprecated alias) | Legacy suppression for run_live script deprecation banner; auto-mapped; remove R+1
+G6_SUPPRESS_DEPRECATIONS | Y | Global suppression for non-critical deprecation warnings (set to 1/true/yes/on to silence)
+G6_SUPPRESS_EXPIRY_MATRIX_WARN | Y | Suppress noisy expiry matrix heuristic warnings (use sparingly; default surfaces guidance)
+G6_SUPPRESS_KITE_DEPRECATIONS | Y | Suppress broker integration deprecation banners (transitional)
+G6_SUPPRESS_LEGACY_METRICS_WARN | Y | Suppress legacy metrics access or alias deprecation warnings (migration aid)
 G6_TOKEN_HEADLESS | Y | needs docs
 G6_TOKEN_PROVIDER | Y | needs docs
 G6_TRACE_METRICS | Y | needs docs

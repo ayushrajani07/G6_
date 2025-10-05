@@ -1,6 +1,7 @@
 from __future__ import annotations
 import os, socket, contextlib, time
 import pytest
+import asyncio
 
 
 def _find_free_port() -> int:
@@ -77,6 +78,20 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 # ---------------------------------------------------------------------------
+# Minimal mode / diagnostics toggles
+#   G6_TEST_MINIMAL=1            -> skip heavy autouse fixtures & collection gating
+#   G6_DISABLE_TIMING_GUARD=1    -> disable per-test timing watchdog only
+# These allow isolating hangs during early collection on new / unstable envs.
+# ---------------------------------------------------------------------------
+_YES = {"1","true","yes","on"}
+G6_TEST_MINIMAL = os.environ.get('G6_TEST_MINIMAL','').lower() in _YES
+DISABLE_TIMING_GUARD = G6_TEST_MINIMAL or (os.environ.get('G6_DISABLE_TIMING_GUARD','').lower() in _YES)
+
+if G6_TEST_MINIMAL:
+    # Emit a single diagnostic line early so a hang before this print indicates import/venv issue.
+    print("[g6-pytest] G6_TEST_MINIMAL active: skipping timing guard, metrics reset, marker gating.")
+
+# ---------------------------------------------------------------------------
 # Provider fixtures (deprecation suppression)
 # ---------------------------------------------------------------------------
 @pytest.fixture
@@ -96,6 +111,8 @@ def kite_provider():
 # Legacy collection_loop fully removed (2025-09-28); prior gating env flags retired.
 
 def pytest_collection_modifyitems(config, items):  # pragma: no cover (collection phase)
+    if G6_TEST_MINIMAL:
+        return  # Skip gating entirely in minimal mode
     enable_optional = os.environ.get('G6_ENABLE_OPTIONAL_TESTS','') in ('1','true','yes','on')
     enable_slow = os.environ.get('G6_ENABLE_SLOW_TESTS','') in ('1','true','yes','on')
     skip_optional = pytest.mark.skip(reason="Set G6_ENABLE_OPTIONAL_TESTS=1 to run optional tests")
@@ -132,6 +149,10 @@ def _parse_budget(name: str, default: float) -> float:
 
 @pytest.fixture(autouse=True)
 def _timing_guard(request):
+    if DISABLE_TIMING_GUARD:
+        # Minimal or explicitly disabled: no timing enforcement.
+        yield
+        return
     if 'allow_long' in request.keywords:
         yield
         return
@@ -140,10 +161,8 @@ def _timing_guard(request):
     start = time.perf_counter()
     exceeded = {'hard': False}
 
-    # Hard timeout watchdog implemented via timer thread; raises KeyboardInterrupt to abort test body.
-    def _timeout_trigger():  # pragma: no cover (timing dependent)
+    def _timeout_trigger():  # pragma: no cover
         exceeded['hard'] = True
-        # Interrupt current thread (pytest main) by injecting exception; fallback to warning if fails.
         try:
             import _thread
             _thread.interrupt_main()
@@ -182,8 +201,10 @@ def _timing_guard(request):
 # ---------------------------------------------------------------------------
 @pytest.fixture(autouse=True)
 def _auto_metrics_reset(request):
+    if G6_TEST_MINIMAL:
+        yield
+        return
     if 'metrics_no_reset' in request.keywords:
-        # Explicitly opted out
         yield
         return
     if os.environ.get('G6_DISABLE_AUTOUSE_METRICS_RESET','').lower() in {'1','true','yes','on'}:
@@ -193,13 +214,85 @@ def _auto_metrics_reset(request):
         from src.metrics.testing import force_new_metrics_registry  # type: ignore
         force_new_metrics_registry(enable_resource_sampler=False)
     except Exception:
-        # Fallback best-effort: ensure at least legacy get_metrics path initializes something
         try:
             from src.metrics import get_metrics  # type: ignore
             _ = get_metrics()
         except Exception:
             pass
+    # Also reset summary in-memory diff metrics to avoid cross-test leakage
+    try:
+        from scripts.summary import summary_metrics as _sm  # type: ignore
+        if hasattr(_sm, '_reset_in_memory'):
+            _sm._reset_in_memory()  # type: ignore[attr-defined]
+    except Exception:
+        pass
+    # Clear SSE per-IP connection window to avoid cross-test leakage causing spurious 429s
+    try:
+        from scripts.summary import sse_http as _sseh  # type: ignore
+        if hasattr(_sseh, '_ip_conn_window'):
+            _sseh._ip_conn_window.clear()  # type: ignore[attr-defined]
+        # Also reset active connection tracking + handlers if present (server leakage across tests)
+        if hasattr(_sseh, '_active_connections'):
+            try:
+                _sseh._active_connections = 0  # type: ignore[attr-defined]
+            except Exception:
+                pass
+        if hasattr(_sseh, '_handlers') and isinstance(getattr(_sseh, '_handlers'), (set, list)):
+            try:
+                _sseh._handlers.clear()  # type: ignore[attr-defined]
+            except Exception:
+                pass
+    except Exception:
+        pass
     yield
+
+# ---------------------------------------------------------------------------
+# Autouse OutputRouter reset fixture
+#
+# Prevents cross-test leakage of sinks / panel transaction stack / file handles.
+# Controlled by env override G6_DISABLE_AUTOUSE_OUTPUT_RESET=1 for opt-out and
+# test-level marker @pytest.mark.output_no_reset if a test intentionally relies
+# on router persistence.
+# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def _auto_output_reset(request):
+    if os.environ.get('G6_DISABLE_AUTOUSE_OUTPUT_RESET','').lower() in {'1','true','yes','on'}:
+        yield
+        return
+    if 'output_no_reset' in request.keywords:
+        yield
+        return
+    # Reset before test
+    try:
+        from src.utils.output import get_output  # type: ignore
+        get_output(reset=True)
+    except Exception:
+        pass
+    yield
+    # Optionally close after test to flush resources (best-effort)
+    try:
+        from src.utils.output import get_output  # type: ignore
+        r = get_output()
+        if hasattr(r, 'close'):
+            r.close()
+    except Exception:
+        pass
+
+# ---------------------------------------------------------------------------
+# Async test support: provide event_loop fixture if pytest-asyncio plugin not active
+# ---------------------------------------------------------------------------
+@pytest.fixture
+def event_loop():  # type: ignore[override]
+    """Provide a fresh event loop for tests marked with @pytest.mark.asyncio.
+
+    Avoids dependency on pytest-asyncio's auto loop management when plugin
+    registration ordering differs across environments.
+    """
+    loop = asyncio.new_event_loop()
+    try:
+        yield loop
+    finally:
+        loop.close()
 
 @pytest.fixture(scope='session')
 def mock_status_file(tmp_path_factory) -> Path:
@@ -404,3 +497,106 @@ def pytest_sessionfinish(session, exitstatus):  # type: ignore[override]
         print(f"[diag-exit] pytest exitstatus={exitstatus} plugins={','.join(plugins)}")
     except Exception as e:  # pragma: no cover
         print(f"[diag-exit] hook failed: {e}")
+
+# ---------------------------------------------------------------------------
+# Optional collection tracing: set G6_COLLECT_TRACE=1 to print each test file
+# as pytest decides to collect it. Helps identify which file import/collection
+# hangs in environments where -vv gives only a generic 'collecting ...'.
+
+# ---------------------------------------------------------------------------
+# Stall / hang diagnostics (thread dump + watchdog)
+# ---------------------------------------------------------------------------
+import threading as _g6_threading  # type: ignore
+import sys as _g6_sys  # type: ignore
+import traceback as _g6_tb  # type: ignore
+import time as _g6_time  # type: ignore
+import inspect as _g6_inspect
+
+if os.getenv('G6_THREAD_WATCHDOG','').lower() in {'1','true','yes','on'}:
+    def _g6_watchdog():  # daemon thread
+        interval = float(os.getenv('G6_THREAD_WATCHDOG_INTERVAL','30'))
+        while True:
+            _g6_time.sleep(interval)
+            try:
+                frames = _g6_sys._current_frames()  # type: ignore[attr-defined]
+                live = _g6_threading.enumerate()
+                interesting = [t for t in live if not t.name.startswith('MainThread') and 'pytest' not in t.name]
+                print(f"[thread-watchdog] threads={len(live)} interesting={len(interesting)}", flush=True)
+                for t in interesting[:10]:  # cap verbose output
+                    fid = t.ident
+                    stack = []
+                    if fid in frames:
+                        stack = _g6_tb.format_stack(frames[fid])
+                    print(f"[thread-watchdog] name={t.name} daemon={t.daemon} alive={t.is_alive()}\n{''.join(stack)}", flush=True)
+            except Exception:
+                pass
+    _t = _g6_threading.Thread(target=_g6_watchdog, name='g6-thread-watchdog', daemon=True)
+    _t.start()
+
+if os.getenv('G6_TEST_PROGRESS','').lower() in {'1','true','yes','on'}:
+    def pytest_runtest_logstart(nodeid, location):  # type: ignore[override]
+        try:
+            print(f"[test-progress] start {nodeid}", flush=True)
+        except Exception:
+            pass
+
+# Lightweight async support fallback: execute coroutine tests without pytest-asyncio
+def pytest_runtest_call(item):  # type: ignore[override]
+    try:
+        test_func = item.obj  # type: ignore[attr-defined]
+        if _g6_inspect.iscoroutinefunction(test_func):
+            loop = asyncio.new_event_loop()
+            try:
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(test_func(**{k: item.funcargs[k] for k in item.funcargs}))
+            finally:
+                try:
+                    loop.run_until_complete(loop.shutdown_asyncgens())
+                except Exception:
+                    pass
+                loop.close()
+            return
+    except Exception:
+        # Let pytest handle normal execution / reporting
+        pass
+
+def pytest_sessionfinish(session, exitstatus):  # type: ignore[override]
+    """Augment existing sessionfinish with optional thread dump."""
+    # Preserve prior diagnostic hook behavior if G6_DIAG_EXIT set (defined earlier)
+    if os.environ.get('G6_THREAD_DUMP_AT_END','').lower() in {'1','true','yes','on'}:
+        try:
+            frames = _g6_sys._current_frames()  # type: ignore[attr-defined]
+            live = _g6_threading.enumerate()
+            print(f"[thread-dump] total_threads={len(live)} exitstatus={exitstatus}", flush=True)
+            for t in live:
+                fid = t.ident
+                stack = []
+                if fid in frames:
+                    stack = _g6_tb.format_stack(frames[fid])
+                print(f"[thread-dump] name={t.name} daemon={t.daemon} alive={t.is_alive()}\n{''.join(stack)}", flush=True)
+        except Exception:
+            pass
+    # Chain to original hook if defined (we overrode earlier definition). The earlier implementation printed diag-exit.
+    # We replicate minimal behavior here for backward compatibility.
+    if os.environ.get('G6_DIAG_EXIT','').lower() in {'1','true','yes','on'}:
+        try:
+            pm = session.config.pluginmanager
+            plugins = sorted(name for name, _ in pm.list_name_plugin())
+            print(f"[diag-exit] pytest exitstatus={exitstatus} plugins={','.join(plugins)}")
+        except Exception as e:  # pragma: no cover
+            print(f"[diag-exit] hook failed: {e}")
+# ---------------------------------------------------------------------------
+if os.environ.get('G6_COLLECT_TRACE','').lower() in _YES:
+    import pathlib as _pl
+    from _pytest.nodes import Node  # type: ignore
+    from typing import Optional as _Opt
+
+    def pytest_collect_file(file_path, path, parent):  # type: ignore[override]
+        # file_path: pathlib.Path in pytest>=8; path retained for backward compat
+        try:
+            p = _pl.Path(file_path)
+        except Exception:
+            p = _pl.Path(str(file_path))
+        print(f"[collect-trace] {p}", flush=True)
+        # Return None to continue default collection
+        return None

@@ -13,93 +13,30 @@ import threading
 from typing import Any, Dict, List, Optional
 from datetime import datetime, timezone, timedelta
 
-_warned = False
+#!/usr/bin/env python3
+"""TOMBSTONE: legacy panels bridge.
 
-def _legacy_warn():
-    global _warned
-    if _warned:
-        return
-    if os.getenv('G6_SUPPRESS_LEGACY_CLI','').lower() in ('1','true','yes','on'):
-        return
-    print('[DEPRECATED] status_to_panels.py -> use `g6 panels-bridge`. Set G6_SUPPRESS_LEGACY_CLI=1 to silence.', file=sys.stderr)
-    _warned = True
+This script was replaced by in-process panel emission inside the unified summary
+loop (PanelsWriter + StreamGaterPlugin). It now exits immediately.
 
-# Ensure warning early
-_legacy_warn()
+Invoke instead:
+    python -m scripts.summary.app --refresh 1
 
-"""Ensure project root on sys.path using centralized helper"""
-try:
-    from src.utils.path_utils import ensure_sys_path
-    ensure_sys_path()
-except Exception:
-    _this_dir = os.path.dirname(os.path.abspath(__file__))
-    _proj_root = os.path.dirname(_this_dir)
-    if _proj_root and _proj_root not in sys.path:
-        sys.path.insert(0, _proj_root)
-    from src.utils.path_utils import ensure_sys_path
-    ensure_sys_path()
+Note: Stream gating is now unconditional; legacy enable/disable flags are ignored.
 
-from src.utils.status_reader import get_status_reader  # centralized status access
-from src.panels.factory import build_panels, build_indices_stream_items
+Environment:
+  G6_SUPPRESS_LEGACY_CLI=1  suppresses this notification (still exits 2).
+"""
+from __future__ import annotations
+import os, sys
 
-try:  # optional helper (keep runtime resilient if refactor/move)
-    from src.utils.timeutils import format_any_to_ist_hms_30s as _fmt_ist_hms_30s
-except Exception:  # pragma: no cover - fallback path
-    _fmt_ist_hms_30s = None  # type: ignore[assignment]
+def main():  # pragma: no cover - trivial stub
+    if os.getenv('G6_SUPPRESS_LEGACY_CLI','').lower() not in {'1','true','yes','on'}:
+        print('[REMOVED] status_to_panels.py -> use `python -m scripts.summary.app` (see DEPRECATIONS.md).', file=sys.stderr)
+    sys.exit(2)
 
-def _to_ist_hms_30s(ts: Any) -> Optional[str]:
-    if _fmt_ist_hms_30s is not None:
-        try:
-            s = _fmt_ist_hms_30s(ts)
-            if isinstance(s, str):
-                return s
-        except Exception:
-            pass
-    # Fallback: best-effort conversion to IST HH:MM:SS
-    try:
-        if isinstance(ts, (int, float)):
-            dt = datetime.fromtimestamp(float(ts), tz=timezone.utc)
-        elif isinstance(ts, str):
-            dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-        elif isinstance(ts, datetime):
-            dt = ts if ts.tzinfo else ts.replace(tzinfo=timezone.utc)
-        else:
-            return None
-        return (dt.astimezone(timezone(timedelta(hours=5, minutes=30))).strftime("%H:%M:%S"))
-    except Exception:
-        return None
-
-
-
-def _truthy(name: str, default: bool = False) -> bool:
-    v = os.getenv(name)
-    if v is None:
-        return default
-    return str(v).strip().lower() in ("1", "true", "yes", "on")
-
-
-def _ensure_panels_sink_active():
-    """Ensure panels sink is active and return the OutputRouter instance."""
-    try:
-        from src.utils.output import get_output  # lazy import for optional dependency
-    except Exception:  # pragma: no cover - fallback stub
-        get_output = None  # runtime sentinel when output router unavailable
-    sinks_env = os.getenv("G6_OUTPUT_SINKS", "stdout,logging").strip()
-    tokens = [t.strip().lower() for t in sinks_env.split(",") if t.strip()]
-    if "panels" not in tokens:
-        tokens.append("panels")
-        os.environ["G6_OUTPUT_SINKS"] = ",".join(tokens)
-        os.environ.setdefault("G6_PANELS_DIR", os.path.join("data", "panels"))
-        if get_output is not None:
-            return get_output(reset=True)
-    if get_output is not None:
-        return get_output(reset=False)
-    # Local fallback writer that writes JSON files directly when OutputRouter is unavailable
-    class _FallbackPanels:
-        def __init__(self, base: str) -> None:
-            self.base = base
+if __name__ == '__main__':
+    main()
             try:
                 os.makedirs(base, exist_ok=True)
             except Exception:

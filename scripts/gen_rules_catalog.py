@@ -36,7 +36,7 @@ def load_groups():
 
 def main():
     groups = load_groups()
-    ts = dt.datetime.utcnow().isoformat(timespec='seconds') + 'Z'
+    ts = dt.datetime.now(dt.UTC).isoformat(timespec='seconds').replace('+00:00','Z')
     lines = ["# Prometheus Rules & Alerts Catalog", f"Generated: {ts}", ""]
     for g in groups:
         lines.append(f"## Group: {g['name']} ({g['source']})")

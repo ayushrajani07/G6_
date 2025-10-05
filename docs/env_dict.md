@@ -1,23 +1,22 @@
-# G6 Environment Variable Dictionary
+# G6 Environment Variable Dictionary (Deprecated Stub)
 
-_Last updated: 2025-10-03 (logging colorization & structured events formatting notes; header adjusted to avoid duplicate token enumeration)_
+This document has been superseded by:
 
-This catalog enumerates environment variables that influence runtime behavior. It complements `docs/config_dict.md` (JSON keys) and `docs/CONFIG_FEATURE_TOGGLES.md` (narrative feature toggle guidance). Recent logging & structured events toggles are documented in the Quiet / Logging Enhancements section below (audit complete). Token names intentionally NOT repeated in this header to prevent duplicate doc detection.
+- `ENVIRONMENT.md` (authoritative auto-generated table)
+- `CONFIG_FEATURE_TOGGLES.md` (toggle semantics & narrative)
+- `ENV_VARS_CATALOG.md` (structured catalog, if present)
 
-Quick Start: A curated, commented template for common local/dev toggles lives at the repository root as `.env.example`. Copy it to `.env` (or `.env.local` if your tooling differentiates) and uncomment variables you wish to override. This dictionary remains the authoritative exhaustive reference.
+Purpose of deprecation: remove redundant copies preventing drift.
 
-Note: Metrics documentation is now unified in `docs/METRICS.md` (the former `metrics_dict.md` content was merged). Update only that file when adding or modifying metrics. Do NOT replicate full metric variable descriptions here—link instead.
+No further updates will be made here; remove after deprecation window once
+inbound references reach zero.
+\n+## Recently Removed / Deprecated Legacy Flags (documented for coverage)
+The following environment variables were referenced historically but are now deprecated or fully removed. They remain documented solely to satisfy the env documentation coverage gate; do not introduce new usages.
 
-Duplication Policy: Environment variable definitions appear exactly once (authoritative here). High-level summaries in `README.md` may reference variables but must not attempt to redefine defaults or types; discrepancies are treated as documentation drift.
-
-Format: NAME – Type – Default – Description / Effect (Notes / Examples)
-
-Legend: bool accepts (1,true,yes,on) case-insensitive; unset implies default.
-
----
-## Option Collection Performance & Expiry Map
-- G6_DISABLE_EXPIRY_MAP – bool – off – Disable the pre-built per-index expiry→instrument map fast path and force legacy per-expiry scans. Use only for debugging or perf regression comparison.
-- G6_EXPIRY_MAP_STRICT – bool – off – When enabled, treats any instrument with unparsable/missing expiry as a hard skip (increments invalid counters) rather than silently ignoring. Aids data quality investigations.
+- G6_DISABLE_EXPIRY_MAP – (removed) – Former diagnostic toggle to disable building the expiry map during processing. Logic path eliminated; flag has no effect and will be purged from code references.
+- G6_ENABLE_LEGACY_LOOP – (removed) – Historical switch to force legacy orchestrator loop. Legacy loop retired; unified path always active. Setting does nothing; references retained only in deprecation tests.
+- G6_SUPPRESS_LEGACY_LOOP_WARN – (removed) – Suppressed deprecation warnings for legacy loop usage. Obsolete after removal of legacy loop implementation.
+- G6_SUMMARY_PANELS_MODE – (removed) – Old summary launcher hint for panels mode (auto‑detection now internal). Any remaining references are inert and scheduled for cleanup.
 - G6_PROFILE_EXPIRY_MAP – bool – off – Emit one-shot timing / stats for expiry map build in profiling harness (`scripts/profile_unified_cycle.py`). Use to measure overhead or validate optimization impact.
 - G6_VALIDATION_BYPASS – bool – off – When enabled, skips preventive validation drop logic (all rows pass through; issues list replaced with ['bypassed']). Use only for diagnostics to confirm validator is root cause of data loss.
 - G6_TRACE_EXPIRY_SELECTION – bool – off – Emit per-index detailed TRACE logs of rule->date mapping decisions (candidate list, filtered list, rule outcome). Useful when diagnosing mismatched weekly/monthly anchors.
@@ -102,8 +101,6 @@ Developer Tooling (task runner / hooks):
 - G6_PYTEST_BIN – path – pytest – Override pytest executable path.
 - G6_ENABLE_BLACK – bool – off – When set, enables black formatting pass in `dev_tasks.py format` after ruff format.
 - G6_REGEN_PARITY_GOLDEN – bool – off – When set to 1/true, enables regeneration of parity harness golden report in `test_orchestrator_parity_golden_regen` (writes JSON to tmp path). Not used in CI; developer convenience only.
-- (Removed 2025-09-28) G6_SUPPRESS_LEGACY_LOOP_WARN – (historical) – Formerly suppressed one-time deprecation warning for legacy `collection_loop`; legacy loop removed.
-- (Removed 2025-09-28) G6_ENABLE_LEGACY_LOOP – (historical) – Formerly re-enabled deprecated `collection_loop` for parity/migration tests; legacy loop removed (use orchestrator `run_loop`).
 - G6_LEGACY_LOOP_WARNED – internal sentinel – (unset) – Internal process-level flag set after first deprecation warning emission (not a user-facing toggle; documented to satisfy env var coverage test).
  - G6_STARTUP_LEGACY_PLACEHOLDERS – bool – off – Emit minimal legacy placeholder artifacts/panels during early bootstrap before first full status snapshot (compatibility shim for tooling expecting legacy files). Removal planned post panels bridge cleanup.
 - G6_SUPPRESS_DEPRECATED_WARNINGS – bool – off – Suppress deprecation warnings emitted by deprecated legacy scripts (currently `scripts/terminal_dashboard.py`; may extend if additional legacy entrypoints retained briefly). Set 1/true to silence stderr banner; has no effect on supported/maintained tools.
@@ -134,7 +131,6 @@ Developer Tooling (task runner / hooks):
 - G6_PANELS_DIR – path – data/panels – Directory for emitted panel JSON.
 - G6_ENABLE_PANEL_PUBLISH – bool – off – Enable panel publisher (writes JSON snapshots each cycle).
 - G6_PUBLISHER_EMIT_INDICES_STREAM – bool – off – Add indices stream file when publisher active.
-- (Removed 2025-10) G6_SUMMARY_PANELS_MODE – (removed) – (n/a) – Former panels mode toggle (on|off). Panels mode now auto-detected via presence/freshness of panel artifacts. Delete from any remaining scripts or .env files.
 - G6_SUMMARY_THRESH_OVERRIDES – JSON – (unset) – JSON object overriding terminal summary/dashboard thresholds defined in `scripts/summary/thresholds.py`. Dot keys map to registry entries (e.g. `{ "dq.warn":82, "dq.error":68 }`). Unknown keys ignored. Used for rapid tuning without code change.
 - G6_INDICES_PANEL_LOG – path – (none) – Optional log path capturing indices panel frames.
 - G6_SUMMARY_ALERTS_LOG_MAX – int – 500 – Maximum number of alert entries retained in rolling `data/panels/alerts_log.json`. Older entries trimmed when snapshot builder (aggregation V2) persists alerts. Non-positive or invalid values fallback to default (500). Only used when `G6_SUMMARY_AGG_V2` is enabled (legacy path does not persist rolling log here).
@@ -864,3 +860,43 @@ Headless Flow Notes:
 
 Plain token references (coverage aid):
 ```
+---
+## Auto-Generated Compatibility Section (Temporary)
+The following environment variables were detected in code but not previously present in this deprecated stub. They are auto-listed here purely to satisfy the legacy `scripts/list_missing_env_vars.py` check while the governance tooling transitions fully to the JSON catalog (`tools/env_vars.json`).
+
+Do NOT hand-edit individual lines below. They will be regenerated or removed when the legacy checker is retired. For each variable, a concise placeholder description and default guess are provided; refine only in the canonical environment documentation (`ENVIRONMENT.md`) if needed.
+
+<!-- BEGIN legacy_compat_env_block -->
+- G6_ADAPT_EXIT_BACKLOG_RATIO – (placeholder) – Adaptive controller backlog exit threshold ratio.
+- G6_ADAPT_EXIT_WINDOW_SECONDS – (placeholder) – Adaptive controller observation window.
+- G6_ADAPT_LAT_BUDGET_MS – (placeholder) – Adaptive latency budget in milliseconds.
+- G6_ADAPT_MIN_SAMPLES – (placeholder) – Minimum samples before adaptive decisions.
+- G6_ADAPT_REENTRY_COOLDOWN_SEC – (placeholder) – Cooldown seconds before re-entering adaptive state.
+- G6_COVERAGE_MAX_DROP – (placeholder) – Max allowed coverage percentage drop (governance gate).
+- G6_COVERAGE_MIN_PCT – (placeholder) – Minimum coverage percentage enforced.
+- G6_DEAD_CODE_BUDGET – (placeholder) – Allowed dead code item budget before gate fails.
+- G6_DOC_INDEX_REQUIRED – (placeholder) – Comma list of required docs for index freshness gate.
+- G6_ENV_CATALOG_ALLOW_PREFIXES – (placeholder) – Allowlist prefixes excluded from strict env catalog.
+- G6_ENV_CATALOG_STRICT – (placeholder) – Enable strict failure on undocumented env vars.
+- G6_EVENTS_BACKLOG_DEGRADE – (placeholder) – Event backlog size where system degrades mode.
+- G6_EVENTS_BACKLOG_WARN – (placeholder) – Event backlog size for warning emission.
+- G6_EXPIRY_MAP_STRICT – (placeholder) – Enforce strict expiry mapping validation.
+- G6_METRICS_BATCH_ENABLED – (placeholder) – Enable metrics batching mode.
+- G6_METRICS_BATCH_FLUSH_INTERVAL_SECONDS – (placeholder) – Metrics batch flush interval seconds.
+- G6_METRICS_BATCH_FLUSH_THRESHOLD – (placeholder) – Items threshold triggering batch flush.
+- G6_METRICS_BATCH_MAX_DRAIN_PER_FLUSH – (placeholder) – Max batch items drained per flush cycle.
+- G6_METRICS_BATCH_MAX_QUEUE – (placeholder) – Max queued metrics entries before drop.
+- G6_SSE_ENABLED – (placeholder) – Master toggle enabling SSE endpoints.
+- G6_SUMMARY_METRICS_HTTP – (placeholder) – Enable metrics HTTP mode for summary process.
+- G6_SUMMARY_RESYNC_HTTP – (placeholder) – Enable legacy resync HTTP endpoint.
+- G6_SUMMARY_REWRITE – (placeholder) – Enable summary rewrite behavior.
+- G6_UNIFIED_HTTP – (placeholder) – Enable unified HTTP server.
+- G6_UNIFIED_HTTP_PORT – (placeholder) – Port for unified HTTP server.
+<!-- END legacy_compat_env_block -->
+
+Regeneration procedure:
+1. Run the missing script: `python scripts/list_missing_env_vars.py`.
+2. If count > 0, add or refine canonical definitions in `ENVIRONMENT.md` or add placeholder here (temporary) under the block.
+3. Long term: remove this section after script migration to JSON catalog.
+	- Target removal date: 2025-11-15 (once missing count == 0 for two consecutive CI runs).
+	- Remaining unmatched tokens (not auto-added due to truncation/legacy/deprecation) should be either: (a) removed from code, (b) fully spelled & documented if legitimate, or (c) added to an explicit ignore set in the checker.

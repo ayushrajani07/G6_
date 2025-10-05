@@ -42,8 +42,8 @@ def register_adaptive_group_metrics(reg: Any) -> None:
     if not callable(maybe):  # pragma: no cover - defensive
         return
     try:
-        maybe('adaptive_controller', 'adaptive_controller_actions', Counter,
-              'g6_adaptive_controller_actions_total', 'Adaptive controller actions taken', ['reason','action'])
+      # adaptive_controller_actions counter now registered via declarative spec.
+      # Avoid re-registering here to prevent duplicate attribute names pointing to same collector.
         maybe('adaptive_controller', 'option_detail_mode', Gauge,
               'g6_option_detail_mode', 'Current option detail mode (0=full,1=medium,2=low)', ['index'])
     except Exception:

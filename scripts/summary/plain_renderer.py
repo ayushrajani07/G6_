@@ -20,8 +20,9 @@ class PlainRenderer(OutputPlugin):
     def __init__(self, *, max_width: int = 160) -> None:
         self._max_width = max_width
         self._last_hash: str | None = None
-        # Diff suppression always on (legacy G6_SUMMARY_PLAIN_DIFF flag removed 2025-10-03)
-        self._diff_enabled = True
+        # Diff suppression can be disabled via env (flag reinstated for backward compatibility)
+        # Read environment directly so test monkeypatching before instantiation is honored without cached summary env
+        self._diff_enabled = os.getenv('G6_SUMMARY_PLAIN_DIFF', '1').lower() in {'1','true','yes','on'}
 
     def setup(self, context: Mapping[str, Any]) -> None:  # pragma: no cover - trivial
         pass
@@ -44,6 +45,7 @@ class PlainRenderer(OutputPlugin):
             if self._last_hash == h:
                 return  # suppress unchanged frame
             self._last_hash = h
+        # If diff disabled, intentionally always emit (no suppression)
         stream = sys.stdout
         try:
             stream.write(rendered)

@@ -24,21 +24,44 @@ This guide explains how the overlays HTML enables optional live updates on top o
 
 The client script tries to extend existing traces by name, falling back to `Plotly.react` if needed.
 
-## Running a mock server
+## (Former) mock server
 
-A tiny HTTP server is included for local testing:
+Historically a helper script `scripts/mock_live_updates.py` provided a throwaway HTTP endpoint for local demos.
+It was removed on 2025-10-05 during surface reduction (unused in tests; zero coverage).
 
-- Script: `scripts/mock_live_updates.py`
-- Default endpoint: `http://127.0.0.1:9109/live`
+Replacement options:
 
-Example (PowerShell):
+1. Minimal ad-hoc server (example):
+   ```python
+   # quick_live_server.py
+   import json, time, math, random
+   from http.server import BaseHTTPRequestHandler, HTTPServer
 
-```
-python scripts/mock_live_updates.py --port 9109 --pairs NIFTY:this_week:ATM --pairs BANKNIFTY:this_week:ATM --interval 1.0
-```
+   t0 = time.time(); series = []
+   class H(BaseHTTPRequestHandler):
+     def log_message(self, *a): pass
+     def do_GET(self):  # noqa
+       if self.path.startswith('/live'):
+         now = time.time()
+         y = 1000 + 100*math.sin((now-t0)/60) + random.uniform(-10,10)
+         series.append((now,y)); series[:] = series[-600:]
+         body = {"panels": {"panel-NIFTY-this_week-ATM": {
+           "x": [time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime(s[0])) for s in series],
+           "y": [s[1] for s in series],
+           "layout": {}
+         }}}
+         b = json.dumps(body).encode(); self.send_response(200)
+         self.send_header('Content-Type','application/json'); self.end_headers(); self.wfile.write(b)
+       else:
+         self.send_response(404); self.end_headers()
+   if __name__ == '__main__':
+     HTTPServer(('127.0.0.1',9109), H).serve_forever()
+   ```
+   Run: `python quick_live_server.py` then add `--live-endpoint http://127.0.0.1:9109/live` to the overlays command.
+2. Integrate real feed: Expose your production JSON using the same contract.
+3. Skip live mode entirely (omit `--live-endpoint`).
 
-- `--pairs` corresponds to the panel ids you render (`INDEX:EXPIRY:OFFSET`).
-- `--interval` controls the update cadence in seconds.
+The demo launcher `start_overlays_demo.ps1` now runs without a mock server by default; uncomment and supply your own endpoint to re-enable live polling.
 
 ## Generating the overlays HTML with live polling
 

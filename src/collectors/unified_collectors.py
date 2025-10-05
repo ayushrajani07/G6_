@@ -2,28 +2,53 @@
 # -*- coding: utf-8 -*-
 """
 Unified collectors for G6 Platform.
+
+Diagnostic instrumentation:
+    Set G6_IMPORT_TRACE=1 to emit progress markers during module import and
+    early function entry. This helps isolate hangs during pytest collection.
+    Markers are of the form [g6-import] <phase> and flushed immediately.
 """
 
 import logging
 import os
 import datetime
 import time
+
+_IMPORT_TRACE = os.environ.get('G6_IMPORT_TRACE','').lower() in ('1','true','yes','on')
+def _trace_import(msg: str):  # lightweight, safe no-op if disabled
+    if not _IMPORT_TRACE:
+        return
+    try:
+        print(f"[g6-import] {msg}", flush=True)
+    except Exception:
+        pass
+
+_trace_import('unified_collectors: start import')
 from typing import Dict, Any, List, Tuple, Optional, Callable
 import json
 from dataclasses import dataclass
+_trace_import('import cycle_context')
 from src.collectors.cycle_context import CycleContext, ExpiryContext
+_trace_import('import timeutils')
 from src.utils.timeutils import utc_now
+_trace_import('import modules.context')
 from src.collectors.modules.context import build_collector_context, CollectorContext  # Phase 1 context introduction
+_trace_import('import persist_result')
 from src.collectors.persist_result import PersistResult
+_trace_import('import helpers.persist')
 from src.collectors.helpers.persist import persist_and_metrics, persist_with_context
+_trace_import('import logstream.formatter')
 from src.logstream.formatter import format_index
+_trace_import('import utils.deprecations')
 from src.utils.deprecations import check_pipeline_flag_deprecation  # type: ignore
 
 
 # Add this before launching the subprocess
 import sys  # retained for potential future CLI usage
+_trace_import('import utils.market_hours')
 from src.utils.market_hours import get_next_market_open  # dynamic is_market_open access below
 try:  # Phase 6: data quality bridge (extracted)
+    _trace_import('import data_quality_bridge')
     from src.collectors.modules.data_quality_bridge import (
         get_dq_checker as _get_dq_checker,
         run_option_quality as _run_option_quality,
@@ -35,8 +60,11 @@ except Exception:  # pragma: no cover
     _run_option_quality = lambda dq, data: ({}, [])  # type: ignore
     _run_index_quality = lambda dq, price, index_ohlc=None: (True, [])  # type: ignore
     _run_expiry_consistency = lambda dq, data, index_price, expiry_rule: []  # type: ignore
+_trace_import('import memory_pressure_bridge')
 from src.collectors.modules.memory_pressure_bridge import evaluate_memory_pressure  # memory pressure abstraction
+_trace_import('import error_handling')
 from src.error_handling import handle_collector_error
+_trace_import('import utils.exceptions')
 from src.utils.exceptions import (
     ResolveExpiryError,
     NoInstrumentsError,
@@ -44,11 +72,13 @@ from src.utils.exceptions import (
     CsvWriteError,
     InfluxWriteError,
 )
+_trace_import('import helpers.status_reducer')
 from src.collectors.helpers.status_reducer import derive_partial_reason  # hot-path helper (was dynamically imported)
 
 
 
 
+_trace_import('imports complete, logger init')
 logger = logging.getLogger(__name__)
 
 # Centralized TRACE emission: delegate to broker.kite.tracing when available.
@@ -751,16 +781,18 @@ def run_unified_collectors(
             import os as _os
             stale_mode = _os.getenv('G6_STALE_WRITE_MODE','mark').strip().lower()
             abort_cycles =  int(_os.getenv('G6_STALE_ABORT_CYCLES','10') or 10)
-            # Track consecutive stale cycles via module attribute
+            # Registry-scoped consecutive stale counter (isolated by per-test fresh registry)
             try:
-                if not hasattr(_os, '_g6_consec_stale'):  # store on os module as simple singleton
-                    setattr(_os, '_g6_consec_stale', 0)
-                consec = getattr(_os, '_g6_consec_stale')
-                if stale_present:
-                    consec += 1
+                if metrics is not None:
+                    consec = getattr(metrics, '_consec_stale_cycles', 0)
+                    consec = consec + 1 if stale_present else 0
+                    try:
+                        setattr(metrics, '_consec_stale_cycles', consec)  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
                 else:
-                    consec = 0
-                setattr(_os, '_g6_consec_stale', consec)
+                    # Fallback transient local counter if metrics absent
+                    consec = 1 if stale_present else 0
                 # System-level stale metrics (lazy create)
                 if metrics is not None:
                     try:  # pragma: no cover - metrics wiring

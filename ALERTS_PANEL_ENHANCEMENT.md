@@ -1,7 +1,7 @@
-# Alerts Panel Enhancement - Full Length Display
+<!-- Archived stub: original content moved to archive/2025-10-05/ALERTS_PANEL_ENHANCEMENT.md -->
+# Alerts Panel Enhancement (Archived)
 
-## Overview
-The alerts panel has been enhanced to use the full available length for displaying rolling alert logs, significantly increasing the amount of alert history visible at any time.
+Summarized in `docs/features_history.md` (Alerts Panel Full-Length Expansion).
 
 ## Changes Made
 

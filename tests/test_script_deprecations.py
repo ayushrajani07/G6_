@@ -20,7 +20,8 @@ def test_benchmark_cycles_deprecation_info(caplog, tmp_path, monkeypatch):
     result = mod.run_benchmark(1, 0.1)  # type: ignore[attr-defined]
     assert result['cycles'] == 1
     msgs = "\n".join(m for _,_,m in caplog.record_tuples)
-    assert 'Benchmark script using orchestrator path' in msgs
+    # Updated deprecation banner text (2025-10-05 cleanup)
+    assert 'benchmark_cycles.py -> use bench_tools.py' in msgs
 
 
 def test_expiry_matrix_runs_without_legacy_fallback(monkeypatch):

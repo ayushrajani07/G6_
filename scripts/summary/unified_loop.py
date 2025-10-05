@@ -33,6 +33,25 @@ class UnifiedLoop:
                 pl.append(SSEPanelsIngestor())
         except Exception:
             logger.debug("SSEPanelsIngestor activation skipped (import or env failure)")
+        # Phase 4: StreamGaterPlugin always active (flags retired). Insert immediately after PanelsWriter if present.
+        try:  # pragma: no cover - plugin wiring
+            already_gater = any(getattr(p,'name','') == 'stream_gater' for p in pl)
+            if not already_gater:
+                pw_index = None
+                for i, _p in enumerate(pl):
+                    if getattr(_p, 'name', '') == 'panels_writer':
+                        pw_index = i
+                        break
+                from .plugins.stream_gater import StreamGaterPlugin  # type: ignore
+                if pw_index is not None:
+                    try:
+                        pl.insert(pw_index + 1, StreamGaterPlugin())
+                    except Exception:
+                        pl.append(StreamGaterPlugin())
+                else:
+                    pl.append(StreamGaterPlugin())
+        except Exception:
+            logger.debug("StreamGaterPlugin activation skipped (import failure)")
         self._plugins = pl
         self._refresh = refresh
         self._panels_dir = panels_dir
@@ -123,6 +142,18 @@ class UnifiedLoop:
         self._running = True
         # Graceful shutdown flag local to loop
         shutdown_requested = {"v": False}
+        diag_timing = os.getenv("G6_SUMMARY_DIAG_TIMING") == "1"
+        max_seconds_env = os.getenv("G6_SUMMARY_MAX_SECONDS")
+        max_cycles_env = os.getenv("G6_SUMMARY_MAX_CYCLES")
+        hard_start = time.time()
+        try:
+            max_seconds = float(max_seconds_env) if max_seconds_env else None
+        except Exception:  # pragma: no cover - defensive
+            max_seconds = None
+        try:
+            max_cycles_override = int(max_cycles_env) if max_cycles_env else None
+        except Exception:  # pragma: no cover
+            max_cycles_override = None
 
         def _handle_signal(signum, frame):  # noqa: ANN001
             if not shutdown_requested["v"]:
@@ -220,6 +251,12 @@ class UnifiedLoop:
         while self._running and not shutdown_requested["v"]:
             start = time.time()
             self._cycle += 1
+            if diag_timing:
+                print(f"[summary-diag] cycle={self._cycle} start t={start - hard_start:0.3f}s")
+            if max_cycles_override is not None and self._cycle > max_cycles_override:
+                if diag_timing:
+                    print(f"[summary-diag] max cycles {max_cycles_override} reached -> break")
+                break
             build_start = time.time()
             snap = self._build_snapshot()
             if cfg.resync_http:
@@ -259,6 +296,12 @@ class UnifiedLoop:
             # Emit cycle-level metrics last
             if metrics_plugin is not None:
                 metrics_plugin.observe_cycle(elapsed, build_dur, errors=len(snap.errors))
+            if diag_timing:
+                print(f"[summary-diag] cycle={self._cycle} build_dur={build_dur:0.4f}s total_elapsed={elapsed:0.4f}s sleep_for={sleep_for:0.4f}s")
+            if max_seconds is not None and (time.time() - hard_start) >= max_seconds:
+                if diag_timing:
+                    print(f"[summary-diag] max seconds {max_seconds}s exceeded -> break")
+                break
             if shutdown_requested["v"]:
                 break
             if cycles is not None and self._cycle >= cycles:
@@ -269,6 +312,28 @@ class UnifiedLoop:
         # test connections to see only 'bye' without backlog events. Suppressed to
         # allow late readers to consume hello/full_snapshot from publisher backlog.
         self._running = False
+        # Optional controlled bye emission (opt-in) to signal clean end to connected clients
+        import os as _os
+        _emit_bye = _os.getenv('G6_SSE_BYE_ON_SHUTDOWN', '0').lower() in {'1','true','yes','on'}
+        sse_pub = None
+        if _emit_bye:
+            try:
+                from .plugins.sse import SSEPublisher  # local import
+                for p in self._plugins:
+                    if isinstance(p, SSEPublisher):  # type: ignore[arg-type]
+                        sse_pub = p
+                        break
+            except Exception:
+                sse_pub = None
+            if sse_pub is not None:
+                try:
+                    # Use internal _emit method if present to maintain counters; fallback append
+                    if hasattr(sse_pub, '_emit'):
+                        sse_pub._emit({'event':'bye','data':{'reason':'shutdown','cycle':self._cycle}})  # type: ignore[attr-defined]
+                    else:
+                        sse_pub.events.append({'event':'bye','data':{'reason':'shutdown','cycle':self._cycle}})
+                except Exception:
+                    pass
         for p in self._plugins:
             try:
                 p.teardown()

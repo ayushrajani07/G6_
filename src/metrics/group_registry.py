@@ -1,7 +1,7 @@
 """Grouped metric registration dispatcher (spec-driven).
 
-All grouped metrics (panel_diff, risk_agg, adaptive_controller, perf_cache,
-panels_integrity, analytics_vol_surface, greeks) are now declared in
+All grouped metrics (panel_diff, risk_agg, adaptive_controller,
+panels_integrity, analytics_vol_surface, greeks, cache) are now declared in
 ``GROUPED_METRIC_SPECS`` within ``spec.py``.  This module becomes a very thin
 adapter that invokes ``MetricDef.register`` for each spec.  Any failure is
 suppressed so that metrics issues never block process startup (mirrors legacy

@@ -1,3501 +1,466 @@
 {
-  "updated_at": "2025-10-04T14:39:35.764677+00:00",
+  "updated_at": "2025-10-05T12:32:44.865159+00:00",
   "alerts": [
     {
-      "time": "2025-10-04T14:31:04.023401+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:05.006825+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:06.022146+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:07.010928+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:08.241942+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:10.247722+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:11.320126+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:12.034630+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:13.287773+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:14.135109+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:15.207176+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:16.313313+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:17.054355+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:18.095596+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:19.100420+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:20.118138+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:21.032785+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:22.137084+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:23.274447+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:24.152850+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:25.080517+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:26.289237+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:27.018357+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:28.019820+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:29.084359+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:30.057994+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:31.377424+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:32.152543+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:33.281128+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:34.101343+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:35.044094+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:36.157151+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:37.156461+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:38.236482+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:40.321797+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:43.434386+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:44.012786+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:45.057626+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:46.417959+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:47.144095+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:48.157612+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:49.127815+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:50.347898+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:51.094927+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:52.157226+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:53.156436+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:54.324296+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:55.069554+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:56.331574+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:57.034395+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:58.054845+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:31:59.388212+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:00.072019+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:01.356877+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:02.308134+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:03.138682+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:04.430167+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:05.104272+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:06.044786+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:07.100915+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:08.107858+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:09.072689+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:10.205080+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:11.027704+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:12.110930+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:13.473918+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:14.308234+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:15.211474+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:16.116795+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:17.164705+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:18.149842+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:19.079549+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:20.032395+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:21.137440+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:22.141513+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:23.761241+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:24.119012+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:25.046532+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:26.113198+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:27.047609+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:28.110671+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:29.029920+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:30.121074+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:31.052679+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:32.164144+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:33.171468+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:34.081671+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:35.196706+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:36.306707+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:37.141377+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:38.231370+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:39.086491+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:40.078848+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:41.127428+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:42.263115+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:43.259222+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:44.100259+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:45.216192+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:46.197654+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:47.156670+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:48.174175+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:49.285893+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:50.157053+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:51.186882+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:52.143101+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:53.130217+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:54.079356+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:55.149157+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:56.161505+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:57.081651+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:58.132795+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:32:59.051695+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:00.095169+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:01.104459+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:02.149390+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:03.156871+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:04.293913+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:05.091215+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:06.358478+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:07.007812+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:08.135296+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:09.059630+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:10.161808+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:11.077152+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:12.143571+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:13.185028+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:14.345091+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:15.122084+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:16.148848+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:17.100148+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:18.165969+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:19.031657+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:20.099338+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:21.083710+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:22.234423+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:23.192790+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:24.059758+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:25.147738+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:26.197854+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:27.090374+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:28.125058+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:29.297707+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:30.154615+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:31.076286+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:32.300971+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:33.014854+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:34.069115+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:35.002570+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:36.390362+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:37.048519+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:38.300965+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:39.287107+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:40.490321+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:41.140777+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:42.008176+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:43.207111+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:44.025677+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:45.163674+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:46.015371+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:47.053284+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:48.279694+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:49.223872+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:50.199322+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:51.203321+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:52.061684+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:53.157033+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:54.224356+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:55.058106+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:56.299610+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:57.052413+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:58.155521+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:33:59.120207+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:00.040419+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:01.564613+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:02.263480+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:03.399199+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:04.007519+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:05.035355+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:06.280122+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:07.060024+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:08.461495+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:09.021731+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:10.294396+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:11.400784+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:12.586196+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:13.547379+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:14.027723+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:15.286073+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:16.050428+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:17.108647+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:18.201870+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:19.264647+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:20.215464+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:21.275676+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:22.153220+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:23.028001+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:24.116835+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:25.060283+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:26.010625+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:27.243234+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:28.286908+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:29.086152+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:30.127764+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:31.067124+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:32.077099+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:33.003981+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:34.106795+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:35.008219+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:36.189479+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:37.011800+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:38.155223+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:39.189101+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:40.054875+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:41.024960+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:42.767949+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:43.113851+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:44.088038+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:45.024765+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:46.147052+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:47.110074+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:48.096645+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:49.135164+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:50.063017+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:51.058290+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:52.019441+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:53.162046+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:54.127685+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:55.159281+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:56.261031+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:57.028284+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:58.305381+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:34:59.086696+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:00.254163+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:01.278380+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:02.089464+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:03.069184+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:04.055051+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:05.022387+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:06.234239+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:07.175454+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:08.069899+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:09.094178+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:10.326625+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:11.064461+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:12.021516+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:13.136598+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:14.241215+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:15.246125+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:16.078711+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:17.155632+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:18.211175+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:19.324917+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:20.266742+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:21.087659+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:22.183390+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:23.355358+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:24.040479+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:25.094998+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:26.206573+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:27.205917+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:28.148355+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:29.136622+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:30.290489+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:31.404552+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:32.076523+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:33.225810+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:34.008577+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:35.123833+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:36.285455+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:37.064201+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:38.036197+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:39.339164+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:40.010765+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:41.390613+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:42.352503+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:43.001482+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:44.129142+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:45.092451+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:46.596436+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:47.204106+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:48.098702+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:49.049101+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:50.025455+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:51.260858+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:52.287450+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:53.301092+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:54.191652+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:55.061078+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:56.027716+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:57.097026+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:58.084195+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:35:59.072984+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:00.232147+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:01.157468+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:02.012302+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:03.253274+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:04.210724+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:05.000493+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:06.307278+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:07.226934+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:08.175266+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:09.203764+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:10.254923+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:11.410999+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:12.050944+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:13.080734+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:14.054953+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:15.157147+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:16.024670+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:17.056679+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:18.344415+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:19.300030+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:20.077263+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:21.175061+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:22.047173+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:23.264117+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:24.023486+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:25.136080+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:26.132399+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:27.117725+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:28.105505+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:29.041677+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:30.162648+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:31.173596+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:32.064059+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:33.102341+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:34.481474+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:35.086527+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:36.205257+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:37.115563+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:38.166138+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:39.095069+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:40.218345+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:41.314201+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:42.028785+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:43.171403+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:44.115800+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:45.114013+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:46.394013+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:47.116516+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:48.119769+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:49.188618+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:50.009310+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:51.372893+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:52.112669+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:53.035132+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:54.215240+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:55.024915+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:56.401333+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:57.121943+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:58.005774+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:36:59.064602+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:01.997142+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:03.001552+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:04.031253+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:05.099078+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:06.218610+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:07.074883+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:08.036228+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:09.073027+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:10.121695+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:11.360343+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:12.100004+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:13.112010+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:14.054896+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:15.017011+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:16.413753+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:17.024571+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:18.085757+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:19.130418+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:20.055482+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:21.120215+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:22.060766+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:23.152036+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:24.046179+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:25.017065+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:26.043932+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:27.017155+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:28.083271+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:29.184850+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:30.060052+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:31.078537+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:32.878493+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:33.070769+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:34.055462+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:35.118929+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:36.051494+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:37.023855+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:38.033347+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:39.074454+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:40.110658+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:41.180784+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:43.478922+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:44.154272+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:45.162404+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:46.066519+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:47.102201+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:48.030699+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:49.153279+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:50.028082+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:51.405351+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:52.286833+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:53.255412+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:54.033817+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:55.008664+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:56.194536+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:57.058488+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:58.090054+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:37:59.039731+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:00.044279+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:01.251527+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:02.272677+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:03.582696+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:04.257197+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:05.089200+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:06.072943+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:07.064934+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:08.372213+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:09.361048+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:10.049835+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:11.509799+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:13.075485+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:14.191980+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:15.183447+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:16.710451+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:17.111993+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:18.084602+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:19.087465+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:20.065156+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:21.729649+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:22.213699+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:23.194296+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:24.089442+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
-    },
-    {
-      "time": "2025-10-04T14:38:25.101332+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
+      "time": "2025-09-27T10:00:00Z",
+      "level": "WARN",
+      "component": "X",
+      "message": "A"
     },
     {
-      "time": "2025-10-04T14:38:26.001136+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
+      "time": "2025-09-27T10:00:01Z",
+      "level": "INFO",
+      "component": "Y",
+      "message": "B"
     },
     {
-      "time": "2025-10-04T14:38:27.049102+00:00",
+      "time": "2025-10-05T09:29:03.725098+00:00",
       "level": "ERROR",
       "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
+      "message": "Low data quality: NIFTY:75.0%",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:28.022885+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
+      "time": "2025-10-05T09:29:03.725098+00:00",
+      "level": "INFO",
+      "component": "Market",
+      "message": "Market is closed",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:29.237084+00:00",
+      "time": "2025-10-05T09:29:03.843790+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:30.031010+00:00",
+      "time": "2025-10-05T09:29:04.044170+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:31.172840+00:00",
+      "time": "2025-10-05T09:29:05.902506+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:32.062919+00:00",
+      "time": "2025-10-05T09:29:06.003677+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:33.320603+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
+      "time": "2025-09-30T12:00:00Z",
+      "level": "INFO",
+      "component": "Test",
+      "message": "hello"
     },
     {
-      "time": "2025-10-04T14:38:34.079630+00:00",
+      "time": "2025-10-05T10:00:09.408626+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:35.175352+00:00",
-      "level": "ERROR",
-      "component": "Data Quality",
-      "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
-      "source": "synthetic"
+      "time": "2025-09-27T10:00:00Z",
+      "level": "INFO",
+      "component": "A",
+      "message": "m"
     },
     {
-      "time": "2025-10-04T14:38:36.110047+00:00",
+      "time": "2025-10-05T10:00:10.274995+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:37.063360+00:00",
+      "time": "2025-10-05T10:00:11.541954+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:38.014837+00:00",
+      "time": "2025-10-05T10:03:10.605688+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:39.148783+00:00",
+      "time": "2025-10-05T10:03:11.963422+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:40.119775+00:00",
+      "time": "2025-10-05T10:03:12.064935+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:41.390668+00:00",
+      "time": "2025-10-05T10:05:06.825950+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:42.907592+00:00",
+      "time": "2025-10-05T10:05:07.071172+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:43.707826+00:00",
+      "time": "2025-10-05T10:05:08.216140+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:44.178846+00:00",
+      "time": "2025-10-05T10:24:00.072972+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:45.063629+00:00",
+      "time": "2025-10-05T10:24:01.778502+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:46.052847+00:00",
+      "time": "2025-10-05T10:24:02.080051+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:47.017164+00:00",
+      "time": "2025-10-05T10:40:02.876337+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:48.021382+00:00",
+      "time": "2025-10-05T10:40:03.052000+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:49.046404+00:00",
+      "time": "2025-10-05T10:40:04.348062+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:50.094593+00:00",
+      "time": "2025-10-05T10:42:09.959984+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:51.407720+00:00",
+      "time": "2025-10-05T10:42:10.068292+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:52.386306+00:00",
+      "time": "2025-10-05T10:42:11.288703+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:53.179509+00:00",
+      "time": "2025-10-05T10:48:21.977745+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:54.323426+00:00",
+      "time": "2025-10-05T10:48:22.088891+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:55.072149+00:00",
+      "time": "2025-10-05T10:48:23.359373+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:56.020200+00:00",
+      "time": "2025-10-05T10:55:27.026814+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:57.244178+00:00",
+      "time": "2025-10-05T10:55:28.458523+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:58.055916+00:00",
+      "time": "2025-10-05T10:57:30.502149+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:38:59.414542+00:00",
+      "time": "2025-10-05T10:57:31.881747+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:00.076902+00:00",
+      "time": "2025-10-05T10:57:32.082505+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:01.148170+00:00",
+      "time": "2025-10-05T10:58:50.611352+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:02.266558+00:00",
+      "time": "2025-10-05T10:58:52.051679+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:03.387373+00:00",
+      "time": "2025-10-05T11:02:15.991492+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:04.080711+00:00",
+      "time": "2025-10-05T11:02:16.093844+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:05.307389+00:00",
+      "time": "2025-10-05T11:02:17.314720+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:06.339591+00:00",
+      "time": "2025-10-05T11:04:25.162452+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:07.091333+00:00",
+      "time": "2025-10-05T11:04:26.648009+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:08.109150+00:00",
+      "time": "2025-10-05T11:07:29.816254+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:09.002081+00:00",
+      "time": "2025-10-05T11:07:30.075138+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:10.052056+00:00",
+      "time": "2025-10-05T11:07:31.804575+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:11.076682+00:00",
+      "time": "2025-10-05T11:07:32.005081+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:12.133822+00:00",
+      "time": "2025-10-05T11:08:48.747612+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:13.313774+00:00",
+      "time": "2025-10-05T11:08:49.049034+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:14.069555+00:00",
+      "time": "2025-10-05T11:08:50.696462+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:15.222545+00:00",
+      "time": "2025-10-05T11:10:16.532769+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:16.024498+00:00",
+      "time": "2025-10-05T11:10:17.929039+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:17.051206+00:00",
+      "time": "2025-10-05T11:10:18.028911+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:18.043574+00:00",
+      "time": "2025-10-05T11:12:27.683664+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:19.007273+00:00",
+      "time": "2025-10-05T11:12:28.036158+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:20.086109+00:00",
+      "time": "2025-10-05T11:12:29.605147+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:21.054309+00:00",
+      "time": "2025-10-05T11:16:16.731704+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:23.387569+00:00",
+      "time": "2025-10-05T11:16:18.020635+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:24.289004+00:00",
+      "time": "2025-10-05T11:54:38.380211+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:25.061371+00:00",
+      "time": "2025-10-05T11:54:39.968687+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:26.012434+00:00",
+      "time": "2025-10-05T11:54:40.068368+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:27.038834+00:00",
+      "time": "2025-10-05T12:00:57.825598+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:28.109378+00:00",
+      "time": "2025-10-05T12:00:58.073278+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:29.078134+00:00",
+      "time": "2025-10-05T12:00:59.381403+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:30.039701+00:00",
+      "time": "2025-10-05T12:32:42.243725+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:31.268535+00:00",
+      "time": "2025-10-05T12:32:43.812675+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",
       "source": "synthetic"
     },
     {
-      "time": "2025-10-04T14:39:35.447619+00:00",
+      "time": "2025-10-05T12:32:44.012443+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: NIFTY:74.3%, BANKNIFTY:77.8%, FINNIFTY:79.7% (+1 more)",

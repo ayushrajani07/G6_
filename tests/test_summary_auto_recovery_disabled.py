@@ -52,6 +52,10 @@ def _run_server(server):
 def test_auto_recovery_disabled_no_force_full(monkeypatch, tmp_path):
     # Disable auto recovery
     monkeypatch.setenv('G6_SUMMARY_AUTO_FULL_RECOVERY', 'off')
+    # Enable diagnostic timing and enforce fast exit guards (fallback if fake_refresh not triggered)
+    monkeypatch.setenv('G6_SUMMARY_DIAG_TIMING', '1')
+    monkeypatch.setenv('G6_SUMMARY_MAX_SECONDS', '8')
+    monkeypatch.setenv('G6_SUMMARY_MAX_CYCLES', '4')
     # Provide SSE URL
     server = ThreadedHTTPServer(('127.0.0.1', 0), SSEHandler)
     # server_address may be (host,port) or (host,port,flowinfo,scopeid) for IPv6

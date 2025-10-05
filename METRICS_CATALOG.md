@@ -1,6 +1,6 @@
 # Metrics Catalog
 
-Generated: 2025-10-04T15:15:38Z
+Generated: 2025-10-05T12:27:46Z
 
 
 ## Family: provider
@@ -289,5 +289,59 @@ Cardinality Budget: 10
 Type: counter  
 Help: Retry attempts for failed batches per table  
 Labels: table  
+Cardinality Budget: 10
+
+## Family: stream
+Owner: scripts/summary/plugins/stream_gater.py
+
+### g6_stream_append_total
+Type: counter  
+Help: Indices stream append events (gated writes)  
+Labels: mode  
+Cardinality Budget: 5
+
+### g6_stream_skipped_total
+Type: counter  
+Help: Indices stream skipped events (same cycle/bucket or error)  
+Labels: mode, reason  
+Cardinality Budget: 15
+
+### g6_stream_state_persist_errors_total
+Type: counter  
+Help: Stream state persistence errors  
+Labels: (none)  
+Cardinality Budget: 1
+
+### g6_stream_conflict_total
+Type: counter  
+Help: Detected potential concurrent indices_stream writer conflict  
+Labels: (none)  
+Cardinality Budget: 1
+
+## Family: panels
+Owner: web/dashboard/panel_diff.py
+
+### g6_panel_diff_writes_total
+Type: counter  
+Help: Panel diff snapshots written  
+Labels: type  
+Cardinality Budget: 10
+
+### g6_panel_diff_truncated_total
+Type: counter  
+Help: Panel diff truncation events  
+Labels: reason  
+Cardinality Budget: 10
+
+### g6_panel_diff_bytes_total
+Type: counter  
+Help: Total bytes of diff JSON written  
+Labels: type  
+Cardinality Budget: 10
+
+### g6_panel_diff_bytes_last
+Type: gauge  
+Help: Bytes of last diff JSON written  
+Labels: type  
 Cardinality Budget: 10
 

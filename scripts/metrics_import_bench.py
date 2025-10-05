@@ -87,7 +87,7 @@ def main():
         'samples_sec': samples,
         'stats': stats,
         'python': sys.version.split()[0],
-        'timestamp_utc': datetime.datetime.utcnow().replace(microsecond=0).isoformat() + 'Z'
+    'timestamp_utc': datetime.datetime.now(datetime.UTC).replace(microsecond=0).isoformat().replace('+00:00','Z')
     }
     if args.json:
         print(json.dumps(out, indent=2))

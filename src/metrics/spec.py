@@ -9,6 +9,7 @@ ported initially; further migration can be incremental.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from typing import Sequence, Callable, Any, List, Optional
 
 from prometheus_client import Gauge, Counter, Histogram, Summary  # type: ignore
@@ -35,7 +36,52 @@ class MetricDef:
             except Exception:
                 return None
         if hasattr(registry, self.attr):
-            return getattr(registry, self.attr)
+            metric = getattr(registry, self.attr)
+            # Normalization: For *_total counters always coerce collector._name to spec.name.
+            # We previously attempted a conditional rename only when _name matched the base
+            # form. That proved flaky (first test run mismatch). To guarantee deterministic
+            # invariants, perform an unconditional alignment whenever there is a discrepancy.
+            if isinstance(self.kind, type) and self.name.endswith('_total'):
+                try:  # pragma: no cover - defensive path
+                    current = getattr(metric, '_name', None)
+                    if current != self.name and isinstance(current, str):
+                        try:
+                            setattr(metric, '_name', self.name)
+                            # Re-read to confirm; if still mismatched attempt hard replacement.
+                            if getattr(metric, '_name', None) != self.name:
+                                raise RuntimeError('rename_did_not_stick')
+                        except Exception:
+                            # Hard replacement path: construct a fresh collector with suffixed name
+                            try:
+                                ctor_kwargs = self.kwargs or {}
+                                if self.labels:
+                                    replacement = self.kind(self.name, self.doc, list(self.labels), **ctor_kwargs)
+                                else:
+                                    replacement = self.kind(self.name, self.doc, **ctor_kwargs)
+                                setattr(registry, self.attr, replacement)
+                                metric = replacement
+                                # Confirm replacement name; if still mismatched, wrap in shim.
+                                if getattr(metric, '_name', None) != self.name:
+                                    raise RuntimeError('replacement_name_mismatch')
+                            except Exception:
+                                # Final fallback: wrap original metric in a lightweight shim that exposes forced _name
+                                try:
+                                    orig = metric
+                                    class _NameShim:  # pragma: no cover - trivial delegator
+                                        __slots__ = ("_collector", "_name")
+                                        def __init__(self, collector, forced_name):
+                                            self._collector = collector
+                                            self._name = forced_name
+                                        def __getattr__(self, item):  # delegate all other attributes/methods
+                                            return getattr(self._collector, item)
+                                    shim = _NameShim(orig, self.name)
+                                    setattr(registry, self.attr, shim)
+                                    metric = shim  # type: ignore[assignment]
+                                except Exception:
+                                    pass
+                except Exception:
+                    pass
+            return metric
         ctor_kwargs = self.kwargs or {}
         try:
             if self.labels:
@@ -51,6 +97,13 @@ class MetricDef:
             except Exception:
                 metric = None
         if metric is not None:
+            # Apply same (now unconditional) normalization for newly constructed collectors.
+            if isinstance(self.kind, type) and self.name.endswith('_total') and metric is not None:
+                try:  # pragma: no cover - defensive
+                    if getattr(metric, '_name', None) != self.name:
+                        setattr(metric, '_name', self.name)
+                except Exception:
+                    pass
             setattr(registry, self.attr, metric)
             if self.group:
                 try:
@@ -122,6 +175,36 @@ METRIC_SPECS: List[MetricDef] = [
         doc="Deprecated/legacy config keys encountered",
         kind=Counter,
         labels=["key"],
+    ),
+    # --- Stream gater / indices_stream governance metrics (Phase 1 unification) ---
+    # Stream gater counters intentionally use explicit *_total names (Option A decision) so that
+    # spec.name matches the actual registered collector name. We are NOT relying on Prometheus
+    # auto-suffix behavior here; we want invariants test alignment and consistent catalog rows.
+    MetricDef(
+        attr="stream_append",
+        name="g6_stream_append_total",
+        doc="Indices stream append events",
+        kind=Counter,
+        labels=["mode"],
+    ),
+    MetricDef(
+        attr="stream_skipped",
+        name="g6_stream_skipped_total",
+        doc="Indices stream gating skips",
+        kind=Counter,
+        labels=["mode","reason"],
+    ),
+    MetricDef(
+        attr="stream_state_persist_errors",
+        name="g6_stream_state_persist_errors_total",
+        doc="State file persistence errors for indices stream gating",
+        kind=Counter,
+    ),
+    MetricDef(
+        attr="stream_conflict",
+        name="g6_stream_conflict_total",
+        doc="Potential concurrent indices stream writer conflicts detected",
+        kind=Counter,
     ),
     # ---------------- Option detail metrics (not grouped) ----------------
     MetricDef(
@@ -201,49 +284,15 @@ METRIC_SPECS: List[MetricDef] = [
 #############################################
 # These cover metrics that were previously registered via the group_registry
 # dispatch into per-module init_* helpers (panel_diff, vol_surface, risk_agg,
-# adaptive, cache/perf_cache, panels_integrity). Environment gated metrics
+# adaptive, cache, panels_integrity). Environment gated metrics
 # (e.g. vol surface per-expiry, quality_score) remain dynamically gated and are
 # therefore NOT included here yet to avoid altering lazy semantics. They can be
 # migrated later with an optional predicate hook in MetricDef if desired.
 
 GROUPED_METRIC_SPECS: List[MetricDef] = [
-    # panel_diff group
-    MetricDef(
-        attr="panel_diff_writes",
-        name="g6_panel_diff_writes_total",
-        doc="Panel diff snapshots written",
-        kind=Counter,
-        labels=["type"],
-        group=MetricGroup.PANEL_DIFF if hasattr(MetricGroup, 'PANEL_DIFF') else None,  # fallback in case enum lags
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('panel_diff'),
-    ),
-    MetricDef(
-        attr="panel_diff_truncated",
-        name="g6_panel_diff_truncated_total",
-        doc="Panel diff truncation events",
-        kind=Counter,
-        labels=["reason"],
-        group=MetricGroup.PANEL_DIFF if hasattr(MetricGroup, 'PANEL_DIFF') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('panel_diff'),
-    ),
-    MetricDef(
-        attr="panel_diff_bytes_total",
-        name="g6_panel_diff_bytes_total",
-        doc="Total bytes of diff JSON written",
-        kind=Counter,
-        labels=["type"],
-        group=MetricGroup.PANEL_DIFF if hasattr(MetricGroup, 'PANEL_DIFF') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('panel_diff'),
-    ),
-    MetricDef(
-        attr="panel_diff_bytes_last",
-        name="g6_panel_diff_bytes_last",
-        doc="Bytes of last diff JSON written",
-        kind=Gauge,
-        labels=["type"],
-        group=MetricGroup.PANEL_DIFF if hasattr(MetricGroup, 'PANEL_DIFF') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('panel_diff'),
-    ),
+    # panel_diff group migrated to YAML spec (2025-10-05). The dynamic definitions
+    # were removed to avoid duplicate registration. If rollback is required,
+    # reintroduce the MetricDef entries here or enable a temporary guard flag.
     # analytics_risk_agg group
     MetricDef(
         attr="risk_agg_rows",
@@ -296,86 +345,86 @@ GROUPED_METRIC_SPECS: List[MetricDef] = [
         group=MetricGroup.ADAPTIVE_CONTROLLER if hasattr(MetricGroup, 'ADAPTIVE_CONTROLLER') else None,
         predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('adaptive_controller'),
     ),
-    # perf_cache group (root symbol cache performance)
+    # cache group (root symbol cache performance)
     MetricDef(
         attr="root_cache_hits",
         name="g6_root_cache_hits",
         doc="Root symbol cache hits",
         kind=Counter,
-        group=MetricGroup.PERF_CACHE if hasattr(MetricGroup, 'PERF_CACHE') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('perf_cache'),
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
     ),
     MetricDef(
         attr="root_cache_misses",
         name="g6_root_cache_misses",
         doc="Root symbol cache misses",
         kind=Counter,
-        group=MetricGroup.PERF_CACHE if hasattr(MetricGroup, 'PERF_CACHE') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('perf_cache'),
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
     ),
     MetricDef(
         attr="root_cache_evictions",
         name="g6_root_cache_evictions",
         doc="Root symbol cache evictions",
         kind=Counter,
-        group=MetricGroup.PERF_CACHE if hasattr(MetricGroup, 'PERF_CACHE') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('perf_cache'),
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
     ),
     MetricDef(
         attr="root_cache_size",
         name="g6_root_cache_size",
         doc="Current root symbol cache size",
         kind=Gauge,
-        group=MetricGroup.PERF_CACHE if hasattr(MetricGroup, 'PERF_CACHE') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('perf_cache'),
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
     ),
     MetricDef(
         attr="root_cache_hit_ratio",
         name="g6_root_cache_hit_ratio",
         doc="Root symbol cache hit ratio (0-1)",
         kind=Gauge,
-        group=MetricGroup.PERF_CACHE if hasattr(MetricGroup, 'PERF_CACHE') else None,
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
     ),
-    # serialization cache (shares PERF_CACHE group semantics)
+    # serialization cache (shares cache group semantics)
     MetricDef(
         attr="serial_cache_hits",
         name="g6_serial_cache_hits_total",
         doc="Serialization cache hits",
         kind=Counter,
-        group=MetricGroup.PERF_CACHE if hasattr(MetricGroup, 'PERF_CACHE') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('perf_cache'),
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
     ),
     MetricDef(
         attr="serial_cache_misses",
         name="g6_serial_cache_misses_total",
         doc="Serialization cache misses",
         kind=Counter,
-        group=MetricGroup.PERF_CACHE if hasattr(MetricGroup, 'PERF_CACHE') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('perf_cache'),
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
     ),
     MetricDef(
         attr="serial_cache_evictions",
         name="g6_serial_cache_evictions_total",
         doc="Serialization cache evictions",
         kind=Counter,
-        group=MetricGroup.PERF_CACHE if hasattr(MetricGroup, 'PERF_CACHE') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('perf_cache'),
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
     ),
     MetricDef(
         attr="serial_cache_size",
         name="g6_serial_cache_size",
         doc="Serialization cache current size",
         kind=Gauge,
-        group=MetricGroup.PERF_CACHE if hasattr(MetricGroup, 'PERF_CACHE') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('perf_cache'),
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
     ),
     MetricDef(
         attr="serial_cache_hit_ratio",
         name="g6_serial_cache_hit_ratio",
         doc="Serialization cache hit ratio (0-1)",
         kind=Gauge,
-        group=MetricGroup.PERF_CACHE if hasattr(MetricGroup, 'PERF_CACHE') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('perf_cache'),
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
     ),
     # SSE serialization latency (observed when G6_SSE_EMIT_LATENCY_CAPTURE enabled)
     MetricDef(
@@ -384,8 +433,8 @@ GROUPED_METRIC_SPECS: List[MetricDef] = [
         doc="Serialization time distribution for SSE event payloads",
         kind=Histogram,
         kwargs={"buckets": [0.0005,0.001,0.002,0.005,0.01,0.02,0.05,0.1]},
-        group=MetricGroup.PERF_CACHE if hasattr(MetricGroup, 'PERF_CACHE') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('perf_cache'),
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
     ),
     # SSE flush latency (publish -> flush on wire) optional instrumentation
     MetricDef(
@@ -394,8 +443,8 @@ GROUPED_METRIC_SPECS: List[MetricDef] = [
         doc="End-to-end publish-to-flush latency (server internal) for SSE events",
         kind=Histogram,
         kwargs={"buckets": [0.001,0.002,0.005,0.01,0.02,0.05,0.1,0.2,0.5,1.0]},
-        group=MetricGroup.PERF_CACHE if hasattr(MetricGroup, 'PERF_CACHE') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('perf_cache'),
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
     ),
     # Trace stage occurrences (increments on serialize + flush) simple counter
     MetricDef(
@@ -403,8 +452,8 @@ GROUPED_METRIC_SPECS: List[MetricDef] = [
         name="g6_sse_trace_stages_total",
         doc="Total trace stage observations (serialize + flush)",
         kind=Counter,
-        group=MetricGroup.PERF_CACHE if hasattr(MetricGroup, 'PERF_CACHE') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('perf_cache'),
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
     ),
     # Adaptive degrade controller metrics
     MetricDef(
@@ -412,8 +461,8 @@ GROUPED_METRIC_SPECS: List[MetricDef] = [
         name="g6_adaptive_backlog_ratio",
         doc="Current backlog ratio sample used by adaptive controller (0-1)",
         kind=Gauge,
-        group=MetricGroup.PERF_CACHE if hasattr(MetricGroup, 'PERF_CACHE') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('perf_cache'),
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
     ),
     MetricDef(
         attr="adaptive_transitions_total",
@@ -421,8 +470,8 @@ GROUPED_METRIC_SPECS: List[MetricDef] = [
         doc="Adaptive controller transitions (reason)",
         kind=Counter,
         kwargs={"labelnames": ["reason"]},
-        group=MetricGroup.PERF_CACHE if hasattr(MetricGroup, 'PERF_CACHE') else None,
-        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('perf_cache'),
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
     ),
     # panels_integrity group (core + extended additive metrics)
     MetricDef(
@@ -491,8 +540,11 @@ GROUPED_METRIC_SPECS: List[MetricDef] = [
         kind=Gauge,
         labels=["index","expiry","source"],
         group=MetricGroup.ANALYTICS_VOL_SURFACE if hasattr(MetricGroup, 'ANALYTICS_VOL_SURFACE') else None,
-        # Restore original flag gating: only register when group allowed AND per-expiry flag enabled
-        predicate=lambda reg: (getattr(reg, '_group_allowed', lambda g: True)('analytics_vol_surface') and __import__('os').getenv('G6_VOL_SURFACE_PER_EXPIRY') == '1'),
+        # Register only when group allowed AND env flag explicitly enables per-expiry metrics
+        predicate=lambda reg: (
+            getattr(reg, '_group_allowed', lambda g: True)('analytics_vol_surface')
+            and os.getenv('G6_VOL_SURFACE_PER_EXPIRY') == '1'
+        ),
     ),
     MetricDef(
         attr="vol_surface_interpolated_fraction",
@@ -510,7 +562,8 @@ GROUPED_METRIC_SPECS: List[MetricDef] = [
         kind=Gauge,
         labels=["index"],
         group=MetricGroup.ANALYTICS_VOL_SURFACE if hasattr(MetricGroup, 'ANALYTICS_VOL_SURFACE') else None,
-        predicate=lambda reg: (getattr(reg, '_group_allowed', lambda g: True)('analytics_vol_surface') and __import__('os').getenv('G6_VOL_SURFACE') == '1'),
+        # Always register when group allowed (removed legacy env flag gating to meet spec presence requirement)
+        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('analytics_vol_surface'),
     ),
     MetricDef(
         attr="vol_surface_interp_seconds",
@@ -521,6 +574,25 @@ GROUPED_METRIC_SPECS: List[MetricDef] = [
         group=MetricGroup.ANALYTICS_VOL_SURFACE if hasattr(MetricGroup, 'ANALYTICS_VOL_SURFACE') else None,
         kwargs={"buckets": [0.001,0.005,0.01,0.02,0.05,0.1]},
         predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('analytics_vol_surface'),
+    ),
+    # Adaptive interpolation alert support metrics (streak + alert counter)
+    MetricDef(
+        attr="adaptive_interpolation_streak",
+        name="g6_adaptive_interpolation_streak",
+        doc="Current consecutive builds above interpolation fraction threshold",
+        kind=Gauge,
+        labels=["index"],
+        group=MetricGroup.ADAPTIVE_CONTROLLER if hasattr(MetricGroup, 'ADAPTIVE_CONTROLLER') else None,
+        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('adaptive_controller'),
+    ),
+    MetricDef(
+        attr="adaptive_interpolation_alerts",
+        name="g6_adaptive_interpolation_alerts_total",
+        doc="Interpolation fraction high streak alerts",
+        kind=Counter,
+        labels=["index","reason"],
+        group=MetricGroup.ADAPTIVE_CONTROLLER if hasattr(MetricGroup, 'ADAPTIVE_CONTROLLER') else None,
+        predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('adaptive_controller'),
     ),
 ]
 

@@ -96,6 +96,13 @@ def record_interpolation_fraction(index: str, fraction: float) -> Optional[Dict[
     else:
         cur = 0
     streaks[index] = cur
+    # Optional lightweight debug trace to help diagnose missing alert emission in tests.
+    # Enabled only when G6_INTERP_DEBUG env flag is truthy; avoids noisy logs otherwise.
+    if os.getenv('G6_INTERP_DEBUG','').lower() in {'1','true','yes','on'}:
+        try:  # pragma: no cover - debug path
+            print(f"[interp-debug] idx={index} fraction={fraction} thr={thr} streak={cur}/{streak_target} metrics_id={id(m)}", flush=True)
+        except Exception:
+            pass
     try:
         ais = getattr(m, 'adaptive_interpolation_streak', None)
         if ais is not None and hasattr(ais, 'labels'):
@@ -104,6 +111,11 @@ def record_interpolation_fraction(index: str, fraction: float) -> Optional[Dict[
         pass
     if cur >= streak_target and fraction > thr:
         # Fire alert
+        if os.getenv('G6_INTERP_DEBUG','').lower() in {'1','true','yes','on'}:
+            try:  # pragma: no cover
+                print(f"[interp-debug] ALERT FIRING idx={index} fraction={fraction} streak={cur} thr={thr} target={streak_target}", flush=True)
+            except Exception:
+                pass
         try:
             aia = getattr(m, 'adaptive_interpolation_alerts', None)
             if aia is not None and hasattr(aia, 'labels'):

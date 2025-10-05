@@ -21,14 +21,16 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Dict, Optional
 
 try:
-    from .sse_http import get_publisher, _allow_event as _sse_allow_event  # type: ignore
-    from .sse_http import _write_event as _sse_write_event  # type: ignore
-    from .sse_http import _m_rate_limited_conn, _m_forbidden_ua  # type: ignore
-    from .sse_http import _ip_conn_window  # type: ignore
-    from .sse_http import initiate_sse_shutdown  # re-export
+    from .sse_http import (
+        get_publisher,
+        _allow_event as _sse_allow_event,  # type: ignore
+        _write_event as _sse_write_event,  # type: ignore
+        _m_rate_limited_conn,
+        _m_forbidden_ua,
+        _ip_conn_window,
+        initiate_sse_shutdown,  # re-export
+    )  # type: ignore
 except Exception:  # pragma: no cover - defensive import race fallback
-    # Provide minimal no-op fallbacks so health endpoint still works even if
-    # SSE module partially imported (rare test ordering race).
     def _sse_allow_event(_handler):  # type: ignore
         return True
     def _sse_write_event(_handler, _evt):  # type: ignore
@@ -39,6 +41,12 @@ except Exception:  # pragma: no cover - defensive import race fallback
     _ip_conn_window = {}
     def initiate_sse_shutdown(*_a, **_kw):  # type: ignore
         return None
+
+# New shared security / rate limiting helper (extracted from sse_http & prior inline copy)
+try:
+    from .sse_shared import load_security_config, enforce_auth_and_rate  # type: ignore
+except Exception:  # pragma: no cover - if import fails we fallback to legacy inline path
+    load_security_config = enforce_auth_and_rate = None  # type: ignore
 from .http_resync import get_last_snapshot
 from .resync import get_resync_snapshot
 from .schema import SCHEMA_VERSION
@@ -98,70 +106,31 @@ class UnifiedSummaryHandler(BaseHTTPRequestHandler):  # pragma: no cover - netwo
         except Exception:
             pass
 
-    # --- Auth / ACL / rate limiting (trimmed down copy of SSE handler bits) ---
+    # --- Auth / ACL / rate limiting (delegated to shared helper) ---
     def _auth_and_acl(self) -> Optional[int]:
-        _direct_override = os.getenv('G6_SSE_SECURITY_DIRECT') not in (None, '0', 'false', 'no', 'off')
-        if not _direct_override:
+        if load_security_config and enforce_auth_and_rate:
+            cfg = load_security_config()
+            # Provide metrics mapping (only those used during rejection paths)
+            metrics_map = {
+                'forbidden_ua': _m_forbidden_ua,
+                'rate_limited_conn': _m_rate_limited_conn,
+            }
+            # Attempt to import handler set for second-chance pruning; tolerate failure
+            handlers_ref = None
             try:
-                from scripts.summary.env_config import load_summary_env  # local import
-                _env = load_summary_env()
-                token_required = _env.sse_token
-                allow_ips = set(_env.sse_allow_ips)
-                rate_spec = _env.sse_connect_rate_spec or ''
+                from scripts.summary import sse_http as _sseh  # type: ignore
+                handlers_ref = getattr(_sseh, '_handlers', None)
             except Exception:
-                token_required = os.getenv('G6_SSE_API_TOKEN')
-                allow_ips = {ip.strip() for ip in (os.getenv('G6_SSE_IP_ALLOW') or '').split(',') if ip.strip()}
-                rate_spec = os.getenv('G6_SSE_IP_CONNECT_RATE', '')
-        else:
-            token_required = os.getenv('G6_SSE_API_TOKEN')
-            allow_ips = {ip.strip() for ip in (os.getenv('G6_SSE_IP_ALLOW') or '').split(',') if ip.strip()}
-            rate_spec = os.getenv('G6_SSE_IP_CONNECT_RATE', '')
-
-        if token_required:
-            provided = self.headers.get('X-API-Token')
-            if provided != token_required:
-                self._plain(401, 'unauthorized')
-                return 401
-        client_ip = self.client_address[0] if isinstance(self.client_address, tuple) else ''
-        if allow_ips:
-            if client_ip not in allow_ips:
-                self._plain(403, 'forbidden')
-                return 403
-        # Rate limiting section unchanged except using rate_spec from above
-        if rate_spec and client_ip:
-            parts = [p for p in rate_spec.replace(':', '/').split('/') if p]
-            try:
-                if len(parts) == 2:
-                    max_conn_ip = int(parts[0]); win_sec = int(parts[1])
-                elif len(parts) == 1:
-                    max_conn_ip = int(parts[0]); win_sec = 60
-                else:
-                    max_conn_ip = 0; win_sec = 60
-            except Exception:
-                max_conn_ip = 0; win_sec = 60
-            if max_conn_ip > 0:
-                now = time.time()
-                window = _ip_conn_window.setdefault(client_ip, [])  # type: ignore
-                cutoff = now - win_sec
-                while window and window[0] < cutoff:
-                    window.pop(0)
-                if len(window) >= max_conn_ip:
-                    if _m_rate_limited_conn is not None:
-                        try: _m_rate_limited_conn.inc()  # type: ignore[attr-defined]
-                        except Exception: pass
-                    self._plain(429, 'rate limited')
-                    return 429
-                window.append(now)
-        ua_allow = os.getenv('G6_SSE_UA_ALLOW')
-        if ua_allow:
-            ua = self.headers.get('User-Agent', '') or ''
-            allow_parts = [p.strip() for p in ua_allow.split(',') if p.strip()]
-            if allow_parts and not any(part in ua for part in allow_parts):
-                if _m_forbidden_ua is not None:
-                    try: _m_forbidden_ua.inc()  # type: ignore[attr-defined]
-                    except Exception: pass
-                self._plain(403, 'forbidden')
-                return 403
+                pass
+            code = enforce_auth_and_rate(
+                self,
+                cfg,
+                ip_conn_window=_ip_conn_window,  # type: ignore
+                handlers_ref=handlers_ref,  # type: ignore[arg-type]
+                metrics=metrics_map,
+            )
+            return code
+        # Fallback to permissive if helper unavailable (matches previous defensive path)
         return None
 
     # --- Basic response helpers ---

@@ -1,8 +1,7 @@
-# Footer Layout Enhancement - Screenshot Match
+<!-- Archived stub: original content moved to archive/2025-10-05/FOOTER_SCREENSHOT_MATCH.md -->
+# Footer Layout Screenshot Match (Archived)
 
-## 🎯 Enhancement Completed
-
-Successfully updated the **footer placement to match the exact layout shown in the screenshot**, with footer information appearing at the bottom of panels but outside the table structure, within the panel borders.
+Consolidated into `docs/features_history.md` (Footer Screenshot Match Variant).
 
 ## 📊 Layout Comparison
 

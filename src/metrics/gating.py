@@ -14,7 +14,7 @@ Constants:
 
 Behavior:
   - Always-on groups (attached on registry as _always_on_groups) are never pruned.
-  - Group alias mapping (perf_cache -> cache) preserved (attached as _group_alias).
+    - Legacy 'perf_cache' alias removed (use 'cache').
 """
 from __future__ import annotations
 
@@ -36,7 +36,6 @@ CONTROLLED_GROUPS: set[str] = {
     MetricGroup.OVERLAY_QUALITY.value,
     MetricGroup.STORAGE.value,
     MetricGroup.CACHE.value,
-    MetricGroup.PERF_CACHE.value,
     MetricGroup.EXPIRY_POLICY.value,
     MetricGroup.PANELS_INTEGRITY.value,
     MetricGroup.IV_ESTIMATION.value,
@@ -52,6 +51,23 @@ CONTROLLED_GROUPS: set[str] = {
 # avoid accidental mutation of CONTROLLED_GROUPS.
 CONTROLLED_GROUPS_FALLBACK: set[str] = set(CONTROLLED_GROUPS)
 
+_LEGACY_PERF_CACHE_KEY = "perf_cache"
+
+def _warn_legacy_perf_cache(raw: str) -> None:
+    if not raw:
+        return
+    if _LEGACY_PERF_CACHE_KEY in {p.strip() for p in raw.split(',')}:
+        # Respect global suppression env
+        if os.getenv("G6_SUPPRESS_DEPRECATIONS"):
+            return
+        try:
+            logger.warning(
+                "metrics.perf_cache_legacy_reference: 'perf_cache' alias removed; use 'cache' in G6_ENABLE_METRIC_GROUPS / G6_DISABLE_METRIC_GROUPS"
+            )
+        except Exception:
+            pass
+
+
 def parse_filters() -> tuple[Optional[Set[str]], Set[str]]:
     """Parse enable/disable environment variables.
 
@@ -60,6 +76,9 @@ def parse_filters() -> tuple[Optional[Set[str]], Set[str]]:
     """
     enable_env = os.environ.get("G6_ENABLE_METRIC_GROUPS", "")
     disable_env = os.environ.get("G6_DISABLE_METRIC_GROUPS", "")
+    # Emit legacy alias warning if present
+    _warn_legacy_perf_cache(enable_env)
+    _warn_legacy_perf_cache(disable_env)
     enabled = {g.strip() for g in enable_env.split(',') if g.strip()} if enable_env else None
     disabled = {g.strip() for g in disable_env.split(',') if g.strip()}
     return enabled, disabled
@@ -78,7 +97,7 @@ def configure_registry_groups(reg):  # pragma: no cover - simple wiring
     """
     enabled_set, disabled_set = parse_filters()
     reg._always_on_groups = {g.value for g in ALWAYS_ON}  # type: ignore[attr-defined]
-    reg._group_alias = {'perf_cache': 'cache'}  # type: ignore[attr-defined]
+    # Removed legacy perf_cache alias; callers should use 'cache'
 
     # Compute effective enabled universe respecting rule (4)
     if enabled_set is not None:
@@ -98,13 +117,30 @@ def configure_registry_groups(reg):  # pragma: no cover - simple wiring
     except Exception:
         pass
 
+    _trace = os.environ.get('G6_METRICS_GATING_TRACE','').lower() in {'1','true','yes','on'}
     def _group_allowed(name: str) -> bool:
         if enabled_set is not None:
             # Allow only those explicitly enabled (intersection already pruned) and not disabled
-            return (name in effective_enabled) and (name not in disabled_set)
+            allowed = (name in effective_enabled) and (name not in disabled_set)
+            if _trace:
+                try:
+                    print(f"[metrics-gating] name={name} enabled_mode=1 in_enabled={name in effective_enabled} disabled={name in disabled_set} -> {allowed}", flush=True)
+                except Exception:
+                    pass
+            return allowed
         # No enable list: all controlled groups allowed unless disabled
         if name in disabled_set:
+            if _trace:
+                try:
+                    print(f"[metrics-gating] name={name} enabled_mode=0 disabled=1 -> False", flush=True)
+                except Exception:
+                    pass
             return False
+        if _trace:
+            try:
+                print(f"[metrics-gating] name={name} enabled_mode=0 disabled=0 -> True", flush=True)
+            except Exception:
+                pass
         return True
 
     reg._group_allowed = _group_allowed  # type: ignore[attr-defined]

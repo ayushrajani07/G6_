@@ -1,0 +1,8920 @@
+{
+  "inventory": [
+    {
+      "path": ".pre-commit-config.yaml",
+      "size": 1942,
+      "hash": "99c7cfc26c16fbcd",
+      "tags": []
+    },
+    {
+      "path": "alertmanager.yml",
+      "size": 558,
+      "hash": "42c11a7615980729",
+      "tags": []
+    },
+    {
+      "path": "ALERTS_PANEL_ENHANCEMENT.md",
+      "size": 2352,
+      "hash": "c21f8efa7f4c3235",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "CHANGELOG.md",
+      "size": 19543,
+      "hash": "80879f5f9e494c3d",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "CHANGELOG_DASHBOARDS.md",
+      "size": 348,
+      "hash": "e7e101496fd5c8ca",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "CHANGELOG_STABILIZATION.md",
+      "size": 3949,
+      "hash": "fee2bea624544c00",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "CLEANUP_PLAN.md",
+      "size": 8878,
+      "hash": "4a465ef6665ea0b5",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "COLUMN_STORE_INTEGRATION.md",
+      "size": 7248,
+      "hash": "18838e7726e65e52",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "debug_catalog_http.py",
+      "size": 1369,
+      "hash": "02902e2cbf2b60df",
+      "tags": [
+        "temp-debug",
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "debug_catalog_http_9321.py",
+      "size": 1279,
+      "hash": "4e75461b69af18ec",
+      "tags": [
+        "temp-debug",
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "DEFERRED_ENHANCEMENTS.md",
+      "size": 2688,
+      "hash": "e37560a0c30f2638",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "deploy.sh",
+      "size": 1769,
+      "hash": "13385c8c29ffbe29",
+      "tags": []
+    },
+    {
+      "path": "DEPLOYMENT_GUIDE.md",
+      "size": 23356,
+      "hash": "51f2c93edbdb487c",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "DEPRECATIONS.md",
+      "size": 22444,
+      "hash": "9462df98ded0854c",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "DEVELOPMENT_GUIDELINES.md",
+      "size": 27156,
+      "hash": "c3f6297590d48999",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "EMISSION_BATCHER_ENHANCEMENTS.md",
+      "size": 5651,
+      "hash": "84fdf1f2bb0dd04d",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "EMITTERS_REPORT_TEMP.md",
+      "size": 10560,
+      "hash": "606a127eb0376e2d",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "ENHANCED_COLLECTOR_RETIREMENT.md",
+      "size": 3779,
+      "hash": "c2516294047b2901",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "FILE_STRUCTURE.md",
+      "size": 7039,
+      "hash": "bf94db2c8281bfbf",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "final_error_routing_verification.py",
+      "size": 6139,
+      "hash": "7c392c79fa728818",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "FOOTER_INTEGRATION_ENHANCEMENT.md",
+      "size": 3795,
+      "hash": "cdfa11dd7b25ca6c",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "FOOTER_SCREENSHOT_MATCH.md",
+      "size": 4627,
+      "hash": "256634267bcf7e8d",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "gen_parity_snapshot.py",
+      "size": 988,
+      "hash": "c475de222dd1997b",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "gen_populated_parity_snapshot.py",
+      "size": 1941,
+      "hash": "87939d6a93c07a23",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "grafna.md",
+      "size": 8332,
+      "hash": "a04a6a474428677e",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "inspect_indent.py",
+      "size": 335,
+      "hash": "6313d8783baefc8a",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "ISSUE_REMOVE_LEGACY_PANELS_BRIDGE.md",
+      "size": 2810,
+      "hash": "436a73b079bfc135",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "list_lines.py",
+      "size": 237,
+      "hash": "03200ee113195e11",
+      "tags": [
+        "temp-debug",
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "list_lines2.py",
+      "size": 237,
+      "hash": "bcc7f401616ed5d6",
+      "tags": [
+        "temp-debug",
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "LONG_TERM_TODO.md",
+      "size": 2212,
+      "hash": "92852e4b014fef7d",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "MARKET_CLOSE_SHUTDOWN.md",
+      "size": 4813,
+      "hash": "28da8fc5805498d4",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "METRICS_CATALOG.md",
+      "size": 7581,
+      "hash": "5e4fec4c6d976c83",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "METRICS_GOVERNANCE.md",
+      "size": 29938,
+      "hash": "f9114185151b5f88",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "METRICS_PANELS_HINTS.md",
+      "size": 3960,
+      "hash": "b8b6797c1506d765",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "MIGRATION.md",
+      "size": 18590,
+      "hash": "1a537e5678845a31",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "mypy.ini",
+      "size": 882,
+      "hash": "c158f00edf5c4777",
+      "tags": [
+        "infra"
+      ]
+    },
+    {
+      "path": "OPERATOR_MANUAL.md",
+      "size": 11994,
+      "hash": "988acb938aeb517f",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "OVERLAY_VISUALIZATION.md",
+      "size": 7784,
+      "hash": "55140c0525dce6c3",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "PANEL_RENAME_SUMMARY.md",
+      "size": 2545,
+      "hash": "762736a32d5635c4",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "PANEL_SEPARATOR_ENHANCEMENT.md",
+      "size": 3686,
+      "hash": "9c531bce817616dc",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "PHASE10_SCOPE.md",
+      "size": 8247,
+      "hash": "b8150805b193a6f1",
+      "tags": [
+        "docs-legacy"
+      ]
+    },
+    {
+      "path": "PHASE6_SCOPE.md",
+      "size": 5287,
+      "hash": "9f616dd0611eed91",
+      "tags": [
+        "docs-legacy"
+      ]
+    },
+    {
+      "path": "PHASE7_SCOPE.md",
+      "size": 6653,
+      "hash": "7b67d04c77fbb597",
+      "tags": [
+        "docs-legacy"
+      ]
+    },
+    {
+      "path": "prometheus.yml",
+      "size": 454,
+      "hash": "c16f8497a5101841",
+      "tags": []
+    },
+    {
+      "path": "prometheus_alerts.yml",
+      "size": 2621,
+      "hash": "fb8621e0fe6d1e1f",
+      "tags": []
+    },
+    {
+      "path": "prometheus_rules.yml",
+      "size": 27050,
+      "hash": "bbb1719cebd45ff4",
+      "tags": []
+    },
+    {
+      "path": "PROVIDER_INTERFACE_NOTES.md",
+      "size": 2239,
+      "hash": "bade0ad1c0222f12",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "PROVIDER_MODES.md",
+      "size": 5661,
+      "hash": "da0c5b6cef55943c",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "PUBLISHER_TRANSFORMATION_SUMMARY.md",
+      "size": 6502,
+      "hash": "29359c47cb66cb19",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "pyproject.toml",
+      "size": 2960,
+      "hash": "0fd7c39b6e02932d",
+      "tags": [
+        "infra"
+      ]
+    },
+    {
+      "path": "pytest.ini",
+      "size": 1767,
+      "hash": "952c6119d85cc00f",
+      "tags": [
+        "infra"
+      ]
+    },
+    {
+      "path": "README.md",
+      "size": 59483,
+      "hash": "a651aa650a996df5",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "README_COMPREHENSIVE.md",
+      "size": 10054,
+      "hash": "f4cd3e4fb65d825f",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "README_CONSOLIDATED_DRAFT.md",
+      "size": 784,
+      "hash": "5859f66dcba3c07e",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "README_web_dashboard.md",
+      "size": 989,
+      "hash": "370e09dbf97526eb",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "REMEDIATION_ACTIONS.md",
+      "size": 8529,
+      "hash": "e20b802348d24fdc",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "ruff.toml",
+      "size": 87,
+      "hash": "a1b50f1b0e518ba8",
+      "tags": [
+        "infra"
+      ]
+    },
+    {
+      "path": "run_doc_check.py",
+      "size": 227,
+      "hash": "487c71a9c71ff7e5",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "start_live_dashboard.bat",
+      "size": 730,
+      "hash": "1e58095773b1b7ed",
+      "tags": []
+    },
+    {
+      "path": "start_live_dashboard_v2.ps1",
+      "size": 947,
+      "hash": "4cb2be6f1757cb8d",
+      "tags": []
+    },
+    {
+      "path": "start_overlays_demo.ps1",
+      "size": 970,
+      "hash": "c24c17448a567aa8",
+      "tags": []
+    },
+    {
+      "path": "STREAMING_BUS_PROTOTYPE.md",
+      "size": 4109,
+      "hash": "650a13970b1a5920",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "TECH_DEBT_HOTSPOTS.md",
+      "size": 4882,
+      "hash": "781400cdc6d9c20b",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "temp_debug2.py",
+      "size": 1486,
+      "hash": "d1a7aa47dfafd48a",
+      "tags": [
+        "temp-debug",
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "temp_debug_unified_http.py",
+      "size": 543,
+      "hash": "9c20fff79e668d46",
+      "tags": [
+        "temp-debug",
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "temp_event_debug.py",
+      "size": 460,
+      "hash": "3aa4a4d49ca8a364",
+      "tags": [
+        "temp-debug",
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "temp_http_trend_check.py",
+      "size": 954,
+      "hash": "3af58997e0d55753",
+      "tags": [
+        "temp-debug",
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "temp_repro_health_test.py",
+      "size": 1498,
+      "hash": "4b34b88deedfbb05",
+      "tags": [
+        "temp-debug",
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "temp_sse_diag.py",
+      "size": 1115,
+      "hash": "69fd162aec1b1861",
+      "tags": [
+        "temp-debug",
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "temp_trend_check.py",
+      "size": 620,
+      "hash": "6fee47ba7a51da7f",
+      "tags": [
+        "temp-debug",
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "TESTING.md",
+      "size": 5994,
+      "hash": "06dca6efcdf62967",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "test_error_routing.py",
+      "size": 4193,
+      "hash": "c066f40833b33305",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "test_error_routing_simple.py",
+      "size": 3275,
+      "hash": "c6e173fa4c96c405",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "test_market_close.py",
+      "size": 4228,
+      "hash": "f2625a0b9a2d0f0c",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "test_panels.py",
+      "size": 1715,
+      "hash": "505448d60f6e85d3",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "test_unified_main_market_close.py",
+      "size": 341,
+      "hash": "26503c918fe15acb",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tmp_import_test.py",
+      "size": 702,
+      "hash": "d3bcc335d62916b9",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "VERIFICATION_GUIDE.md",
+      "size": 7351,
+      "hash": "72f1a27e3288489c",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "walk1.py",
+      "size": 403,
+      "hash": "624af7f60a2ca6ce",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "WAVE4_TRACKING.md",
+      "size": 7243,
+      "hash": "4216261401db1974",
+      "tags": [
+        "docs-legacy"
+      ]
+    },
+    {
+      "path": "WAVE_3_SUMMARY.md",
+      "size": 4300,
+      "hash": "2fab360fdc05fe26",
+      "tags": [
+        "docs-legacy"
+      ]
+    },
+    {
+      "path": ".github/dependabot.yml",
+      "size": 709,
+      "hash": "04ba4cb20501adda",
+      "tags": []
+    },
+    {
+      "path": "clients/python_sse_client.py",
+      "size": 6840,
+      "hash": "f8bd7920087561b0",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "docs/analysis1.md",
+      "size": 6653,
+      "hash": "f30d1bcfa26be87d",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "size": 7962,
+      "hash": "3fd747d736667887",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/clean.md",
+      "size": 3413,
+      "hash": "75a657533bf797d5",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/cleanup.md",
+      "size": 39088,
+      "hash": "d4faeed23e94c0d0",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/CLEANUP_PROPOSALS.md",
+      "size": 1911,
+      "hash": "dff747718b66a609",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/collector_modules.md",
+      "size": 56648,
+      "hash": "cc0e13a09520c6ca",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/collector_patch.md",
+      "size": 11451,
+      "hash": "498f25c8e9bbe9e2",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/collector_patch_archive_2025-09-29.md",
+      "size": 207,
+      "hash": "2c1422d0749492d0",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/CONFIGURATION.md",
+      "size": 4530,
+      "hash": "0becfb85567c5933",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/config_column_store_stub.md",
+      "size": 1268,
+      "hash": "002077c2af8666db",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/config_dict.md",
+      "size": 16564,
+      "hash": "8083916796ed0ba9",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/CONFIG_FEATURE_TOGGLES.md",
+      "size": 6656,
+      "hash": "df3644f772251653",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/CONFIG_KEYS_CATALOG.md",
+      "size": 2675,
+      "hash": "3aef8e77152b4fbd",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/DASHBOARD_DISTRIBUTION.md",
+      "size": 2808,
+      "hash": "b4fc2bccf6f4d6bd",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/DEPRECATIONS.md",
+      "size": 5428,
+      "hash": "01877ae5245da087",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/DEPRECATIONS_SUMMARY.md",
+      "size": 2370,
+      "hash": "76047a12243fce02",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/DESIGN_SUMMARY_PANELS_UNIFICATION.md",
+      "size": 8212,
+      "hash": "73ebcc2d75788b12",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/ENVIRONMENT.md",
+      "size": 19608,
+      "hash": "876e860ac46ecd1c",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/env_dict.md",
+      "size": 104683,
+      "hash": "39f9604030de9b0d",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/ENV_LIFECYCLE.md",
+      "size": 1747,
+      "hash": "0aeb967b3813aa2c",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/env_vars_adaptive_append.md",
+      "size": 1144,
+      "hash": "47cdbe16b365a785",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/ENV_VARS_AUTO.md",
+      "size": 64697,
+      "hash": "e81d241c73b73b81",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/ENV_VARS_CATALOG.md",
+      "size": 63818,
+      "hash": "149c9a584fa367b3",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/ERROR_HANDLING.md",
+      "size": 3687,
+      "hash": "ee451f0ee59f1089",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/EXEC_SUMMARY.md",
+      "size": 4664,
+      "hash": "07df1f3574fb8a38",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/FILE_ACCESS_BEST_PRACTICES.md",
+      "size": 2122,
+      "hash": "675046dd9c809451",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/FINAL_EXPIRY_AND_CSV_INTEGRITY_SUMMARY.md",
+      "size": 6804,
+      "hash": "a0d0c4b47bf76b2a",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/future_enhancements.md",
+      "size": 46220,
+      "hash": "89a553483a6e398c",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/G6_Inefficiencies_Analysis.md",
+      "size": 0,
+      "hash": "e3b0c44298fc1c14",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/GOVERNANCE_METRICS.md",
+      "size": 6143,
+      "hash": "51cba77de166df87",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/INDEX.md",
+      "size": 480,
+      "hash": "a75b57b91384c541",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/inefficiency_complexity_report.md",
+      "size": 10471,
+      "hash": "de48657cdd298b32",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/kite_modules.md",
+      "size": 8372,
+      "hash": "caf8eb9ab38ea621",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/legacy_import_audit.md",
+      "size": 6043,
+      "hash": "4f4309e0ac4f3f6e",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/legacy_loop_removal_checklist.md",
+      "size": 3176,
+      "hash": "ef90bfa5b87be19a",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/METRICS.md",
+      "size": 61904,
+      "hash": "10b5eb284a70049e",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/METRICS_CATALOG.md",
+      "size": 10332,
+      "hash": "380f8a802f167873",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/metrics_dict.md",
+      "size": 14400,
+      "hash": "34b10ca3e53c623d",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/metrics_generated.md",
+      "size": 56938,
+      "hash": "8d53bf5a50f019e2",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/METRICS_MIGRATION.md",
+      "size": 6271,
+      "hash": "837fdbaab998cb4c",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/metrics_spec.yaml",
+      "size": 9079,
+      "hash": "b1fb37bf991f1a94",
+      "tags": []
+    },
+    {
+      "path": "docs/METRICS_USAGE.md",
+      "size": 1947,
+      "hash": "86ffd508158f7dd9",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/OBSERVABILITY_DASHBOARDS.md",
+      "size": 9679,
+      "hash": "a79f4813acb9ed34",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/OBSERVABILITY_TOGGLES_2025-09.md",
+      "size": 1604,
+      "hash": "1a67e857b84b715b",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/OBSERVABILITY_WINDOWS.md",
+      "size": 12915,
+      "hash": "b9aa5bf8fcd224bb",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/orchestrator_parity_matrix.md",
+      "size": 6009,
+      "hash": "35135949d4481696",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/OVERLAYS_LIVE.md",
+      "size": 2757,
+      "hash": "bd257b4b2239e879",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/OVERLAY_USAGE_TELEMETRY.md",
+      "size": 7397,
+      "hash": "b8ab593f82f209c9",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/PANELS_FACTORY.md",
+      "size": 4921,
+      "hash": "5e442cec84d563c1",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/PARALLEL_COLLECTION.md",
+      "size": 2387,
+      "hash": "93db38c6e87702cc",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/promql_dashboard_examples.md",
+      "size": 6314,
+      "hash": "f2571361315b421f",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/REDUNDANT_COMPONENTS.md",
+      "size": 5072,
+      "hash": "48f6195674da33cc",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/RELEASE_NOTES_TEMPLATE.md",
+      "size": 2317,
+      "hash": "6d92fa60ff9c65a3",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/RETENTION_POLICY.md",
+      "size": 3838,
+      "hash": "e2279007dd48eee5",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/roadmap.md",
+      "size": 8365,
+      "hash": "c51a6582b85a23ce",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/RULES_CATALOG.md",
+      "size": 114,
+      "hash": "98d4b062f92e7197",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/SSE_ARCHITECTURE.md",
+      "size": 4666,
+      "hash": "d278ab7ff8e6355c",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/SSE_SECURITY.md",
+      "size": 7585,
+      "hash": "6a3f48c40942b1a0",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/STATUS_READER.md",
+      "size": 3072,
+      "hash": "cd91818f21825ee3",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/terminal_dash.md",
+      "size": 60089,
+      "hash": "7536318389282a33",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/terminal_future.md",
+      "size": 36860,
+      "hash": "5187281a2fe0fc73",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/thresholds_reference.md",
+      "size": 2296,
+      "hash": "850f40edc976a784",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/UNIFIED_MODEL.md",
+      "size": 3554,
+      "hash": "98f39b2e78199426",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/UNIFIED_PLUGINS.md",
+      "size": 7753,
+      "hash": "14874c6e3d62dc72",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "grafana/README.md",
+      "size": 11201,
+      "hash": "e7341adae666e3a0",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "prometheus/alert_rules_g6.yml",
+      "size": 2436,
+      "hash": "cd44247e738cefe8",
+      "tags": []
+    },
+    {
+      "path": "prometheus/g6_generated_alerts.yml",
+      "size": 3576,
+      "hash": "c57ffac817b3fb2d",
+      "tags": []
+    },
+    {
+      "path": "prometheus/recording_rules.yml",
+      "size": 847,
+      "hash": "9161310fe78af1d4",
+      "tags": []
+    },
+    {
+      "path": "prometheus/recording_rules_g6.yml",
+      "size": 2075,
+      "hash": "3e0a4e306d23fe4b",
+      "tags": []
+    },
+    {
+      "path": "prometheus/summary_alert_rules.yml",
+      "size": 2341,
+      "hash": "2b3b5725fd96d244",
+      "tags": []
+    },
+    {
+      "path": "prometheus/summary_recording_rules.yml",
+      "size": 1146,
+      "hash": "e3b8cbbb9cc7c596",
+      "tags": []
+    },
+    {
+      "path": "scripts/audit_metrics_accessors.py",
+      "size": 2053,
+      "hash": "16db3ce8afdfcfbc",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/audit_metrics_usage.py",
+      "size": 3676,
+      "hash": "a5b5f2b6ad8c9c40",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/benchmark_cycles.py",
+      "size": 1757,
+      "hash": "aef1a59ad325e8e2",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/bench_perf_smoke.py",
+      "size": 6270,
+      "hash": "f81323039e3d53c6",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/bench_report.py",
+      "size": 9958,
+      "hash": "ebce00ececf758d7",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/bench_sse_loop.py",
+      "size": 5200,
+      "hash": "274b2d9ef5ab3e37",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/bench_tools.py",
+      "size": 13611,
+      "hash": "96e16fd305dee5f2",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/bench_trend.py",
+      "size": 8158,
+      "hash": "b47a38449f312333",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/check_adaptive_theme.py",
+      "size": 1785,
+      "hash": "83a8182e9fc6a819",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/check_config_doc_governance.py",
+      "size": 3341,
+      "hash": "112b1cb56adb4e19",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/check_env_doc_governance.py",
+      "size": 2543,
+      "hash": "3568e322163b899f",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/check_integrity.py",
+      "size": 3749,
+      "hash": "747a41bb41ecdc42",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/check_logging_only_try.py",
+      "size": 2896,
+      "hash": "6be120800e092389",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/check_provenance.py",
+      "size": 3071,
+      "hash": "cf55d49d0c923a9f",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/ci_time_guard.py",
+      "size": 1776,
+      "hash": "9184a41897d433c1",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/coverage_hotspots.py",
+      "size": 10330,
+      "hash": "84b38169a302a20e",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/csv_audit.py",
+      "size": 8883,
+      "hash": "ab214875abc5e8ca",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/csv_backfill.py",
+      "size": 5516,
+      "hash": "c28e2ad7be78fe6b",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/dashboard_diff.py",
+      "size": 5116,
+      "hash": "ceef4d4346e1de21",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/debug_build_info.py",
+      "size": 851,
+      "hash": "79052f7ca1a9d478",
+      "tags": [
+        "temp-debug",
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/debug_interp.py",
+      "size": 471,
+      "hash": "c0245656f766c224",
+      "tags": [
+        "temp-debug",
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/debug_metrics_presence.py",
+      "size": 458,
+      "hash": "ffb347cf9522dc8d",
+      "tags": [
+        "temp-debug",
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/dedup_env_doc.py",
+      "size": 5135,
+      "hash": "924fc0d9ba9f124d",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/demo_write_csv_once.py",
+      "size": 2125,
+      "hash": "fcea638179366e83",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/dev_smoke.py",
+      "size": 6878,
+      "hash": "cc4b80a6bf95f5bf",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/dev_tasks.py",
+      "size": 5055,
+      "hash": "c534889235f6a759",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/dev_tools.py",
+      "size": 14196,
+      "hash": "fbcff2f67a593d81",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/diagnose_expiries.py",
+      "size": 1134,
+      "hash": "aa89c9d840379f19",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/diag_import_unified.py",
+      "size": 1590,
+      "hash": "1de69fee9bd69009",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/dump_metrics.py",
+      "size": 836,
+      "hash": "a505928c2e3f0abe",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/dump_runtime_metrics.py",
+      "size": 1014,
+      "hash": "f9aab9a255ec674b",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/exercise_metrics.py",
+      "size": 5856,
+      "hash": "a8f04279b8489d0d",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/expiry_matrix.py",
+      "size": 2361,
+      "hash": "2d3ae802ab4b78f5",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/fix_grafana_provisioning.ps1",
+      "size": 2926,
+      "hash": "bacd662a3ccf6da8",
+      "tags": []
+    },
+    {
+      "path": "scripts/g6.py",
+      "size": 10463,
+      "hash": "2eaf693e7dbcc79b",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/g6_run.py",
+      "size": 1148,
+      "hash": "ddc4f19a7effb705",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/generate_fresh_samples.py",
+      "size": 2447,
+      "hash": "35c5444816cf3de0",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/generate_mock_option_universe.py",
+      "size": 7495,
+      "hash": "cda8f6d101ffa101",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/generate_overlay_layout_samples.py",
+      "size": 5970,
+      "hash": "3376cd5bfcd9e32f",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/gen_config_catalog.py",
+      "size": 3028,
+      "hash": "90ddc186a1550c47",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/gen_dashboards.py",
+      "size": 7407,
+      "hash": "e50f2b749abe3741",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/gen_dashboard_from_spec.py",
+      "size": 7146,
+      "hash": "9fa9ed2c56b2e77c",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/gen_env_catalog.py",
+      "size": 5471,
+      "hash": "030dccb6400308ff",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/gen_env_docs.py",
+      "size": 1369,
+      "hash": "fc7c0aece83c36f0",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/gen_env_inventory.py",
+      "size": 8215,
+      "hash": "eee384c16abe77cf",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/gen_metrics.py",
+      "size": 5433,
+      "hash": "8f610447f25a507e",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/gen_metrics_catalog.py",
+      "size": 3690,
+      "hash": "e1e73258957fb3ab",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/gen_metrics_docs.py",
+      "size": 4759,
+      "hash": "58ecaaed191e58b8",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/gen_metrics_glossary.py",
+      "size": 4008,
+      "hash": "e5fd3d1f4e5662df",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/gen_prometheus_alerts.py",
+      "size": 4614,
+      "hash": "8fd8d089e2c8402a",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/gen_provenance.py",
+      "size": 6502,
+      "hash": "73a50c8f17b1df05",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/gen_rules_catalog.py",
+      "size": 2452,
+      "hash": "f32f4f35af7a79f3",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/gen_sbom.py",
+      "size": 5622,
+      "hash": "330afc27fe247a11",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/init_menu.py",
+      "size": 21863,
+      "hash": "156625b6af0528eb",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/inspect_options_snapshot.py",
+      "size": 3454,
+      "hash": "61c1d72fdc2bccef",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/install_grafana_service.ps1",
+      "size": 1324,
+      "hash": "78f5c2f6b5fbfe07",
+      "tags": []
+    },
+    {
+      "path": "scripts/launch_platform.py",
+      "size": 9201,
+      "hash": "0e0ab601cf2d872d",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/legacy_import_audit.py",
+      "size": 3832,
+      "hash": "bdb276180d2abaab",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/list_missing_env_vars.py",
+      "size": 1451,
+      "hash": "11ec8360e1ffc5b0",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/maintenance.py",
+      "size": 4147,
+      "hash": "dbb74b4dcf6ebf96",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/memory_watchdog.ps1",
+      "size": 2298,
+      "hash": "d2b211245217be0c",
+      "tags": []
+    },
+    {
+      "path": "scripts/metrics_analyzer.py",
+      "size": 16266,
+      "hash": "cc6e0e7c0cdb04a3",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/metrics_drift_check.py",
+      "size": 5944,
+      "hash": "b951a18440c95fe5",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/metrics_import_bench.py",
+      "size": 3597,
+      "hash": "8d4accfd610f4db1",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/mock_collect_once.py",
+      "size": 2636,
+      "hash": "bf8a31761319a012",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/mock_live_updates.py",
+      "size": 5351,
+      "hash": "72c4120792b1a2c6",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/monitor_status.py",
+      "size": 3407,
+      "hash": "29ee25218165bb19",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/package_dashboards.py",
+      "size": 4795,
+      "hash": "85c738f64df727df",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/panels_integrity_check.py",
+      "size": 3654,
+      "hash": "24c181e7baed345a",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/perf_bench.py",
+      "size": 3333,
+      "hash": "e80984c40ef671e2",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/pip_audit_gate.py",
+      "size": 3841,
+      "hash": "14de1a8b2bddde6a",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/plot_weekday_overlays.py",
+      "size": 27232,
+      "hash": "83605ba24631e36c",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/profile_unified_cycle.py",
+      "size": 18096,
+      "hash": "ca3ab96c2bf51938",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/pr_checklist.py",
+      "size": 4545,
+      "hash": "0e74b061170ce27e",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/quick_cycle.py",
+      "size": 674,
+      "hash": "8e250913f517a4f3",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/quick_import_test.py",
+      "size": 884,
+      "hash": "d89624255fdbf361",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/quick_provider_check.py",
+      "size": 735,
+      "hash": "638b4613439e6592",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/README.md",
+      "size": 5371,
+      "hash": "ab6827252d5bfddb",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "scripts/release_automation.py",
+      "size": 8862,
+      "hash": "b29695faf5ed37db",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/release_readiness.py",
+      "size": 7391,
+      "hash": "acdbe174a2393d35",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/run_debug_cycle.py",
+      "size": 517,
+      "hash": "5ffce850383d0e69",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/run_orchestrator_loop.py",
+      "size": 5543,
+      "hash": "8d597d3546a9d404",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/run_tests_minimal.py",
+      "size": 1063,
+      "hash": "d75dac0dde4ca11a",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/sanitize_csv_expiries.py",
+      "size": 9223,
+      "hash": "41895f95c6974b31",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/sign_dashboards.py",
+      "size": 5150,
+      "hash": "15ae7f23855f2bd2",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/sim_adaptive_controller.py",
+      "size": 4791,
+      "hash": "436faf6dac5e62be",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/smoke_rollout_modes.py",
+      "size": 3052,
+      "hash": "fce9c180aedec207",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/sse_soak.py",
+      "size": 7768,
+      "hash": "828140fde338a8e6",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/stability_loop.py",
+      "size": 7195,
+      "hash": "1cb5e1f97d91215d",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/start_all.ps1",
+      "size": 22209,
+      "hash": "c055fe0b5d63fa14",
+      "tags": []
+    },
+    {
+      "path": "scripts/start_all_enhanced.ps1",
+      "size": 10543,
+      "hash": "64a961810a7defb8",
+      "tags": []
+    },
+    {
+      "path": "scripts/start_all_enhanced_.ps1",
+      "size": 17518,
+      "hash": "b9654a1571ab7a33",
+      "tags": []
+    },
+    {
+      "path": "scripts/start_grafana.ps1",
+      "size": 7053,
+      "hash": "12f661448f12cef4",
+      "tags": []
+    },
+    {
+      "path": "scripts/start_live_dashboard.ps1",
+      "size": 1411,
+      "hash": "3cc219f1f5aa7ae5",
+      "tags": []
+    },
+    {
+      "path": "scripts/start_mock_mode.ps1",
+      "size": 777,
+      "hash": "deb103dd0d174109",
+      "tags": []
+    },
+    {
+      "path": "scripts/start_panels_flow.ps1",
+      "size": 1083,
+      "hash": "fff4aa811ac87526",
+      "tags": []
+    },
+    {
+      "path": "scripts/start_ws_service.ps1",
+      "size": 347,
+      "hash": "7bf62621abd63cbd",
+      "tags": []
+    },
+    {
+      "path": "scripts/status_simulator.py",
+      "size": 9846,
+      "hash": "1711ae0c7ca8321b",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/status_to_panels.py",
+      "size": 20221,
+      "hash": "8ff703341aedef71",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/stop_grafana.ps1",
+      "size": 536,
+      "hash": "579e7b121633f642",
+      "tags": []
+    },
+    {
+      "path": "scripts/summary_view.py",
+      "size": 22986,
+      "hash": "356149f0b034b179",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/test_flakiness.py",
+      "size": 4459,
+      "hash": "33a1a915aeabb968",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/test_publisher_metrics.py",
+      "size": 6301,
+      "hash": "911cec6662162496",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/test_separator_rows.py",
+      "size": 2107,
+      "hash": "26b261498dd11f2a",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/validate_runbook_links.py",
+      "size": 4843,
+      "hash": "0c492bf80e4a8ed6",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/verify_provenance.py",
+      "size": 2927,
+      "hash": "510080782cacd3b4",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/weekday_overlay.py",
+      "size": 18823,
+      "hash": "aad9f8881ffdc473",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/__init__.py",
+      "size": 27,
+      "hash": "d233653d05beaee0",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/debug_mode.py",
+      "size": 2966,
+      "hash": "4bd586f612252d30",
+      "tags": [
+        "temp-debug",
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/debug_startup.py",
+      "size": 1637,
+      "hash": "f10ea1f0f5b9e888",
+      "tags": [
+        "temp-debug",
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/direct_collect.py",
+      "size": 11724,
+      "hash": "4d6a7e9152d2c4c2",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/enhanced_error_handling.py",
+      "size": 18051,
+      "hash": "4fedfe7c71c0622a",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/error_handling.py",
+      "size": 25027,
+      "hash": "05ed0f26d7b4f525",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/src_debug_collector_Version5.py",
+      "size": 8353,
+      "hash": "c322017f41aec52a",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/test_all_indices.py",
+      "size": 6802,
+      "hash": "083e50bbfdc498e8",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/test_expiries.py",
+      "size": 2413,
+      "hash": "47e2da8106e43fcb",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/unified_main.py",
+      "size": 1041,
+      "hash": "2cb589b244b1e3a5",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/version.py",
+      "size": 548,
+      "hash": "00a3fee5f694eb35",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/__init__.py",
+      "size": 340,
+      "hash": "80b5c70960f5e756",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/conftest.py",
+      "size": 26243,
+      "hash": "17f9a4f414539a1c",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_alerts.py",
+      "size": 3086,
+      "hash": "f8c45d32f12f9a08",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_alerts_panel.py",
+      "size": 2238,
+      "hash": "d91f8d4d51ca9fd2",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_alerts_panel_meta.py",
+      "size": 1844,
+      "hash": "1a89b19befa95d95",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_contraction.py",
+      "size": 4064,
+      "hash": "caa9023cc8477973",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_controller.py",
+      "size": 4085,
+      "hash": "8dcfcbe90d903aaf",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_controller_metrics.py",
+      "size": 1868,
+      "hash": "32275eff30a5d5af",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_cooldown.py",
+      "size": 1869,
+      "hash": "bc10665b23c3aa77",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_followups.py",
+      "size": 3671,
+      "hash": "65c07584952d6fc1",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_followups_extended.py",
+      "size": 9868,
+      "hash": "4717920eacccf750",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_logic_and_surface_metrics.py",
+      "size": 4833,
+      "hash": "59e354c167ed6b45",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_memory_tier.py",
+      "size": 2529,
+      "hash": "c768c0a3a8ca9117",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_passthrough.py",
+      "size": 2301,
+      "hash": "dbf49ce3413440ea",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_refinements.py",
+      "size": 3931,
+      "hash": "64711eea113250d0",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_severity_controller_integration.py",
+      "size": 4709,
+      "hash": "265fd37ebe91b19e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_strike_retry.py",
+      "size": 3100,
+      "hash": "2bf62d642d07bfed",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_strike_scaling.py",
+      "size": 3522,
+      "hash": "618308353bf51a84",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_theme_endpoint_and_trend.py",
+      "size": 3860,
+      "hash": "dcfaf5d10ef6d7de",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_adaptive_trace.py",
+      "size": 3921,
+      "hash": "900795cc6931efa4",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_aggregation_overview.py",
+      "size": 2207,
+      "hash": "4314c6cf69bc8e1b",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_alerts_core.py",
+      "size": 1748,
+      "hash": "304f132f8355c238",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_analytics_builders.py",
+      "size": 2913,
+      "hash": "70bf69fdff2b9068",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_analytics_depth_metrics.py",
+      "size": 3858,
+      "hash": "65620122089466ac",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_analytics_persistence.py",
+      "size": 2479,
+      "hash": "07beaaed2270b430",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_anomaly_metrics.py",
+      "size": 1768,
+      "hash": "9913c34a4d2d6482",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_assets_resolver.py",
+      "size": 2696,
+      "hash": "e058cbb458a63e81",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_auto_snapshots.py",
+      "size": 4611,
+      "hash": "13be1f1482037049",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_avg_price_fallback.py",
+      "size": 1757,
+      "hash": "1311679526cf828e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_backpressure.py",
+      "size": 1415,
+      "hash": "98addebf1e03bbfe",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_benchmark_aggregate.py",
+      "size": 2808,
+      "hash": "7edd497dd3bcb53a",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_benchmark_aggregate_stats.py",
+      "size": 2281,
+      "hash": "ad648da29828560e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_benchmark_anomaly.py",
+      "size": 4253,
+      "hash": "76534f60f7bc0d7d",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_benchmark_bridge_unit.py",
+      "size": 3192,
+      "hash": "308f93a4c68775df",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_benchmark_digest.py",
+      "size": 2457,
+      "hash": "352a54da0f8afc1d",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_benchmark_dump.py",
+      "size": 2639,
+      "hash": "d2d64ea482b67bcb",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_benchmark_dump_retention.py",
+      "size": 2770,
+      "hash": "c99e08a26f2762da",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_benchmark_sanity.py",
+      "size": 1761,
+      "hash": "bcce858e0aaf6be7",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_benchmark_verify.py",
+      "size": 3788,
+      "hash": "963ac8efb7070daf",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_build_info_auto.py",
+      "size": 1979,
+      "hash": "de94a067b8477c82",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_build_info_metric.py",
+      "size": 3861,
+      "hash": "38c39b5f0d7e51b4",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_cadence.py",
+      "size": 1443,
+      "hash": "a4d774809f865524",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_cardinality_detail_modes.py",
+      "size": 2056,
+      "hash": "7f35d2753c5e07a8",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_cardinality_guard.py",
+      "size": 3294,
+      "hash": "8b145f560e5462f5",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_cardinality_guard_metrics.py",
+      "size": 1898,
+      "hash": "738cc4ec98eb256d",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_catalog_emission.py",
+      "size": 1552,
+      "hash": "9aabd0da7de6d71c",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_catalog_enrichment.py",
+      "size": 2415,
+      "hash": "92f672ae846c116a",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_catalog_index_summary.py",
+      "size": 2434,
+      "hash": "281f27fec52a94e6",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_catalog_integrity_http.py",
+      "size": 2882,
+      "hash": "96f57cb778810ccf",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_cb_retry_provider_smoke.py",
+      "size": 3339,
+      "hash": "7dcf3b7c73fc150e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_cli_validate_status_optional.py",
+      "size": 1115,
+      "hash": "2df19442fc77ecee",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_column_store_pipeline.py",
+      "size": 2454,
+      "hash": "28b3b221cab9dfda",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_config_doc_coverage.py",
+      "size": 7968,
+      "hash": "2a8ccf61674b3d5f",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_config_provider_capabilities.py",
+      "size": 2648,
+      "hash": "60425a3fd049b6e7",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_config_schema_doc_sync.py",
+      "size": 4846,
+      "hash": "d60eb600d73b5051",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_config_validation.py",
+      "size": 3169,
+      "hash": "b0eb4a1ad7da6bad",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_coverage_core.py",
+      "size": 1179,
+      "hash": "65d9997d4ca4b9dc",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_coverage_hotspots.py",
+      "size": 5584,
+      "hash": "09a9d5e9560062a2",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_csv_cardinality_suppression.py",
+      "size": 1786,
+      "hash": "a2838a900be7839e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_csv_junk_filter.py",
+      "size": 12507,
+      "hash": "d94ef597ba01ecfa",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_cycle_sla_breach_doc.py",
+      "size": 1667,
+      "hash": "4615deae86a225d8",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_cycle_sla_breach_metric.py",
+      "size": 2242,
+      "hash": "d97e03b79723ffb7",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_daily_header.py",
+      "size": 2404,
+      "hash": "4d05bb7cff6f4aaa",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_data_gap_metric.py",
+      "size": 2040,
+      "hash": "c6c7fd039f0fe298",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_data_quality_flow_unit.py",
+      "size": 2695,
+      "hash": "b2237064c1cb0e95",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_deprecations_registry_format.py",
+      "size": 1330,
+      "hash": "742ec2a16c3c72b1",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_deprecation_legacy_loop.py",
+      "size": 137,
+      "hash": "35f65f7ef100dde3",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_deprecation_pipeline_flag.py",
+      "size": 773,
+      "hash": "bb52838bba7e37f6",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_deprecation_warnings.py",
+      "size": 793,
+      "hash": "375cafd77b862501",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_diff_merge.py",
+      "size": 2273,
+      "hash": "bf7d738b894fb5b7",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_domain_models.py",
+      "size": 1279,
+      "hash": "413cd3e3ffa95f26",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_emission_batcher.py",
+      "size": 1443,
+      "hash": "48413559e8dcb7f3",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_emission_batcher_adaptive.py",
+      "size": 2084,
+      "hash": "dd8ad89760f7be89",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_enhanced_collector_snapshots.py",
+      "size": 3768,
+      "hash": "491c74f8b29d26d2",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_enrichment_async.py",
+      "size": 4498,
+      "hash": "75bad1cfd763d7cf",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_enrichment_async_fallback.py",
+      "size": 2273,
+      "hash": "cdd4d1009941e294",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_env_config.py",
+      "size": 5211,
+      "hash": "29e54063a286c964",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_env_config_catalogs.py",
+      "size": 1176,
+      "hash": "8bb695a7ddf754cb",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_env_deprecation_strict.py",
+      "size": 878,
+      "hash": "26a0ae34f1bd4cb4",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_env_doc_coverage.py",
+      "size": 7559,
+      "hash": "eae824069458d2aa",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_env_doc_duplicates.py",
+      "size": 1305,
+      "hash": "8821db7b475e21ba",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_env_lifecycle_governance.py",
+      "size": 2358,
+      "hash": "2854ec97dbac17b8",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_events_dropped_metrics.py",
+      "size": 1051,
+      "hash": "76bc43f1cd110e29",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_events_force_full.py",
+      "size": 4036,
+      "hash": "9ef05679e50619a1",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_events_latency_metrics.py",
+      "size": 2304,
+      "hash": "1ee18c65b37349e8",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_events_stats_endpoint.py",
+      "size": 1553,
+      "hash": "949e188f444e44b8",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_event_bus_snapshot_guard.py",
+      "size": 5015,
+      "hash": "38a22a9056a1dddb",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_event_bus_sse.py",
+      "size": 5407,
+      "hash": "fef2a83945e0c652",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_event_generation.py",
+      "size": 1017,
+      "hash": "d032443c8b5f7fd4",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_event_log.py",
+      "size": 4318,
+      "hash": "b62970bfc60871cb",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_expiry_discovery_precedence.py",
+      "size": 0,
+      "hash": "e3b0c44298fc1c14",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_expiry_helpers_unit.py",
+      "size": 3076,
+      "hash": "f9344ccff84cbeaa",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_expiry_map.py",
+      "size": 1868,
+      "hash": "2feedc1445db7257",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_expiry_misclassification.py",
+      "size": 4168,
+      "hash": "f52c6a4ed47e04bf",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_expiry_misclass_alias_equivalence.py",
+      "size": 4050,
+      "hash": "4074bf6571574716",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_expiry_policy_enforcement.py",
+      "size": 3448,
+      "hash": "a4d82afd1a6bb8d9",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_expiry_processor_unit.py",
+      "size": 6650,
+      "hash": "ae26130a94dc0e5a",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_expiry_remediation_hardening.py",
+      "size": 3195,
+      "hash": "7d844defbdc15e89",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_expiry_remediation_metrics.py",
+      "size": 1111,
+      "hash": "53c64ba4f347350b",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_expiry_resolution_fallback.py",
+      "size": 2570,
+      "hash": "7a7cf85c8c09f8be",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_expiry_resolution_provider.py",
+      "size": 2337,
+      "hash": "9351c8483893cdb9",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_expiry_rules_cases.py",
+      "size": 3664,
+      "hash": "2a43eab0a76ceb88",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_expiry_service_integration.py",
+      "size": 1271,
+      "hash": "2aec35ab8aa81c32",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_expiry_service_perf_optional.py",
+      "size": 1330,
+      "hash": "51741248a4feee42",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_facade_parity.py",
+      "size": 4636,
+      "hash": "27fb465eceed216c",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_facade_parity_exec.py",
+      "size": 3367,
+      "hash": "91b3fee455230aa2",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_factory_legs_precedence.py",
+      "size": 2006,
+      "hash": "7f4d0017ad79739a",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_fail_on_duplicate.py",
+      "size": 710,
+      "hash": "7ba809a0910b3025",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_fault_budget.py",
+      "size": 3138,
+      "hash": "1c69f00a81d33d57",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_followon_analytics_metrics.py",
+      "size": 2745,
+      "hash": "f652725f70fc9dfd",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_followups_alert_emission.py",
+      "size": 2882,
+      "hash": "5fe1b8fb6e33898f",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_followups_multi_index_isolation.py",
+      "size": 967,
+      "hash": "22fded9991204d01",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_g6_cli.py",
+      "size": 767,
+      "hash": "e574306ca3a9143a",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_g6_cli_extended.py",
+      "size": 767,
+      "hash": "d917a9a031fd9607",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_g6_run_alias.py",
+      "size": 1513,
+      "hash": "ce596162f36ab420",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_governance_summary.py",
+      "size": 2215,
+      "hash": "000b67e59cf630fe",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_hash_centralization.py",
+      "size": 1364,
+      "hash": "2a3a7afa0362adae",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_http_basic_auth.py",
+      "size": 2115,
+      "hash": "1b4f39edcf75ced6",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_import_smoke.py",
+      "size": 170,
+      "hash": "72f5e32bd2db1abe",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_index_params_loader.py",
+      "size": 0,
+      "hash": "e3b0c44298fc1c14",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_index_registry.py",
+      "size": 1008,
+      "hash": "be8b5d9b634b41f8",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_influx_cycle_noop.py",
+      "size": 375,
+      "hash": "052ecad5716f6547",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_influx_cycle_timestamp.py",
+      "size": 2157,
+      "hash": "212293f5838e9208",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_integrity_autorun.py",
+      "size": 2632,
+      "hash": "1d1bce84d43eb9a0",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_integrity_checker.py",
+      "size": 1343,
+      "hash": "09a80e315fa16b7e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_in_memory_bus.py",
+      "size": 1051,
+      "hash": "05de7ab41a34e34d",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_iv_iterations_histogram.py",
+      "size": 2086,
+      "hash": "0986bf97ec455528",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_kite_provider_diagnostics.py",
+      "size": 2401,
+      "hash": "e1e88b428d78d41d",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_legacy_expiry_service_integration.py",
+      "size": 190,
+      "hash": "a033e08159f8c917",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_legacy_loop_gating.py",
+      "size": 124,
+      "hash": "962a8d866a77d123",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_legacy_snapshot_removed.py",
+      "size": 856,
+      "hash": "c560bab7b89cc8ed",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_lifecycle_job.py",
+      "size": 2320,
+      "hash": "1a134d269b9aebb8",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_lifecycle_retention.py",
+      "size": 3906,
+      "hash": "f88fa10f08d55d66",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_memory_adjust.py",
+      "size": 3294,
+      "hash": "0e2cbf61d6ac06bb",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_memory_pressure.py",
+      "size": 3640,
+      "hash": "a16b9e55422f9984",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_memory_status_api.py",
+      "size": 1128,
+      "hash": "6ee23de9c30b7e08",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_adapter_basic.py",
+      "size": 1489,
+      "hash": "25fbc397bac760ac",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_adapter_deterministic.py",
+      "size": 2553,
+      "hash": "795b6e3f10a05d67",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_api_calls.py",
+      "size": 2860,
+      "hash": "6bb5d56fed8312ce",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_batching.py",
+      "size": 2012,
+      "hash": "3094583cf62c677c",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_batching_perf_optional.py",
+      "size": 2883,
+      "hash": "b471913f90bde1cc",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_batching_threshold.py",
+      "size": 2111,
+      "hash": "2b5310bb019bd10e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_cardinality_guard.py",
+      "size": 3097,
+      "hash": "d4f2bb4479d6593f",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_catalog_generated.py",
+      "size": 1141,
+      "hash": "bf0853884f13cdcb",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_deprecations.py",
+      "size": 3100,
+      "hash": "7719676f99a0d1a3",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_doc_consistency.py",
+      "size": 1556,
+      "hash": "87bb4ffeda46c4b5",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_dump_suppression.py",
+      "size": 2338,
+      "hash": "1bde52d96c22ce80",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_duplicates.py",
+      "size": 2132,
+      "hash": "1c541c73eecd99bd",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_duplicate_guard.py",
+      "size": 2034,
+      "hash": "c37bad734b5add60",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_duplicate_registration.py",
+      "size": 829,
+      "hash": "e2e27b50fdeb7a5e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_emitter.py",
+      "size": 989,
+      "hash": "7f964369138453c8",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_facade_imports.py",
+      "size": 1108,
+      "hash": "ea72796a7092f0a1",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_group_filters_log.py",
+      "size": 1340,
+      "hash": "c4c667a34b3411f9",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_group_reload.py",
+      "size": 942,
+      "hash": "cb23299c2b63dfb6",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_import_bench.py",
+      "size": 515,
+      "hash": "6a88d1be556e57ce",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_init_profile.py",
+      "size": 1053,
+      "hash": "82b628753f88456c",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_introspection_and_api_call.py",
+      "size": 1912,
+      "hash": "85b44b6a7de7256c",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_lazy_introspection.py",
+      "size": 1560,
+      "hash": "7d62d8669aa23757",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_metadata.py",
+      "size": 2785,
+      "hash": "28d96f5d083aed1f",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_placeholders_order.py",
+      "size": 1446,
+      "hash": "4ff88f36f345a695",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_prune_api.py",
+      "size": 3953,
+      "hash": "3eee4455a98dab3f",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_server_basic.py",
+      "size": 1022,
+      "hash": "754b805a8d5a0a43",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_spec.py",
+      "size": 3996,
+      "hash": "0e03e9b45bd6bffa",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_spec_conformance.py",
+      "size": 6184,
+      "hash": "0bf7f7615cdec845",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metrics_strict_mode.py",
+      "size": 1154,
+      "hash": "543c41c43cc82047",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metric_groups_enable_disable.py",
+      "size": 3825,
+      "hash": "e51f7ccc2d0c57b1",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metric_group_state.py",
+      "size": 890,
+      "hash": "fd79fc63c9775967",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_metric_spec_invariants.py",
+      "size": 2079,
+      "hash": "d9915e572cce59d5",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_minimal.py",
+      "size": 44,
+      "hash": "36678af728980141",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_missing_cycles_metric.py",
+      "size": 4136,
+      "hash": "aa143e603868f967",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_mock_cycle.py",
+      "size": 368,
+      "hash": "ce3a4be73908d2d3",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_mock_dashboard.py",
+      "size": 406,
+      "hash": "2436edd8adf60e91",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_mock_provider.py",
+      "size": 633,
+      "hash": "8453fd6ca444965e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_mock_runtime_optional.py",
+      "size": 542,
+      "hash": "707e57b060c093eb",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_model_native_builder.py",
+      "size": 1151,
+      "hash": "2601d3d7fd0aabe4",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_model_snapshot.py",
+      "size": 2033,
+      "hash": "11c18727face65c5",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_model_snapshot_parity.py",
+      "size": 1928,
+      "hash": "35316f00e38f718c",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_new_metrics_observability.py",
+      "size": 3680,
+      "hash": "bd2ce2ac1b4e0f72",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_new_panels_storage_perf.py",
+      "size": 2126,
+      "hash": "b7529496a4536260",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_normalization.py",
+      "size": 1417,
+      "hash": "a650d4cd27711eb3",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_no_datetime_utcnow.py",
+      "size": 928,
+      "hash": "0513d5edc4ece3a3",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_no_naive_persisted_now.py",
+      "size": 1472,
+      "hash": "f0b9cb6e99c1634d",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_option_chain_aggregator.py",
+      "size": 1323,
+      "hash": "ab61030563ede14b",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_option_chain_provider_integration.py",
+      "size": 1593,
+      "hash": "8756d1f02b38def6",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_option_filter.py",
+      "size": 3485,
+      "hash": "22e40ade7e03eeec",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_orchestrator_cycle_fixture.py",
+      "size": 881,
+      "hash": "11a937e48715e272",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_orchestrator_loop_max_cycles.py",
+      "size": 1757,
+      "hash": "2583226a1d1d2d19",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_orchestrator_parity.py",
+      "size": 6197,
+      "hash": "1893a3e67e95a3aa",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_orchestrator_parity_enhanced.py",
+      "size": 2151,
+      "hash": "a8f84610e629e2b0",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_output_router.py",
+      "size": 1985,
+      "hash": "a354e4b386d97389",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_overlay_plotting_utils.py",
+      "size": 1161,
+      "hash": "2419dc756a4a6b87",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_overlay_quality.py",
+      "size": 2414,
+      "hash": "76d0ad00c27ec464",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panels_bridge_deprecation.py",
+      "size": 430,
+      "hash": "d1aca4939821f3ab",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panels_bridge_phase_gating.py",
+      "size": 259,
+      "hash": "c236c893623e35f3",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panels_commit_cleanup.py",
+      "size": 3405,
+      "hash": "ff4876e4cadc2555",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panels_helpers.py",
+      "size": 1842,
+      "hash": "0abb86e740ab5d05",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panels_integrity_cli.py",
+      "size": 2611,
+      "hash": "a582e1e41320a393",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panels_integrity_monitor.py",
+      "size": 2856,
+      "hash": "b65e9f1e8576efed",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panels_manifest_hashes.py",
+      "size": 2477,
+      "hash": "2a75f0fe15c4c664",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panels_runtime_validation.py",
+      "size": 2005,
+      "hash": "e46162ab623e59ed",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panels_schema_invariant.py",
+      "size": 2582,
+      "hash": "b9e79b12c6eec12e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panels_schema_validation.py",
+      "size": 2983,
+      "hash": "2f731ace73cc5976",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panels_sink.py",
+      "size": 1034,
+      "hash": "51c92b0d7a677a17",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panels_transactions.py",
+      "size": 2252,
+      "hash": "090e40ddcaa32531",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panels_wrapper.py",
+      "size": 1261,
+      "hash": "2893c55aa9260f09",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panels_writer_update_metrics.py",
+      "size": 2902,
+      "hash": "06a8f33f035f8ed9",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panel_diffs.py",
+      "size": 2108,
+      "hash": "89e23acb35ac76fb",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panel_diff_truncation.py",
+      "size": 1618,
+      "hash": "1795fa48f1a6817d",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panel_hash_hardening.py",
+      "size": 2331,
+      "hash": "3113ee2f2727f3bc",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panel_provider_backoff.py",
+      "size": 1511,
+      "hash": "578aa2140f6de155",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panel_registry.py",
+      "size": 1246,
+      "hash": "3cf67a39f6531702",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panel_schema_version.py",
+      "size": 1253,
+      "hash": "0da3d6b964a931d9",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panel_state_store.py",
+      "size": 3013,
+      "hash": "d4c900560cde480b",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_panel_status_parity.py",
+      "size": 130,
+      "hash": "f957f1f52306b17f",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_parallel_collection.py",
+      "size": 2560,
+      "hash": "3841101b99971b68",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_parallel_collector_async_smoke.py",
+      "size": 2068,
+      "hash": "2a9ec968240c01b4",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_parallel_hardening.py",
+      "size": 4061,
+      "hash": "f071c1ba048ebd50",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_parity_alerts_and_strike_meta.py",
+      "size": 2602,
+      "hash": "7047038acb321c61",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_parity_golden_verify.py",
+      "size": 4178,
+      "hash": "e15f6ea41f5ec312",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_parity_harness_basic.py",
+      "size": 3841,
+      "hash": "3bbbf37e0aad284c",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_parity_harness_multi.py",
+      "size": 3476,
+      "hash": "f5c52958d15a9590",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_parity_harness_v3.py",
+      "size": 1516,
+      "hash": "06212e69c9e17716",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_parity_signature.py",
+      "size": 3550,
+      "hash": "eabb2a1d000f9879",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_partial_reason.py",
+      "size": 2029,
+      "hash": "ab5fc2497a963503",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_partial_reason_groups.py",
+      "size": 1284,
+      "hash": "cc16d73f5c6e0c75",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_partial_reason_pipeline_parity.py",
+      "size": 2742,
+      "hash": "1c84b8b913445980",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_partial_reason_rollup.py",
+      "size": 1199,
+      "hash": "34c7e3fae595fea8",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_perf_mock_cycle_optional.py",
+      "size": 564,
+      "hash": "243b3d62690b2cb7",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_perf_strikes.py",
+      "size": 0,
+      "hash": "e3b0c44298fc1c14",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_persist_flow_unit.py",
+      "size": 4503,
+      "hash": "0f1d639d6e63ff6e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_persist_result_integration.py",
+      "size": 3482,
+      "hash": "53c584f3fdec25a2",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_per_expiry_metrics_absent.py",
+      "size": 1457,
+      "hash": "713bdbc55d3ccf42",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_per_index_option_counts.py",
+      "size": 450,
+      "hash": "95d892b6d5b22460",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_phase_durations_emission.py",
+      "size": 1201,
+      "hash": "e9f6aa2845b80377",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_phase_metrics.py",
+      "size": 2909,
+      "hash": "98dacaab91271bde",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_pipeline_analytics.py",
+      "size": 2143,
+      "hash": "8f4012641c1fdb26",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_pipeline_collector.py",
+      "size": 1309,
+      "hash": "c8154b3a09bc5fbf",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_pipeline_overview.py",
+      "size": 1627,
+      "hash": "38a41c80cf1a5b1d",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_pipeline_parity_basic.py",
+      "size": 5099,
+      "hash": "71bf5db8df7c3ea5",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_pipeline_promotion_default.py",
+      "size": 3901,
+      "hash": "ad9d4586fafdb88f",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_pipeline_strike_scale.py",
+      "size": 482,
+      "hash": "981177a8fcc439d2",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_plain_parity.py",
+      "size": 1627,
+      "hash": "3d031f680b6f10a1",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_plain_renderer.py",
+      "size": 1476,
+      "hash": "a6dc2fb79f5894ba",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_plain_renderer_diff.py",
+      "size": 1210,
+      "hash": "a3224477eeea9139",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_plot_weekday_overlays_html.py",
+      "size": 3869,
+      "hash": "ad307fb12fc6859d",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_prefilter_clamp.py",
+      "size": 5097,
+      "hash": "82e6590fa251c011",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_prefilter_flow_unit.py",
+      "size": 1926,
+      "hash": "608244529c452b4a",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_provider_factory.py",
+      "size": 948,
+      "hash": "f6ba2f07f8786247",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_provider_failover.py",
+      "size": 2024,
+      "hash": "aa9b2428147fd1d8",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_provider_mode_seed.py",
+      "size": 1383,
+      "hash": "c9a3c2704863a499",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_publisher_transactional.py",
+      "size": 2069,
+      "hash": "890bf7ebe45860a5",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_publisher_transaction_abort.py",
+      "size": 1812,
+      "hash": "b5f135acf37a88c2",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_quote_batching.py",
+      "size": 2049,
+      "hash": "46e90d0c71eda8f4",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_rate_limiter.py",
+      "size": 3484,
+      "hash": "7d9f081701936ed4",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_registry_duplicates.py",
+      "size": 1697,
+      "hash": "7edd256a081482fe",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_request_full_api.py",
+      "size": 679,
+      "hash": "bf998e095d46a3b9",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_resync_http.py",
+      "size": 1818,
+      "hash": "6991cfecbd852a84",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_resync_stub.py",
+      "size": 1386,
+      "hash": "2479b3596ea08ee1",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_retention_policy.py",
+      "size": 2270,
+      "hash": "f05aa83272be40af",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_rich_header_cycle_hash.py",
+      "size": 643,
+      "hash": "2df7cde9570d7202",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_rich_panel_hashes.py",
+      "size": 1567,
+      "hash": "d7435d3d274e669f",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_root_cache.py",
+      "size": 3142,
+      "hash": "35e3934cf8239312",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_runtime_status_schema_optional.py",
+      "size": 1178,
+      "hash": "1b590838c98674c9",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_runtime_status_strict_optional.py",
+      "size": 844,
+      "hash": "74d2587344a2b466",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_runtime_status_writer.py",
+      "size": 464,
+      "hash": "44efdb5d51621159",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_run_unified_collectors_integration.py",
+      "size": 7570,
+      "hash": "f586a029f41ceada",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_run_unified_collectors_multi_expiry.py",
+      "size": 6857,
+      "hash": "ef802af61749afa3",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_safeguard_legacy_loop_removed.py",
+      "size": 1260,
+      "hash": "17ccc769cf8d7792",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_safe_emit.py",
+      "size": 1454,
+      "hash": "b05b9908321b8d8c",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_sbom_and_pip_audit.py",
+      "size": 1780,
+      "hash": "39fb18da5b1bc565",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_script_deprecations.py",
+      "size": 1239,
+      "hash": "39c40da4f6bec094",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_serialization_cache.py",
+      "size": 533,
+      "hash": "a14c3afb8d7a8fd7",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_severity_decay.py",
+      "size": 3822,
+      "hash": "ceb7290e0e100695",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_severity_disabled.py",
+      "size": 1099,
+      "hash": "edce54e5e42e4e1e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_severity_followups_store.py",
+      "size": 1448,
+      "hash": "c6d37fe2d8e5b0bb",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_severity_thresholds.py",
+      "size": 3286,
+      "hash": "4b439979f230cd7e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_snapshots_http.py",
+      "size": 1800,
+      "hash": "f841aed04df11396",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_snapshots_integration.py",
+      "size": 2595,
+      "hash": "c41700517568e11f",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_snapshots_matrix.py",
+      "size": 4704,
+      "hash": "b7bc9b8b25c42151",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_snapshot_overview.py",
+      "size": 1839,
+      "hash": "b4623f0d184b7bba",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_sse_advanced_metrics.py",
+      "size": 1427,
+      "hash": "c15b288ec4311e25",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_sse_bye_event.py",
+      "size": 1150,
+      "hash": "e634bc650967a63d",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_sse_domain_reuse.py",
+      "size": 1869,
+      "hash": "282c3320a3789e4c",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_sse_http_auth_acl.py",
+      "size": 1959,
+      "hash": "549116d062fa2a83",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_sse_http_basic.py",
+      "size": 1832,
+      "hash": "e0d1209e8f3fda16",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_sse_http_rate_limit.py",
+      "size": 2050,
+      "hash": "cdfd79781293740e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_sse_integration.py",
+      "size": 2208,
+      "hash": "02aa58f89a092031",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_sse_integration_flow.py",
+      "size": 2617,
+      "hash": "e4790f6c13ccf823",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_sse_merge.py",
+      "size": 1493,
+      "hash": "e7c0250dea78db69",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_sse_publisher.py",
+      "size": 3363,
+      "hash": "6513ea5ad5d9c6d4",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_sse_publisher_heartbeat.py",
+      "size": 2126,
+      "hash": "f6b78621a2fdf450",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_sse_publisher_sequence.py",
+      "size": 2380,
+      "hash": "ad43f102686aa7ff",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_sse_security_round2.py",
+      "size": 4404,
+      "hash": "7781d6d8a1172a4b",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_sse_structured_diff.py",
+      "size": 1123,
+      "hash": "5844e6f45482d81b",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_sse_subset_perf.py",
+      "size": 1707,
+      "hash": "e7c85bb981129950",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_stability_loop.py",
+      "size": 1657,
+      "hash": "f4629466c9c3a233",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_stale_gating.py",
+      "size": 4292,
+      "hash": "2655a2cb3874327c",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_stale_gating_isolated.py",
+      "size": 917,
+      "hash": "24ae176a6ed84edd",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_status_indices_options.py",
+      "size": 258,
+      "hash": "e8d54d31fd4886ba",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_status_reader_basic.py",
+      "size": 1807,
+      "hash": "e686b5236f988bb3",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_status_reader_error_cases.py",
+      "size": 722,
+      "hash": "76dffcbbe4838891",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_status_reducer.py",
+      "size": 2518,
+      "hash": "595640a46bfff4fa",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_status_simulator.py",
+      "size": 1323,
+      "hash": "261e2f78e91f65f3",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_status_timestamp_tz.py",
+      "size": 1175,
+      "hash": "9ba5bf4e67218d29",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_status_writer_additional.py",
+      "size": 4090,
+      "hash": "e53ff19f903b2132",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_status_writer_direct.py",
+      "size": 4360,
+      "hash": "9ef856f90d912cb2",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_status_writer_edge_cases.py",
+      "size": 4745,
+      "hash": "6ef76f14f740a8e6",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_strike_generation.py",
+      "size": 1248,
+      "hash": "44fc906a4a2255fe",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_strike_index.py",
+      "size": 769,
+      "hash": "75f4d542adc2b9bd",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_strike_universe.py",
+      "size": 1514,
+      "hash": "83e62fa7219da7b1",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_struct_events.py",
+      "size": 3308,
+      "hash": "6b4b9d7ae2577f05",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_adaptive_alerts.py",
+      "size": 1612,
+      "hash": "1cc0d4b1ace16754",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_adaptive_detail_mode.py",
+      "size": 3199,
+      "hash": "54ac2ed5f265c842",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_alerts_log_max.py",
+      "size": 2294,
+      "hash": "89a7f72135bdf668",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_alerts_metric_gating.py",
+      "size": 1371,
+      "hash": "28d89e7a321379a3",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_alerts_relocated.py",
+      "size": 3403,
+      "hash": "816c929b1f3f000a",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_auto_recovery.py",
+      "size": 4329,
+      "hash": "798ef20740014db3",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_auto_recovery_disabled.py",
+      "size": 4827,
+      "hash": "d6c1a7850f059331",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_curated_layout.py",
+      "size": 5110,
+      "hash": "648eedee3138a0c1",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_domain.py",
+      "size": 2162,
+      "hash": "66d612d7ee8610a3",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_health_endpoint.py",
+      "size": 2332,
+      "hash": "6e8b15daedd98cd0",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_metrics.py",
+      "size": 2488,
+      "hash": "b4d67e6c0d1e510c",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_model.py",
+      "size": 1892,
+      "hash": "e97e3fd85f472f64",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_need_full_indicator.py",
+      "size": 221,
+      "hash": "0e205eaf3f8ebaa3",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_panels_preference.py",
+      "size": 1609,
+      "hash": "b2c91be4cfafb5ba",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_parsers.py",
+      "size": 1366,
+      "hash": "6b20758769592f3b",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_signature_skip.py",
+      "size": 2577,
+      "hash": "f0243ab8a027c52c",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_snapshot_builder_base.py",
+      "size": 2096,
+      "hash": "f768c0b167f5e4a7",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_snapshot_builder_metrics.py",
+      "size": 2033,
+      "hash": "5a1dd35a83f3962d",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_thresholds_registry.py",
+      "size": 951,
+      "hash": "757b5712b57a4106",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_unified_failure.py",
+      "size": 596,
+      "hash": "8d73d67f6edc94f8",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_summary_view_redirect.py",
+      "size": 644,
+      "hash": "831768bfc1742c23",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_symbol_filtering.py",
+      "size": 1490,
+      "hash": "5087cc9155430fa7",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_symbol_matching_modes.py",
+      "size": 2576,
+      "hash": "1e72d43008efadea",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_symbol_safemode.py",
+      "size": 1473,
+      "hash": "dd9c37d5f6f05489",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_synthetic_fallback_unit.py",
+      "size": 3333,
+      "hash": "fb3fef9683d4e6ff",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_synthetic_strategy.py",
+      "size": 2735,
+      "hash": "be6748a740d6fe77",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_template_audit.py",
+      "size": 3832,
+      "hash": "15586f2137c1e411",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_timeutils_rounding.py",
+      "size": 992,
+      "hash": "5774f453dc8d97c5",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_timeutils_utc_now.py",
+      "size": 426,
+      "hash": "12ca6ea6b16933cc",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_token_providers.py",
+      "size": 2779,
+      "hash": "26dd23da0f16078e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_trace_auto_disable.py",
+      "size": 2100,
+      "hash": "528e13d3f0c7c288",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_tracing.py",
+      "size": 2761,
+      "hash": "17b9b61a9f740265",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_unified_conflict_detection.py",
+      "size": 1705,
+      "hash": "4cd4adc20f8aa3fe",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_unified_http_basic.py",
+      "size": 1926,
+      "hash": "196d63892773929e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_unified_loop_domain.py",
+      "size": 1350,
+      "hash": "180ddd151bbcb158",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_unified_loop_dual_emission.py",
+      "size": 1472,
+      "hash": "162df692893bf15e",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_unified_snapshot.py",
+      "size": 127,
+      "hash": "c2365652c1bc5b76",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_unified_snapshot_adapter.py",
+      "size": 1454,
+      "hash": "75b75c3bb25e7255",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_unified_snapshot_deprecation.py",
+      "size": 136,
+      "hash": "911fcb03db28f2d9",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_unified_source_basic.py",
+      "size": 3396,
+      "hash": "7978d67b04b1b32c",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_unified_source_status_api.py",
+      "size": 1032,
+      "hash": "7bb2f83bf14de8e0",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_unified_structured_return.py",
+      "size": 2456,
+      "hash": "68b379788a13466b",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_unified_summary_parity_stub.py",
+      "size": 5223,
+      "hash": "45b064b0022c4d42",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_unified_terminal_renderer_plain.py",
+      "size": 684,
+      "hash": "af45023f842567a8",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_vol_surface_deterministic_interp.py",
+      "size": 2163,
+      "hash": "3797056e63589f47",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/test_weekend_degraded_empty_data.py",
+      "size": 2523,
+      "hash": "da833c0a13b097f0",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "tests/_parity_exec_legacy_stub.py",
+      "size": 352,
+      "hash": "184780c37eb1efcb",
+      "tags": [
+        "test"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/adaptive/alerts.py",
+      "size": 8550,
+      "hash": "60948fc00aa8285e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/adaptive/controller.py",
+      "size": 2761,
+      "hash": "8b61736f1c946061",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/adaptive/followups.py",
+      "size": 20562,
+      "hash": "3b127fe3a6e5a95f",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/adaptive/logic.py",
+      "size": 10295,
+      "hash": "34695b6d78ad23fc",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/adaptive/severity.py",
+      "size": 25544,
+      "hash": "7f20faedf533643c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/analytics/market_breadth.py",
+      "size": 1210,
+      "hash": "47d23d45f77a0a83",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/analytics/option_chain.py",
+      "size": 14055,
+      "hash": "9538aec659d068eb",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/analytics/option_greeks.py",
+      "size": 9417,
+      "hash": "35a3ea05ca51bdb5",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/analytics/participant.py",
+      "size": 1091,
+      "hash": "f2588cf91f078086",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/analytics/redis_cache.py",
+      "size": 11264,
+      "hash": "f9c060cc73238475",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/analytics/risk_agg.py",
+      "size": 24994,
+      "hash": "5084434b15359d1c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/analytics/spread_builder.py",
+      "size": 11365,
+      "hash": "a67813cb90163d2f",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/analytics/vol_surface.py",
+      "size": 18864,
+      "hash": "059401962508a178",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/analytics/__init__.py",
+      "size": 104,
+      "hash": "590426c85eb302b8",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/archived/main.py",
+      "size": 784,
+      "hash": "f68bc88b7e8e6a36",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/archived/main_advanced.py",
+      "size": 601,
+      "hash": "cfa921913722b1e0",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/bench/anomaly.py",
+      "size": 5491,
+      "hash": "4d8f29af544391af",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/broker/kite_instruments.py",
+      "size": 627,
+      "hash": "48c67efaf3b3e503",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/broker/kite_provider.py",
+      "size": 23336,
+      "hash": "35038ff7586c7cf1",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/broker/models.py",
+      "size": 745,
+      "hash": "ad2bb3a663d9750e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 5
+    },
+    {
+      "path": "src/broker/__init__.py",
+      "size": 278,
+      "hash": "8fc9f8dd9f7acc31",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/bus/event.py",
+      "size": 319,
+      "hash": "c9bb38c652044998",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/bus/in_memory_bus.py",
+      "size": 4855,
+      "hash": "fed77a0ff84c17f2",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/async_providers.py",
+      "size": 5387,
+      "hash": "72d773945372ac2e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/cycle_context.py",
+      "size": 4630,
+      "hash": "306129e6faff350e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/enhanced_shim.py",
+      "size": 1849,
+      "hash": "2ae9d370693f68f4",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/parallel_collector.py",
+      "size": 22165,
+      "hash": "2827d68f650e691b",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/parity_harness.py",
+      "size": 7035,
+      "hash": "97ea86db9d192c25",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/partial_reasons.py",
+      "size": 2554,
+      "hash": "8730fe86589c7b87",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/persist_result.py",
+      "size": 1179,
+      "hash": "61b6cc1789ded4b2",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/pipeline.py",
+      "size": 14620,
+      "hash": "ffcaa3d4175193bf",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/providers_interface.py",
+      "size": 27652,
+      "hash": "8f2878591e0fbfb6",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/collectors/snapshot_collectors.py",
+      "size": 9780,
+      "hash": "9fb1c49f018587b3",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/unified_collectors.py",
+      "size": 53400,
+      "hash": "bc70d2ea562850d3",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/collectors/__init__.py",
+      "size": 184,
+      "hash": "9e214d4508273ca8",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/column_store/pipeline.py",
+      "size": 7293,
+      "hash": "6e8230025b4c670c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/config/config_loader.py",
+      "size": 5713,
+      "hash": "3734fcaab635a994",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/config/config_wrapper.py",
+      "size": 8765,
+      "hash": "f5c8461074f1feaa",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/config/env_docs.py",
+      "size": 1886,
+      "hash": "69844ae5a589b1b2",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/config/env_lifecycle.py",
+      "size": 1635,
+      "hash": "49ad64ce82c48e18",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/config/env_registry.py",
+      "size": 20940,
+      "hash": "b846e7fd72cd3320",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/config/expiry_resolver.py",
+      "size": 4041,
+      "hash": "f8228f48d79d166f",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/config/index_params_loader.py",
+      "size": 0,
+      "hash": "e3b0c44298fc1c14",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/config/loader.py",
+      "size": 9915,
+      "hash": "7fde1a2a6dfb04e0",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/config/migrations.py",
+      "size": 3759,
+      "hash": "73311ea8e78d9f31",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/config/runtime_config.py",
+      "size": 2744,
+      "hash": "543daa4d10984275",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/config/schema_validator.py",
+      "size": 7633,
+      "hash": "604a1e016bdb8bc8",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/config/schema_versions.py",
+      "size": 2408,
+      "hash": "0a69bd64cb98fd0d",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/config/validation.py",
+      "size": 12304,
+      "hash": "8eb0991f538afba3",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/config/validator.py",
+      "size": 8897,
+      "hash": "593dd8e2b490c20d",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/config/__init__.py",
+      "size": 416,
+      "hash": "3da4bcdf1bc4c08b",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/console/terminal.py",
+      "size": 5260,
+      "hash": "5d599ff5c55286a6",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/console/ws_service.py",
+      "size": 4606,
+      "hash": "d893643b43dbe551",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/console/__init__.py",
+      "size": 247,
+      "hash": "98079aee34237083",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/data_access/unified_source.py",
+      "size": 20529,
+      "hash": "8202b3c5e10ae1e1",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/domain/models.py",
+      "size": 6157,
+      "hash": "099a915940184c50",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 5
+    },
+    {
+      "path": "src/domain/snapshots_cache.py",
+      "size": 2578,
+      "hash": "db625e4c7b7eb2c0",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/domain/types.py",
+      "size": 993,
+      "hash": "2e1ecceff989e622",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 52
+    },
+    {
+      "path": "src/events/adaptive_degrade.py",
+      "size": 6904,
+      "hash": "29ac057845b353b5",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/events/event_bus.py",
+      "size": 36473,
+      "hash": "1729867d1ef8eeeb",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/events/event_log.py",
+      "size": 8353,
+      "hash": "0292da3a5086f78f",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/events/latency_client.py",
+      "size": 1843,
+      "hash": "7236d10263fef245",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/filters/option_filter.py",
+      "size": 4817,
+      "hash": "e281928f6b223fde",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/health/api_server.py",
+      "size": 7816,
+      "hash": "1b4aa30e2f5e65e8",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/health/health_checker.py",
+      "size": 3879,
+      "hash": "58dea988d2fbd406",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/health/models.py",
+      "size": 2325,
+      "hash": "55ad7c3fc2599fce",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 5
+    },
+    {
+      "path": "src/health/monitor.py",
+      "size": 11762,
+      "hash": "8d1ab828bb5e770c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/health/prom_exporter.py",
+      "size": 3947,
+      "hash": "ea0acd384bff2983",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/health/runtime.py",
+      "size": 2326,
+      "hash": "f1b4c1c308aefc62",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/health/__init__.py",
+      "size": 687,
+      "hash": "0119bc18d94925fd",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/lifecycle/job.py",
+      "size": 8655,
+      "hash": "6f548d635566e2e4",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/logstream/formatter.py",
+      "size": 11118,
+      "hash": "896ce53709e19cbc",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/logstream/live_panel.py",
+      "size": 6022,
+      "hash": "894aeab0e517a959",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/logstream/pretty_startup.py",
+      "size": 5874,
+      "hash": "e1cff97d9385e2cd",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/adaptive.py",
+      "size": 2055,
+      "hash": "68e23a6295224b9e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/metrics/aliases.py",
+      "size": 8197,
+      "hash": "31a52a3afa4340fc",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/api_call.py",
+      "size": 3123,
+      "hash": "87ab7f254cfabb1f",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/atm.py",
+      "size": 523,
+      "hash": "566bbb2a29bebdbf",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/build_info.py",
+      "size": 3862,
+      "hash": "6dfcc27545ae170c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/cache.py",
+      "size": 808,
+      "hash": "2d227e6ad794229c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/cache_error.py",
+      "size": 1594,
+      "hash": "715ca9954a176dcd",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/cache_metrics.py",
+      "size": 556,
+      "hash": "c43f773d4198a4a6",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/cardinality_guard.py",
+      "size": 15595,
+      "hash": "2f0273e457deeba9",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 4
+    },
+    {
+      "path": "src/metrics/cardinality_manager.py",
+      "size": 11381,
+      "hash": "31f988a4af33d989",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/circuit_metrics.py",
+      "size": 4148,
+      "hash": "c446d9523f9c5e33",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/derived.py",
+      "size": 3769,
+      "hash": "12db2a9e96b42386",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/descriptors.py",
+      "size": 3939,
+      "hash": "2568242bf265c5b8",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/duplicate_guard.py",
+      "size": 8489,
+      "hash": "c33d1fd1c0a09fc8",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/emission_batcher.py",
+      "size": 14890,
+      "hash": "97fe4d642363de7d",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/emitter.py",
+      "size": 7993,
+      "hash": "b4fca55fae964187",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/factory.py",
+      "size": 1253,
+      "hash": "a657966c7b7999dd",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/fault_budget.py",
+      "size": 10437,
+      "hash": "624929a10f38533f",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/gating.py",
+      "size": 8860,
+      "hash": "33f9762eae695acc",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/metrics/generated.py",
+      "size": 23775,
+      "hash": "1979f3a144796458",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/greeks.py",
+      "size": 1268,
+      "hash": "485b371f5140240c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/greek_metrics.py",
+      "size": 1075,
+      "hash": "907eac803398a852",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/groups.py",
+      "size": 2211,
+      "hash": "5be3e1e7c8891224",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 4
+    },
+    {
+      "path": "src/metrics/group_registry.py",
+      "size": 1982,
+      "hash": "961be86444f2aec7",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/metrics/index_aggregate.py",
+      "size": 2717,
+      "hash": "92e5b326141cde31",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/init_helpers.py",
+      "size": 1253,
+      "hash": "c3329fb528f36206",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/introspection.py",
+      "size": 4235,
+      "hash": "bc170246e7ba150b",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 3
+    },
+    {
+      "path": "src/metrics/introspection_dump.py",
+      "size": 5540,
+      "hash": "840682ef348186cf",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/metrics/labels.py",
+      "size": 924,
+      "hash": "8a71ba2e41086d2b",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/lifecycle_category.py",
+      "size": 1920,
+      "hash": "12b3476c70b143ab",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/memory_pressure.py",
+      "size": 1809,
+      "hash": "2d697fbf4e4514ad",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/metrics/metadata.py",
+      "size": 6305,
+      "hash": "75b4e9a9e6715fcd",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/metrics.py",
+      "size": 71219,
+      "hash": "7523700ff1e3df3d",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 7
+    },
+    {
+      "path": "src/metrics/option_chain_aggregator.py",
+      "size": 11021,
+      "hash": "e970d452a4866ba1",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/panels_integrity.py",
+      "size": 603,
+      "hash": "d4b328f30b5072dd",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/panel_diff.py",
+      "size": 596,
+      "hash": "4f93f753fbab80b1",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/performance.py",
+      "size": 2804,
+      "hash": "226e8a7f9953fc90",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/placeholders.py",
+      "size": 5141,
+      "hash": "a55acd1ef98425c8",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/provider_failover.py",
+      "size": 2504,
+      "hash": "31f6b21be991e00f",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/pruning.py",
+      "size": 1257,
+      "hash": "1e8717c287543b3c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/metrics/recovery.py",
+      "size": 4259,
+      "hash": "03daa50633604a30",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/registration.py",
+      "size": 4545,
+      "hash": "3bd1117c2e8db44e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/registration_compat.py",
+      "size": 2978,
+      "hash": "5a70c6e1a50adee4",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/registry.py",
+      "size": 2604,
+      "hash": "817b6b30a3937b6c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/metrics/resource_category.py",
+      "size": 723,
+      "hash": "fa8e152be7e07acd",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/resource_sampling.py",
+      "size": 4984,
+      "hash": "8b63ebbb26968fd4",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/risk_agg.py",
+      "size": 886,
+      "hash": "865f36bb57bcaa4b",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/runtime_gates.py",
+      "size": 4538,
+      "hash": "45a4b9d9f26600f9",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/safe_emit.py",
+      "size": 3050,
+      "hash": "a9aa5426fbc92588",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/scheduler.py",
+      "size": 2639,
+      "hash": "c4c893afabd4dc46",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/server.py",
+      "size": 5656,
+      "hash": "61ba70a19a40d22b",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/sla.py",
+      "size": 2592,
+      "hash": "fd79f64297ec6c66",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/spec.py",
+      "size": 23075,
+      "hash": "c8175510f671aa7a",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/metrics/spec_fallback.py",
+      "size": 2278,
+      "hash": "be972a113ede7bd7",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/storage_category.py",
+      "size": 2304,
+      "hash": "1df5e32f8be66184",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/metrics/testing.py",
+      "size": 2740,
+      "hash": "075ce03084b1598a",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/vol_surface.py",
+      "size": 2073,
+      "hash": "3844e114911c2617",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/_singleton.py",
+      "size": 2042,
+      "hash": "bb5a47cee22533e1",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/metrics/__init__.py",
+      "size": 13646,
+      "hash": "54cf20af863fe7d2",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/orchestrator/adaptive.py",
+      "size": 7532,
+      "hash": "f4cb788b20beb5a3",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/orchestrator/adaptive_controller.py",
+      "size": 8472,
+      "hash": "90e029dd09012f44",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/orchestrator/bootstrap.py",
+      "size": 7707,
+      "hash": "d9062946e3a0662f",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/orchestrator/cardinality_guard.py",
+      "size": 3983,
+      "hash": "0d3360767331d904",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 4
+    },
+    {
+      "path": "src/orchestrator/catalog.py",
+      "size": 12371,
+      "hash": "abee524118fcffab",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/orchestrator/catalog_http.py",
+      "size": 40503,
+      "hash": "fa97b18cd4af5ed6",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/orchestrator/components.py",
+      "size": 27849,
+      "hash": "5c433f560d45426c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/orchestrator/context.py",
+      "size": 2278,
+      "hash": "81576a4ebcf22cf3",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/orchestrator/cycle.py",
+      "size": 32349,
+      "hash": "401110b7956cfe0e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/orchestrator/facade.py",
+      "size": 5459,
+      "hash": "25e842cc0ab9d62e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/orchestrator/gating.py",
+      "size": 5812,
+      "hash": "086e027f8174eb7a",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/orchestrator/http_server_registry.py",
+      "size": 479,
+      "hash": "5267a44e3412de2a",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/orchestrator/loop.py",
+      "size": 3759,
+      "hash": "151c5adb7bcad581",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/orchestrator/memory_pressure.py",
+      "size": 2067,
+      "hash": "e8840cede7238cfc",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/orchestrator/panel_diffs.py",
+      "size": 12114,
+      "hash": "d6b4f331b0752e79",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/orchestrator/parity_harness.py",
+      "size": 7271,
+      "hash": "4ba97d88e4a21834",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/orchestrator/startup_sequence.py",
+      "size": 15529,
+      "hash": "438a0676d635b255",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/orchestrator/status_writer.py",
+      "size": 18903,
+      "hash": "4f49fdafa078db3a",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/orchestrator/__init__.py",
+      "size": 1619,
+      "hash": "fdc62f75cb7c9ee9",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/panels/factory.py",
+      "size": 27787,
+      "hash": "4594c73158d1051d",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/panels/helpers.py",
+      "size": 3751,
+      "hash": "2ab73a3ce357accb",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/panels/integrity_monitor.py",
+      "size": 5700,
+      "hash": "e96b578da2e8a0e2",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/panels/models.py",
+      "size": 1740,
+      "hash": "c64263fc9ebb1371",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 5
+    },
+    {
+      "path": "src/panels/validate.py",
+      "size": 7775,
+      "hash": "0c54f6340ca18e87",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/panels/version.py",
+      "size": 691,
+      "hash": "f6a42bb3a4983220",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/panels/__init__.py",
+      "size": 205,
+      "hash": "ef0be2e7ea9be469",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/parity/signature.py",
+      "size": 7658,
+      "hash": "bbf502a66eb07c7e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/providers/async_factory.py",
+      "size": 1266,
+      "hash": "d06bed84aca25fb0",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/providers/async_interface.py",
+      "size": 1107,
+      "hash": "c3473b225e71f32a",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/providers/composite_provider.py",
+      "size": 4587,
+      "hash": "3784a182012ef2b4",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/providers/factory.py",
+      "size": 1135,
+      "hash": "42334a65a69cde38",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/providers/interface.py",
+      "size": 1375,
+      "hash": "8f8630d1f75b4752",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/providers/kite_provider.py",
+      "size": 696,
+      "hash": "e68d181cbe162185",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/providers/mock_provider.py",
+      "size": 1538,
+      "hash": "f33040cd3dd41143",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/providers/rate_limiter.py",
+      "size": 4403,
+      "hash": "a7d6dd74b71e9d18",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/providers/__init__.py",
+      "size": 398,
+      "hash": "08879c5ca83e4875",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/runtime/runtime_flags.py",
+      "size": 2007,
+      "hash": "52b77a4f7349ad9f",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/schema/runtime_status_validator.py",
+      "size": 4442,
+      "hash": "38dc2badd07fae32",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/storage/csv_sink.py",
+      "size": 75981,
+      "hash": "62a09c79a11e34f0",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/storage/file_buffer_manager.py",
+      "size": 4788,
+      "hash": "770e55299d0cfccb",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/storage/influx_buffer_manager.py",
+      "size": 3812,
+      "hash": "bad53ceb6d74cb6a",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/storage/influx_circuit_breaker.py",
+      "size": 2743,
+      "hash": "9a502ce53662f725",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/storage/influx_connection_pool.py",
+      "size": 2330,
+      "hash": "23a4f46eaff4e9a0",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/storage/influx_sink.py",
+      "size": 25061,
+      "hash": "a1f436d6a2c5bb18",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/storage/path_generator.py",
+      "size": 1865,
+      "hash": "e4ea583e8f963536",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/storage/retention.py",
+      "size": 6615,
+      "hash": "75f19e5b8c309b80",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/storage/__init__.py",
+      "size": 140,
+      "hash": "b906d83d4e44afe6",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/summary/builder.py",
+      "size": 3004,
+      "hash": "0ccf572458d69637",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/summary/curated_layout.py",
+      "size": 20554,
+      "hash": "1b2ab6e583d9cb58",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/summary/metrics_processor.py",
+      "size": 30247,
+      "hash": "fde2d94698dde285",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/summary/model.py",
+      "size": 1668,
+      "hash": "2abbab231d50172c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/summary/publisher.py",
+      "size": 15346,
+      "hash": "73e0e9ca9b2138a9",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/summary/resilience.py",
+      "size": 880,
+      "hash": "8a8c35654f243098",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/synthetic/strategy.py",
+      "size": 4247,
+      "hash": "241621da2a5d4fdb",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/types/dashboard_types.py",
+      "size": 5828,
+      "hash": "1a4f2b86b259ca1b",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/ui_enhanced/alerts_hub.py",
+      "size": 727,
+      "hash": "83502ea1076a7f4c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/ui_enhanced/color.py",
+      "size": 2027,
+      "hash": "ac44f659b9eb7670",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 4
+    },
+    {
+      "path": "src/ui_enhanced/dashboard_stub.py",
+      "size": 776,
+      "hash": "350330bc1d19c0b3",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/ui_enhanced/live_panel.py",
+      "size": 2069,
+      "hash": "6241c42b7275936b",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/ui_enhanced/market_status.py",
+      "size": 1340,
+      "hash": "8b5c1d720355bd26",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/ui_enhanced/performance_monitor.py",
+      "size": 1562,
+      "hash": "78749297a505246e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/ui_enhanced/pretty_startup.py",
+      "size": 2371,
+      "hash": "b5362f833ba2a07f",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/ui_enhanced/__init__.py",
+      "size": 345,
+      "hash": "3bdbd2b6e4c13566",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/adaptive_circuit_breaker.py",
+      "size": 7069,
+      "hash": "f9a1fac44257dccf",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/utils/assets.py",
+      "size": 1153,
+      "hash": "e724ac36d6c72afe",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/atm_utils.py",
+      "size": 753,
+      "hash": "36a67c2b9c8a3446",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/bootstrap.py",
+      "size": 9240,
+      "hash": "8d2f17a940a1a365",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/build_info.py",
+      "size": 3668,
+      "hash": "63bb83a4d44e7e03",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/utils/circuit_breaker.py",
+      "size": 8133,
+      "hash": "21153bf4de7764e8",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/circuit_registry.py",
+      "size": 3212,
+      "hash": "df64488a113b2ef4",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/color.py",
+      "size": 1557,
+      "hash": "eeb46a82d5d10183",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 4
+    },
+    {
+      "path": "src/utils/color_logging.py",
+      "size": 5910,
+      "hash": "789f1bc846800d81",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/data_quality.py",
+      "size": 13809,
+      "hash": "3467c1e0e170461d",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/deprecations.py",
+      "size": 2419,
+      "hash": "25c93768d9c72670",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/error_handling.py",
+      "size": 2314,
+      "hash": "35a3d0aad77c01af",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/utils/error_utils.py",
+      "size": 1449,
+      "hash": "f8b76760275b4394",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/exceptions.py",
+      "size": 1773,
+      "hash": "0e1d00a666b54161",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/utils/expiry_discovery.py",
+      "size": 0,
+      "hash": "e3b0c44298fc1c14",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/expiry_rules.py",
+      "size": 2619,
+      "hash": "d4d4576bcb053c81",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/expiry_service.py",
+      "size": 10505,
+      "hash": "6eb0f255e67467df",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/file_watch_events.py",
+      "size": 1639,
+      "hash": "51d7523f7d339b8e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/index_registry.py",
+      "size": 1900,
+      "hash": "ad1e751b34816e9e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/logging_utils.py",
+      "size": 8417,
+      "hash": "30f86eb8740259d5",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/utils/log_context.py",
+      "size": 2268,
+      "hash": "48f856db99a3a9ed",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/market_hours.py",
+      "size": 7820,
+      "hash": "db54c7daccb324ce",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/memory_manager.py",
+      "size": 9106,
+      "hash": "a5fc0bcf272e22f4",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/memory_pressure.py",
+      "size": 12344,
+      "hash": "ef6ffc8fd9b10d1c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/utils/memory_trace.py",
+      "size": 5641,
+      "hash": "3db2e658cb0e04bc",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/metrics_adapter.py",
+      "size": 7681,
+      "hash": "44edd993305f07fe",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/metrics_utils.py",
+      "size": 903,
+      "hash": "f79d8c46694b86b4",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/normalization.py",
+      "size": 4402,
+      "hash": "096cde07cd43f7eb",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/output.py",
+      "size": 49528,
+      "hash": "b16b2103c76d405e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/utils/overlay_calendar.py",
+      "size": 2793,
+      "hash": "b05a06d09a40fd36",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/overlay_plotting.py",
+      "size": 14368,
+      "hash": "6f26bab3a94e45a2",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/overlay_quality.py",
+      "size": 3641,
+      "hash": "cdd8fbf1eeac6aad",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/panel_error_utils.py",
+      "size": 3449,
+      "hash": "4b42da0a9e585d45",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/panel_support.py",
+      "size": 1980,
+      "hash": "3c3e769676ebc2bd",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/path_utils.py",
+      "size": 3913,
+      "hash": "04fae3f41481f747",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/utils/rate_limiter.py",
+      "size": 1314,
+      "hash": "96c0e903b4da986f",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/utils/resilience.py",
+      "size": 9303,
+      "hash": "25ffe50d4f23fb21",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/utils/retry.py",
+      "size": 5637,
+      "hash": "155d715b3589f900",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/root_cache.py",
+      "size": 3953,
+      "hash": "52d1a0755a319936",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/serialization_cache.py",
+      "size": 7571,
+      "hash": "3ace61553e282149",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/status_reader.py",
+      "size": 5047,
+      "hash": "0339dbe0d50b9d09",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/strikes.py",
+      "size": 4122,
+      "hash": "14043b93ace05631",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/strike_index.py",
+      "size": 3776,
+      "hash": "efe8ae83b4b66037",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/symbol_root.py",
+      "size": 4769,
+      "hash": "40d5b70957bcf91a",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/utils/symbol_utils.py",
+      "size": 2905,
+      "hash": "9509eb89f09e456f",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/utils/timeutils.py",
+      "size": 15867,
+      "hash": "f8c4c058c70679db",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/utils/__init__.py",
+      "size": 703,
+      "hash": "cf4c572b687be84a",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/validation/preventive_validator.py",
+      "size": 7377,
+      "hash": "31f8cdcc6b4ac178",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/web/dashboard/app.py",
+      "size": 30551,
+      "hash": "e080cc0a6f181b81",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/web/dashboard/diff_merge.py",
+      "size": 3631,
+      "hash": "355b0e4ba43bd0b6",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/web/dashboard/metrics_cache.py",
+      "size": 19480,
+      "hash": "13336dd3c52b83c7",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/web/dashboard/__init__.py",
+      "size": 25,
+      "hash": "dbf297af163b35e4",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/summary/unified/model.py",
+      "size": 14968,
+      "hash": "2fa9e32d3e34580b",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/summary/unified/snapshot.py",
+      "size": 795,
+      "hash": "ea5db8db66766375",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/summary/unified/sse.py",
+      "size": 3312,
+      "hash": "f4d9324869140019",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/summary/unified/sse_client.py",
+      "size": 10176,
+      "hash": "9f3f385699d4fa88",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/providers/adapters/async_kite_adapter.py",
+      "size": 2438,
+      "hash": "c559e246c852bd2a",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/providers/adapters/async_mock_adapter.py",
+      "size": 4937,
+      "hash": "9048e88fa2c6bd7a",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/health/alerts/alert_manager.py",
+      "size": 17245,
+      "hash": "caf1398e81ca70f2",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/helpers/coverage.py",
+      "size": 6615,
+      "hash": "89f0db1837e36a89",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/helpers/expiry_map.py",
+      "size": 3579,
+      "hash": "f149e1704e623006",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/helpers/greeks.py",
+      "size": 4344,
+      "hash": "64e7bfb2fc704cb6",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/helpers/iv_greeks.py",
+      "size": 4226,
+      "hash": "af1e1ba60e680752",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/helpers/persist.py",
+      "size": 7553,
+      "hash": "4544edb585e502d3",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/helpers/status_reducer.py",
+      "size": 4529,
+      "hash": "8c53e8971e69087c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/helpers/struct_events.py",
+      "size": 12074,
+      "hash": "5670efab98e3946e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/helpers/synthetic.py",
+      "size": 3322,
+      "hash": "ce0f7d709f93dffd",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/helpers/validation.py",
+      "size": 2217,
+      "hash": "77d664cbcf501456",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/modules/adaptive_adjust.py",
+      "size": 9521,
+      "hash": "1ba9733f36f30e4c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/modules/adaptive_summary.py",
+      "size": 2738,
+      "hash": "e33827781c34e2f3",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/aggregation_emitter.py",
+      "size": 415,
+      "hash": "de4abcb11111854c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/aggregation_overview.py",
+      "size": 2396,
+      "hash": "23f23d66488ed830",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/alerts_core.py",
+      "size": 6877,
+      "hash": "b980a67e9b9910e4",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/modules/benchmark_bridge.py",
+      "size": 15184,
+      "hash": "2acebfa5ec5d7b3d",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/modules/context.py",
+      "size": 2893,
+      "hash": "1d0cf33d6121770c",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/collectors/modules/coverage_core.py",
+      "size": 3208,
+      "hash": "da91186108566418",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/modules/coverage_eval.py",
+      "size": 888,
+      "hash": "9e65dd9f6d44dbe8",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/modules/data_quality_bridge.py",
+      "size": 2256,
+      "hash": "bda3a31ba60daf32",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/data_quality_flow.py",
+      "size": 2439,
+      "hash": "82ce3bb2068a4e94",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/enrichment.py",
+      "size": 3285,
+      "hash": "6798473abcf5100e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/modules/enrichment_async.py",
+      "size": 8916,
+      "hash": "5f13887fce2aeafa",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/modules/error_bridge.py",
+      "size": 2526,
+      "hash": "506b1d06ed80bd13",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/expiry_helpers.py",
+      "size": 7516,
+      "hash": "d15a94649d09c39e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/expiry_processor.py",
+      "size": 27933,
+      "hash": "eddde66ae3ce8a5f",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/expiry_universe.py",
+      "size": 1007,
+      "hash": "4f8067db8d8834b7",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/modules/formatters.py",
+      "size": 3045,
+      "hash": "59a03846b50f6a28",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/greeks_compute.py",
+      "size": 2969,
+      "hash": "514846ccde3af0ed",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/index_processor.py",
+      "size": 34988,
+      "hash": "a99a1ef5795b7e2a",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/iv_estimation.py",
+      "size": 2202,
+      "hash": "5bdbdc7b16850bc9",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/market_gate.py",
+      "size": 3805,
+      "hash": "d3e965722e43db3d",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/memory_adjust.py",
+      "size": 2888,
+      "hash": "ba43cd77ea412f35",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/memory_pressure_bridge.py",
+      "size": 2030,
+      "hash": "04dfc1342b15368f",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/metrics_updater.py",
+      "size": 3721,
+      "hash": "d7945c1ba463b6da",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/persistence_io.py",
+      "size": 347,
+      "hash": "0a39a79427234b07",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/persist_flow.py",
+      "size": 3830,
+      "hash": "bfbe9728717c02a6",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/pipeline.py",
+      "size": 22485,
+      "hash": "f6c75f4b88c50d2b",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/prefilter.py",
+      "size": 3290,
+      "hash": "b70dd032bb3ee787",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/prefilter_flow.py",
+      "size": 1408,
+      "hash": "7c2e0f7bea04c91d",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/preventive_validate.py",
+      "size": 2921,
+      "hash": "3f920bdd826d2809",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/modules/shadow_compare.py",
+      "size": 6811,
+      "hash": "bbc467a339daf4d2",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/snapshots.py",
+      "size": 1949,
+      "hash": "a0a625c4f43a30c8",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/snapshot_core.py",
+      "size": 4394,
+      "hash": "9dccb398833a08da",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/modules/status_finalize.py",
+      "size": 6528,
+      "hash": "1eaa9655151aa2ac",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/modules/status_finalize_core.py",
+      "size": 854,
+      "hash": "e15dfbea2a6012ba",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/modules/strike_depth.py",
+      "size": 1893,
+      "hash": "7f15d7c453097609",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/modules/strike_policy.py",
+      "size": 6300,
+      "hash": "ff5bc6c6c6b3d74e",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/collectors/modules/strike_universe.py",
+      "size": 11253,
+      "hash": "bbefdcaf80a8392a",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/struct_events_bridge.py",
+      "size": 1459,
+      "hash": "eb25542965424cfd",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/synthetic_fallback.py",
+      "size": 3207,
+      "hash": "7a603c0f615674dd",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/collectors/modules/synthetic_quotes.py",
+      "size": 2353,
+      "hash": "ca04606a6ded8599",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/broker/kite/auth.py",
+      "size": 849,
+      "hash": "9650a1f3886c9111",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/broker/kite/client.py",
+      "size": 2372,
+      "hash": "9b5796ad3e4c5c8f",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/broker/kite/dummy_provider.py",
+      "size": 7341,
+      "hash": "433a36e2ff59a226",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/broker/kite/expiries.py",
+      "size": 2637,
+      "hash": "82b68d7dbe4e237d",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/broker/kite/health.py",
+      "size": 708,
+      "hash": "ef93f9818c2d056b",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/broker/kite/options.py",
+      "size": 29475,
+      "hash": "606f029e4a6edb41",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/broker/kite/quotes.py",
+      "size": 16909,
+      "hash": "a8eb547b1fb1ed92",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/broker/kite/quote_batcher.py",
+      "size": 8279,
+      "hash": "db18a0c492ff5551",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/broker/kite/rate_limit.py",
+      "size": 4975,
+      "hash": "52b0046a5906aefd",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 2
+    },
+    {
+      "path": "src/broker/kite/settings.py",
+      "size": 2912,
+      "hash": "0162acc6c56dc558",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/broker/kite/state.py",
+      "size": 3301,
+      "hash": "c411b990989583d1",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/broker/kite/synthetic.py",
+      "size": 4546,
+      "hash": "f118278b8b92cfa3",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 1
+    },
+    {
+      "path": "src/broker/kite/tracing.py",
+      "size": 3179,
+      "hash": "ba3d40eb81781f82",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "src/broker/kite/types.py",
+      "size": 1857,
+      "hash": "6c3d36e62a73e54f",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 52
+    },
+    {
+      "path": "src/broker/kite/__init__.py",
+      "size": 624,
+      "hash": "c0a3d5d239b50685",
+      "tags": [
+        "core"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/cleanup/env_scan.py",
+      "size": 1904,
+      "hash": "3273fedb4857db54",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/cleanup/gen_inventory.py",
+      "size": 5467,
+      "hash": "f587df264ac49f80",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/cleanup/validate_cleanup.py",
+      "size": 1095,
+      "hash": "375e61590afaa617",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/dev/flag_removal_check.py",
+      "size": 5910,
+      "hash": "8b8d9aa29419e1ee",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/hooks/forbid_datetime_utcnow.py",
+      "size": 919,
+      "hash": "24e4ece324e9428d",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/hooks/forbid_naive_datetime_now.py",
+      "size": 1399,
+      "hash": "95d41fef5457e2ba",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/app.py",
+      "size": 51010,
+      "hash": "c2c1f71f0514ed93",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/bench_cycle.py",
+      "size": 6818,
+      "hash": "c56d352b799e96ab",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/bench_sse.py",
+      "size": 8663,
+      "hash": "86249981a8ebd754",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/bridge_detection.py",
+      "size": 2441,
+      "hash": "b937ab08eee2c2bc",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/config.py",
+      "size": 3060,
+      "hash": "3e6ba913fac690a4",
+      "tags": [],
+      "import_inbound": 2
+    },
+    {
+      "path": "scripts/summary/data_source.py",
+      "size": 7052,
+      "hash": "de99ef3ee2042549",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/demo_rich_diff.py",
+      "size": 5098,
+      "hash": "6e2a39121b658bdd",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/derive.py",
+      "size": 9479,
+      "hash": "ef72fe8f51cd7589",
+      "tags": [],
+      "import_inbound": 1
+    },
+    {
+      "path": "scripts/summary/domain.py",
+      "size": 8677,
+      "hash": "28c75f3f01c8634b",
+      "tags": [],
+      "import_inbound": 4
+    },
+    {
+      "path": "scripts/summary/env.py",
+      "size": 1540,
+      "hash": "b26c1f3d4becb42f",
+      "tags": [],
+      "import_inbound": 1
+    },
+    {
+      "path": "scripts/summary/env_config.py",
+      "size": 17572,
+      "hash": "25e0a76729c3dbaf",
+      "tags": [],
+      "import_inbound": 2
+    },
+    {
+      "path": "scripts/summary/hashing.py",
+      "size": 7367,
+      "hash": "79c9ab918af686ed",
+      "tags": [],
+      "import_inbound": 1
+    },
+    {
+      "path": "scripts/summary/http_resync.py",
+      "size": 3575,
+      "hash": "b042b5531c6ec6b5",
+      "tags": [],
+      "import_inbound": 2
+    },
+    {
+      "path": "scripts/summary/layout.py",
+      "size": 9316,
+      "hash": "567ec3ff76226648",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/metrics_server.py",
+      "size": 867,
+      "hash": "6726d444fce802c0",
+      "tags": [],
+      "import_inbound": 1
+    },
+    {
+      "path": "scripts/summary/panel_registry.py",
+      "size": 7483,
+      "hash": "e6a771e6d1a88aeb",
+      "tags": [],
+      "import_inbound": 2
+    },
+    {
+      "path": "scripts/summary/panel_types.py",
+      "size": 1300,
+      "hash": "bf7611b81a43ab32",
+      "tags": [],
+      "import_inbound": 1
+    },
+    {
+      "path": "scripts/summary/plain_renderer.py",
+      "size": 2392,
+      "hash": "4a94d636cf7e4cfe",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/resync.py",
+      "size": 2917,
+      "hash": "99b2afeae17f3239",
+      "tags": [],
+      "import_inbound": 2
+    },
+    {
+      "path": "scripts/summary/rich_diff.py",
+      "size": 672,
+      "hash": "8e239c6786af118f",
+      "tags": [],
+      "import_inbound": 1
+    },
+    {
+      "path": "scripts/summary/schema.py",
+      "size": 338,
+      "hash": "5d8af57c1ee9ebbf",
+      "tags": [],
+      "import_inbound": 2
+    },
+    {
+      "path": "scripts/summary/snapshot_builder.py",
+      "size": 23601,
+      "hash": "9fd0fd0c1ec05542",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/sse_http.py",
+      "size": 32401,
+      "hash": "f402f1f699e87751",
+      "tags": [],
+      "import_inbound": 2
+    },
+    {
+      "path": "scripts/summary/sse_state.py",
+      "size": 11847,
+      "hash": "74f68e439227052c",
+      "tags": [],
+      "import_inbound": 1
+    },
+    {
+      "path": "scripts/summary/status_reader.py",
+      "size": 2315,
+      "hash": "917b875cd0e952d8",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/summary_metrics.py",
+      "size": 8768,
+      "hash": "f06b2fc2d3379a85",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/thresholds.py",
+      "size": 6058,
+      "hash": "1b2699a5babf272a",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/unified_http.py",
+      "size": 17923,
+      "hash": "cbfb1e1906a2ec12",
+      "tags": [],
+      "import_inbound": 1
+    },
+    {
+      "path": "scripts/summary/unified_loop.py",
+      "size": 16114,
+      "hash": "630f8813b87c8424",
+      "tags": [],
+      "import_inbound": 1
+    },
+    {
+      "path": "scripts/summary/__init__.py",
+      "size": 64,
+      "hash": "1d11608ffb1d28dd",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/panels/alerts.py",
+      "size": 8186,
+      "hash": "494e05eadba704d1",
+      "tags": [],
+      "import_inbound": 2
+    },
+    {
+      "path": "scripts/summary/panels/analytics.py",
+      "size": 10314,
+      "hash": "3d99ff8916a0c1bc",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/panels/header.py",
+      "size": 4272,
+      "hash": "f8f5f477eeba44a1",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/panels/indices.py",
+      "size": 27874,
+      "hash": "c8840e2971c92fec",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/panels/links.py",
+      "size": 909,
+      "hash": "629aa1ac87ef9382",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/panels/monitoring.py",
+      "size": 26690,
+      "hash": "e4705e200f0d22bc",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/panels/storage.py",
+      "size": 6806,
+      "hash": "7c99680784044455",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/panels/system.py",
+      "size": 12396,
+      "hash": "a16c42d027032a71",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/panels/__init__.py",
+      "size": 21,
+      "hash": "fb8bab982ae6aaaa",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/plugins/base.py",
+      "size": 40490,
+      "hash": "13700930ddba3077",
+      "tags": [],
+      "import_inbound": 3
+    },
+    {
+      "path": "scripts/summary/plugins/dossier.py",
+      "size": 5403,
+      "hash": "f033d6ea3ee60776",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "scripts/summary/plugins/sse.py",
+      "size": 15231,
+      "hash": "809a8427dceaf38c",
+      "tags": [],
+      "import_inbound": 1
+    },
+    {
+      "path": "scripts/summary/plugins/sse_panels.py",
+      "size": 20164,
+      "hash": "b18af46e564e06b5",
+      "tags": [
+        "candidate-remove"
+      ],
+      "import_inbound": 0
+    },
+    {
+      "path": "metrics/spec/base.yml",
+      "size": 24853,
+      "hash": "ffd4162cb7012fc7",
+      "tags": []
+    },
+    {
+      "path": "grafana/dashboards/DATA_QUALITY_CONSOLIDATION_NOTES.md",
+      "size": 1563,
+      "hash": "4f640b44dd1d1ec5",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "grafana/provisioning/dashboards/dashboard.yml",
+      "size": 281,
+      "hash": "dbbf484f57b16b03",
+      "tags": []
+    },
+    {
+      "path": "grafana/provisioning/dashboards/g6_dashboards_provider_experimental.yaml",
+      "size": 558,
+      "hash": "74539e72af877a75",
+      "tags": []
+    },
+    {
+      "path": "grafana/provisioning/datasources/prometheus.yml",
+      "size": 167,
+      "hash": "22faa664b7bf6de8",
+      "tags": []
+    },
+    {
+      "path": "docs/cheatsheets/adaptive_alerts_badge.md",
+      "size": 3306,
+      "hash": "4a3eb834a3210db3",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/cheatsheets/oncall_adaptive_alerts_runbook.md",
+      "size": 1564,
+      "hash": "f7eab3660e233794",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": "docs/design/adaptive_alerts_severity.md",
+      "size": 11009,
+      "hash": "39731183804f388f",
+      "tags": [
+        "docs-active"
+      ]
+    },
+    {
+      "path": ".github/workflows/auto-maintenance.yml",
+      "size": 2572,
+      "hash": "13ea8122f6676d7d",
+      "tags": []
+    },
+    {
+      "path": ".github/workflows/ci.yml",
+      "size": 1464,
+      "hash": "d5f89e7507517871",
+      "tags": []
+    },
+    {
+      "path": ".github/workflows/config-doc-governance.yml",
+      "size": 868,
+      "hash": "b67fba39e3cee8d7",
+      "tags": []
+    },
+    {
+      "path": ".github/workflows/dashboards-package.yml",
+      "size": 577,
+      "hash": "238905cc929b5c6d",
+      "tags": []
+    },
+    {
+      "path": ".github/workflows/env-doc-governance.yml",
+      "size": 881,
+      "hash": "3cdea0377071b830",
+      "tags": []
+    },
+    {
+      "path": ".github/workflows/logging-only-try-check.yml",
+      "size": 519,
+      "hash": "370ce2ecb4770a30",
+      "tags": []
+    },
+    {
+      "path": ".github/workflows/metrics-governance.yml",
+      "size": 2038,
+      "hash": "c0efe470412c1ebe",
+      "tags": []
+    },
+    {
+      "path": ".github/workflows/nightly-sse-soak.yml",
+      "size": 1483,
+      "hash": "7ff4e2c65c3dc59f",
+      "tags": []
+    },
+    {
+      "path": ".github/workflows/pr-checklist-comment.yml",
+      "size": 1963,
+      "hash": "5a05d435b559a5f5",
+      "tags": []
+    },
+    {
+      "path": ".github/workflows/pr-checklist.yml",
+      "size": 1039,
+      "hash": "c960eba4ef78bf6a",
+      "tags": []
+    },
+    {
+      "path": ".github/workflows/release-automation.yml",
+      "size": 3461,
+      "hash": "dba495eca8205d4c",
+      "tags": []
+    },
+    {
+      "path": ".github/workflows/sbom.yml",
+      "size": 1471,
+      "hash": "05f5caf9ba76d664",
+      "tags": []
+    }
+  ],
+  "summary": {
+    "total": 1023,
+    "tags": {
+      "docs-active": 109,
+      "temp-debug": 16,
+      "candidate-remove": 151,
+      "infra": 4,
+      "docs-legacy": 5,
+      "core": 332,
+      "test": 357
+    },
+    "candidate_remove": 151
+  }
+}

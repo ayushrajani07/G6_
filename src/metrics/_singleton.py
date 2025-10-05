@@ -42,4 +42,14 @@ def create_if_absent(factory):  # pragma: no cover - tiny helper
             REGISTRY_SINGLETON = factory()
         return REGISTRY_SINGLETON
 
-__all__ = ["get_singleton", "set_singleton", "create_if_absent", "REGISTRY_SINGLETON"]
+def clear_singleton():  # pragma: no cover - tiny helper
+    """Forcefully clear the central MetricsRegistry singleton.
+
+    Used in test reset paths so that environment-based gating is re-evaluated
+    on next setup. Safe to call even if already None.
+    """
+    global REGISTRY_SINGLETON  # noqa: PLW0603
+    with _REGISTRY_LOCK:
+        REGISTRY_SINGLETON = None
+
+__all__ = ["get_singleton", "set_singleton", "create_if_absent", "clear_singleton", "REGISTRY_SINGLETON"]

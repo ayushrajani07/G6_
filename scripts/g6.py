@@ -4,7 +4,7 @@
 Subcommands:
     summary          Launch summary view (unified summary/app.py)
   simulate         Run status simulator (wraps status_simulator.py)
-  panels-bridge    Run legacy status->panels bridge (wraps status_to_panels.py)
+    panels-bridge    (DEPRECATED) Legacy status->panels bridge (tombstoned)
   integrity        Run one-shot panels integrity check (wraps panels_integrity_check.py)
   bench            Run a lightweight benchmark placeholder (stub)
     retention-scan   Scan CSV storage tree for basic retention metrics
@@ -66,9 +66,13 @@ def cmd_simulate(args: argparse.Namespace) -> int:
 
 
 def cmd_panels_bridge(args: argparse.Namespace) -> int:
+    # Invoke tombstone stub to preserve exit semantics (always non-zero) while
+    # also printing immediate guidance here for clarity.
+    if os.getenv('G6_SUPPRESS_LEGACY_CLI','').lower() not in {'1','true','yes','on'}:
+        print('[REMOVED] panels-bridge: use `python -m scripts.summary.app --refresh {}` (panels emitted in-process)'.format(args.refresh), file=sys.stderr)
     base = [sys.executable, str(ROOT / 'scripts' / 'status_to_panels.py'), '--status-file', args.status_file, '--refresh', str(args.refresh)]
     if args.once:
-        base.append('--once')
+        base.append('--once')  # retained for stub parity; has no effect
     return _run(base)
 
 

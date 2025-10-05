@@ -160,6 +160,36 @@ panel_high_churn_streak_gauge = _GaugeWrap(
     _make_prom_gauge("g6_summary_panel_high_churn_streak", "Consecutive high-churn cycles streak"),
 )
 
+# PanelsWriter file update metrics (separate from terminal diff render metrics).
+# These track when the JSON artifact content for a given panel file changes between
+# successive PanelsWriter.process() cycles (hash comparison). The initial baseline
+# emission does not increment counters to mirror terminal diff semantics.
+panel_file_updates_total = _CounterWrap(
+    "g6_summary_panel_file_updates_total",
+    _make_prom_counter(
+        "g6_summary_panel_file_updates_total",
+        "Total panel file content updates detected by PanelsWriter",
+        ("panel",),
+    ),
+)
+panel_file_updates_last_gauge = _GaugeWrap(
+    "g6_summary_panel_file_updates_last",
+    _make_prom_gauge(
+        "g6_summary_panel_file_updates_last",
+        "Panel file updates applied in last PanelsWriter cycle",
+    ),
+)
+
+# Test support: allow resetting in-memory stores between tests to avoid leakage
+def _reset_in_memory():  # pragma: no cover - simple clearing
+    global _hist_store, _counter_store, _gauge_store, _churn_streak
+    with _lock:
+        _hist_store = {}
+        _counter_store = {}
+        _gauge_store = {}
+        _churn_streak = 0
+
+
 def record_churn(changed: int, total_panels: int, warn_ratio: float | None = None) -> float:
     """Record churn metrics for the last cycle.
 
@@ -225,4 +255,6 @@ __all__ = [
     "record_churn",
     "reset_for_tests",
     "snapshot",
+    "panel_file_updates_total",
+    "panel_file_updates_last_gauge",
 ]

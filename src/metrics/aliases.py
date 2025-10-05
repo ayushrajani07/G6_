@@ -21,6 +21,12 @@ _CANONICAL_COUNTERS = [
     ("panels_integrity_checks", "g6_panels_integrity_checks_total", "g6_panels_integrity_checks"),
     ("panels_integrity_failures", "g6_panels_integrity_failures_total", "g6_panels_integrity_failures"),
     ("adaptive_controller_actions", "g6_adaptive_controller_actions_total", "g6_adaptive_controller_actions"),
+    # Stream gater governance counters (added during panels bridge unification). These ensure
+    # legacy unsuffixed variants (if any were instantiated pre-spec) are mapped to *_total.
+    ("stream_append", "g6_stream_append_total", "g6_stream_append"),
+    ("stream_skipped", "g6_stream_skipped_total", "g6_stream_skipped"),
+    ("stream_state_persist_errors", "g6_stream_state_persist_errors_total", "g6_stream_state_persist_errors"),
+    ("stream_conflict", "g6_stream_conflict_total", "g6_stream_conflict"),
 ]
 
 
@@ -71,9 +77,9 @@ def ensure_canonical_counters(reg) -> None:  # pragma: no cover - wiring + light
                     setattr(reg, attr, canon_obj)
                 except Exception:
                     pass
-            # Also expose attr_total alias if not present
+            # Also expose attr_total alias if not present AND attr does not already end with _total
             try:
-                if not hasattr(reg, f'{attr}_total'):
+                if not attr.endswith('_total') and not hasattr(reg, f'{attr}_total'):
                     setattr(reg, f'{attr}_total', canon_obj)
             except Exception:
                 pass
@@ -144,9 +150,9 @@ def ensure_canonical_counters(reg) -> None:  # pragma: no cover - wiring + light
                     setattr(reg, f'legacy_{attr}', existing)
                 except Exception:
                     pass
-            # Bind canonical to original attr name (without _total) and also attr_total alias for clarity
             setattr(reg, attr, new_counter)
-            if not hasattr(reg, f'{attr}_total'):
+            # Only add attr_total alias if base attr is not already suffixed with _total
+            if not attr.endswith('_total') and not hasattr(reg, f'{attr}_total'):
                 setattr(reg, f'{attr}_total', new_counter)
         except Exception:
             pass

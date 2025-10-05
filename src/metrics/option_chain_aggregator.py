@@ -155,7 +155,15 @@ def _normalize_snapshot(obj: Any) -> Iterable[ContractRow]:  # pragma: no cover 
                         exp = r.get('expiry')
                         import datetime as _dt
                         if isinstance(exp, (_dt.date, _dt.datetime)):
-                            base_date = _dt.datetime.utcnow().date()
+                            # Use timezone-aware UTC date for determinism (replaces naive utcnow())
+                            try:
+                                # Use timezone-aware UTC (utcnow deprecated) – rely on datetime.UTC (py311+) fallback to timezone.utc
+                                try:
+                                    base_date = _dt.datetime.now(_dt.UTC).date()  # type: ignore[attr-defined]
+                                except Exception:
+                                    base_date = _dt.datetime.now(_dt.timezone.utc).date()
+                            except Exception:  # pragma: no cover - extreme fallback
+                                base_date = _dt.date.today()
                             exp_date = exp.date() if isinstance(exp, _dt.datetime) else exp
                             dte_days = max((exp_date - base_date).days, 0)
                         else:

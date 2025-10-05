@@ -1,10 +1,22 @@
 """DEPRECATED STUB: benchmark_cycles.py
 
-Original benchmarking script superseded by internal profiling & unified test harnesses.
-Stub Added: 2025-09-30 (Phase 1 Cleanup). Will be removed after grace period.
+Original cycle benchmark script superseded by consolidated tooling in `bench_tools.py`
+and targeted profiling harnesses (e.g., `profile_unified_cycle.py`).
 
-Tests currently import `run_benchmark` to assert deprecation notice behavior;
-this stub preserves the signature with a minimal fast return structure.
+Timeline:
+    - Stub Added: 2025-09-30 (Phase 1 Cleanup)
+    - Final Removal Target: 2025-10-31 (next wave after consolidation validation)
+
+Behavior:
+    - Keeps `run_benchmark(cycles, interval)` signature so existing imports/tests remain green.
+    - Emits INFO deprecation banner unless suppressed by `G6_SUPPRESS_DEPRECATIONS`.
+    - Returns minimal synthetic metrics (zero timings) to avoid misleading performance data.
+
+Migration:
+    Use: `python scripts/bench_tools.py aggregate|diff|verify ...` for artifact workflows or
+    `python scripts/profile_unified_cycle.py` for precise per-cycle timing.
+
+This file may be deleted any time after the target removal date without further notice.
 """
 from __future__ import annotations
 import os, sys, time, json, argparse, logging
@@ -14,7 +26,7 @@ _WARN = not (os.environ.get('G6_SUPPRESS_DEPRECATIONS','').lower() in {'1','true
 
 def run_benchmark(cycles: int, interval: float) -> dict:  # type: ignore[override]
     if _WARN:
-        _LOG.info("Benchmark script using orchestrator path (legacy unified_main benchmarking deprecated)")
+        _LOG.info("[DEPRECATED] benchmark_cycles.py -> use bench_tools.py or profile_unified_cycle.py (removal target 2025-10-31)")
     now = time.time()
     return {
         'cycles': cycles,

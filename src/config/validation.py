@@ -95,17 +95,15 @@ def validate_config(config: Dict[str, Any], *, strict: bool = False, metrics: An
     findings = _detect_legacy(config)
     legacy = findings["legacy_keys"]
     deprecated = findings["deprecated_fields"]
-    if legacy or deprecated:
-        msg = []
-        if legacy:
-            msg.append(f"legacy blocks present: {legacy}")
-        if deprecated:
-            msg.append(f"deprecated fields present: {deprecated}")
-        joined = "; ".join(msg)
+    # Hardened policy (2025-10): legacy top-level keys now *always* rejected unless soft legacy
+    # stripping path engaged earlier. Deprecated storage fields remain warnings unless strict.
+    if legacy:
+        raise ConfigValidationError(f"Legacy configuration keys disallowed: {legacy}")
+    if deprecated:
+        msg = f"deprecated fields present: {deprecated}"
         if strict:
-            raise ConfigValidationError(f"Legacy usage disallowed in strict mode: {joined}")
-        logger.warning("Config legacy usage detected: %s", joined)
-        # metrics: increment counter per key
+            raise ConfigValidationError(msg)
+        logger.warning("Config legacy usage detected: %s", msg)
         try:
             if metrics is None:
                 from src.metrics import get_metrics  # type: ignore
@@ -114,12 +112,18 @@ def validate_config(config: Dict[str, Any], *, strict: bool = False, metrics: An
             metrics = None
         counter = getattr(metrics, 'config_deprecated_keys', None) if metrics else None
         if counter is not None:
-            for k in legacy:
-                try: counter.labels(key=k).inc()  # type: ignore[attr-defined]
-                except Exception: pass
             for k in deprecated:
                 try: counter.labels(key=k).inc()  # type: ignore[attr-defined]
                 except Exception: pass
+    # Enforce uppercase index symbol keys (schema cannot easily express dynamic key case rules)
+    try:
+        indices = config.get('indices')
+        if isinstance(indices, dict):
+            bad = [k for k in indices.keys() if isinstance(k, str) and k.upper() != k]
+            if bad:
+                raise ConfigValidationError(f"indices keys must be uppercase symbols: {bad}")
+    except Exception:
+        raise
     return config
 
 

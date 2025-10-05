@@ -16,7 +16,7 @@ Deprecated vars trigger a runtime warning during bootstrap when set.
 
 | Flag | Status | Notes |
 |------|--------|-------|
-| `--enhanced` (orchestrator loop) | Deprecated (no-op) | Collectors unified; flag retained for backward compatibility with scripts & docs. |
+| `--enhanced` (orchestrator loop) | Removed (2025-10-05) | Flag accepted previously as no-op; collectors unified. Update any scripts to drop it. |
 
 ## Deprecated Modules
 
@@ -41,4 +41,4 @@ Deprecated vars trigger a runtime warning during bootstrap when set.
 | Unused enhanced UI placeholder package if never populated (`src/ui_enhanced`) | Present but unused beyond flag marker | Either populate with real features or deprecate in next phase. |
 
 ---
-_Last updated: 2025-10-01_
+_Last updated: 2025-10-05_

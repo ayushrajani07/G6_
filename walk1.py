@@ -1,3 +1,4 @@
+print("walk1.py archived; see archive/walk1.py")
 import os
 
 def print_directory_tree(path):

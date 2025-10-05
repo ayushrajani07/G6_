@@ -78,12 +78,15 @@ def check_duplicates(registry: Any) -> dict | None:
             obj = getattr(registry, name)
         except Exception:
             continue
-        # Skip callables (methods) and non-metrics
-        if callable(obj):  # type: ignore[arg-type]
+        # Determine if object looks like a Prometheus metric first
+        metric_like_attrs = (hasattr(obj, '_type') or hasattr(obj, '_name') or hasattr(obj, '_value'))
+        # Some Prometheus metric objects are callable (label proxy pattern); treat those as metrics
+        if not metric_like_attrs:
+            if callable(obj):  # type: ignore[arg-type]
+                continue  # callable AND not metric-like -> skip
+            # Not callable but no metric markers -> skip
             continue
-        # Prometheus metric objects usually have ._type or ._name attributes
-        if not (hasattr(obj, '_type') or hasattr(obj, '_name') or hasattr(obj, '_value')):
-            continue
+        # If callable but metric-like, allow through (do not skip).
         ident = id(obj)
         metric_like.setdefault(ident, []).append((name, obj))
         total += 1
@@ -99,6 +102,42 @@ def check_duplicates(registry: Any) -> dict | None:
             typ = getattr(obj, '_type', None) or getattr(obj, '_name', None)
             if typ:
                 break
+        # Suppress known alias patterns (canonical vs *_total vs legacy_* for the same collector)
+        try:
+            # Alias suppression now opt-in via env flag (default: treat *_alias as duplicates so tests catch them)
+            allow_alias_env = os.getenv('G6_DUPLICATES_ALLOW_ALIAS_SUFFIX','').lower() in {'1','true','yes','on'}
+            norm = set()
+            for n in names:
+                base = n
+                if base.startswith('legacy_'):
+                    base = base[len('legacy_'):]
+                if base.endswith('_total'):
+                    base = base[:-len('_total')]
+                if base.endswith('_total'):
+                    base = base[:-len('_total')]
+                if allow_alias_env and base.endswith('_alias'):
+                    base = base[:-len('_alias')]
+                norm.add(base)
+            if len(norm) == 1:
+                allowed = True
+                base_only = next(iter(norm))
+                for n in names:
+                    if n == base_only:
+                        continue
+                    if n == f'{base_only}_total':
+                        continue
+                    if n == f'legacy_{base_only}':
+                        continue
+                    if allow_alias_env and n == f'{base_only}_alias':
+                        continue
+                    if n == f'legacy_{base_only}_total':
+                        continue
+                    allowed = False
+                    break
+                if allowed:
+                    continue
+        except Exception:
+            pass
         duplicates.append({
             'names': names,
             'type': typ or 'unknown',

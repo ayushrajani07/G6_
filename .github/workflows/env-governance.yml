@@ -1,0 +1,39 @@
+name: Env Governance
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  env-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install dependencies (minimal)
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Run env checker
+        run: |
+          python scripts/list_missing_env_vars.py || (echo 'Missing env vars detected. See above.' && exit 1)
+      - name: Catalog extras (informational)
+        if: always()
+        run: |
+          python scripts/list_missing_env_vars.py --show-extras > env_checker_extras.txt || true
+          echo 'Extras (unreferenced catalog) logged.'
+      - name: Upload extras artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: env-checker-extras
+          path: env_checker_extras.txt

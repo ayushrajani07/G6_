@@ -585,6 +585,98 @@ families:
             title: CS Ingest Retry Rate (10m)
             promql: sum by (table) (rate(g6_cs_ingest_retries_total[10m]))
 
+  stream:
+    owner: scripts/summary/plugins/stream_gater.py
+    metrics:
+      - name: g6_stream_append_total
+        type: counter
+        help: Indices stream append events (gated writes)
+        labels: [mode]
+        cardinality_budget: 5
+        panels:
+          - kind: append_rate_mode
+            title: Stream Appends by Mode (5m)
+            promql: sum by (mode) (rate(g6_stream_append_total[5m]))
+          - kind: append_rate_total
+            title: Stream Appends Total Rate (5m)
+            promql: sum(rate(g6_stream_append_total[5m]))
+      - name: g6_stream_skipped_total
+        type: counter
+        help: Indices stream skipped events (same cycle/bucket or error)
+        labels: [mode, reason]
+        cardinality_budget: 15
+        panels:
+          - kind: skipped_rate_reason
+            title: Stream Skips by Reason (5m)
+            promql: sum by (reason) (rate(g6_stream_skipped_total[5m]))
+          - kind: skipped_rate_mode
+            title: Stream Skips by Mode (5m)
+            promql: sum by (mode) (rate(g6_stream_skipped_total[5m]))
+      - name: g6_stream_state_persist_errors_total
+        type: counter
+        help: Stream state persistence errors
+        labels: []
+        cardinality_budget: 1
+        panels:
+          - kind: state_errors_rate
+            title: State Persist Errors (5m)
+            promql: rate(g6_stream_state_persist_errors_total[5m])
+      - name: g6_stream_conflict_total
+        type: counter
+        help: Detected potential concurrent indices_stream writer conflict
+        labels: []
+        cardinality_budget: 1
+        panels:
+          - kind: conflict_rate
+            title: Stream Conflict Events (5m)
+            promql: rate(g6_stream_conflict_total[5m])
+
+  panels:
+    owner: web/dashboard/panel_diff.py
+    metrics:
+      - name: g6_panel_diff_writes_total
+        type: counter
+        help: Panel diff snapshots written
+        labels: [type]
+        cardinality_budget: 10
+        panels:
+          - kind: diff_writes_rate
+            title: Panel Diff Writes Rate (5m)
+            promql: sum by (type) (rate(g6_panel_diff_writes_total[5m]))
+          - kind: diff_writes_total_rate
+            title: Total Diff Writes Rate (5m)
+            promql: sum(rate(g6_panel_diff_writes_total[5m]))
+      - name: g6_panel_diff_truncated_total
+        type: counter
+        help: Panel diff truncation events
+        labels: [reason]
+        cardinality_budget: 10
+        panels:
+          - kind: trunc_rate_reason
+            title: Diff Truncations by Reason (10m)
+            promql: sum by (reason) (rate(g6_panel_diff_truncated_total[10m]))
+      - name: g6_panel_diff_bytes_total
+        type: counter
+        help: Total bytes of diff JSON written
+        labels: [type]
+        cardinality_budget: 10
+        panels:
+          - kind: diff_bytes_rate
+            title: Diff Bytes Rate (5m)
+            promql: sum by (type) (rate(g6_panel_diff_bytes_total[5m]))
+          - kind: diff_bytes_total
+            title: Total Diff Bytes (Cumulative)
+            promql: sum(g6_panel_diff_bytes_total)
+      - name: g6_panel_diff_bytes_last
+        type: gauge
+        help: Bytes of last diff JSON written
+        labels: [type]
+        cardinality_budget: 10
+        panels:
+          - kind: diff_last_bytes
+            title: Last Diff Bytes (by Type)
+            promql: max by (type) (g6_panel_diff_bytes_last)
+
 # Generation directives
 codegen:
   module: src/metrics/generated.py

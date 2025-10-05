@@ -22,6 +22,7 @@ Dates use ISO (YYYY-MM-DD). "R+n" refers to n stable release cycles after initia
 |------|-------------------------|------------------|-----------------|-----------|-------|
 | `G6_EXPIRY_MISCLASS_SKIP` | Policy superseded by `G6_EXPIRY_MISCLASS_POLICY=reject` semantics | 2025-09-26 | R+1 | Set `G6_EXPIRY_MISCLASS_POLICY=reject` (or `rewrite`/`quarantine`) | Currently mapped internally; new features target policy flag only. |
 | `G6_SUPPRESS_EXPIRY_MATRIX_WARN` | Obsolete after removal of legacy fallback in `scripts/expiry_matrix.py` | 2025-09-27 | Next release | Remove usage; flag will be dropped from env docs once deleted. | Present only to satisfy env var coverage until deletion. |
+| `G6_SUPPRESS_DEPRECATED_RUN_LIVE` / `G6_SUPPRESS_BENCHMARK_DEPRECATED` / `G6_SUPPRESS_DEPRECATED_WARNINGS` | Unified suppression via `G6_SUPPRESS_DEPRECATIONS` | 2025-10-05 | R+1 (remove legacy aliases) | Set `G6_SUPPRESS_DEPRECATIONS=1` to silence all non-critical deprecation banners | Automatically mapped at import; emits one-time consolidation warning. |
 
 ### 2.1 Summary Flag Retirement (2025-10-03)
 The summary subsystem is consolidating multiple rollout flags now that the unified path and SSE streaming have stabilized.
@@ -58,5 +59,20 @@ When marking a new feature as deprecated:
 ### Metrics
 Runtime usage of deprecated components is tracked via `g6_deprecated_usage_total{component}` allowing release engineering to gate removals based on observed production reliance.
 
----
-_Last updated: 2025-09-27_
+## 7. Consolidated Deprecation Schedule (Roadmap View)
+
+| Item | Type | Status | Deprecated Since | Planned Removal | Replacement / Outcome | Notes |
+|------|------|--------|------------------|-----------------|-----------------------|-------|
+| run_live.py | Script | Removed | 2025-09-26 | 2025-10-01 (executed) | run_orchestrator_loop.py | Fully deleted; row retained historical. |
+| benchmark_cycles.py (legacy semantics) | Script | Active (Stub) | 2025-09-27 | 2025-10-31 | bench_tools.py subcommands | Emits banner; suppress via unified suppression. |
+| bench_aggregate/diff/verify | Scripts | Removed | 2025-09-30 | 2025-10-05 (executed) | bench_tools.py | Hard deleted; inventory synced. |
+| perf_cache metric alias | Metrics Group | Removed | 2025-10-02 | 2025-10-05 (executed) | cache group | Guard warns if legacy name used in env filters. |
+| --enhanced flag | CLI Flag | Removed | 2025-09-30 | 2025-10-05 (executed) | (none needed) | Docs scrubbed; tests updated. |
+| Legacy suppression envs (per-script) | Env Vars | Active (grace) | 2025-10-05 | R+1 | G6_SUPPRESS_DEPRECATIONS | Auto-mapped at import; warning once. |
+| G6_EXPIRY_MISCLASS_SKIP | Env Var | Active | 2025-09-26 | R+1 | G6_EXPIRY_MISCLASS_POLICY | Policy flag covers replacement behaviors. |
+| G6_SUPPRESS_EXPIRY_MATRIX_WARN | Env Var | Pending Removal | 2025-09-27 | Next release | (none) | Obsolete after fallback deletion. |
+| summary flag set (REWRITE/PLAIN_DIFF/etc.) | Env Vars | Active (rolling) | 2025-10-03 | Staggered (R+1..R+2) | defaults / inverse flags | See section 2.1 for per-flag notes. |
+| summary_view.py | Module | Removed | 2025-10-01 | 2025-10-03 (executed) | scripts.summary.app | Shim period ended; tests green. |
+| unified_main loop | Module Path | Removed | 2025-09-26 | 2025-09-28 (executed) | orchestrator loop | Parity harness validated. |
+
+_Last updated: 2025-10-05_

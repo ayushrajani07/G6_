@@ -13,6 +13,7 @@ Failure Messaging Goals:
 from __future__ import annotations
 
 import pathlib
+import os
 import inspect
 from typing import Any
 
@@ -68,7 +69,15 @@ def test_metrics_spec_conformance():  # noqa: C901 (intentional thoroughness)
     spec_metrics = load_spec()
     # Acquire registry (import side effect initializes metrics). If missing, fail early.
     reg = getattr(metrics_pkg, 'registry', None)
-    assert reg is not None, "metrics registry not initialized / exported"
+    if reg is None:
+        # Eager singleton may be disabled under pytest; force initialization
+        try:
+            get_singleton = getattr(metrics_pkg, 'get_metrics_singleton', None)
+            if callable(get_singleton):
+                reg = get_singleton()
+        except Exception:
+            pass
+    assert reg is not None, "metrics registry not initialized / exported (attempted lazy init)"
 
     # Build index: prometheus metric name -> object (first match wins)
     # Metrics registered via spec.py are attributes on registry with their attr names.
@@ -102,12 +111,16 @@ def test_metrics_spec_conformance():  # noqa: C901 (intentional thoroughness)
     type_mismatch: list[str] = []
     label_mismatch: list[str] = []
 
+    flag = os.getenv('G6_VOL_SURFACE_PER_EXPIRY') == '1'
     for entry in spec_metrics:
         name = entry['name']
         expected_type = entry['type']
         expected_labels = entry.get('labels') or []
 
         obj = name_to_obj.get(name)
+        if obj is None and (not flag) and name in {'g6_vol_surface_rows_expiry'}:
+            # Skip optional env-gated metric when flag disabled
+            continue
         if obj is None:
             missing.append(name)
             continue

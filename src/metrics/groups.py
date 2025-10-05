@@ -18,7 +18,6 @@ class MetricGroup(str, Enum):
     OVERLAY_QUALITY = "overlay_quality"
     STORAGE = "storage"
     CACHE = "cache"
-    PERF_CACHE = "perf_cache"  # legacy alias for cache (still appears in env)
     EXPIRY_POLICY = "expiry_policy"
     PANELS_INTEGRITY = "panels_integrity"
     IV_ESTIMATION = "iv_estimation"

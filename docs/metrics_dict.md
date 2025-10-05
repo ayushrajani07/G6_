@@ -1,22 +1,18 @@
-# G6 Metrics Dictionary
+# G6 Metrics Dictionary (Deprecated Stub)
 
-_Last generated: 2025-09-25_
+This content has been consolidated into the authoritative references:
 
-This document enumerates Prometheus metrics exposed by the G6 platform. It aggregates definitions primarily from `src/metrics/metrics.py`, `circuit_metrics.py`, and auxiliary sampling / cardinality utilities. Each entry lists metric name, type, labels, description, and notes on emission source or lifecycle.
+- `METRICS.md` (human-curated taxonomy and narrative)
+- `METRICS_CATALOG.md` (auto-generated spec-driven catalog)
 
-Legend: (C)=Counter, (G)=Gauge, (H)=Histogram, (S)=Summary.
+`metrics_dict.md` is retained temporarily for backward compatibility and
+external links. No new updates will be applied here.
 
----
-## 1. Core Cycle & Phase Metrics
-| Metric | Type | Labels | Description | Source |
-|--------|------|--------|-------------|--------|
-| g6_collection_duration_seconds | S | – | Time spent collecting data (per cycle summary). | metrics.MetricsRegistry | 
-| g6_phase_duration_seconds | S | phase | Duration of specific cycle phases. | metrics.MetricsRegistry |
-| g6_phase_failures_total | C | phase | Failures within a named phase. | metrics.MetricsRegistry |
-| g6_collection_cycles_total | C | – | Total collection cycles executed. | metrics.MetricsRegistry |
-| g6_collection_errors_total | C | index,error_type | Collection errors aggregated by index & error classification. | metrics.MetricsRegistry |
-| g6_collection_cycle_in_progress | G | – | 1 while a collection cycle is active, else 0. | metrics.markers |
-| g6_last_success_cycle_unixtime | G | – | Unix timestamp of last fully successful cycle. | metrics.markers |
+Removal Criteria:
+- Two consecutive releases with no inbound links in code / docs
+- CHANGELOG entry announcing final removal
+
+Please update bookmarks to point to `METRICS.md`.
 
 ---
 ## 2. Index & Market Snapshot

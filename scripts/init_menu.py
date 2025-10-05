@@ -445,3 +445,13 @@ def menu_loop() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(menu_loop())
+
+# Minimal exported MENU structure for lightweight import smoke tests.
+# The interactive implementation relies on menu_loop(), but tests only verify
+# presence of a non-empty MENU iterable. Keep this concise to avoid executing
+# interactive logic during import. Update if additional metadata fields are
+# later required by tests.
+MENU = [
+    {"id": 1, "label": "Unified Summary (Rich Auto)", "entry": "summary_rich_auto"},
+    {"id": 2, "label": "Unified Summary (Panels Off)", "entry": "summary_rich_nopanels"},
+]

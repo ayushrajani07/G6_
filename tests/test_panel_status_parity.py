@@ -1,3 +1,6 @@
 import pytest
 
-pytest.skip("Legacy unified_main status parity test removed – module fully deleted", allow_module_level=True)
+pytest.skip(
+	"Panel status parity test placeholder – legacy parity path removed; no replacement planned. Remove file after 2025-11-15 if no new parity harness added.",
+	allow_module_level=True,
+)

@@ -24,7 +24,7 @@ The following execution paths or scripts are deprecated or have been removed. Hi
 | (REMOVED) `scripts/summary_view.py` | `scripts/summary/app.py` (unified) | 2025-10-01 | REMOVED 2025-10-03 | Use unified summary application: `python -m scripts.summary.app --refresh 1`; legacy plain fallback consolidated (StatusCache + plain_fallback now in app). | File deleted; launcher scripts updated (g6, dev_tools, launch_platform). |
 | (REMOVED) `--no-unified` flag & summary legacy fallback (StatusCache/plain_fallback) | Always-on unified loop + PlainRenderer for --no-rich | 2025-10-03 (post consolidation) | REMOVED 2025-10-03 | Remove flag usage; call `python -m scripts.summary.app` directly. Non-rich mode auto-selects PlainRenderer; failures return exit code 1. | Fast-path removal (N+0) justified: zero external test references; parity harness green; improves failure visibility. |
 | `start_live_dashboard_v2.ps1` (deprecated launcher) | `scripts/start_live_dashboard.ps1` | 2025-10-01 | R+1 | Use canonical launcher: `powershell -File scripts/start_live_dashboard.ps1` | Shim prints deprecation banner; scheduled removal next release. |
-| `scripts/benchmark_cycles.py` (cycle timing script) | Internal profiling / test harness | 2025-09-30 (Phase 1 cleanup) | R+1 | Use pytest benchmarks or profiling docs | Stub preserves `run_benchmark` for tests. |
+| `scripts/benchmark_cycles.py` (cycle timing script) | `scripts/bench_tools.py` / `profile_unified_cycle.py` | 2025-09-30 (Phase 1 cleanup) | 2025-10-31 | Use bench_tools aggregate/diff/verify or profile_unified_cycle for timing | Stub emits deprecation; removal after 2025-10-31. |
 | (REMOVED) `G6_SUMMARY_REWRITE` (enable new summary path) | Always-on unified summary | 2025-10-03 | REMOVED 2025-10-03 | Remove env export; no effect | Path permanently enabled. |
 | (REMOVED) `G6_SUMMARY_PLAIN_DIFF` (suppress unchanged plain frames) | Always-on diff suppression (hash reuse) | 2025-10-03 | REMOVED 2025-10-03 | Remove env; behavior default; no opt-out implemented | Stable hashing validated; revisit only if operational issue arises. |
 | (REMOVED) `G6_SSE_ENABLED` (enable SSE publisher) | Auto activation when SSE HTTP/panels active | 2025-10-03 | REMOVED 2025-10-03 | Remove env; publisher constructed automatically via unified app when `G6_SSE_HTTP=1` | Env gate eliminated; code path unconditional on instantiation. |
@@ -33,14 +33,15 @@ The following execution paths or scripts are deprecated or have been removed. Hi
 | `G6_DISABLE_RESYNC_HTTP` (new) | (Opt-out only) | 2025-10-03 | — | Set `G6_DISABLE_RESYNC_HTTP=1` to suppress resync server when SSE active | Not a deprecation; governance listing for discoverability. |
 | `g6_vol_surface_quality_score_legacy` (duplicate gauge) | `g6_vol_surface_quality_score` | 2025-10-02 (metrics modularization cleanup) | R+1 | Dashboards should reference canonical `g6_vol_surface_quality_score`; update panels/alerts. | Duplicate maintained for one release window; removal planned after confirming no external scrapes rely on legacy name. |
 | `src/metrics/cache.py` direct registrations | `src/metrics/cache_metrics.py` (`init_cache_metrics`) | 2025-10-02 | R+1 | Import stays valid; no action unless depending on internal implementation details. | File now a thin shim delegating to new module (no behavior change). |
-| `scripts/bench_aggregate.py` / `bench_diff.py` / `bench_verify.py` | `scripts/bench_tools.py` | 2025-09-30 (Phase 2) | R+1 | Use unified subcommands (aggregate, diff, verify) | Wrappers emit deprecation warning unless suppressed. |
+| (REMOVED) `scripts/bench_aggregate.py` / `bench_diff.py` / `bench_verify.py` | `scripts/bench_tools.py` | 2025-09-30 (Phase 2) | REMOVED 2025-10-05 | Use unified subcommands (aggregate, diff, verify) | Early removal (no direct test imports; consolidation complete). |
 | `--enhanced` flag (run_orchestrator_loop) | Unified collectors default | 2025-09-30 (Phase 2) | R+0 (removed) | Remove flag usage; no action required | CLI arg removed; tests adjusted if any. |
 | (REMOVED) `G6_SUMMARY_PANELS_MODE` (env toggle) | Auto-detect panels presence | 2025-09-30 (Phase 3) | REMOVED 2025-10-02 | Remove env; summarizer ignores it (auto-detect only) | Purged from code & docs; no runtime warning path remains. |
 | (REMOVED) `G6_SUMMARY_READ_PANELS` (legacy alias) | Auto-detect panels presence | 2025-09-30 (Phase 3) | REMOVED 2025-10-02 | Remove env; summarizer ignores alias | Purged from code & docs. |
 | `perf_cache` metrics group alias | `cache` metrics group | 2025-10-02 (post modularization) | R+1 | Switch dashboards / alerts to `cache` group naming if referencing alias | Alias internally mapped; removal after one release if no external dependency signals. |
-| `scripts/quick_import_test.py` | `scripts/dev_smoke.py import-check` | 2025-09-30 (Phase 3) | R+1 | Invoke consolidated multi-tool | Wrapper delegates & warns unless suppressed. |
-| `scripts/quick_provider_check.py` | `scripts/dev_smoke.py provider-check` | 2025-09-30 (Phase 3) | R+1 | Use dev_smoke subcommand | Wrapper delegates & warns unless suppressed. |
-| `scripts/quick_cycle.py` | `scripts/dev_smoke.py one-cycle` | 2025-09-30 (Phase 3) | R+1 | Use dev_smoke one-cycle | Wrapper delegates & warns unless suppressed. |
+| (REMOVED) `scripts/quick_import_test.py` | `scripts/dev_smoke.py import-check` | 2025-09-30 (Phase 3) | REMOVED 2025-10-05 | Invoke consolidated multi-tool | Wrapper deleted after grace decision (early removal). |
+| (REMOVED) `scripts/quick_provider_check.py` | `scripts/dev_smoke.py provider-check` | 2025-09-30 (Phase 3) | REMOVED 2025-10-05 | Use dev_smoke subcommand | Wrapper deleted after grace decision (early removal). |
+| (REMOVED) `scripts/quick_cycle.py` | `scripts/dev_smoke.py one-cycle` | 2025-09-30 (Phase 3) | REMOVED 2025-10-05 | Use dev_smoke one-cycle | Wrapper deleted after grace decision (early removal). |
+| (REMOVED) `scripts/status_to_panels.py` (legacy panels bridge) | Unified loop `PanelsWriter` + `StreamGaterPlugin` | 2025-10-05 (Phase 1 stream gater) | REMOVED 2025-10-05 (Phase 3 accelerated) | Use unified summary: `python -m scripts.summary.app --refresh 1` | Tombstone stub exits(2); opt-out flag cleanup pending (Phase 4). |
 | Legacy unified snapshot adapter (`from_legacy_unified_snapshot`) | Native `assemble_model_snapshot` | 2025-09-30 (native builder intro) | REMOVED 2025-10-01 | Remove any internal reliance; always call `assemble_model_snapshot` | Adapter & fallback path deleted; failures now return minimal snapshot with `native_fail` warning. |
 | `assemble_unified_snapshot` (legacy assembler) | `assemble_model_snapshot` | 2025-10-01 (post adapter removal) | REMOVED 2025-10-01 | Use `assemble_model_snapshot`; file & tests deleted | Final removal completed (no runtime fallback). |
 | Legacy snapshot internal fields (`panels_generation`, `rolling`) | N/A (removed) | 2025-10-01 | REMOVED 2025-10-01 | No action required; fields were never part of stable surface. | Pruned from `UnifiedSnapshot` dataclass to reduce surface area before full removal. |
@@ -134,30 +135,40 @@ For questions, open a discussion or tag maintainers in the PR.
 
 ---
 
-### Legacy Panels Bridge Deprecation: `scripts/status_to_panels.py`
+### Legacy Panels Bridge (Tombstone & Flag Retirement)
 
-Status: Removed (script & detection helpers deleted) – 2025-09-30.
+Phase 3 (2025-10-05): `scripts/status_to_panels.py` replaced with a tombstone stub (exit code 2) printing migration guidance unless `G6_SUPPRESS_LEGACY_CLI=1`.
 
-Replacement: Unified summary loop (`scripts/summary/app.py`) with in-process `PanelsWriter` emitting panel JSON artifacts (no external bridge needed).
+Phase 4 (2025-10-05): Completed retirement of both gating flags. All conditional logic referencing:
+* `G6_UNIFIED_STREAM_GATER` (legacy opt-in)
+* `G6_DISABLE_UNIFIED_GATER` (temporary opt-out)
 
-Why: Eliminates duplicate status file reads, reduces IO churn, avoids partial update race windows, simplifies conflict detection (single process responsible for panel set), and aligns with unified snapshot evolution.
+has been removed from the runtime path. The `StreamGaterPlugin` is now unconditional. Setting either env var only triggers a one-time warning (test enforced) and has no behavioral effect.
 
-Artifacts Produced by Replacement (`PanelsWriter`):
+Current Rollout Timeline (updated):
+* Phase 1: StreamGaterPlugin opt-in (DONE)
+* Phase 2: Default-on with opt-out `G6_DISABLE_UNIFIED_GATER` (DONE)
+* Phase 3: Remove legacy bridge script (DONE – accelerated)
+* Phase 4: Retire opt-in & opt-out flag handling (DONE)
+* Phase 5: (Planned) Remove residual warning + metric name normalization shim once external configs stop setting retired flags (target 2025-10-20, contingent on zero warning occurrences in ops logs for 5 consecutive business days)
 
-Gating Behavior: N/A (file removed). Former environment allow override retired (environment flag removed).
+Operational Notes:
+* Conflict protection metric `g6_stream_conflict_total` remained 0 through observation; no dual-writer detected.
+* Tests added to assert single warning emission when retired flags are present.
+* Documentation now treats gating as a permanent capability; flags should not appear in examples or templates.
 
-Environment Controls (current relevant):
+Next Steps Prior to Phase 5:
+1. Monitor logs (CI + prod) for any residual retired flag warning occurrences.
+2. If no occurrences for 5 business days, schedule removal of warning branch and normalization shim.
+3. Regenerate metrics catalog after shim removal to confirm no name drift.
 
-Migration Summary:
-All internal scripts & docs updated; unified summary writes panels directly; monitoring leverages `manifest.json`.
+Rollback Strategy: Extremely low risk; should re-introduction be required, prefer feature-toggling via a scoped debug env (new name) rather than reviving legacy flags.
 
-Testing & Parity:
-
-Risks / Blockers: None (external callers will receive file-not-found; advise updating to unified path).
-
-Rollback Plan: Restore deleted script from VCS history if an unforeseen consumer surfaces (unlikely).
-
-Owner: Summary/Unification maintainers.
+Follow-Up (Phase 5 Checklist Draft):
+* Delete warning emission block in `stream_gater.py`.
+* Remove metric name normalization shim logic tied specifically to legacy counter adoption (if still present).
+* Re-run `scripts/gen_env_docs.py` and metrics catalog generation to ensure no orphaned references.
+* Add a short note to CHANGELOG summarizing finalization of gating subsystem.
 
 ### KiteProvider Direct Construction Deprecation (Warning Suppression Strategy)
 

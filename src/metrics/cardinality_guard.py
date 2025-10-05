@@ -67,31 +67,60 @@ def write_snapshot(path: str, mapping: Dict[str, List[str]]):
         "generated": _now_iso(),
         "groups": mapping,
     }
+    # Write atomically to reduce risk of readers encountering truncated JSON (test parallelism / fast follow reads)
     try:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, sort_keys=True)
+        import tempfile, os
+        dir_name = os.path.dirname(path) or "."
+        fd, tmp_path = tempfile.mkstemp(prefix="._card_snap_", dir=dir_name, text=True)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, indent=2, sort_keys=True)
+                f.flush()
+                try:
+                    os.fsync(f.fileno())  # ensure durability before rename
+                except Exception:
+                    pass
+            # On Windows replace target if exists (os.replace is atomic when same volume)
+            os.replace(tmp_path, path)
+        except Exception:
+            # Cleanup temp file on failure path
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
+            raise
     except Exception as e:  # pragma: no cover - IO error path
         logger.error("cardinality.snapshot.write_failed path=%s err=%s", path, e)
 
 
 def load_baseline(path: str) -> Dict[str, List[str]] | None:
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        if not isinstance(data, dict):
-            return None
-        groups = data.get("groups")
-        if not isinstance(groups, dict):
-            return None
-        cleaned: Dict[str, List[str]] = {}
-        for g, arr in groups.items():
-            if isinstance(g, str) and isinstance(arr, list):
-                cleaned[g] = [a for a in arr if isinstance(a, str)]
-        return cleaned
-    except FileNotFoundError:
-        logger.warning("cardinality.baseline.missing path=%s", path)
-    except Exception as e:  # pragma: no cover - parse error
-        logger.warning("cardinality.baseline.load_failed path=%s err=%s", path, e)
+    import time as _t
+    attempts = 3
+    last_err: Exception | None = None
+    for i in range(attempts):
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                return None
+            groups = data.get("groups")
+            if not isinstance(groups, dict):
+                return None
+            cleaned: Dict[str, List[str]] = {}
+            for g, arr in groups.items():
+                if isinstance(g, str) and isinstance(arr, list):
+                    cleaned[g] = [a for a in arr if isinstance(a, str)]
+            return cleaned
+        except FileNotFoundError:
+            logger.warning("cardinality.baseline.missing path=%s", path)
+            break
+        except Exception as e:  # pragma: no cover - parse error / transient partial write
+            last_err = e
+            if i < attempts - 1:
+                _t.sleep(0.05)
+                continue
+            logger.warning("cardinality.baseline.load_failed path=%s err=%s", path, e)
     return None
 
 
@@ -131,6 +160,14 @@ def check_cardinality(reg: Any) -> dict | None:
             write_snapshot(snap_path, mapping)
             summary["snapshot_written"] = True
             logger.info("metrics.cardinality.snapshot_written path=%s groups=%d", snap_path, len(mapping))
+            # Fallback: if file unexpectedly zero-length (pre-created & write replaced failed silently), attempt simple rewrite
+            try:
+                if os.path.exists(snap_path) and os.path.getsize(snap_path) == 0:
+                    with open(snap_path, 'w', encoding='utf-8') as _fw:
+                        json.dump({"version":1, "generated": _now_iso(), "groups": mapping}, _fw, indent=2, sort_keys=True)
+                        _fw.flush()
+            except Exception:
+                pass
         except Exception:  # pragma: no cover
             pass
         # If only snapshot (no baseline) we stop here

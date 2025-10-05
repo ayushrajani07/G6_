@@ -78,7 +78,8 @@ def gen_module(spec: dict, spec_hash: str) -> str:
 
 
 def gen_catalog(spec: dict) -> str:
-    ts = dt.datetime.utcnow().isoformat(timespec='seconds') + 'Z'
+    # Use timezone-aware UTC (utcnow deprecated)
+    ts = dt.datetime.now(dt.UTC).isoformat(timespec='seconds').replace('+00:00','Z')
     out = [f"# Metrics Catalog\n\nGenerated: {ts}\n\n"]
     for fam, data in spec.get('families', {}).items():
         out.append(f"## Family: {fam}\nOwner: {data.get('owner','unknown')}\n")

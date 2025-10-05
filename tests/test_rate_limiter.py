@@ -36,9 +36,8 @@ def test_token_bucket_try_acquire_with_mock_time():
     assert not tb.try_acquire(1)
 
 
-@pytest.mark.asyncio
-async def test_token_bucket_async_acquire_with_mock_time(event_loop):
-    # Controlled time for deterministic async test
+def test_token_bucket_async_acquire_with_mock_time():
+    # Controlled time for deterministic async test executed via explicit loop
     clock = {"now": 0.0}
 
     def mock_time():
@@ -46,26 +45,23 @@ async def test_token_bucket_async_acquire_with_mock_time(event_loop):
 
     tb = TokenBucket(rate=5.0, burst=2, time_func=mock_time)
 
-    # Consume burst synchronously
     assert tb.try_acquire(2)
     assert not tb.try_acquire(1)
 
-    # Simulate time passing while awaiting by advancing time and yielding to loop
-    async def advance_time_after(delay, amount):
-        await asyncio.sleep(delay)
-        clock["now"] += amount
+    async def _run():
+        async def advance_time_after(delay, amount):
+            await asyncio.sleep(delay)
+            clock["now"] += amount
 
-    # Start waiter that will need 1/5 sec (~0.2s); we accelerate by advancing clock
-    waiter = asyncio.create_task(tb.acquire(1))
-    advancer = asyncio.create_task(advance_time_after(0.01, 0.25))
+        waiter = asyncio.create_task(tb.acquire(1))
+        advancer = asyncio.create_task(advance_time_after(0.01, 0.25))
+        await asyncio.gather(waiter, advancer)
 
-    await asyncio.gather(waiter, advancer)
-
-    # After acquire returns, next try_acquire should reflect reduced tokens
+    asyncio.run(_run())
+    # After async acquire
     assert not tb.try_acquire(2)
-    # acquire consumed the refilled token; small additional time is required
     assert not tb.try_acquire(1)
-    clock["now"] += 0.2  # +0.2s -> +1 token at 5 cps
+    clock["now"] += 0.2
     assert tb.try_acquire(1)
 
 
@@ -89,9 +85,11 @@ def test_phase1_rate_limiter_cooldown_blocking():
     assert not rl.cooldown_active()
     rl.record_rate_limit_error()
     assert rl.cooldown_active(), 'Cooldown should be active after threshold reached'
-    t0 = asyncio.get_event_loop().time()
+    # Use perf_counter for high-resolution monotonic timing (no event loop dependency)
+    import time as _t
+    t0 = _t.perf_counter()
     rl.acquire()  # should sleep close to cooldown_seconds (blocking path)
-    t1 = asyncio.get_event_loop().time()
+    t1 = _t.perf_counter()
     assert (t1 - t0) >= 0.8, f'Acquire did not block long enough; delta={(t1 - t0):.3f}'
     rl.record_success()
     assert not rl.cooldown_active(), 'Cooldown should be cleared after it expires'

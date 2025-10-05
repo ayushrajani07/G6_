@@ -13,5 +13,5 @@ __all__ = ["init_cache_metrics"]
 
 
 def init_cache_metrics(reg: Any) -> None:  # pragma: no cover - deprecated shim
-    """Deprecated no-op (perf_cache metrics now spec-driven)."""
+    """Deprecated no-op (cache metrics now spec-driven; legacy perf_cache alias removed)."""
     return

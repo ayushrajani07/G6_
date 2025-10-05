@@ -8,9 +8,7 @@ param(
   [int]$IntervalMs = 1000
 )
 
-Write-Host "Starting mock live updates server on port $Port for $Index:$Expiry:$Offset..."
-Start-Process -FilePath "python" -ArgumentList "scripts/mock_live_updates.py --port $Port --pairs $Index`:$Expiry`:$Offset --interval 1.0" -WindowStyle Minimized
-Start-Sleep -Seconds 1
+Write-Host "(mock_live_updates.py removed) Proceeding without live server; page will render static overlays unless you supply your own endpoint." -ForegroundColor Yellow
 
 Write-Host "Generating overlays HTML with live polling..."
 python scripts/plot_weekday_overlays.py `
@@ -18,7 +16,7 @@ python scripts/plot_weekday_overlays.py `
   --weekday-root data/weekday_master `
   --index $Index --expiry-tag $Expiry --offset $Offset `
   --layout $Layout `
-  --live-endpoint http://127.0.0.1:$Port/live --live-interval-ms $IntervalMs `
+  # --live-endpoint http://127.0.0.1:$Port/live --live-interval-ms $IntervalMs `  # (disabled: mock server removed)
   --theme dark --enable-zscore --enable-bands --bands-multiplier 2.0 `
   --output $Output
 

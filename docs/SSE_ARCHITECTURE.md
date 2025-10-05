@@ -38,54 +38,11 @@ Thread-safe store that owns:
 ## Event Flow
 1. SSE line block completes (blank line delimiter).
 2. JSON payload parsed; `type` + `payload` extracted.
-3. Store mutation method invoked.
-4. On next render cycle, plugin `process()` runs and enriches snapshot.
-5. Renderers / writers consume consistent diagnostics and data.
+# SSE Ingestion Architecture (Unified Summary Loop)
 
-## Heartbeat & Staleness
-- Each successful mutation records a `last_event_ts`.
-- Separate timestamps kept for `panel_full` and `panel_diff` (enables diagnosing missing full refreshes).
+> Moved: This content is now consolidated in `docs/SSE.md` (Section 2: Architecture Overview).
+
+This file is retained as a stub for backward compatibility and will be removed in a future cleanup wave once external references are updated.
+
+See: `SSE.md`
 - `heartbeat(warn_after=10, stale_after=30)` returns:
-  ```json
-  {
-    "last_event_epoch": 1690000000.0,
-    "last_panel_full_epoch": 1690000000.0,
-    "last_panel_diff_epoch": 1690000005.5,
-    "stale_seconds": 5.5,
-    "health": "ok",
-    "warn_after": 10.0,
-    "stale_after": 30.0
-  }
-  ```
-- Plugin compresses keys when embedding: `last_evt`, `last_full`, `last_diff`, `stale_sec`, `health`.
-
-## Generation Safety
-- `panel_diff` dropped if incoming `generation` mismatches stored generation.
-- Drop increments `panel_diff_dropped` and sets `need_full=True` causing UI/requestor to expect a baseline refresh.
-
-## Follow-up Alerts Handling
-- Normalized to a uniform dict: `{time, level, component, message}`.
-- Inserted at head; truncated to max length (default 50) for bounded memory.
-
-## Testing
-- Unit tests cover diff semantics and severity/followup storage.
-- Integration test (`tests/test_sse_integration.py`) simulates full lifecycle and heartbeat staleness classification.
-
-## Extensibility Guidelines
-- New event types: add branch in `_dispatch_event` and corresponding mutation method.
-- Keep mutation methods narrow and side-effect free beyond internal state changes.
-- Avoid storing derived UI-only artifacts; derive on demand in renderers.
-
-## Failure & Resilience
-- SSE loop employs exponential backoff (1s → 30s) on network errors.
-- Merge failures or malformed payloads increment dropped counters without crashing thread.
-- Metrics (if `G6_UNIFIED_METRICS` enabled) track event counts, errors, and apply latency.
-
-## Rationale
-Centralizing state reduces branching complexity in render code, enables consistent diagnostics across multiple outputs, and isolates network complexity. The heartbeat design provides operational visibility (is the stream active? are diffs flowing?) without extra log parsing.
-
-## Next Opportunities
-- Expose explicit `request_full()` method to proactively schedule baseline refresh.
-- Add Prometheus gauge for staleness classification.
-- Introduce snapshot diff hashing to avoid redundant renderer work.
-- Support multi-source aggregation (multiple SSE endpoints) via composite stores.

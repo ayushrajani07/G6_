@@ -30,7 +30,12 @@ class _WeekendProviders:
 
 class _CsvSink:
     def write_options_data(self, *a, **k):
-        return {'expiry_code':'WEEKLY','pcr':1.0,'timestamp':dt.datetime.utcnow(),'day_width':1}
+        # Use timezone-aware UTC now (utcnow deprecated)
+        try:
+            ts = dt.datetime.now(dt.UTC)
+        except Exception:  # pragma: no cover - older Python fallback
+            ts = dt.datetime.now(dt.timezone.utc)
+        return {'expiry_code':'WEEKLY','pcr':1.0,'timestamp':ts,'day_width':1}
     def write_overview_snapshot(self, *a, **k):
         pass
 

@@ -148,7 +148,8 @@ def generate_dashboard(spec: dict) -> dict:
         y += 5
     prov = {
         'schema': 'g6.dashboard.provenance.v0',
-        'generated_at_utc': datetime.datetime.utcnow().replace(microsecond=0).isoformat() + 'Z',
+    # Use timezone-aware UTC (utcnow deprecated)
+    'generated_at_utc': datetime.datetime.now(datetime.UTC).replace(microsecond=0).isoformat().replace('+00:00','Z'),
         # spec_hash is computed from raw YAML bytes for deterministic consistency with other generators
         'spec_hash': _spec_hash(),
         'spec_path': 'metrics/spec/base.yml',

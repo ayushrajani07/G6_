@@ -68,6 +68,8 @@ def _batch_window_ms() -> int:
 class _Request:
     symbols: List[str]
     event: threading.Event
+    # Ack event to allow distributor to release requests sequentially ensuring deterministic append order in tests
+    ack: threading.Event
     result: Optional[Dict[str, Any]] = None
     error: Optional[BaseException] = None
 
@@ -85,7 +87,7 @@ class QuoteBatcher:
         Returns dict subset containing only the requested symbols.
         May raise on network / rate limit errors (propagated from underlying call).
         """
-        req = _Request(symbols=list(symbols), event=threading.Event())
+        req = _Request(symbols=list(symbols), event=threading.Event(), ack=threading.Event())
         with self._lock:
             self._pending.append(req)
             self._symbols.update(symbols)
@@ -99,6 +101,11 @@ class QuoteBatcher:
         req.event.wait()
         if req.error:
             raise req.error  # propagate
+        # Acknowledge reception so distributor can release next in sequence
+        try:
+            req.ack.set()
+        except Exception:
+            pass
         return req.result or {}
 
     def _flush_after_window(self, provider: Any, delay_s: float) -> None:
@@ -119,6 +126,7 @@ class QuoteBatcher:
                 return
             raw = self._perform_fetch(provider, symbols)
             # Distribute filtered subsets
+            # Release events sequentially waiting for ack to enforce stable ordering of caller append operations
             for r in pending:
                 try:
                     subset = {s: raw[s] for s in r.symbols if isinstance(raw, dict) and s in raw}
@@ -127,6 +135,11 @@ class QuoteBatcher:
                     r.error = sub_err
                 finally:
                     r.event.set()
+                    try:
+                        # Wait briefly for caller to acknowledge retrieval; timeout keeps progress if caller slow
+                        r.ack.wait(0.05)
+                    except Exception:
+                        pass
         except BaseException as e:  # propagate error to all waiters
             with self._lock:
                 pending = list(self._pending)

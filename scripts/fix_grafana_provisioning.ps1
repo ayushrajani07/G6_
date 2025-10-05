@@ -79,4 +79,4 @@ if (Test-Path $grafanaDbPath) {
 
 Write-Host ""
 Write-Host "🎉 Provisioning fix complete!" -ForegroundColor Green
-Write-Host "Now you can run: .\start_all_enhanced.ps1 -Debug -ForegroundGrafana" -ForegroundColor White
+Write-Host "Now you can run: .\start_all.ps1 -Debug -ForegroundGrafana" -ForegroundColor White

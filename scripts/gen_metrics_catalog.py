@@ -26,7 +26,6 @@ GROUP_GATING_ENVS = {
     'analytics_risk_agg': ['G6_ENABLE_METRIC_GROUPS','G6_RISK_AGG'],
     'adaptive_controller': ['G6_ENABLE_METRIC_GROUPS','G6_ADAPTIVE_CONTROLLER'],
     'panel_diff': ['G6_ENABLE_METRIC_GROUPS'],
-    'perf_cache': ['G6_ENABLE_METRIC_GROUPS'],
     'panels_integrity': ['G6_ENABLE_METRIC_GROUPS'],
     'greeks': ['G6_ENABLE_METRIC_GROUPS'],
 }

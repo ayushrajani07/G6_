@@ -10,7 +10,7 @@ Design:
     canonical JSON (sorted keys, no whitespace) OR a fast fallback repr.
   - Stores resulting UTF-8 encoded JSON bytes.
   - LRU eviction with a configurable max entries.
-  - Metrics (if registered via metrics registry under perf_cache group):
+    - Metrics (if registered via metrics registry under cache group):
        g6_serial_cache_hits_total
        g6_serial_cache_misses_total
        g6_serial_cache_evictions_total

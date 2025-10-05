@@ -52,7 +52,14 @@ def test_all_spec_metrics_present():
     spec_names = {entry['name'] for entry in spec_data if 'name' in entry}
     runtime_names = _collect_runtime_metric_names()
 
-    missing = sorted(spec_names - runtime_names)
+    # Treat env-gated per-expiry vol surface metrics as optional unless flag enabled
+    flag = os.getenv('G6_VOL_SURFACE_PER_EXPIRY') == '1'
+    missing = []
+    for name in sorted(spec_names - runtime_names):
+        if (not flag) and name in { 'g6_vol_surface_rows_expiry' }:
+            # Optional in absence of flag; documentation lists it but gating controls registration
+            continue
+        missing.append(name)
     assert not missing, (
         "Spec metrics missing from runtime registry (import side effects incomplete or name drift):\n" +
         "\n".join(missing)

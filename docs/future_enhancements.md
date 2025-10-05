@@ -59,7 +59,7 @@ Automation Plan:
 
 Operator Quick Run (manual current):
 ```
-python scripts/run_orchestrator_loop.py --config config/g6_config.json --interval 60 --cycles 2 --enhanced --parallel --auto-snapshots
+python scripts/run_orchestrator_loop.py --config config/g6_config.json --interval 60 --cycles 2 --parallel --auto-snapshots
 Invoke-WebRequest http://127.0.0.1:9108/metrics | Select-Object -ExpandProperty StatusCode
 Get-Content data\panels\alerts_log.json -TotalCount 40
 ```

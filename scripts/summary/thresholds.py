@@ -87,9 +87,13 @@ def _ensure_loaded():
         for k in REGISTRY.keys():
             attr = k.replace('.', '_')
             _ALIAS_MAP[attr] = k
+        raw = None
         try:
             raw = load_summary_env().threshold_overrides_raw
         except Exception:
+            raw = None
+        # Fallback to direct environment lookup if summary env snapshot absent or empty
+        if not raw:
             raw = os.getenv("G6_SUMMARY_THRESH_OVERRIDES")
         if raw:
             try:

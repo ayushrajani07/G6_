@@ -13,7 +13,7 @@ _METRICS: Dict[str, Any] = {}  # name -> metric instance
 
 def _get(name: str): return _METRICS.get(name)
 
-SPEC_HASH = 'ffd4162cb7012fc7'  # short sha256 of spec file
+SPEC_HASH = 'e8f45ed380d0801a'  # short sha256 of spec file
 
 def m_api_calls_total():
     if 'g6_api_calls_total' not in _METRICS:
@@ -426,6 +426,82 @@ def m_cs_ingest_retries_total_labels(table: str):
     if not metric: return None
     if not registry_guard.track('g6_cs_ingest_retries_total', (table,)): return None
     return metric.labels(table=table)
+
+def m_stream_append_total():
+    if 'g6_stream_append_total' not in _METRICS:
+        _METRICS['g6_stream_append_total'] = registry_guard.counter('g6_stream_append_total', 'Indices stream append events (gated writes)', ['mode'], 5)
+    return _METRICS['g6_stream_append_total']
+
+def m_stream_append_total_labels(mode: str):
+    metric = m_stream_append_total()
+    if not metric: return None
+    if not registry_guard.track('g6_stream_append_total', (mode,)): return None
+    return metric.labels(mode=mode)
+
+def m_stream_skipped_total():
+    if 'g6_stream_skipped_total' not in _METRICS:
+        _METRICS['g6_stream_skipped_total'] = registry_guard.counter('g6_stream_skipped_total', 'Indices stream skipped events (same cycle/bucket or error)', ['mode', 'reason'], 15)
+    return _METRICS['g6_stream_skipped_total']
+
+def m_stream_skipped_total_labels(mode: str, reason: str):
+    metric = m_stream_skipped_total()
+    if not metric: return None
+    if not registry_guard.track('g6_stream_skipped_total', (mode,reason,)): return None
+    return metric.labels(mode=mode, reason=reason)
+
+def m_stream_state_persist_errors_total():
+    if 'g6_stream_state_persist_errors_total' not in _METRICS:
+        _METRICS['g6_stream_state_persist_errors_total'] = registry_guard.counter('g6_stream_state_persist_errors_total', 'Stream state persistence errors', [], 1)
+    return _METRICS['g6_stream_state_persist_errors_total']
+
+def m_stream_conflict_total():
+    if 'g6_stream_conflict_total' not in _METRICS:
+        _METRICS['g6_stream_conflict_total'] = registry_guard.counter('g6_stream_conflict_total', 'Detected potential concurrent indices_stream writer conflict', [], 1)
+    return _METRICS['g6_stream_conflict_total']
+
+def m_panel_diff_writes_total():
+    if 'g6_panel_diff_writes_total' not in _METRICS:
+        _METRICS['g6_panel_diff_writes_total'] = registry_guard.counter('g6_panel_diff_writes_total', 'Panel diff snapshots written', ['type'], 10)
+    return _METRICS['g6_panel_diff_writes_total']
+
+def m_panel_diff_writes_total_labels(type: str):
+    metric = m_panel_diff_writes_total()
+    if not metric: return None
+    if not registry_guard.track('g6_panel_diff_writes_total', (type,)): return None
+    return metric.labels(type=type)
+
+def m_panel_diff_truncated_total():
+    if 'g6_panel_diff_truncated_total' not in _METRICS:
+        _METRICS['g6_panel_diff_truncated_total'] = registry_guard.counter('g6_panel_diff_truncated_total', 'Panel diff truncation events', ['reason'], 10)
+    return _METRICS['g6_panel_diff_truncated_total']
+
+def m_panel_diff_truncated_total_labels(reason: str):
+    metric = m_panel_diff_truncated_total()
+    if not metric: return None
+    if not registry_guard.track('g6_panel_diff_truncated_total', (reason,)): return None
+    return metric.labels(reason=reason)
+
+def m_panel_diff_bytes_total():
+    if 'g6_panel_diff_bytes_total' not in _METRICS:
+        _METRICS['g6_panel_diff_bytes_total'] = registry_guard.counter('g6_panel_diff_bytes_total', 'Total bytes of diff JSON written', ['type'], 10)
+    return _METRICS['g6_panel_diff_bytes_total']
+
+def m_panel_diff_bytes_total_labels(type: str):
+    metric = m_panel_diff_bytes_total()
+    if not metric: return None
+    if not registry_guard.track('g6_panel_diff_bytes_total', (type,)): return None
+    return metric.labels(type=type)
+
+def m_panel_diff_bytes_last():
+    if 'g6_panel_diff_bytes_last' not in _METRICS:
+        _METRICS['g6_panel_diff_bytes_last'] = registry_guard.gauge('g6_panel_diff_bytes_last', 'Bytes of last diff JSON written', ['type'], 10)
+    return _METRICS['g6_panel_diff_bytes_last']
+
+def m_panel_diff_bytes_last_labels(type: str):
+    metric = m_panel_diff_bytes_last()
+    if not metric: return None
+    if not registry_guard.track('g6_panel_diff_bytes_last', (type,)): return None
+    return metric.labels(type=type)
 
 try:
     _hm = m_metrics_spec_hash_info()

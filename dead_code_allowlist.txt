@@ -1,0 +1,3 @@
+# High-confidence unused symbols intentionally retained (reflected in docs or future use)
+# Format: one symbol name per line (module:object or just object). Lines starting with # ignored.
+# Keep this list minimal; removing items should be preferred to growing this list.

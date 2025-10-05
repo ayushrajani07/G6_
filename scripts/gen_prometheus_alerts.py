@@ -79,7 +79,7 @@ def compute_spec_hash(spec_path: str) -> str | None:
 def write_alerts(out_path: str, groups: List[Dict[str, Any]], spec_path: str) -> None:
     prov = {
         'schema': 'g6.alerts.provenance.v0',
-        'generated_at_utc': dt.datetime.utcnow().replace(microsecond=0).isoformat() + 'Z',
+    'generated_at_utc': dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat().replace('+00:00','Z'),
         'spec_path': spec_path,
         'spec_hash': compute_spec_hash(spec_path),
         'generator': 'gen_prometheus_alerts.py',
