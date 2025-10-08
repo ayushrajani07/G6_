@@ -12,6 +12,8 @@ import logging, os, time
 
 logger = logging.getLogger(__name__)
 
+_SUPPRESS_COVERAGE_WARN = os.environ.get('G6_SUPPRESS_COVERAGE_WARNINGS','0').lower() in ('1','true','yes','on')
+
 try:  # pragma: no cover
     from src.broker.kite.tracing import trace as _trace, is_enabled as _trace_enabled  # type: ignore
 except Exception:  # fallback minimal gate
@@ -30,9 +32,10 @@ def coverage_metrics(ctx, instruments: Iterable[Dict[str, Any]], strikes, index_
         realized_strikes = {float(inst.get('strike', 0)) for inst in instruments if float(inst.get('strike', 0)) > 0}
         coverage_ratio = (len(realized_strikes) / len(strikes)) if strikes else 0.0
         if coverage_ratio < 0.8:
-            logger.warning(
-                f"Instrument coverage low for {index_symbol} {expiry_rule} {expiry_date}: {coverage_ratio:.2%} (realized={len(realized_strikes)} requested={len(strikes)})"
-            )
+            if not _SUPPRESS_COVERAGE_WARN:
+                logger.warning(
+                    f"Instrument coverage low for {index_symbol} {expiry_rule} {expiry_date}: {coverage_ratio:.2%} (realized={len(realized_strikes)} requested={len(strikes)})"
+                )
         else:
             logger.debug(
                 f"Instrument coverage {index_symbol} {expiry_rule} {expiry_date}: {coverage_ratio:.2%} ({len(realized_strikes)}/{len(strikes)})"
@@ -87,7 +90,7 @@ def field_coverage_metrics(ctx, enriched_data: Dict[str, Any], index_symbol: str
             logger.debug(
                 f"Field coverage {index_symbol} {expiry_rule} {expiry_date}: total={total_options} full={full_present} missing(volume={missing_counts['volume']},oi={missing_counts['oi']},avg_price={missing_counts['avg_price']}) ratio={coverage_pct:.2f}%"
             )
-            if coverage_pct < 60.0:
+            if coverage_pct < 60.0 and not _SUPPRESS_COVERAGE_WARN:
                 logger.warning(
                     f"Low option field coverage {index_symbol} {expiry_rule} {expiry_date}: {coverage_pct:.2f}% (full={full_present}/{total_options})"
                 )

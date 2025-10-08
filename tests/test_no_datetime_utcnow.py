@@ -1,7 +1,7 @@
 from pathlib import Path
 import re
 
-FORBIDDEN = 'datetime.utcnow('
+FORBIDDEN = 'datetime.utcnow('  # test token; DO NOT ALTER SUBSTRING SCAN -- replaced runtime usage elsewhere
 
 def test_no_datetime_utcnow():
     repo_root = Path(__file__).resolve().parents[1]

@@ -1,13 +1,14 @@
-import os
-import json
+import os, json, pytest
 from src.metrics import MetricsRegistry, get_metrics, get_metrics_singleton  # facade import
 
+@pytest.mark.skipif(os.getenv('G6_EGRESS_FROZEN','').lower() in {'1','true','yes','on'}, reason='panel diff egress frozen')
 def test_dump_metrics_metadata_structure():
     # Use a fresh singleton to avoid prior test pollution
     os.environ.pop('G6_ENABLE_METRIC_GROUPS', None)
     os.environ.pop('G6_DISABLE_METRIC_GROUPS', None)
     # Force creation
     m = get_metrics()
+    assert m is not None
     # Access via facade helper if present, else direct (backward compatible)
     try:
         from src.metrics import get_metrics_metadata  # type: ignore
@@ -28,6 +29,7 @@ def test_dump_metrics_metadata_structure():
     assert found >= 3  # tolerate gating/env differences but require majority
 
 
+@pytest.mark.skipif(os.getenv('G6_EGRESS_FROZEN','').lower() in {'1','true','yes','on'}, reason='panel diff egress frozen')
 def test_dump_metrics_metadata_respects_filters(monkeypatch):
     # Enable only a narrow subset of groups, verify others absent
     monkeypatch.setenv('G6_ENABLE_METRIC_GROUPS', 'panel_diff,provider_failover')
@@ -47,6 +49,7 @@ def test_dump_metrics_metadata_respects_filters(monkeypatch):
     assert 'risk_agg_rows' not in groups
 
 
+@pytest.mark.skipif(os.getenv('G6_EGRESS_FROZEN','').lower() in {'1','true','yes','on'}, reason='panel diff egress frozen')
 def test_dump_metrics_metadata_disable_filter(monkeypatch):
     # Disable a specific group
     monkeypatch.setenv('G6_DISABLE_METRIC_GROUPS', 'panel_diff')

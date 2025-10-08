@@ -1,6 +1,6 @@
 import time
 
-from src.metrics.metrics import isolated_metrics_registry
+from src.metrics import isolated_metrics_registry  # facade import; legacy deep path deprecated
 
 
 def test_api_call_metrics_and_introspection():

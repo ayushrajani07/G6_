@@ -10,8 +10,10 @@ import time
 import logging
 import json
 from typing import Any, Dict
+from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
+from src.utils.env_flags import is_truthy_env  # type: ignore
 try:
     from .adaptive import update_strike_scaling  # type: ignore
 except Exception:  # pragma: no cover
@@ -27,6 +29,48 @@ except Exception:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
+def _env_float(name: str, default: float, *, minimum: Optional[float] = None, maximum: Optional[float] = None) -> float:
+    """Parse a float environment variable robustly.
+
+    Handles values with inline comments (e.g. "60   # seconds") and whitespace.
+    Returns default on any parsing failure. Applies optional min/max clamps.
+    """
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    # Strip inline comment if present
+    val = raw.split('#', 1)[0].strip()
+    if not val:
+        return default
+    try:
+        f = float(val)
+    except Exception:
+        logger.debug("env_float_parse_failed name=%s raw=%r", name, raw, exc_info=True)
+        return default
+    if minimum is not None and f < minimum:
+        f = minimum
+    if maximum is not None and f > maximum:
+        f = maximum
+    return f
+
+def _env_int(name: str, default: int, *, minimum: Optional[int] = None, maximum: Optional[int] = None) -> int:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    val = raw.split('#', 1)[0].strip()
+    if not val:
+        return default
+    try:
+        n = int(val)
+    except Exception:
+        logger.debug("env_int_parse_failed name=%s raw=%r", name, raw, exc_info=True)
+        return default
+    if minimum is not None and n < minimum:
+        n = minimum
+    if maximum is not None and n > maximum:
+        n = maximum
+    return n
+
 try:  # unified collectors (primary path)
     from src.collectors.unified_collectors import run_unified_collectors  # type: ignore
 except Exception:  # pragma: no cover
@@ -35,7 +79,7 @@ except Exception:  # pragma: no cover
 run_snapshot_collectors = None  # type: ignore
 
 # Optional pipeline collector (Phase 4.1 Action #2). Activated via G6_PIPELINE_COLLECTOR=1
-_PIPELINE_FLAG = os.environ.get('G6_PIPELINE_COLLECTOR','').lower() in ('1','true','yes','on')
+_PIPELINE_FLAG = is_truthy_env('G6_PIPELINE_COLLECTOR')
 if _PIPELINE_FLAG:
     try:  # defer import cost until flag set
         from src.collectors.pipeline import build_default_pipeline  # type: ignore
@@ -139,16 +183,16 @@ def run_cycle(ctx: RuntimeContext) -> float:
     except Exception:  # pragma: no cover
         logger.debug("event emission failed (cycle_start)")
     try:
-        parallel_enabled = os.environ.get('G6_PARALLEL_INDICES','').lower() in ('1','true','yes','on')
-        max_workers = int(os.environ.get('G6_PARALLEL_INDEX_WORKERS', '4'))
+        parallel_enabled = is_truthy_env('G6_PARALLEL_INDICES')
+        max_workers = _env_int('G6_PARALLEL_INDEX_WORKERS', 4, minimum=1)
         # Guard extremely low or high values
         if max_workers < 1:
             max_workers = 1
         indices = list(ctx.index_params.keys())  # type: ignore[assignment]
         if parallel_enabled and len(indices) > 1:
             # Budget & timeout parameters
-            interval_env = float(os.environ.get('G6_CYCLE_INTERVAL','60'))
-            cycle_budget_fraction = float(os.environ.get('G6_PARALLEL_CYCLE_BUDGET_FRACTION','0.9'))
+            interval_env = _env_float('G6_CYCLE_INTERVAL', 60.0, minimum=0.1)
+            cycle_budget_fraction = _env_float('G6_PARALLEL_CYCLE_BUDGET_FRACTION', 0.9, minimum=0.1, maximum=1.0)
             per_index_timeout = os.environ.get('G6_PARALLEL_INDEX_TIMEOUT_SEC')
             if per_index_timeout is not None:
                 try:
@@ -157,8 +201,8 @@ def run_cycle(ctx: RuntimeContext) -> float:
                     per_index_timeout_val = max(1.0, interval_env * 0.25)
             else:
                 per_index_timeout_val = max(1.0, interval_env * 0.25)
-            retry_limit = int(os.environ.get('G6_PARALLEL_INDEX_RETRY','0'))
-            stagger_ms = int(os.environ.get('G6_PARALLEL_STAGGER_MS','0'))
+            retry_limit = _env_int('G6_PARALLEL_INDEX_RETRY', 0, minimum=0)
+            stagger_ms = _env_int('G6_PARALLEL_STAGGER_MS', 0, minimum=0)
             deadline = start + (interval_env * cycle_budget_fraction)
             remaining = lambda: deadline - time.time()
             if ctx.metrics and hasattr(ctx.metrics, 'parallel_index_workers'):
@@ -286,7 +330,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
                                 # Build strikes list via shared utility
                                 try:
                                     from src.utils.strikes import build_strikes  # type: ignore
-                                    passthrough = os.environ.get('G6_ADAPTIVE_SCALE_PASSTHROUGH','').lower() in ('1','true','yes','on')
+                                    passthrough = is_truthy_env('G6_ADAPTIVE_SCALE_PASSTHROUGH')
                                     scale_factor = None
                                     if passthrough:
                                         try:
@@ -348,7 +392,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
                         except Exception:
                             logger.debug("pipeline collector failed; falling back to legacy unified collectors", exc_info=True)
                 greeks_cfg = ctx.config.get('greeks', {})  # type: ignore[index]
-                auto_snapshots = os.environ.get('G6_AUTO_SNAPSHOTS','').lower() in ('1','true','yes','on')
+                auto_snapshots = is_truthy_env('G6_AUTO_SNAPSHOTS')
                 # Dynamically resolve unified collectors each cycle so external monkeypatching works (tests rely on this)
                 try:
                     import src.collectors.unified_collectors as _uni_mod  # type: ignore
@@ -387,10 +431,29 @@ def run_cycle(ctx: RuntimeContext) -> float:
             ctx.metrics.cycle_time_seconds.observe(elapsed)  # type: ignore[attr-defined]
     except Exception:
         logger.debug("cycle_time_seconds observe failed", exc_info=True)
+    # Global phase timing consolidated emission (once per overall cycle)
+    try:
+        if os.environ.get('G6_GLOBAL_PHASE_TIMING','').lower() in ('1','true','yes','on'):
+            try:
+                from src.orchestrator import global_phase_timing as _gpt  # type: ignore
+                # runtime context may have cycle_ts attribute else fallback epoch int of start
+                cycle_ts_attr = getattr(ctx, 'cycle_ts', None)
+                if cycle_ts_attr is None:
+                    # Use wall clock epoch seconds (avoid direct datetime.* calls that tests forbid)
+                    try:
+                        cycle_ts_attr = int(time.time())
+                    except Exception:
+                        cycle_ts_attr = 0
+                indices_total = len(ctx.index_params) if isinstance(ctx.index_params, dict) else -1
+                _gpt.emit_global(indices_total, cycle_ts_attr)
+            except Exception:
+                logger.debug('global_phase_timing_emit_failed', exc_info=True)
+    except Exception:
+        logger.debug('global_phase_timing_wrapper_failed', exc_info=True)
     # SLA breach & data gap instrumentation
     try:
         if getattr(ctx, 'metrics', None):
-            interval_env = float(os.environ.get('G6_CYCLE_INTERVAL','60'))
+            interval_env = _env_float('G6_CYCLE_INTERVAL', 60.0, minimum=0.1)
             sla_fraction = float(os.environ.get('G6_CYCLE_SLA_FRACTION','0.85'))
             sla_budget = max(0.0, interval_env * sla_fraction)
             if elapsed > sla_budget and hasattr(ctx.metrics, 'cycle_sla_breach'):
@@ -432,7 +495,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
         logger.debug("failed to set last_success_cycle_time", exc_info=True)
     # Adaptive strike scaling (optional)
     try:
-        interval = float(os.environ.get('G6_CYCLE_INTERVAL','60'))
+        interval = _env_float('G6_CYCLE_INTERVAL', 60.0, minimum=0.1)
         update_strike_scaling(ctx, elapsed, interval)
     except Exception:  # pragma: no cover
         logger.debug("adaptive scaling hook failed", exc_info=True)
@@ -451,7 +514,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
     # Adaptive controller evaluation (multi-signal detail mode + scaling decisions)
     try:
         from .adaptive_controller import evaluate_adaptive_controller  # type: ignore
-        interval_env = float(os.environ.get('G6_CYCLE_INTERVAL','60'))
+        interval_env = _env_float('G6_CYCLE_INTERVAL', 60.0, minimum=0.1)
         evaluate_adaptive_controller(ctx, elapsed, interval_env)
     except Exception:
         logger.debug("adaptive controller evaluation failed", exc_info=True)
@@ -471,7 +534,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
         logger.debug("lifecycle job run failed", exc_info=True)
     # Optional integrity auto-run: invoke integrity checker every N cycles (default 60) best-effort.
     try:
-        if os.environ.get('G6_INTEGRITY_AUTO_RUN','').lower() in ('1','true','yes','on'):
+        if is_truthy_env('G6_INTEGRITY_AUTO_RUN'):
             mod_raw = os.environ.get('G6_INTEGRITY_AUTO_EVERY','60') or '60'
             try:
                 mod_val = int(mod_raw)

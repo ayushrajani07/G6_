@@ -31,10 +31,20 @@ import logging
 import datetime as _dt
 
 from .base import OutputPlugin, SummarySnapshot
+import threading
 
 logger = logging.getLogger(__name__)
 
 _GATE_FILE = ".indices_stream_state.json"
+
+# One-time warning sentinels. We prefer attaching state to the logger so that
+# even if this module is imported via distinct package paths (creating separate
+# module objects and thus separate globals), the shared logger instance (keyed
+# by name) prevents duplicate emissions.
+_FLAGS_WARNED = False  # legacy global fallback
+_FLAGS_WARNED_LOCK = threading.Lock()
+if not hasattr(logger, '_flags_warned_once'):
+    logger._flags_warned_once = False  # type: ignore[attr-defined]
 
 _TRUTHY = {"1","true","yes","on"}
 
@@ -253,13 +263,19 @@ class StreamGaterPlugin(OutputPlugin):
 
     def process(self, snap: SummarySnapshot) -> None:
         # Phase 4: always active. Retired flags produce a one-time warning only.
+        global _FLAGS_WARNED  # noqa: PLW0603 (explicitly modifying module sentinel)
         try:
-            if not hasattr(self, '_warned_flags'):
-                self._warned_flags = False  # type: ignore[attr-defined]
-            if not self._warned_flags and (os.getenv('G6_UNIFIED_STREAM_GATER') or os.getenv('G6_DISABLE_UNIFIED_GATER')):
-                logger.warning("[stream_gater] Flags G6_UNIFIED_STREAM_GATER / G6_DISABLE_UNIFIED_GATER are retired and ignored (always enabled).")
-                self._warned_flags = True  # type: ignore[attr-defined]
+            # Double-checked locking to avoid emitting duplicate warnings under rare
+            # concurrent first-call invocation scenarios.
+            if (not getattr(logger, '_flags_warned_once', False)) and (os.getenv('G6_UNIFIED_STREAM_GATER') or os.getenv('G6_DISABLE_UNIFIED_GATER')):
+                with _FLAGS_WARNED_LOCK:
+                    if not getattr(logger, '_flags_warned_once', False):
+                        logger.warning("[stream_gater] Flags G6_UNIFIED_STREAM_GATER / G6_DISABLE_UNIFIED_GATER are retired and ignored (always enabled).")
+                        logger._flags_warned_once = True  # type: ignore[attr-defined]
+                        # keep global in sync for completeness
+                        _FLAGS_WARNED = True
         except Exception:
+            # Defensive: never let logging guard raise
             pass
         try:
             status_obj = snap.status if isinstance(snap.status, Mapping) else {}

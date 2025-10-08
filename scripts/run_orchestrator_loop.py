@@ -30,6 +30,11 @@ from src.orchestrator.loop import run_loop  # type: ignore
 from src.orchestrator.context import RuntimeContext  # type: ignore
 from src.orchestrator.startup_sequence import run_startup_sequence  # type: ignore
 from src.config.runtime_config import get_runtime_config
+try:
+    from src.collectors.helpers.cycle_tables import flush_deferred_cycle_tables  # type: ignore
+except Exception:  # pragma: no cover
+    def flush_deferred_cycle_tables():  # type: ignore
+        pass
 
 LOG_FORMAT = "[%(asctime)s] %(levelname)s %(name)s: %(message)s"
 logging.basicConfig(level=os.environ.get("G6_LOG_LEVEL", "INFO"), format=LOG_FORMAT)
@@ -108,6 +113,19 @@ def main(argv: list[str]) -> int:
         bool(os.environ.get('G6_AUTO_SNAPSHOTS')),
         os.environ.get('G6_LOOP_MAX_CYCLES'),
     )
+    # SINGLE_HEADER_MODE: emit daily header once centrally (concise mode expectation)
+    if os.environ.get('G6_SINGLE_HEADER_MODE','').lower() in ('1','true','yes','on'):
+        try:
+            import datetime
+            # Use timezone-aware UTC date to avoid naive now() (tests forbid naive usage)
+            today_str = datetime.datetime.now(datetime.timezone.utc).strftime('%d-%b-%Y')
+            if os.environ.get('G6_COMPACT_BANNERS','').lower() in ('1','true','yes','on'):
+                logger.info("DAILY OPTIONS COLLECTION LOG %s", today_str)
+            else:
+                header = ("\n" + "="*70 + f"\n        DAILY OPTIONS COLLECTION LOG — {today_str}\n" + "="*70 + "\n")
+                logger.info(header)
+        except Exception:
+            logger.debug('single_header_mode_emit_failed', exc_info=True)
 
     try:
         run_loop(ctx, cycle_fn=cycle_fn, interval=effective_interval)
@@ -123,6 +141,11 @@ def main(argv: list[str]) -> int:
         except Exception:
             pass
     logger.info("Loop complete")
+    # Final flush of deferred tables if enabled
+    try:
+        flush_deferred_cycle_tables()
+    except Exception:
+        logger.debug('flush_deferred_cycle_tables_failed', exc_info=True)
     return 0
 
 if __name__ == '__main__':  # pragma: no cover

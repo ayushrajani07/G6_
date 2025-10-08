@@ -1,31 +1,31 @@
 {
   "panel": "indices_panel",
-  "updated_at": "2025-10-05T10:18:32Z",
+  "updated_at": "2025-10-06T09:18:18Z",
   "data": {
     "items": [
       {
         "index": "NIFTY",
         "status": "ok",
-        "dq_score": 74.31,
+        "dq_score": 83.75,
         "age": 2
       },
       {
         "index": "BANKNIFTY",
         "status": "ok",
-        "dq_score": 77.78,
-        "age": 5
+        "dq_score": 83.92,
+        "age": 1
       },
       {
         "index": "FINNIFTY",
         "status": "ok",
-        "dq_score": 79.66,
-        "age": 1
+        "dq_score": 82.94,
+        "age": 4
       },
       {
         "index": "SENSEX",
         "status": "ok",
-        "dq_score": 78.02,
-        "age": 5
+        "dq_score": 86.18,
+        "age": 0
       }
     ],
     "count": 4

@@ -73,6 +73,13 @@ class EmissionBatcher:
         self._min_batch = int(os.getenv("G6_EMISSION_BATCH_MIN_SIZE", "50"))
         self._max_batch = int(os.getenv("G6_EMISSION_BATCH_MAX_SIZE", "5000"))
         self._adaptive_target: int = self._min_batch
+        # Under-utilization tracking
+        self._under_util_count: int = 0
+        self._under_util_threshold = float(os.getenv("G6_EMISSION_BATCH_UNDER_UTIL_THRESHOLD", "0.3"))
+        self._under_util_consec = int(os.getenv("G6_EMISSION_BATCH_UNDER_UTIL_CONSEC", "3"))
+        self._decay_alpha_idle = float(os.getenv("G6_EMISSION_BATCH_DECAY_ALPHA_IDLE", "0.6"))
+        self._max_wait = float(os.getenv("G6_EMISSION_BATCH_MAX_WAIT_MS", "750")) / 1000.0
+        self._last_activity = time.time()
         if self._config.enabled:
             self._start_thread()
         # Track last flush completion to enforce hard ceiling interval
@@ -151,6 +158,7 @@ class EmissionBatcher:
             # (use current adaptive target or min_batch if not yet computed)
             pending_size = len(self._pending)
             target = self._adaptive_target or self._min_batch
+            self._last_activity = time.time()
             if pending_size >= target:
                 # Release lock before heavy flush work
                 pass_trigger = True
@@ -194,6 +202,8 @@ class EmissionBatcher:
         self._metrics.inc_flush(applied, queue_depth=len(self._pending))
         self._metrics.set_flush_size(applied)
         self._metrics.set_adaptive_target(self._adaptive_target)
+        # Utilization metrics: applied distinct entries vs adaptive target
+        self._metrics.set_utilization(applied, self._adaptive_target)
         self._last_flush_end = time.time()
 
     # --- Adaptive sizing helpers ---
@@ -210,10 +220,13 @@ class EmissionBatcher:
         dt = max(now - self._last_ewma_ts, 1e-6)
         delta = merged_total - self._last_total_merged
         inst_rate = max(delta / dt, 0.0)
+        # Choose alpha: if very low instantaneous rate, accelerate decay using idle alpha
+        low_rate_threshold = (self._min_batch / max(self._target_interval, 1e-3)) / 4.0
+        alpha = self._decay_alpha_idle if inst_rate < low_rate_threshold else self._adapt_alpha
         if self._ewma_rate == 0.0:
             ewma = inst_rate
         else:
-            ewma = self._adapt_alpha * inst_rate + (1 - self._adapt_alpha) * self._ewma_rate
+            ewma = alpha * inst_rate + (1 - alpha) * self._ewma_rate
         self._ewma_rate = ewma
         self._last_ewma_ts = now
         self._last_total_merged = merged_total
@@ -222,6 +235,15 @@ class EmissionBatcher:
             target = self._min_batch
         elif target > self._max_batch:
             target = self._max_batch
+        # Under-utilization downshift: if last flush utilization repeatedly low, shrink target 25%
+        util = self._metrics.last_utilization()  # prior flush utilization
+        if util is not None and util < self._under_util_threshold:
+            self._under_util_count += 1
+        else:
+            self._under_util_count = 0
+        if self._under_util_count >= self._under_util_consec:
+            target = max(self._min_batch, int(target * 0.75))
+            self._under_util_count = 0
         self._adaptive_target = target
         return target
 
@@ -247,6 +269,9 @@ class _InternalBatchMetrics:
         self._flush_size_gauge = None
         self._adaptive_target_gauge = None
         self._flush_ms_hist = None
+        self._utilization_gauge = None
+        self._dropped_ratio_gauge = None
+        self._last_utilization: Optional[float] = None
 
     def _maybe_register(self):  # pragma: no cover - registration side effect
         if self._registered or not self._Gauge:
@@ -262,6 +287,8 @@ class _InternalBatchMetrics:
                 self._flush_size_gauge = self._Gauge("g6_metrics_batch_flush_increments", "Number of distinct counter entries flushed in last batch")
                 self._adaptive_target_gauge = self._Gauge("g6_metrics_batch_adaptive_target", "Current adaptive target batch size")
                 self._flush_ms_hist = self._Histogram("g6_metrics_batch_flush_duration_ms", "Flush latency ms (duplicate internal instrument)")
+                self._utilization_gauge = self._Gauge("g6_metrics_batch_adaptive_utilization", "Adaptive batch utilization (last_flush_size / adaptive_target)")
+                self._dropped_ratio_gauge = self._Gauge("g6_metrics_batch_dropped_ratio", "Dropped increments / merged increments (cumulative ratio)")
             _InternalBatchMetrics._registered = True
         except Exception:
             pass
@@ -296,6 +323,27 @@ class _InternalBatchMetrics:
     def set_adaptive_target(self, target: int):
         if self._adaptive_target_gauge:
             self._adaptive_target_gauge.set(target)
+
+    def set_utilization(self, applied: int, target: int):
+        if target <= 0:
+            return
+        util = applied / float(target)
+        self._last_utilization = util
+        if self._utilization_gauge:
+            self._utilization_gauge.set(util)
+        # Dropped ratio gauge updated opportunistically here
+        if self._dropped_ratio_gauge and self._merged_total and self._dropped_total:
+            try:
+                # Access internal counters (prometheus_client stores value in _value)
+                merged_val = self._merged_total._value.get()  # type: ignore
+                dropped_val = self._dropped_total._value.get()  # type: ignore
+                ratio = dropped_val / merged_val if merged_val else 0.0
+                self._dropped_ratio_gauge.set(ratio)
+            except Exception:
+                pass
+
+    def last_utilization(self) -> Optional[float]:
+        return self._last_utilization
 
     def total_merged(self) -> float:
         return self._merged_cumulative
@@ -345,4 +393,33 @@ def get_batcher() -> EmissionBatcher:
         _BATCHER = EmissionBatcher(cfg)
     return _BATCHER
 
-__all__ = ["get_batcher", "EmissionBatcher"]
+# --- Histogram pre-aggregation stub (future enhancement) ---
+_HISTOGRAMS: Dict[str, Any] = {}
+
+def register_histogram(name: str, buckets: Optional[list[float]] = None):  # pragma: no cover - stub
+    """Placeholder for future histogram bucket coalescing registration.
+
+    Currently returns a passthrough object with observe() writing directly to the underlying
+    prometheus_client Histogram (created immediately). Future version may batch observations.
+    """
+    try:
+        from prometheus_client import Histogram  # type: ignore
+        h = Histogram(name, f"Registered histogram {name}", buckets=buckets) if buckets else Histogram(name, f"Registered histogram {name}")
+        _HISTOGRAMS[name] = h
+        return h
+    except Exception:
+        class _Stub:  # noqa: D401
+            def observe(self, *_a, **_k):
+                return None
+        return _Stub()
+
+def batch_observe(name: str, value: float):  # pragma: no cover - stub
+    h = _HISTOGRAMS.get(name)
+    if h is None:
+        return
+    try:
+        h.observe(value)
+    except Exception:
+        pass
+
+__all__ = ["get_batcher", "EmissionBatcher", "register_histogram", "batch_observe"]

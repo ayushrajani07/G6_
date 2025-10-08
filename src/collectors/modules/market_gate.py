@@ -32,6 +32,8 @@ def evaluate_market_gate(build_snapshots: bool, metrics) -> Tuple[bool, Optional
     except Exception:
         _market_open = True
 
+    # Weekend mode logic removed (reverting to strict weekday/holiday market hours only)
+
     force_open = os.environ.get('G6_FORCE_MARKET_OPEN','').lower() in ('1','true','yes','on')
 
     # Broaden bypass when snapshot building under tests
@@ -43,7 +45,24 @@ def evaluate_market_gate(build_snapshots: bool, metrics) -> Tuple[bool, Optional
         pass
 
     if force_open or _market_open:
-        logger.info("Equity market is open, starting collection")
+        disable_repeat = os.environ.get('G6_DISABLE_REPEAT_BANNERS','').lower() in ('1','true','yes','on')
+        single_header_mode = os.environ.get('G6_SINGLE_HEADER_MODE','').lower() in ('1','true','yes','on')
+        banner_debug = os.environ.get('G6_BANNER_DEBUG','').lower() in ('1','true','yes','on')
+        sentinel = '_g6_logged_market_open'
+        if single_header_mode:
+            # In single header mode we always suppress duplicates regardless of disable_repeat
+            if sentinel not in globals():
+                logger.info("Equity market is open, starting collection")
+                globals()[sentinel] = True  # type: ignore
+            else:
+                if banner_debug:
+                    logger.debug("banner_suppressed market_open single_header_mode=1")
+        else:
+            if not (disable_repeat and sentinel in globals()):
+                logger.info("Equity market is open, starting collection")
+                globals()[sentinel] = True  # type: ignore
+            elif banner_debug:
+                logger.debug("banner_suppressed market_open disable_repeat=1")
         return True, None
 
     # Market closed path

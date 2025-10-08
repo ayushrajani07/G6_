@@ -1,6 +1,6 @@
 import pytest
 
-from src.metrics.metrics import isolated_metrics_registry
+from src.metrics import isolated_metrics_registry  # facade import; legacy deep path deprecated
 
 @pytest.mark.parametrize("metric_attr, expected_prefix", [
     ("option_detail_band_rejections", "g6_option_detail_band_rejections"),

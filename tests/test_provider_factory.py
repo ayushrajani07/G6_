@@ -1,6 +1,9 @@
 import os
 import warnings
+import pytest
 from src.providers.factory import create_provider
+
+BROKER_ENABLED = bool(os.getenv('G6_ENABLE_BROKER_TESTS'))
 
 
 def test_create_dummy_provider():
@@ -9,6 +12,7 @@ def test_create_dummy_provider():
     assert hasattr(p, 'close')
 
 
+@pytest.mark.skipif(not BROKER_ENABLED, reason='Broker tests skipped (set G6_ENABLE_BROKER_TESTS=1 to enable)')
 def test_create_kite_provider_from_env(monkeypatch):
     # Provide fake credentials; provider init should not raise. Localize deprecation warning capture.
     monkeypatch.setenv('KITE_API_KEY', 'test_key')

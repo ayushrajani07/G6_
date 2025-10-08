@@ -61,6 +61,7 @@ def process_index(
         'overall_legs': 0,
         'overall_fails': 0,
     }
+    # Weekend mode short-circuit removed; rely solely on market_hours gating at higher level.
     TRACE_ENABLED = bool(deps.get('TRACE_ENABLED'))
     trace = deps.get('trace', lambda *_a, **_k: None)
     # AggregationState fallback: provide a lightweight stub so downstream code relying

@@ -328,6 +328,13 @@ class _RegistryGuard:
                 _rg_budget[name] = budget
                 return metric
             except Exception as e:  # pragma: no cover
+                try:
+                    import os
+                    if os.getenv('G6_SUPPRESS_METRIC_DUP_WARN','').lower() in ('1','true','yes','on'):
+                        # Silent suppression path (still allow fail-on-dup earlier to raise if configured)
+                        return None
+                except Exception:
+                    pass
                 _rg_rate_limited((name,'register'), f"metric.register.failed name={name} err={e}")
                 return None
 

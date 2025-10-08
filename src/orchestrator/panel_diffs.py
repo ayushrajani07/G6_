@@ -24,6 +24,9 @@ import os
 from typing import Any, Dict, Optional, Tuple
 from dataclasses import dataclass
 
+# Freeze gating: if platform egress (non-Prometheus) is frozen, we no-op.
+_EGRESS_FROZEN = os.getenv('G6_EGRESS_FROZEN','').lower() in {'1','true','yes','on'}
+
 try:  # Lazy import to avoid startup impact when SSE not enabled
     from src.events.event_bus import get_event_bus  # type: ignore
 except Exception:  # pragma: no cover - fallback when module unavailable
@@ -71,6 +74,8 @@ def emit_panel_artifacts(status: Dict[str, Any], *, status_path: str) -> None:
       G6_PANEL_DIFF_FULL_INTERVAL=int : every N diffs persist a full snapshot
       G6_PANEL_DIFF_NEST_DEPTH=int : recursive dict depth (default 1 - existing behavior)
     """
+    if _EGRESS_FROZEN:
+        return
     if os.environ.get('G6_PANEL_DIFFS','').lower() not in ('1','true','yes','on'):
         return
     import time as _t

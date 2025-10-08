@@ -4,7 +4,7 @@ Derives structured alert counts from per-index + per-expiry records built by
 collectors (pipeline or legacy) without additional provider calls.
 
 Counting Policy (v1):
-  * Coverage, empties, synthetic usage counted per-expiry occurrence.
+    * Coverage & empties counted per-expiry occurrence.
   * Index-level failures/empties counted once per index (even if multiple expiries). 
   * Coverage thresholds configurable via env or parameters.
 
@@ -26,7 +26,7 @@ Categories:
   low_strike_coverage
   low_field_coverage
   low_both_coverage
-  synthetic_quotes_used
+    (synthetic_quotes_used removed 2025-10-08)
   (Future placeholders - anomaly_detected, validation_issues, degraded_provider_mode)
 
 Future Enhancements:
@@ -75,11 +75,11 @@ def aggregate_alerts(indices_struct: List[Dict[str, Any]], *, strike_cov_min: fl
         'low_strike_coverage': 0,
         'low_field_coverage': 0,
         'low_both_coverage': 0,
-        'synthetic_quotes_used': 0,
-          # Phase 10 taxonomy expansion (optional; gated by env thresholds)
-          'liquidity_low': 0,
-          'stale_quote': 0,
-          'wide_spread': 0,
+        'synthetic_quotes_used': 0,  # legacy key retained constant (removed logic)
+        # Phase 10 taxonomy expansion (optional; gated by env thresholds)
+        'liquidity_low': 0,
+        'stale_quote': 0,
+        'wide_spread': 0,
     }
     triggers: Dict[str, Set[str]] = {k: set() for k in counts.keys()}
 
@@ -130,9 +130,7 @@ def aggregate_alerts(indices_struct: List[Dict[str, Any]], *, strike_cov_min: fl
             if low_strike and low_field:
                 counts['low_both_coverage'] += 1
                 triggers['low_both_coverage'].add(index_symbol)
-            if exp.get('synthetic_quotes'):
-                counts['synthetic_quotes_used'] += 1
-                triggers['synthetic_quotes_used'].add(index_symbol)
+            # synthetic quotes flag ignored (legacy removed)
             # Extended taxonomy evaluation (per-expiry aggregate heuristics)
             if enable_extended:
                 try:

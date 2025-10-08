@@ -20,6 +20,7 @@ This script assumes execution via the project root (e.g. `python -m src.src_debu
 """
 
 from src.broker.kite_provider import KiteProvider
+from src.provider.config import get_provider_config
 from src.collectors.providers_interface import Providers
 from src.storage.csv_sink import CsvSink
 try:
@@ -36,7 +37,8 @@ def main():
     
     # Initialize provider
     try:
-        kite_provider = KiteProvider.from_env()
+        snap = get_provider_config()
+        kite_provider = KiteProvider.from_provider_config(snap)
         providers = Providers(primary_provider=kite_provider)
         logger.info("Providers initialized successfully")
     except Exception as e:

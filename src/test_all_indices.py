@@ -28,10 +28,11 @@ def main():
     logger.info("\033[1;32m===== TESTING ALL INDICES =====\033[0m")
     
     from src.broker.kite_provider import KiteProvider
+    from src.provider.config import get_provider_config
     from src.storage.csv_sink import CsvSink
     
     # Initialize provider and storage
-    kite_provider = KiteProvider.from_env()
+    kite_provider = KiteProvider.from_provider_config(get_provider_config())
     csv_dir = data_subdir('g6_indices_test')
     csv_sink = CsvSink(base_dir=csv_dir)
     
@@ -118,7 +119,8 @@ def main():
                         q_any = quotes[key]
                         if not isinstance(q_any, dict):
                             continue
-                        quote_data: Dict[str, Any] = q_any
+                        # Normalize quote mapping defensively (duck-typed)
+                        quote_data = dict(q_any) if hasattr(q_any, 'items') else q_any  # type: ignore[assignment]
                         if symbol in options_data:
                             entry_any = options_data.get(symbol)
                             if not isinstance(entry_any, dict):

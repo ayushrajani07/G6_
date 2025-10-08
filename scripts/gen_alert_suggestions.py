@@ -36,6 +36,15 @@ SUCCESS_RATIO_WARN = 0.995
 SUCCESS_RATIO_CRIT = 0.99
 BACKLOG_ETA_WARN_MIN = 10
 BACKLOG_ETA_CRIT_MIN = 30
+BACKLOG_BURN_MIN_WARN = 100   # rows/s below this while backlog large indicates slowing drain
+BACKLOG_BURN_MIN_CRIT = 20    # severe stall threshold
+BACKLOG_LARGE_BACKLOG = 50_000  # backlog rows considered large (tune as needed)
+
+# Latency ratio thresholds (5m vs 30m) for regression detection; tuned to surface sustained spikes without noise.
+INGEST_P95_RATIO_WARN = 1.25  # 25% higher short-term
+INGEST_P95_RATIO_CRIT = 1.50  # 50% higher short-term
+BUS_P95_RATIO_WARN = 1.30     # bus variability slightly higher tolerance
+BUS_P95_RATIO_CRIT = 1.60
 
 
 def build_doc() -> dict:
@@ -46,6 +55,49 @@ def build_doc() -> dict:
     backlog_eta_expr_5m = (
         "(sum(g6_cs_ingest_backlog_rows) / clamp_min(sum(rate(g6_cs_ingest_rows_total[5m])),1)) / 60"
     )
+    latency_ratio_rules = [
+        {
+            "alert": "G6CsIngestLatencyP95RegressionWarning",
+            "expr": f"g6_cs_ingest_latency_ms:p95_ratio_5m_30m > {INGEST_P95_RATIO_WARN}",
+            "for": "10m",
+            "labels": {"severity": "warning"},
+            "annotations": {
+                "summary": "CS ingest p95 latency regression >25% (10m)",
+                "description": "Short-term (5m) p95 ingest latency exceeds 30m baseline by >25% for 10m.",
+            },
+        },
+        {
+            "alert": "G6CsIngestLatencyP95RegressionCritical",
+            "expr": f"g6_cs_ingest_latency_ms:p95_ratio_5m_30m > {INGEST_P95_RATIO_CRIT}",
+            "for": "5m",
+            "labels": {"severity": "critical"},
+            "annotations": {
+                "summary": "CS ingest p95 latency regression >50% (5m)",
+                "description": "Critical: 5m p95 ingest latency >50% above 30m baseline sustained 5m.",
+            },
+        },
+        {
+            "alert": "G6BusPublishLatencyP95RegressionWarning",
+            "expr": f"g6_bus_publish_latency_ms:p95_ratio_5m_30m_by_bus > {BUS_P95_RATIO_WARN}",
+            "for": "10m",
+            "labels": {"severity": "warning"},
+            "annotations": {
+                "summary": "Bus publish p95 latency regression >30% (10m)",
+                "description": "Short-term bus publish p95 latency exceeds 30m baseline by >30% for 10m (any bus).",
+            },
+        },
+        {
+            "alert": "G6BusPublishLatencyP95RegressionCritical",
+            "expr": f"g6_bus_publish_latency_ms:p95_ratio_5m_30m_by_bus > {BUS_P95_RATIO_CRIT}",
+            "for": "5m",
+            "labels": {"severity": "critical"},
+            "annotations": {
+                "summary": "Bus publish p95 latency regression >60% (5m)",
+                "description": "Critical: bus publish p95 latency >60% above 30m baseline sustained 5m (any bus label).",
+            },
+        },
+    ]
+
     return {
         "groups": [
             {
@@ -92,7 +144,28 @@ def build_doc() -> dict:
                             "description": "Critical: Column store backlog drain time exceeds 30 minutes sustained 5m; ingestion falling behind.",
                         },
                     },
-                ],
+                    # Backlog stall alerts using recording rules (burn + eta) once adopted
+                    {
+                        "alert": "G6CsBacklogStallWarning",
+                        "expr": f"(g6_cs_ingest_backlog_rows:eta_minutes > {BACKLOG_ETA_WARN_MIN}) and (g6_cs_ingest_backlog_rows:burn_rows_per_s < {BACKLOG_BURN_MIN_WARN}) and (sum(g6_cs_ingest_backlog_rows) > {BACKLOG_LARGE_BACKLOG})",
+                        "for": "10m",
+                        "labels": {"severity": "warning"},
+                        "annotations": {
+                            "summary": "CS backlog stall suspected (low burn, high ETA)",
+                            "description": "Backlog ETA high and burn rate low with large backlog; ingestion may be under-provisioned or stalled.",
+                        },
+                    },
+                    {
+                        "alert": "G6CsBacklogStallCritical",
+                        "expr": f"(g6_cs_ingest_backlog_rows:eta_minutes > {BACKLOG_ETA_CRIT_MIN}) and (g6_cs_ingest_backlog_rows:burn_rows_per_s < {BACKLOG_BURN_MIN_CRIT}) and (sum(g6_cs_ingest_backlog_rows) > {BACKLOG_LARGE_BACKLOG})",
+                        "for": "5m",
+                        "labels": {"severity": "critical"},
+                        "annotations": {
+                            "summary": "CS backlog stall critical (near-zero burn)",
+                            "description": "Critical: Backlog ETA very high and burn rate near zero with large backlog. Immediate intervention required.",
+                        },
+                    },
+                ] + latency_ratio_rules,
             }
         ]
     }

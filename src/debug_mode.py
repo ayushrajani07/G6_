@@ -20,6 +20,7 @@ setup_logging(level="DEBUG", log_file="logs/debug_mode.log")
 # Retain legacy loader fallback for now
 from src.config.config_loader import ConfigLoader
 from src.broker.kite_provider import KiteProvider
+from src.provider.config import get_provider_config
 from src.collectors.providers_interface import Providers
 from src.collectors.unified_collectors import run_unified_collectors
 from src.storage.csv_sink import CsvSink
@@ -39,7 +40,8 @@ def main():
     # 2. Initialize Kite Provider
     print("Initializing KiteProvider from environment variables")
     try:
-        kite_provider = KiteProvider.from_env()
+        snap = get_provider_config()
+        kite_provider = KiteProvider.from_provider_config(snap)
         print("✓ KiteProvider initialized successfully")
     except Exception as e:
         print(f"✗ KiteProvider initialization failed: {e}")

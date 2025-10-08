@@ -21,10 +21,10 @@ def _current_metric_names():
 def test_provider_mode_one_hot():
     m = get_metrics()
     # Set a few modes sequentially (simulate transitions)
-    from src.metrics.metrics import MetricsRegistry  # type: ignore
+    from src.metrics import MetricsRegistry  # type: ignore  # facade import
     gauge = getattr(m, 'provider_mode', None)
     assert gauge is not None, 'provider_mode gauge missing'
-    from src.metrics.metrics import set_provider_mode  # type: ignore
+    from src.metrics import set_provider_mode  # type: ignore  # facade import
     set_provider_mode('primary')
     set_provider_mode('failover')
     fams = list(gauge.collect())  # type: ignore[attr-defined]

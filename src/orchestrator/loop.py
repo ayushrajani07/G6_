@@ -12,6 +12,7 @@ import logging
 import time
 from typing import Callable
 import os
+from src.utils.env_flags import is_truthy_env  # type: ignore
 
 from src.orchestrator.context import RuntimeContext
 try:  # optional gating utilities (early slice)
@@ -32,7 +33,7 @@ def run_loop(ctx: RuntimeContext, *, cycle_fn: Callable[[RuntimeContext], None],
     """
     logger.info("Starting orchestration loop interval=%s", interval)
     # Market hours gating (env opt-in for new loop path)
-    market_hours_only = os.environ.get('G6_LOOP_MARKET_HOURS','').lower() in ('1','true','yes','on')
+    market_hours_only = is_truthy_env('G6_LOOP_MARKET_HOURS')
     # Optional max cycles (dev/test convenience) - only counts executed (non-skipped) cycles
     # Support legacy alias G6_MAX_CYCLES (prefer new name if both present)
     max_cycles_raw = os.environ.get('G6_LOOP_MAX_CYCLES') or os.environ.get('G6_MAX_CYCLES')

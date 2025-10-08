@@ -168,12 +168,39 @@ Expect value <= budget (5).
 3. Latency and enrichment panels respond to induced changes.
 4. Fallback & expiry failure panels increment in controlled tests.
 5. Post-test removal of instrumentation restores baseline metrics stability.
+6. Grafana dashboard generation verify mode passes (no unintended semantic drift) after regeneration.
 
 ---
 ## 13. Cleanup
 - Revert temporary sleeps / forced exceptions.
 - Unset batching & debug env vars if not desired in production.
 - Commit only intentional code changes (exclude local debug edits).
+ - If dashboards were modified intentionally run generation with `--verify` once more to ensure a clean baseline.
+
+---
+## 15. Dashboard Drift Verification (Added)
+
+Use the modular generator drift guard to ensure committed Grafana JSON matches current spec & synthesis rules.
+
+Commands (PowerShell):
+```powershell
+python scripts/gen_dashboards_modular.py --output grafana/dashboards/generated --verify
+```
+
+Exit Codes:
+| Code | Meaning |
+|------|---------|
+| 0 | No drift (semantic & hash clean) |
+| 6 | Drift detected (added/removed/changed panels or spec hash mismatch) |
+
+Set `G6_DASHBOARD_DIFF_VERBOSE=1` to emit JSON detail blocks between `DRIFT_DETAILS_BEGIN` / `DRIFT_DETAILS_END` containing arrays of changed, added, and removed panel titles for each dashboard slug. This aids rapid code review triage.
+
+Typical CI Pattern:
+1. Run verify (expect drift=6) immediately after modifying `metrics/spec/base.yml` or generator logic.
+2. Regenerate dashboards without `--verify` to update JSON.
+3. Re-run verify (expect 0) before commit.
+
+If a spec change should not alter dashboards (unexpected drift), inspect verbose details and confirm panel metadata vs semantic signature components. Metadata-only changes (e.g., `g6_meta` additions) are excluded from the signature and will not produce drift.
 
 ---
 ## 14. Future Enhancements

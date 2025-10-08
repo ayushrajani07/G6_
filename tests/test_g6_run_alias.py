@@ -2,8 +2,11 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+import pytest
+from tests._helpers import fast_mode
 
 
+@pytest.mark.slow
 def test_g6_run_alias_bounded(tmp_path):
     """Smoke test the g6_run convenience wrapper.
 
@@ -21,7 +24,9 @@ def test_g6_run_alias_bounded(tmp_path):
     workdir = Path(tmp_path)
     # Direct data dir override (if orchestrator respects basedir from config; else it will still write under repo data)
     # We isolate by setting a temporary current working dir
-    cmd = [sys.executable, 'scripts/g6_run.py', '--config', 'config/g6_config.json', '--interval', '0.1', '--cycles', '2']
+    cycles = '2' if fast_mode() else os.getenv('G6_RUN_ALIAS_CYCLES', '6')
+    interval = '0.1' if fast_mode() else os.getenv('G6_RUN_ALIAS_INTERVAL', '0.2')
+    cmd = [sys.executable, 'scripts/g6_run.py', '--config', 'config/g6_config.json', '--interval', interval, '--cycles', cycles]
     proc = subprocess.run(cmd, cwd=Path.cwd(), env=env, capture_output=True, text=True, timeout=60)
     # Debug aid if fails
     if proc.returncode != 0:

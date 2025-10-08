@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import json, os, datetime as dt, logging, re
+from src.utils.env_flags import is_truthy_env  # type: ignore
 from typing import Dict, Any, Optional, Tuple, List
 
 logger = logging.getLogger(__name__)
@@ -241,7 +242,7 @@ def build_catalog(*, runtime_status_path: str, csv_dir: str = "data/g6_data") ->
     except Exception:  # pragma: no cover
         logger.debug("catalog: integrity computation failed", exc_info=True)
     # Optional event enrichment
-    if os.environ.get('G6_EMIT_CATALOG_EVENTS','').lower() in ('1','true','yes','on'):
+    if is_truthy_env('G6_EMIT_CATALOG_EVENTS'):
         events, last_seq = _gather_recent_events()
         catalog['events_included'] = True
         catalog['recent_events'] = events

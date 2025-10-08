@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional, Iterable
 import os
+from src.utils.env_flags import is_truthy_env  # type: ignore
 import json
 import time
 import datetime as _dt
@@ -352,7 +353,7 @@ def write_runtime_status(
         os.replace(tmp_path, path)
         # Optional catalog emission (lightweight) when enabled
         try:
-            if os.environ.get('G6_EMIT_CATALOG','').lower() in ('1','true','yes','on'):
+            if is_truthy_env('G6_EMIT_CATALOG'):
                 try:
                     from .catalog import emit_catalog  # local import to avoid circular at startup
                     emit_catalog(runtime_status_path=path)

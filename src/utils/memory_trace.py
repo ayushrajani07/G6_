@@ -33,10 +33,11 @@ except Exception:  # pragma: no cover
 
 class MemoryTracer:
     def __init__(self, topn: Optional[int] = None, snapshot_dir: Optional[str] = None, write_snapshots: Optional[bool] = None):
-        self.enabled = os.environ.get('G6_ENABLE_TRACEMALLOC', '0').lower() in ('1','true','yes','on') and bool(tracemalloc)
+    from src.utils.env_flags import is_truthy_env  # type: ignore
+    self.enabled = is_truthy_env('G6_ENABLE_TRACEMALLOC') and bool(tracemalloc)
         self.topn = int(os.environ.get('G6_TRACEMALLOC_TOPN', str(topn if topn is not None else 10)) or '10')
         self.snapshot_dir = os.environ.get('G6_TRACEMALLOC_SNAPSHOT_DIR', snapshot_dir or 'logs/mem')
-        self.write_snapshots = os.environ.get('G6_TRACEMALLOC_WRITE_SNAPSHOTS', '0').lower() in ('1','true','yes','on') if write_snapshots is None else bool(write_snapshots)
+    self.write_snapshots = (is_truthy_env('G6_TRACEMALLOC_WRITE_SNAPSHOTS') if write_snapshots is None else bool(write_snapshots))
         self._started = False
 
     def ensure_started(self):

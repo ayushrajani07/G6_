@@ -184,6 +184,21 @@ groups:
     labels:
       job: g6_platform
     record: g6_bus_publish_latency_ms:p95_ratio_5m_30m
+  - expr: histogram_quantile(0.95, sum(rate(g6_bus_publish_latency_ms_bucket[5m]))
+      by (le,bus))
+    labels:
+      job: g6_platform
+    record: g6_bus_publish_latency_ms:p95_5m_by_bus
+  - expr: histogram_quantile(0.95, sum(rate(g6_bus_publish_latency_ms_bucket[30m]))
+      by (le,bus))
+    labels:
+      job: g6_platform
+    record: g6_bus_publish_latency_ms:p95_30m_by_bus
+  - expr: g6_bus_publish_latency_ms:p95_5m_by_bus / clamp_min(g6_bus_publish_latency_ms:p95_30m_by_bus,
+      0.001)
+    labels:
+      job: g6_platform
+    record: g6_bus_publish_latency_ms:p95_ratio_5m_30m_by_bus
   - expr: sum(rate(g6_emission_failures_total[5m])) by (emitter)
     labels:
       job: g6_platform
@@ -278,6 +293,16 @@ groups:
     labels:
       job: g6_platform
     record: g6_cs_ingest_backlog_rows:top5
+  - expr: (sum(g6_cs_ingest_backlog_rows) / clamp_min(sum(rate(g6_cs_ingest_rows_total[5m])),1))
+      / 60
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_backlog_rows:eta_minutes
+  - expr: max(0, (sum(g6_cs_ingest_backlog_rows offset 5m) - sum(g6_cs_ingest_backlog_rows))
+      / 300)
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_backlog_rows:burn_rows_per_s
   - expr: topk(5, g6_cs_ingest_backpressure_flag)
     labels:
       job: g6_platform

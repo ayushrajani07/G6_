@@ -41,9 +41,15 @@ def setup_logging(level: str = 'INFO', log_file: Optional[str] = None, fmt: str 
             pass
 
     # Decide console format precedence: explicit fmt parameter beats env toggles.
-    verbose_console_env = os.environ.get('G6_VERBOSE_CONSOLE', '').lower() in ('1','true','yes','on')
-    minimal_disabled_env = os.environ.get('G6_DISABLE_MINIMAL_CONSOLE', '').lower() in ('1','true','yes','on')
-    json_console_env = os.environ.get('G6_JSON_LOGS', '').lower() in ('1','true','yes','on')
+    try:
+        from src.utils.env_flags import is_truthy_env  # type: ignore
+        verbose_console_env = is_truthy_env('G6_VERBOSE_CONSOLE')
+        minimal_disabled_env = is_truthy_env('G6_DISABLE_MINIMAL_CONSOLE')
+        json_console_env = is_truthy_env('G6_JSON_LOGS')
+    except Exception:
+        verbose_console_env = bool(os.environ.get('G6_VERBOSE_CONSOLE'))
+        minimal_disabled_env = bool(os.environ.get('G6_DISABLE_MINIMAL_CONSOLE'))
+        json_console_env = bool(os.environ.get('G6_JSON_LOGS'))
     # If caller passed a custom fmt different from DEFAULT_FORMAT, honor it.
     if fmt != DEFAULT_FORMAT:
         console_fmt = fmt

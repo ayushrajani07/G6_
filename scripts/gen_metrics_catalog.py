@@ -28,6 +28,7 @@ GROUP_GATING_ENVS = {
     'panel_diff': ['G6_ENABLE_METRIC_GROUPS'],
     'panels_integrity': ['G6_ENABLE_METRIC_GROUPS'],
     'greeks': ['G6_ENABLE_METRIC_GROUPS'],
+    'sse_ingest': ['G6_ENABLE_METRIC_GROUPS','G6_SSE_INGEST'],
 }
 
 def cardinality_hint(label_count: int) -> str:

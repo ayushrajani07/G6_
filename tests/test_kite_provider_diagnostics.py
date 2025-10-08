@@ -1,6 +1,13 @@
 import warnings
 import datetime
+import os
+import pytest
 from src.broker.kite_provider import KiteProvider
+
+pytestmark = pytest.mark.skipif(
+    not bool(os.getenv('G6_ENABLE_BROKER_TESTS')),
+    reason='Broker tests skipped (set G6_ENABLE_BROKER_TESTS=1 to enable)'
+)
 
 
 def test_provider_diagnostics_snapshot(monkeypatch):

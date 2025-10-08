@@ -382,9 +382,12 @@ def build_risk(snapshot_source) -> Optional[_RiskPayload]:
     except Exception:
         # Fallback path: late bind metrics if snapshot_source lacked .metrics
         try:
-            import src.metrics.metrics as _metrics_mod  # runtime import
-            get_metrics_fn = getattr(_metrics_mod, 'get_metrics', None)
-            m = get_metrics_fn() if callable(get_metrics_fn) else None
+            # Use public facade instead of deprecated deep import of src.metrics.metrics
+            from src.metrics import get_metrics as _facade_get_metrics  # type: ignore
+            try:
+                m = _facade_get_metrics()
+            except Exception:
+                m = None
         except Exception:
             m = None
         if m is not None:

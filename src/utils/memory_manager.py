@@ -53,7 +53,11 @@ class MemoryManager:
         # cadence knobs
         import os
         self._gc_interval_sec = float(os.getenv('G6_MEMORY_GC_INTERVAL_SEC', '30'))
-        self._minor_gc_each_cycle = os.getenv('G6_MEMORY_MINOR_GC_EACH_CYCLE', '1').lower() in ('1','true','yes','on')
+        try:
+            from src.utils.env_flags import is_truthy_env  # type: ignore
+            self._minor_gc_each_cycle = is_truthy_env('G6_MEMORY_MINOR_GC_EACH_CYCLE') or 'G6_MEMORY_MINOR_GC_EACH_CYCLE' not in os.environ
+        except Exception:
+            self._minor_gc_each_cycle = True
 
     # -------- Registration ---------
     def register_cache(self, name: str, purge_fn: Optional[Callable[[], Any]] = None, size_fn: Optional[Callable[[], int]] = None) -> None:

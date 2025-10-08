@@ -34,9 +34,10 @@ logger = logging.getLogger(__name__)
 
 # Reuse global concise flag from provider module if already imported; else default True
 try:  # pragma: no cover - defensive import
-    from src.broker.kite_provider import _CONCISE
+    from src.broker.kite_provider import is_concise_logging
 except Exception:  # pragma: no cover
-    _CONCISE = True  # fallback default
+    def is_concise_logging() -> bool:  # type: ignore
+        return True
 
 # Local type aliases
 Instrument = Dict[str, Any]
@@ -66,7 +67,8 @@ def prefilter_option_universe(index_symbol: str, instruments: Sequence[Instrumen
 
     Returns (filtered_instruments, used_flag, diagnostics_counts)
     """
-    disabled = os.environ.get('G6_DISABLE_PREFILTER','0').lower() in ('1','true','yes','on')
+    from src.utils.env_flags import is_truthy_env  # type: ignore
+    disabled = is_truthy_env('G6_DISABLE_PREFILTER')
     if disabled:
         return [inst for inst in instruments if (inst.get('instrument_type') or '') in ('CE','PE')], False, {'rejected': 0}
 
@@ -80,9 +82,17 @@ def prefilter_option_universe(index_symbol: str, instruments: Sequence[Instrumen
     rejected = 0
     start_ts = time.time()
     for inst in instruments:
-        itype = inst.get('instrument_type') or ''
+        itype = (inst.get('instrument_type') or '').upper()
+        # Normalize common alternative instrument types (OPTIDX/OPTSTK) by inferring CE/PE from tradingsymbol suffix
         if itype not in ('CE','PE'):
-            continue
+            tsym_norm = str(inst.get('tradingsymbol','')).upper()
+            if itype in ('OPTIDX','OPTSTK','OPT'):
+                if tsym_norm.endswith('CE'):
+                    itype = 'CE'
+                elif tsym_norm.endswith('PE'):
+                    itype = 'PE'
+            if itype not in ('CE','PE'):
+                continue
         tsym = str(inst.get('tradingsymbol','')).upper()
         base_name = str(inst.get('name') or inst.get('underlying') or '').upper()
         try:
@@ -104,7 +114,15 @@ def prefilter_option_universe(index_symbol: str, instruments: Sequence[Instrumen
     used = True
     if kept == 0 or (kept < 5 and raw_total_opts > 40) or (kept > 0 and raw_total_opts/kept > 500):
         # Too aggressive – revert but still narrow to option types
-        filtered = [inst for inst in instruments if (inst.get('instrument_type') or '') in ('CE','PE')]
+        filtered = []
+        for inst in instruments:
+            itype = (inst.get('instrument_type') or '').upper()
+            if itype in ('CE','PE'):
+                filtered.append(inst)
+            elif itype in ('OPTIDX','OPTSTK','OPT'):
+                ts = str(inst.get('tradingsymbol','')).upper()
+                if ts.endswith('CE') or ts.endswith('PE'):
+                    filtered.append(inst)
         used = False
     # Emit structured event (best-effort)
     try:
@@ -426,15 +444,17 @@ def _log_summary(index_symbol: str, expiry_date: Any, strikes: Sequence[float], 
             strikes_summary[strike][it] += 1
     from src.runtime.runtime_flags import get_flags
     flags = get_flags()
-    if _CONCISE:
+    if is_concise_logging():
         total = len(matching_instruments)
         strike_keys = sorted(strikes_summary.keys())
         strike_count = len(strike_keys)
         ce_total = sum(v.get('CE',0) for v in strikes_summary.values())
         pe_total = sum(v.get('PE',0) for v in strikes_summary.values())
         cov_denom = strike_count if strike_count else 1
-        cov_ce = ce_total / cov_denom
-        cov_pe = pe_total / cov_denom
+        cov_ce = ce_total / cov_denom if cov_denom else 0.0
+        cov_pe = pe_total / cov_denom if cov_denom else 0.0
+        strike_min = strike_max = 0
+        step = 0
         if strike_count >= 2:
             strike_min = strike_keys[0]
             strike_max = strike_keys[-1]
@@ -442,18 +462,20 @@ def _log_summary(index_symbol: str, expiry_date: Any, strikes: Sequence[float], 
             step = min(diffs) if diffs else 0
         elif strike_count == 1:
             strike_min = strike_max = strike_keys[0]
-            step = 0
-        else:
-            strike_min = strike_max = 0
-            step = 0
         sample: List[str] = []
         if strike_keys:
             if strike_count <= 5:
                 sample = [f"{s:.0f}" for s in strike_keys]
             else:
-                sample = [f"{strike_keys[0]:.0f}", f"{strike_keys[1]:.0f}", f"{strike_keys[strike_count//2]:.0f}", f"{strike_keys[-2]:.0f}", f"{strike_keys[-1]:.0f}"]
+                sample = [
+                    f"{strike_keys[0]:.0f}",
+                    f"{strike_keys[1]:.0f}",
+                    f"{strike_keys[strike_count//2]:.0f}",
+                    f"{strike_keys[-2]:.0f}",
+                    f"{strike_keys[-1]:.0f}",
+                ]
         sample_str = ",".join(sample)
-        _log_fn = logger.debug if _CONCISE else logger.info
+        _log_fn = logger.debug if is_concise_logging() else logger.info
         _log_fn(
             "OPTIONS idx=%s expiry=%s instruments=%d strikes=%d ce_total=%d pe_total=%d range=%s step=%s coverage=CE:%.2f,PE:%.2f sample=[%s]",
             index_symbol,
@@ -565,12 +587,12 @@ def option_instruments(provider: ProviderLike | Any, index_symbol: str, expiry_d
                 break
         if cache_hit_complete and cached_all:
             state.option_cache_hits += 1
-            if _CONCISE:
+            if is_concise_logging():
                 logger.debug(f"Instrument cache HIT idx={index_symbol} expiry={expiry_iso} strikes={len(strikes_list)} size={len(cached_all)}")
             return cached_all
         else:
             state.option_cache_misses += 1
-            if _CONCISE and (state.option_cache_misses % 50 == 1):
+            if is_concise_logging() and (state.option_cache_misses % 50 == 1):
                 logger.debug(f"Instrument cache MISS idx={index_symbol} expiry={expiry_iso} strikes={len(strikes_list)} (miss #{state.option_cache_misses})")
 
         # Universe fetch (prefer provider daily universe if attached)
@@ -580,8 +602,37 @@ def option_instruments(provider: ProviderLike | Any, index_symbol: str, expiry_d
             exchange_pool = 'NFO'
             universe = provider.get_instruments(exchange_pool)
 
-        raw_total_opts = sum(1 for inst in universe if (inst.get('instrument_type') or '') in ('CE','PE'))
+        raw_total_opts = 0
+        ce_ct = pe_ct = 0
+        distinct_expiries = set()
+        for inst in universe:
+            ity = (inst.get('instrument_type') or '').upper()
+            if ity in ('CE','PE') or ity in ('OPTIDX','OPTSTK','OPT'):
+                raw_total_opts += 1
+                tsymu = str(inst.get('tradingsymbol','')).upper()
+                if ity not in ('CE','PE'):
+                    if tsymu.endswith('CE'): ce_ct += 1
+                    elif tsymu.endswith('PE'): pe_ct += 1
+                else:
+                    if ity == 'CE': ce_ct += 1
+                    elif ity == 'PE': pe_ct += 1
+                expv = inst.get('expiry')
+                if expv:
+                    try:
+                        if hasattr(expv,'strftime'):
+                            distinct_expiries.add(expv.strftime('%Y-%m-%d'))
+                        else:
+                            distinct_expiries.add(str(expv)[:10])
+                    except Exception:
+                        pass
         filtered, prefiltered_used, prefilter_rejects = prefilter_option_universe(index_symbol, universe, raw_total_opts)
+        try:
+            logger.debug(
+                "option_universe_breakdown index=%s universe=%d raw_opts=%d ce=%d pe=%d distinct_expiries=%d",
+                index_symbol, len(universe), raw_total_opts, ce_ct, pe_ct, len(distinct_expiries)
+            )
+        except Exception:
+            pass
 
         # Normalize expiry target
         if hasattr(expiry_date, 'strftime'):
@@ -603,12 +654,120 @@ def option_instruments(provider: ProviderLike | Any, index_symbol: str, expiry_d
 
         strike_membership = StrikeMembership(strikes_list)
         pre_index = build_preindex(filtered, strike_membership)
+        # Expiry mismatch diagnostic: if target not in distinct_expiries (normalized)
+        try:
+            if hasattr(expiry_date,'strftime'):
+                expiry_iso_norm = expiry_date.strftime('%Y-%m-%d')
+            else:
+                expiry_iso_norm = str(expiry_date)[:10]
+            if distinct_expiries and expiry_iso_norm not in distinct_expiries:
+                logger.warning(
+                    "expiry_mismatch index=%s target=%s distinct_in_universe=%s",
+                    index_symbol, expiry_iso_norm, sorted(list(distinct_expiries))[:8]
+                )
+        except Exception:
+            logger.debug('expiry_mismatch_diag_failed', exc_info=True)
 
         match_res = match_options(provider, index_symbol, expiry_target, strikes_list, filtered, pre_index, strike_membership)
         matching = match_res.instruments
 
         # Fallbacks
         matching = apply_expiry_fallbacks(provider, index_symbol, expiry_target, strikes_list, filtered, strike_membership, matching)
+
+        if not matching:
+            try:
+                logger.debug(
+                    "option_match_empty_pre_relax index=%s expiry=%s strikes=%d filtered=%d prefilter_used=%s", 
+                    index_symbol, expiry_target, len(strikes_list), len(filtered), prefiltered_used
+                )
+            except Exception:
+                pass
+
+        # Relaxed recovery: if still empty but we have a filtered universe, attempt a permissive selection.
+        # Goal: avoid full EMPTY expiry when underlying universe clearly contains option instruments.
+        if not matching and filtered:
+            from src.utils.env_flags import is_truthy_env  # type: ignore
+            if is_truthy_env('G6_RELAX_EMPTY_MATCH') or 'G6_RELAX_EMPTY_MATCH' not in os.environ:
+                try:
+                    logger.warning(
+                        "empty_option_match_relaxing index=%s expiry=%s filtered=%d strikes=%d", 
+                        index_symbol, expiry_target, len(filtered), len(strikes_list)
+                    )
+                    strikes_set = {float(s) for s in strikes_list}
+                    # First pass: strict expiry + strike match
+                    relaxed: List[Instrument] = []
+                    def _norm_exp(ev):
+                        import datetime as _dt
+                        if isinstance(ev, _dt.datetime): return ev.date()
+                        if isinstance(ev, _dt.date): return ev
+                        try:
+                            return _dt.datetime.strptime(str(ev)[:10], '%Y-%m-%d').date()
+                        except Exception:
+                            return None
+                    for inst in filtered:
+                        ity = (inst.get('instrument_type') or '').upper()
+                        if ity not in ('CE','PE'): continue
+                        try:
+                            st = float(inst.get('strike') or 0)
+                        except Exception:
+                            continue
+                        if st not in strikes_set: continue
+                        expn = _norm_exp(inst.get('expiry'))
+                        if expn and expn == expiry_target:
+                            relaxed.append(inst)
+                    # If still nothing, allow nearest expiry (forward) with strike match
+                    if not relaxed:
+                        # Build mapping of expiry -> candidates to pick nearest
+                        by_exp: Dict[Any, List[Instrument]] = {}
+                        for inst in filtered:
+                            ity = (inst.get('instrument_type') or '').upper()
+                            if ity not in ('CE','PE'): continue
+                            try:
+                                st = float(inst.get('strike') or 0)
+                            except Exception:
+                                continue
+                            if st not in strikes_set: continue
+                            expn = _norm_exp(inst.get('expiry'))
+                            if not expn: continue
+                            by_exp.setdefault(expn, []).append(inst)
+                        if by_exp:
+                            forward = sorted(e for e in by_exp.keys() if e >= expiry_target)
+                            chosen = forward[0] if forward else sorted(by_exp.keys())[0]
+                            logger.warning(
+                                "empty_option_match_relax_nearest_expiry index=%s requested=%s using=%s", 
+                                index_symbol, expiry_target, chosen
+                            )
+                            relaxed.extend(by_exp.get(chosen, []))
+                    # Optional: de-duplicate by (strike, type)
+                    if relaxed:
+                        dedup: Dict[tuple[float,str], Instrument] = {}
+                        for inst in relaxed:
+                            try:
+                                st = float(inst.get('strike') or 0)
+                            except Exception:
+                                continue
+                            ity = (inst.get('instrument_type') or '').upper()
+                            if ity not in ('CE','PE'): continue
+                            dedup[(st, ity)] = inst
+                        matching = list(dedup.values())
+                        logger.info(
+                            "empty_option_match_relax_success index=%s expiry=%s recovered=%d", 
+                            index_symbol, expiry_target, len(matching)
+                        )
+                    else:
+                        logger.debug(
+                            "empty_option_match_relax_failed index=%s expiry=%s", 
+                            index_symbol, expiry_target
+                        )
+                        try:
+                            logger.debug(
+                                "option_match_remains_empty_after_relax index=%s expiry=%s filtered=%d strikes=%d", 
+                                index_symbol, expiry_target, len(filtered), len(strikes_list)
+                            )
+                        except Exception:
+                            pass
+                except Exception:
+                    logger.debug("empty_option_match_relax_exception index=%s", index_symbol, exc_info=True)
 
         # TRACE / diagnostics parity (centralized tracing)
         try:

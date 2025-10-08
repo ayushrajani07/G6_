@@ -7,6 +7,8 @@ class FakeProviders:
         self._expiry = datetime.date.today() + datetime.timedelta(days=7)
         self.primary_provider = self  # for synthetic pop compatibility
         self._synth_calls = 0
+    def get_expiry_dates(self, index_symbol):
+        return [self._expiry]
     def resolve_expiry(self, index_symbol, rule):
         return self._expiry
     def get_option_instruments(self, index_symbol, expiry_date, strikes):

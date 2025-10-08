@@ -176,6 +176,37 @@ METRIC_SPECS: List[MetricDef] = [
         kind=Counter,
         labels=["key"],
     ),
+    # --- SSE client ingestion metrics (migrated from dynamic creation) ---
+    MetricDef(
+        attr="sse_apply_full_total",
+        name="g6_sse_apply_full_total",
+        doc="Count of SSE panel full replacements applied",
+        kind=Counter,
+        group=MetricGroup.SSE_INGEST if hasattr(MetricGroup, 'SSE_INGEST') else None,
+    ),
+    MetricDef(
+        attr="sse_apply_diff_total",
+        name="g6_sse_apply_diff_total",
+        doc="Count of SSE panel diff merges applied",
+        kind=Counter,
+        group=MetricGroup.SSE_INGEST if hasattr(MetricGroup, 'SSE_INGEST') else None,
+    ),
+    MetricDef(
+        attr="sse_reconnects_total",
+        name="g6_sse_reconnects_total",
+        doc="Number of SSE reconnect attempts (by reason)",
+        kind=Counter,
+        labels=["reason"],
+        group=MetricGroup.SSE_INGEST if hasattr(MetricGroup, 'SSE_INGEST') else None,
+    ),
+    MetricDef(
+        attr="sse_backoff_seconds",
+        name="g6_sse_backoff_seconds",
+        doc="Backoff sleep duration seconds distribution for SSE reconnect attempts",
+        kind=Histogram,
+        kwargs={"buckets": [0.001,0.005,0.01,0.02,0.05,0.1,0.2,0.5,1,2,5,10,30,60]},
+        group=MetricGroup.SSE_INGEST if hasattr(MetricGroup, 'SSE_INGEST') else None,
+    ),
     # --- Stream gater / indices_stream governance metrics (Phase 1 unification) ---
     # Stream gater counters intentionally use explicit *_total names (Option A decision) so that
     # spec.name matches the actual registered collector name. We are NOT relying on Prometheus
@@ -426,6 +457,39 @@ GROUPED_METRIC_SPECS: List[MetricDef] = [
     group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
     predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
     ),
+    # quote cache (kite provider A7 Step 10) - mirrors serialization cache naming style
+    MetricDef(
+        attr="quote_cache_hits",
+        name="g6_quote_cache_hits_total",
+        doc="Quote cache hits",
+        kind=Counter,
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
+    ),
+    MetricDef(
+        attr="quote_cache_misses",
+        name="g6_quote_cache_misses_total",
+        doc="Quote cache misses",
+        kind=Counter,
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
+    ),
+    MetricDef(
+        attr="quote_cache_size",
+        name="g6_quote_cache_size",
+        doc="Quote cache current size",
+        kind=Gauge,
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
+    ),
+    MetricDef(
+        attr="quote_cache_hit_ratio",
+        name="g6_quote_cache_hit_ratio",
+        doc="Quote cache hit ratio (0-1)",
+        kind=Gauge,
+    group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
+    predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
+    ),
     # SSE serialization latency (observed when G6_SSE_EMIT_LATENCY_CAPTURE enabled)
     MetricDef(
         attr="sse_serialize_seconds",
@@ -472,6 +536,107 @@ GROUPED_METRIC_SPECS: List[MetricDef] = [
         kwargs={"labelnames": ["reason"]},
     group=MetricGroup.CACHE if hasattr(MetricGroup, 'CACHE') else None,
     predicate=lambda reg: getattr(reg, '_group_allowed', lambda g: True)('cache'),
+    ),
+    # Pipeline phase execution metrics (A7 executor enhancement)
+    MetricDef(
+        attr="pipeline_phase_attempts",
+        name="g6_pipeline_phase_attempts_total",
+        doc="Total phase attempts (includes retries)",
+        kind=Counter,
+        kwargs={"labelnames": ["phase"]},
+    ),
+    MetricDef(
+        attr="pipeline_phase_retries",
+        name="g6_pipeline_phase_retries_total",
+        doc="Total phase retry attempts (attempt index > 1)",
+        kind=Counter,
+        kwargs={"labelnames": ["phase"]},
+    ),
+    MetricDef(
+        attr="pipeline_phase_outcomes",
+        name="g6_pipeline_phase_outcomes_total",
+        doc="Final phase outcomes (one per phase execution sequence)",
+        kind=Counter,
+        kwargs={"labelnames": ["phase","final_outcome"]},
+    ),
+    MetricDef(
+        attr="pipeline_phase_duration_ms",
+        name="g6_pipeline_phase_duration_ms_total",
+        doc="Cumulative wall clock milliseconds spent in phase (across attempts)",
+        kind=Counter,
+        kwargs={"labelnames": ["phase","final_outcome"]},
+    ),
+    MetricDef(
+        attr="pipeline_phase_runs",
+        name="g6_pipeline_phase_runs_total",
+        doc="Number of completed phase executions (post-retry finalization)",
+        kind=Counter,
+        kwargs={"labelnames": ["phase","final_outcome"]},
+    ),
+    # Structured error records (optional low-cardinality counter)
+    MetricDef(
+        attr="pipeline_phase_error_records",
+        name="g6_pipeline_phase_error_records_total",
+        doc="Total structured phase error records captured (one per legacy token)",
+        kind=Counter,
+        kwargs={"labelnames": ["phase","classification"]},
+        predicate=lambda reg: True,  # further gated at increment time by env
+    ),
+    # Pipeline cycle level metrics (A8 metrics expansion)
+    MetricDef(
+        attr="pipeline_cycle_success",
+        name="g6_pipeline_cycle_success",
+        doc="Pipeline cycle success state (1 if no phase errors else 0)",
+        kind=Gauge,
+    ),
+    MetricDef(
+        attr="pipeline_cycles_total",
+        name="g6_pipeline_cycles_total",
+        doc="Total pipeline cycles executed (summary produced)",
+        kind=Counter,
+    ),
+    MetricDef(
+        attr="pipeline_cycles_success_total",
+        name="g6_pipeline_cycles_success_total",
+        doc="Total successful pipeline cycles (no phase errors)",
+        kind=Counter,
+    ),
+    MetricDef(
+        attr="pipeline_phase_duration_seconds",
+        name="g6_pipeline_phase_duration_seconds",
+        doc="Histogram of individual phase execution wall time in seconds (attempts aggregated)",
+        kind=Histogram,
+        kwargs={"labelnames": ["phase","final_outcome"], "buckets": [0.01,0.025,0.05,0.1,0.25,0.5,1.0,2.5,5.0,10.0]},  # env override supported at runtime
+    ),
+    MetricDef(
+        attr="pipeline_cycle_error_ratio",
+        name="g6_pipeline_cycle_error_ratio",
+        doc="Per-cycle phase error ratio (phases_error / phases_total)",
+        kind=Gauge,
+    ),
+    MetricDef(
+        attr="pipeline_cycle_success_rate_window",
+        name="g6_pipeline_cycle_success_rate_window",
+        doc="Rolling window success rate (0-1) across last N cycles",
+        kind=Gauge,
+    ),
+    MetricDef(
+        attr="pipeline_cycle_error_rate_window",
+        name="g6_pipeline_cycle_error_rate_window",
+        doc="Rolling window error rate (0-1) across last N cycles",
+        kind=Gauge,
+    ),
+    MetricDef(
+        attr="pipeline_trends_success_rate",
+        name="g6_pipeline_trends_success_rate",
+        doc="Success rate derived from trend aggregation file (long horizon)",
+        kind=Gauge,
+    ),
+    MetricDef(
+        attr="pipeline_trends_cycles",
+        name="g6_pipeline_trends_cycles",
+        doc="Total cycles represented in trend aggregation file",
+        kind=Gauge,
     ),
     # panels_integrity group (core + extended additive metrics)
     MetricDef(

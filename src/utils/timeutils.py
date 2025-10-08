@@ -73,7 +73,7 @@ def _weekend_mode() -> bool:
     platform run gating. This is intended for demo / backtesting / continuous
     soak scenarios where collectors should keep cycling on weekends.
     """
-    return os.getenv('G6_WEEKEND_MODE', '0').lower() in ('1','true','on','yes')
+    return False
 
 def is_market_open(check_time: Optional[datetime] = None) -> bool:
     """Check if market is currently open.
@@ -86,8 +86,8 @@ def is_market_open(check_time: Optional[datetime] = None) -> bool:
     elif check_time.tzinfo != IST:
         check_time = check_time.astimezone(IST)
     
-    # Check weekday unless weekend override enabled (Monday=0, Sunday=6)
-    if check_time.weekday() >= 5 and not _weekend_mode():  # Saturday or Sunday
+    # Check weekday (Monday=0, Sunday=6)
+    if check_time.weekday() >= 5:  # Saturday or Sunday
         return False
         
     current_time = check_time.time()
@@ -107,8 +107,8 @@ def market_hours_check(check_time: Optional[datetime] = None) -> Tuple[bool, str
     
     weekday = check_time.weekday()
     current_time = check_time.time()
-    
-    if weekday >= 5 and not _weekend_mode():  # Weekend
+
+    if weekday >= 5:  # Weekend
         return False, "market_closed_weekend"
         
     if current_time < PRE_MARKET_START:
@@ -136,13 +136,10 @@ def next_market_open(from_time: Optional[datetime] = None) -> datetime:
     
     # Start from next day if market is closed today
     check_date = from_time.date()
-    if from_time.time() > MARKET_CLOSE or (from_time.weekday() >= 5 and not _weekend_mode()):
+    if from_time.time() > MARKET_CLOSE or from_time.weekday() >= 5:
         check_date = from_time.date() + timedelta(days=1)
         
     # Find next weekday
-    if not _weekend_mode():
-        while check_date.weekday() >= 5:  # Skip weekends
-            check_date = check_date + timedelta(days=1)
     
     return datetime.combine(check_date, MARKET_OPEN, tzinfo=IST)
 
@@ -212,7 +209,7 @@ def compute_weekly_expiry(now_date: Union[datetime, date], weekly_dow: int = 3) 
 def compute_next_weekly_expiry(now_date: Union[datetime, date], weekly_dow: int = 3) -> date:
     """Compute next weekly expiry after the current one."""
     this_week = compute_weekly_expiry(now_date, weekly_dow)
-    return _next_weekday_on_or_after(this_week + timedelta(days=1), weekly_dow)
+    return this_week + timedelta(days=7)
 
 def compute_monthly_expiry(now_date: Union[datetime, date], monthly_dow: int = 3) -> date:
     """Compute monthly expiry (last Thursday of month by default)."""

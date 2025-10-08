@@ -24,9 +24,10 @@ def main():
     logger.info("===== TESTING KITE PROVIDER EXPIRY EXTRACTION =====")
     
     from src.broker.kite_provider import KiteProvider
+    from src.provider.config import get_provider_config
     
     # Initialize provider
-    kite_provider = KiteProvider.from_env()
+    kite_provider = KiteProvider.from_provider_config(get_provider_config())
     logger.info("KiteProvider initialized")
     
     # Test indices

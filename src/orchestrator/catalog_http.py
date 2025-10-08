@@ -19,6 +19,7 @@ Design goals:
 from __future__ import annotations
 
 import json, os, threading, logging, time, hashlib, gzip, io
+from src.utils.env_flags import is_truthy_env  # type: ignore
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from typing import Optional
 from pathlib import Path
@@ -253,7 +254,7 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                         return
                     try:
                         # Flush latency measurement (publish->flush) best-effort
-                        if os.environ.get('G6_SSE_FLUSH_LATENCY_CAPTURE','').lower() in ('1','on','true','yes'):
+                        if is_truthy_env('G6_SSE_FLUSH_LATENCY_CAPTURE'):
                             try:
                                 pub_ts = None
                                 if isinstance(payload, dict):
@@ -276,7 +277,7 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                             except Exception:
                                 pass
                         # Trace context: flush stage
-                        if os.environ.get('G6_SSE_TRACE','').lower() in ('1','on','true','yes') and isinstance(payload, dict):
+                        if is_truthy_env('G6_SSE_TRACE') and isinstance(payload, dict):
                             try:
                                 inner = payload.get('payload')
                                 if isinstance(inner, dict):
@@ -474,13 +475,13 @@ class _CatalogHandler(BaseHTTPRequestHandler):
             # Transitional logic:
             #  - If HTTP globally disabled via G6_CATALOG_HTTP_DISABLE -> 410 Gone (feature de-scoped)
             #  - Else if cache not explicitly enabled via env -> 400 (tests expect strict explicit enable)
-            if os.environ.get('G6_CATALOG_HTTP_DISABLE','').lower() in ('1','true','yes','on'):
+            if is_truthy_env('G6_CATALOG_HTTP_DISABLE'):
                 self._set_headers(410)
                 self.wfile.write(b'{"error":"snapshots_endpoint_disabled"}')
                 return
             # Explicit enable signals only (no implicit auto-enable from existing cache contents)
-            env_enabled = os.environ.get('G6_SNAPSHOT_CACHE','').lower() in ('1','true','yes','on')
-            force_enabled = os.environ.get('G6_SNAPSHOT_CACHE_FORCE','').lower() in ('1','true','yes','on')
+            env_enabled = is_truthy_env('G6_SNAPSHOT_CACHE')
+            force_enabled = is_truthy_env('G6_SNAPSHOT_CACHE_FORCE')
             if not (env_enabled or force_enabled):
                 self._set_headers(400)
                 self.wfile.write(b'{"error":"snapshot_cache_disabled"}')
@@ -532,7 +533,7 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                     interval = float(os.environ.get('G6_ADAPTIVE_THEME_STREAM_INTERVAL','3'))
                     # Soft limit runtime to prevent runaway threads; client can reconnect.
                     max_events = int(os.environ.get('G6_ADAPTIVE_THEME_STREAM_MAX_EVENTS','200'))
-                    diff_only = os.environ.get('G6_ADAPTIVE_THEME_SSE_DIFF','1').lower() in ('1','true','yes','on')
+                    diff_only = is_truthy_env('G6_ADAPTIVE_THEME_SSE_DIFF')
                     last_payload = None
                     for i in range(max_events):
                         full_payload = _build_adaptive_payload()
@@ -601,7 +602,7 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                     self.send_header('ETag', etag)
                     self.end_headers()
                     return
-                use_gzip = os.environ.get('G6_ADAPTIVE_THEME_GZIP','').lower() in ('1','true','yes','on') and 'gzip' in (self.headers.get('Accept-Encoding') or '')
+                use_gzip = is_truthy_env('G6_ADAPTIVE_THEME_GZIP') and 'gzip' in (self.headers.get('Accept-Encoding') or '')
                 if use_gzip:
                     buf = io.BytesIO()
                     with gzip.GzipFile(fileobj=buf, mode='wb') as gz:
@@ -664,7 +665,7 @@ def start_http_server_in_thread() -> None:
     when code updated mid-session). Safe to call multiple times.
     """
     # Use registry-backed getters/setters to avoid module reload desync
-    if os.environ.get('G6_CATALOG_HTTP_DISABLE','').lower() in ('1','true','yes','on'):
+    if is_truthy_env('G6_CATALOG_HTTP_DISABLE'):
         # If disable flag set, ensure any existing server is shut down and return
         try:
             shutdown_http_server()
@@ -672,8 +673,8 @@ def start_http_server_in_thread() -> None:
             pass
         logger.info("catalog_http: disabled via G6_CATALOG_HTTP_DISABLE")
         return
-    force_reload = os.environ.get('G6_CATALOG_HTTP_FORCE_RELOAD','').lower() in ('1','true','yes','on')
-    rebuild_flag = os.environ.get('G6_CATALOG_HTTP_REBUILD','').lower() in ('1','true','yes','on')
+    force_reload = is_truthy_env('G6_CATALOG_HTTP_FORCE_RELOAD')
+    rebuild_flag = is_truthy_env('G6_CATALOG_HTTP_REBUILD')
     if rebuild_flag:
         force_reload = True
     # Always perform a shutdown first if rebuild requested (even if no thread)

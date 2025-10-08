@@ -26,6 +26,7 @@ class MetricGroup(str, Enum):
     PROVIDER_FAILOVER = "provider_failover"
     EXPIRY_REMEDIATION = "expiry_remediation"
     LIFECYCLE = "lifecycle"
+    SSE_INGEST = "sse_ingest"
 
 
 ALWAYS_ON = {

@@ -1,18 +1,11 @@
 """Status reduction helpers for per-expiry and cycle-level classification.
 
-Definitions:
-  EXPIRY STATUS
-    OK      : options > 0 AND strike & field coverage above thresholds AND not synthetic fallback.
-    SYNTH   : synthetic_fallback True AND options > 0.
-    PARTIAL : options > 0 but coverage below thresholds (strike or field) OR missing key fields.
-    EMPTY   : options == 0 (after all fallbacks).
+Synthetic fallback status removed (2025-10 aggressive cleanup). Remaining statuses:
+    OK      : options > 0 AND strike & field coverage above thresholds.
+    PARTIAL : options > 0 but coverage below thresholds (strike or field) OR missing coverage metrics.
+    EMPTY   : options == 0.
 
-  CYCLE STATUS (aggregated over expiries for an index):
-    OK      : >=1 expiry OK and no EMPTY expiries with attempts unless all are OK/SYNTH.
-    PARTIAL : Mixed statuses where at least one OK/SYNTH but one or more PARTIAL/EMPTY.
-    EMPTY   : All expiries EMPTY.
-
-Thresholds are conservative initial defaults; tune later.
+Cycle aggregation unchanged except SYNTH no longer considered; any prior SYNTH cases now classify as OK if coverage thresholds met.
 """
 from __future__ import annotations
 from typing import Dict, Any, List, Tuple
@@ -60,8 +53,6 @@ def compute_expiry_status(expiry_rec: Dict[str, Any]) -> str:
     opts = int(expiry_rec.get('options') or 0)
     if opts == 0:
         return 'EMPTY'
-    if expiry_rec.get('synthetic_fallback'):
-        return 'SYNTH'
     strike_cov = float(expiry_rec.get('strike_coverage', -1))
     field_cov = float(expiry_rec.get('field_coverage', -1))
     if strike_cov >= 0 and field_cov >= 0:
@@ -69,8 +60,7 @@ def compute_expiry_status(expiry_rec: Dict[str, Any]) -> str:
         if strike_cov >= strike_thr and field_cov >= field_thr:
             return 'OK'
         return 'PARTIAL'
-    # Fallback to existing status if coverage not captured
-    return expiry_rec.get('status') or ('OK' if opts>0 else 'EMPTY')
+    return expiry_rec.get('status') or ('OK' if opts > 0 else 'EMPTY')
 
 def derive_partial_reason(expiry_rec: Dict[str, Any]) -> str | None:
     """Return a machine-friendly reason token when an expiry is PARTIAL.

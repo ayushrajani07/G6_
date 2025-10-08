@@ -57,7 +57,8 @@ MARKET_HOLIDAYS_2025 = [
 ]
 
 def _weekend_mode() -> bool:
-    return os.getenv('G6_WEEKEND_MODE', '0').lower() in ('1','true','on','yes')
+    # Weekend mode removed; always False (weekends treated as closed unless explicit holiday override logic changes)
+    return False
 
 def is_market_open(
     *, 
@@ -85,7 +86,7 @@ def is_market_open(
     ist_now = now + ist_offset
     
     # Check weekday (0=Monday, 6=Sunday) unless weekend override enabled
-    if ist_now.weekday() >= 5 and not _weekend_mode():  # Saturday or Sunday
+    if ist_now.weekday() >= 5:  # Saturday or Sunday
         return False
         
     # Check holidays
@@ -149,15 +150,9 @@ def get_next_market_open(
     
     # Skip weekends and holidays
     holiday_list = holidays or MARKET_HOLIDAYS_2025
-    if not _weekend_mode():
-        while target_date.weekday() >= 5 or target_date.strftime("%Y-%m-%d") in holiday_list:
-            target_date = target_date + timedelta(days=1)
-            target_datetime = datetime.combine(target_date, start_time)
-    else:
-        # Still skip holidays even if weekend mode is active
-        while target_date.strftime("%Y-%m-%d") in holiday_list:
-            target_date = target_date + timedelta(days=1)
-            target_datetime = datetime.combine(target_date, start_time)
+    while target_date.weekday() >= 5 or target_date.strftime("%Y-%m-%d") in holiday_list:
+        target_date = target_date + timedelta(days=1)
+        target_datetime = datetime.combine(target_date, start_time)
     
     # Convert back to UTC
     utc_datetime = target_datetime - ist_offset
@@ -226,3 +221,62 @@ __all__ = [
     # New helper
     'is_premarket_window'
 ]
+
+# ---------------------------------------------------------------------------
+# Holiday utilities for expiry adjustment (Phase 10 enhancement)
+# ---------------------------------------------------------------------------
+def _parse_env_holidays() -> list[str]:
+    """Parse additional holidays from G6_HOLIDAYS env (comma or space separated)."""
+    raw = os.environ.get('G6_HOLIDAYS','').strip()
+    if not raw:
+        return []
+    parts = [p.strip() for p in raw.replace(';',',').replace('\n',',').split(',') if p.strip()]
+    # Accept also space separated tokens if no commas present
+    if len(parts) == 1 and ' ' in parts[0]:
+        parts = [p.strip() for p in parts[0].split(' ') if p.strip()]
+    # Basic YYYY-MM-DD validation
+    out = []
+    for p in parts:
+        if len(p)==10 and p[4]=='-' and p[7]=='-':
+            out.append(p)
+    return out
+
+def get_holiday_list(base: list[str] | None = None) -> list[str]:
+    """Return merged holiday list (static + env overrides)."""
+    base_list = list(base) if base else list(MARKET_HOLIDAYS_2025)
+    env_extra = _parse_env_holidays()
+    merged = list(dict.fromkeys(base_list + env_extra))  # de-duplicate preserve order
+    return merged
+
+def adjust_expiry_for_holiday(expiry_date, *, roll_strategy: str = 'previous', holidays: list[str] | None = None):
+    """Adjust an expiry date if it falls on a holiday.
+
+    Args:
+        expiry_date (date): Candidate expiry.
+        roll_strategy: 'previous' (default) or 'next'.
+        holidays: Optional explicit holiday list.
+
+    Returns:
+        date: Adjusted date (or original if no change needed).
+    """
+    from datetime import timedelta, date as _date
+    if not expiry_date:
+        return expiry_date
+    hols = holidays or get_holiday_list()
+    try:
+        exp_str = expiry_date.strftime('%Y-%m-%d')
+    except Exception:
+        return expiry_date
+    if exp_str not in hols:
+        return expiry_date
+    # Apply strategy
+    delta = -1 if roll_strategy == 'previous' else 1
+    cur = expiry_date
+    # Skip weekends & holidays
+    while True:
+        cur = cur + timedelta(days=delta)
+        if cur.weekday() >=5:
+            continue
+        if cur.strftime('%Y-%m-%d') in hols:
+            continue
+        return cur

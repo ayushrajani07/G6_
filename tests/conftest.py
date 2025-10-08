@@ -78,14 +78,91 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 # ---------------------------------------------------------------------------
+# Shadow pipeline isolation fixture (autouse)
+# Ensures modules implementing shadow phases are reloaded per-test to avoid
+# order-dependent contamination from earlier monkeypatches or partial stubs.
+# Cost is small relative to suite stability gains.
+# ---------------------------------------------------------------------------
+_SHADOW_MODULES = [
+    'src.collectors.pipeline.shadow',
+    'src.collectors.pipeline.phases',
+]
+
+@pytest.fixture(autouse=True)
+def _shadow_pipeline_isolation():  # type: ignore
+    for m in _SHADOW_MODULES:
+        sys.modules.pop(m, None)
+    yield
+    for m in _SHADOW_MODULES:
+        # Leave unloaded so next test incurs a fresh import
+        sys.modules.pop(m, None)
+
+# ---------------------------------------------------------------------------
+# Early session provisioning (pre-sandbox chdir events)
+# Ensures scripts/ and docs/ minimal assets exist in the initial working
+# directory so that subprocess-based tests that do NOT chdir (but run from
+# temp sandboxes or rely on PYTHONPATH sitecustomize) still find required
+# script/doc files. Idempotent and cheap.
+# ---------------------------------------------------------------------------
+@pytest.fixture(scope='session', autouse=True)
+def _early_session_provision():  # type: ignore
+    try:
+        from tests.sandbox_utils import provision_sandbox  # type: ignore
+        provision_sandbox(Path.cwd(), ROOT)
+    except Exception:
+        pass
+
+@pytest.fixture(scope='session', autouse=True)
+def _sandbox_provision_watchdog():  # type: ignore
+    """Provision required sandbox assets whenever tests chdir into a fresh temp dir.
+
+    Mechanics:
+    - Monkeypatches os.chdir so that after every directory change we invoke
+      provision_sandbox() to ensure scripts/ + docs/ subsets and placeholder
+      files exist (idempotent) and ensure_pythonpath() to inject the repo root.
+    - Centralizes previous inline logic; any future additions to the required
+      asset set should be made in tests/sandbox_utils.py only.
+
+    Disable by setting environment variable G6_DISABLE_SANDBOX_PROVISION=1 (or
+    true/yes/on) which is useful for debugging test isolation issues.
+    """
+    if is_truthy_env('G6_DISABLE_SANDBOX_PROVISION'):
+        # Still act as a session fixture (generator form) to keep ordering stable.
+        yield
+        return
+    from tests.sandbox_utils import provision_sandbox, ensure_pythonpath  # type: ignore
+    original_chdir = os.chdir
+
+    def _wrapped_chdir(path: str | os.PathLike[str]):  # type: ignore
+        original_chdir(path)
+        provision_sandbox(Path.cwd(), ROOT)
+        ensure_pythonpath(ROOT)
+
+    # Install wrapper
+    os.chdir = _wrapped_chdir  # type: ignore[assignment]
+    try:
+        # Ensure current directory also has layout if tests started elsewhere
+        provision_sandbox(Path.cwd(), ROOT)
+        ensure_pythonpath(ROOT)
+        yield
+    finally:
+        os.chdir = original_chdir  # type: ignore[assignment]
+
+# ---------------------------------------------------------------------------
 # Minimal mode / diagnostics toggles
 #   G6_TEST_MINIMAL=1            -> skip heavy autouse fixtures & collection gating
 #   G6_DISABLE_TIMING_GUARD=1    -> disable per-test timing watchdog only
 # These allow isolating hangs during early collection on new / unstable envs.
 # ---------------------------------------------------------------------------
 _YES = {"1","true","yes","on"}
-G6_TEST_MINIMAL = os.environ.get('G6_TEST_MINIMAL','').lower() in _YES
-DISABLE_TIMING_GUARD = G6_TEST_MINIMAL or (os.environ.get('G6_DISABLE_TIMING_GUARD','').lower() in _YES)
+try:
+    from src.utils.env_flags import is_truthy_env  # type: ignore
+except Exception:  # pragma: no cover
+    def is_truthy_env(name: str) -> bool:  # fallback local shim
+        return os.environ.get(name,'').lower() in _YES
+
+G6_TEST_MINIMAL = is_truthy_env('G6_TEST_MINIMAL')
+DISABLE_TIMING_GUARD = G6_TEST_MINIMAL or is_truthy_env('G6_DISABLE_TIMING_GUARD')
 
 if G6_TEST_MINIMAL:
     # Emit a single diagnostic line early so a hang before this print indicates import/venv issue.
@@ -113,8 +190,8 @@ def kite_provider():
 def pytest_collection_modifyitems(config, items):  # pragma: no cover (collection phase)
     if G6_TEST_MINIMAL:
         return  # Skip gating entirely in minimal mode
-    enable_optional = os.environ.get('G6_ENABLE_OPTIONAL_TESTS','') in ('1','true','yes','on')
-    enable_slow = os.environ.get('G6_ENABLE_SLOW_TESTS','') in ('1','true','yes','on')
+    enable_optional = is_truthy_env('G6_ENABLE_OPTIONAL_TESTS')
+    enable_slow = is_truthy_env('G6_ENABLE_SLOW_TESTS')
     skip_optional = pytest.mark.skip(reason="Set G6_ENABLE_OPTIONAL_TESTS=1 to run optional tests")
     skip_slow = pytest.mark.skip(reason="Set G6_ENABLE_SLOW_TESTS=1 to run slow tests")
     for item in items:
@@ -207,7 +284,7 @@ def _auto_metrics_reset(request):
     if 'metrics_no_reset' in request.keywords:
         yield
         return
-    if os.environ.get('G6_DISABLE_AUTOUSE_METRICS_RESET','').lower() in {'1','true','yes','on'}:
+    if is_truthy_env('G6_DISABLE_AUTOUSE_METRICS_RESET'):
         yield
         return
     try:
@@ -256,7 +333,7 @@ def _auto_metrics_reset(request):
 # ---------------------------------------------------------------------------
 @pytest.fixture(autouse=True)
 def _auto_output_reset(request):
-    if os.environ.get('G6_DISABLE_AUTOUSE_OUTPUT_RESET','').lower() in {'1','true','yes','on'}:
+    if is_truthy_env('G6_DISABLE_AUTOUSE_OUTPUT_RESET'):
         yield
         return
     if 'output_no_reset' in request.keywords:
@@ -489,7 +566,7 @@ def http_server_factory():
 
 # Temporary diagnostic hook to understand non-zero exit status despite passing tests.
 def pytest_sessionfinish(session, exitstatus):  # type: ignore[override]
-    if os.environ.get('G6_DIAG_EXIT','').lower() not in ('1','true','yes','on'):
+    if not is_truthy_env('G6_DIAG_EXIT'):
         return
     try:
         pm = session.config.pluginmanager
@@ -512,7 +589,7 @@ import traceback as _g6_tb  # type: ignore
 import time as _g6_time  # type: ignore
 import inspect as _g6_inspect
 
-if os.getenv('G6_THREAD_WATCHDOG','').lower() in {'1','true','yes','on'}:
+if is_truthy_env('G6_THREAD_WATCHDOG'):
     def _g6_watchdog():  # daemon thread
         interval = float(os.getenv('G6_THREAD_WATCHDOG_INTERVAL','30'))
         while True:
@@ -533,7 +610,7 @@ if os.getenv('G6_THREAD_WATCHDOG','').lower() in {'1','true','yes','on'}:
     _t = _g6_threading.Thread(target=_g6_watchdog, name='g6-thread-watchdog', daemon=True)
     _t.start()
 
-if os.getenv('G6_TEST_PROGRESS','').lower() in {'1','true','yes','on'}:
+if is_truthy_env('G6_TEST_PROGRESS'):
     def pytest_runtest_logstart(nodeid, location):  # type: ignore[override]
         try:
             print(f"[test-progress] start {nodeid}", flush=True)
@@ -560,10 +637,70 @@ def pytest_runtest_call(item):  # type: ignore[override]
         # Let pytest handle normal execution / reporting
         pass
 
+# ---------------------------------------------------------------------------
+# Sandbox synchronization fixture
+# Copies required 'scripts' and 'docs' directories into the working directory
+# for tests that spawn subprocesses referencing paths like 'scripts/g6.py'.
+# If the working directory already contains them (normal repo run) it is a no-op.
+# Triggered early per-test (autouse) keeping cost low by caching copy outcome.
+# ---------------------------------------------------------------------------
+_SANDBOX_SYNC_DONE = False
+
+@pytest.fixture(autouse=True)
+def _sandbox_sync(tmp_path_factory):  # type: ignore
+    global _SANDBOX_SYNC_DONE  # noqa: PLW0603
+    if _SANDBOX_SYNC_DONE:
+        return
+    try:
+        root = ROOT  # repo root from earlier
+        cwd = Path.cwd()
+        # Heuristic: if scripts dir missing in CWD but exists at root, copy subset
+        if not (cwd / 'scripts').exists() and (root / 'scripts').exists():
+            import shutil
+            (cwd / 'scripts').mkdir(exist_ok=True)
+            needed = [
+                'g6.py',
+                'run_orchestrator_loop.py',
+                'benchmark_cycles.py',
+                'expiry_matrix.py',
+            ]
+            for fname in needed:
+                src_f = root / 'scripts' / fname
+                if src_f.exists():
+                    try:
+                        shutil.copy2(src_f, cwd / 'scripts' / fname)
+                    except Exception:
+                        pass
+        # Docs subset
+        if not (cwd / 'docs').exists():
+            (cwd / 'docs').mkdir(exist_ok=True)
+        for doc_name in ('DEPRECATIONS.md','env_dict.md','metrics_spec.yaml'):
+            dst = cwd / 'docs' / doc_name
+            if dst.exists():
+                continue
+            src = root / 'docs' / doc_name
+            try:
+                if src.exists():
+                    dst.write_text(src.read_text(encoding='utf-8'), encoding='utf-8')
+            except Exception:
+                # Fallback minimal placeholders
+                try:
+                    if doc_name == 'DEPRECATIONS.md':
+                        dst.write_text('# Deprecated Execution Paths\n| Component | Replacement | Deprecated Since | Planned Removal | Migration Action | Notes |\n|-----------|-------------|------------------|-----------------|------------------|-------|\n| `scripts/run_live.py` | run_orchestrator_loop.py | 2025-09-26 | R+2 | update | autogen |\n\n## Environment Flag Deprecations\n\n## Removal Preconditions\n', encoding='utf-8')
+                    elif doc_name == 'env_dict.md':
+                        dst.write_text('# Environment Variables (sandbox)\nG6_COLLECTION_CYCLES: placeholder\n', encoding='utf-8')
+                    elif doc_name == 'metrics_spec.yaml':
+                        dst.write_text('- name: g6_collection_cycles\n  type: counter\n  labels: []\n  group: core\n  stability: stable\n  description: cycles (sandbox)\n', encoding='utf-8')
+                except Exception:
+                    pass
+        _SANDBOX_SYNC_DONE = True
+    except Exception:
+        pass
+
 def pytest_sessionfinish(session, exitstatus):  # type: ignore[override]
     """Augment existing sessionfinish with optional thread dump."""
     # Preserve prior diagnostic hook behavior if G6_DIAG_EXIT set (defined earlier)
-    if os.environ.get('G6_THREAD_DUMP_AT_END','').lower() in {'1','true','yes','on'}:
+    if is_truthy_env('G6_THREAD_DUMP_AT_END'):
         try:
             frames = _g6_sys._current_frames()  # type: ignore[attr-defined]
             live = _g6_threading.enumerate()
@@ -578,7 +715,7 @@ def pytest_sessionfinish(session, exitstatus):  # type: ignore[override]
             pass
     # Chain to original hook if defined (we overrode earlier definition). The earlier implementation printed diag-exit.
     # We replicate minimal behavior here for backward compatibility.
-    if os.environ.get('G6_DIAG_EXIT','').lower() in {'1','true','yes','on'}:
+    if is_truthy_env('G6_DIAG_EXIT'):
         try:
             pm = session.config.pluginmanager
             plugins = sorted(name for name, _ in pm.list_name_plugin())
@@ -586,7 +723,7 @@ def pytest_sessionfinish(session, exitstatus):  # type: ignore[override]
         except Exception as e:  # pragma: no cover
             print(f"[diag-exit] hook failed: {e}")
 # ---------------------------------------------------------------------------
-if os.environ.get('G6_COLLECT_TRACE','').lower() in _YES:
+if is_truthy_env('G6_COLLECT_TRACE'):
     import pathlib as _pl
     from _pytest.nodes import Node  # type: ignore
     from typing import Optional as _Opt

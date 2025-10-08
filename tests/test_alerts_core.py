@@ -30,7 +30,8 @@ def test_alerts_core_mixed():
     assert alerts['low_strike_coverage'] == 1
     assert alerts['low_field_coverage'] == 1
     assert alerts['low_both_coverage'] == 1
-    assert alerts['synthetic_quotes_used'] == 1
+    # Synthetic usage counter removed – legacy key fixed at 0
+    assert alerts['synthetic_quotes_used'] == 0
     assert d['alerts_total'] == sum(alerts.values())
 
 

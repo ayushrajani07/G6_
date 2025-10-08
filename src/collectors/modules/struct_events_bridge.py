@@ -20,8 +20,20 @@ logger = logging.getLogger(__name__)
 
 _STRUCT_DISABLED = os.environ.get('G6_DISABLE_STRUCT_EVENTS','0').lower() in ('1','true','yes','on')
 
+# Optional fine-grained suppression: comma/space separated event names.
+_SUPPRESS_EVENTS: set[str] = set()
+try:
+    _raw = os.environ.get('G6_STRUCT_EVENTS_SUPPRESS','')
+    if _raw:
+        for tok in _raw.replace(',', ' ').split():
+            _SUPPRESS_EVENTS.add(tok.strip())
+except Exception:  # pragma: no cover
+    pass
+
 def emit_struct(event: str, fields: Dict[str, Any]) -> None:  # pragma: no cover (thin wrapper)
     if _STRUCT_DISABLED:
+        return
+    if event in _SUPPRESS_EVENTS:
         return
     try:
         logger.info("STRUCT %s | %s", event, json.dumps(fields, default=str, ensure_ascii=False))

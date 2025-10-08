@@ -66,7 +66,7 @@ Legend: [C] Completed & stable  |  [P] Planned / design accepted  |  [IP] In Pro
 |--------|---------------------------|-------------------------|----------------|--------------------|
 | Orchestrator | `unified_main.py`, `orchestrator/` | Bootstrap, interval loop, graceful shutdown, feature flag wiring | [C] | Heartbeat & rate-limit stats recently added; monitor for noise tuning |
 | Collectors Core | `collectors/unified_collectors.py`, `collectors/pipeline.py` | Per-index cycle coordination, invoke providers, analytics, persistence | [C] | Future: fine-grained concurrency controls (P) |
-| Collector Modules | `collectors/modules/*.py` | Strike depth calc, aggregation, synthetic fallbacks, status finalization | [C] | Evaluate adaptive strike window (P) |
+| Collector Modules | `collectors/modules/*.py` | Strike depth calc, aggregation, coverage/status finalization | [C] | Evaluate adaptive strike window (P) |
 | Providers Facade | `collectors/providers_interface.py`, `providers/` | Abstract live / mock provider, expiry + instrument resolution | [IP] | Multi-provider fallback design drafted; implementation pending |
 | Token Management | `tools/token_manager.py`, `tools/token_providers/*` | Acquire / validate auth tokens (kite, fake) | [C] | Add secret sanitization (P) |
 | Analytics (Greeks/IV) | `analytics/option_greeks.py`, `analytics/iv_solver.py` | Newton-Raphson IV, Greeks, PCR, breadth | [C] | Vol surface interpolation (P); risk aggregation (E) |
@@ -155,6 +155,20 @@ Guidelines:
 2. Prefer config keys for structured/long‑lived settings.
 3. Remove deprecated aliases post window (tracked in docs table).
 4. Keep descriptions action‑oriented.
+
+Consolidated Runtime Flags (A23/A24): High‑traffic collector toggles (salvage, outage thresholds, heartbeat interval, quiet/trace; formerly synthetic fallback disable) are hydrated once via `CollectorSettings`. The synthetic fallback toggle was removed in Oct 2025 (see CHANGELOG – rationale: eliminate silent data fabrication and simplify coverage reasoning). Changing the corresponding environment variables after startup has no effect unless the process restarts or `get_collector_settings(force_reload=True)` is explicitly called (discouraged in hot paths). This improves determinism and removes repeated env parsing overhead.
+
+Human Settings Summary: On first hydration a single structured line `collector.settings.summary ...` is logged. Enable a multi-line aligned block for readability by setting `G6_SETTINGS_SUMMARY_HUMAN=1` (optional; emits once, low noise). Example:
+
+```
+SETTINGS SUMMARY
+  min_volume                 : 0
+  salvage_enabled            : 0
+  outage_threshold           : 3
+  outage_log_every           : 5
+  heartbeat_interval         : 0.0
+  pipeline_v2_flag           : 0
+```
 
 Related: `docs/env_dict.md`, `docs/CONFIG_FEATURE_TOGGLES.md`, `docs/ENVIRONMENT.md`.
 
@@ -255,6 +269,51 @@ python scripts/release_readiness.py --perf-budget-p95-ms 5.0 `
 ```
 Fails if `SSEPublisher.process()` p95 latency exceeds budget. Use alongside `--strict --check-deprecations --check-env` for holistic gating.
 
+### 7.6.1 One-Shot Startup Summaries
+Core subsystems emit a single structured summary line at first initialization for deterministic operator visibility. Optional human-readable multi-line blocks (aligned key/value) can be enabled via environment flags below.
+
+| Subsystem | Structured Event (always once) | Human Block Flag | Notes |
+|-----------|--------------------------------|------------------|-------|
+| Settings Collector | `collector.settings.summary` | `G6_SETTINGS_SUMMARY_HUMAN=1` | Emits consolidated env-derived collector flags & thresholds |
+| Provider (Kite) | `provider.kite.summary` | `G6_PROVIDER_SUMMARY_HUMAN=1` | Presence & throttle / fabrication configuration |
+| Metrics Registry | `metrics.registry.summary` | `G6_METRICS_SUMMARY_HUMAN=1` | Families count, always-on group count, init profiling total |
+| Orchestrator | `orchestrator.summary` | `G6_ORCH_SUMMARY_HUMAN=1` | High-level runtime mode (indices count, pipeline, diff mode, provider/metrics presence) |
+
+Guidance:
+* Human blocks are opt-in to keep default logs compact.
+* All summaries are sentinel-guarded to avoid duplicate emission on re-imports.
+* Structured lines are stable key-order to simplify log parsing & diffing.
+* Future: potential JSON emission variant (planned) and masking of sensitive values if introduced.
+
+#### 7.6.2 Operator Diagnostics Examples
+Example structured + human + JSON trio for settings (truncated):
+```
+collector.settings.summary min_volume=0 min_oi=0 vol_pct=0.00 salvage=0 foreign_salvage=0 ... pipeline_v2=1
+
+SETTINGS SUMMARY
+  min_volume            : 0
+  min_oi                : 0
+  salvage_enabled       : 0
+  pipeline_v2_flag      : 1
+
+{"type":"collector.settings.summary.json","ts":1738888888,"fields":{"heartbeat_interval":0.0,"min_oi":0,"min_volume":0,"pipeline_v2_flag":1,"quiet_mode":0},"hash":"d3adbeefcafe1234","emit_ms":0.221}
+```
+
+Troubleshooting quick hints:
+| Symptom | Likely Cause | Action |
+|---------|--------------|--------|
+| `provider.kite.summary` missing or `has_client=0` | Credentials absent or invalid | Ensure `KITE_API_KEY` / token env set before start |
+| `metrics.registry.summary families=-1` | Collector failure reading registry | Check earlier errors; ensure prometheus_client installed |
+| `orchestrator.summary provider_client=0` but settings show salvage enabled | Provider not initialized yet | Inspect logs for provider init errors; may retry later |
+| `env.deprecations.summary count>0` | Deprecated env vars set | Remove or migrate before enabling strict mode |
+| JSON summaries absent | JSON flags not enabled | Set `G6_*_SUMMARY_JSON=1` for subsystems needed |
+
+Composite hash line aids diffing across deploys:
+```
+startup.summaries.hash count=5 composite=4e1f9a02b3cd77ab998812aa ts=1738888889
+```
+If composite hash changes unexpectedly between deploys, compare individual JSON hashes to isolate changed fields.
+
 ### 7.7 Grafana Dashboards (Extended)
 Additional focused dashboards for SSE performance, security, and panels integrity are provided under `grafana/dashboards/`:
 | Domain | File | Purpose |
@@ -265,7 +324,58 @@ Additional focused dashboards for SSE performance, security, and panels integrit
 
 See `docs/OBSERVABILITY_DASHBOARDS.md` for PromQL mappings, alert suggestions, and provisioning notes.
 
-### 7.8 Dashboard Distribution Bundle
+#### 7.7.1 Modular Generation & Drift Guard
+Dashboards under `grafana/dashboards/generated/` are produced by the modular generator (`scripts/gen_dashboards_modular.py`).
+
+Key features:
+* Deterministic panel IDs (stable hash of semantic signature)
+* Auto synthesis: counter rate, histogram p95/p99 (recording rules), limited label splits (topK & by <label>)
+* Cross-metric efficiency panels (diff bytes/write, ingest bytes/row, backlog ETA) for selected dashboards
+* Plan-driven composition (families → dashboards) with manifest summarizing panel counts & spec hash
+* Panel metadata (`g6_meta`) enrichment: metric, family, kind, source (spec|auto_rate|auto_hist_quantile|auto_label_split|placeholder|cross_metric|alerts_aggregate|governance_summary)
+
+Drift verification (CI-friendly):
+```powershell
+python scripts/gen_dashboards_modular.py --output grafana/dashboards/generated --verify
+```
+Exit code 6 signals semantic drift (added/removed/changed panels or spec hash mismatch). Set `G6_DASHBOARD_DIFF_VERBOSE=1` for human-readable JSON lines of changed/added/removed panel titles.
+
+Partial regeneration for rapid iteration:
+```powershell
+python scripts/gen_dashboards_modular.py --output grafana/dashboards/generated --only bus_health
+```
+Skipped dashboards show `panel_count: 0` in manifest until a full regeneration is performed.
+
+Further details: `GRAFANA_GENERATION.md`.
+
+### 7.7.2 Multi-Pane Explorer (Experimental)
+A lightweight exploratory dashboard `multi_pane_explorer` is generated via the modular generator. Current structure (post consolidation & delta integration):
+
+Base template panels (repeat per selected `$metric`):
+* Raw series & 5m rate overlay (optional 30s overlay when `overlay=on`)
+* 1m vs 5m rate comparison
+* 5m / 30m rate ratio (trend acceleration / degradation signal)
+* Cumulative total (sum)
+
+Histogram-aware panels (repeat per `$metric_hist` and driven by `q` quantile variable):
+* Quantile summary table – 5m, 30m, ratio, delta (% change) with symmetric color thresholds
+* Quantile 5m vs 30m window timeseries
+
+The standalone histogram ratio panel was collapsed into the summary table to reduce vertical footprint. Delta thresholds now use symmetric bands (default: red ≤ -20%, yellow -20%..-5%, green -5%..+5%, yellow +5%..+20%, red > +20%).
+
+Compact variant `multi_pane_explorer_compact`:
+* Removes the cumulative total panel
+* Reduces base panel heights from 8 → 6
+* Pulls summary + histogram window panels upward (overall 5 panels instead of 6)
+
+Generation:
+```powershell
+python scripts/gen_dashboards_modular.py --output grafana/dashboards/generated --only multi_pane_explorer
+python scripts/gen_dashboards_modular.py --output grafana/dashboards/generated --only multi_pane_explorer_compact
+```
+Open the corresponding `g6-multi_pane_explorer*` dashboards in Grafana and multi-select metrics. See `TIME_SERIES_MULTI_PANE_PANEL.md` for the phased design & roadmap.
+
+#### 7.8 Dashboard Distribution Bundle
 Package all production dashboards and a manifest with:
 ```powershell
 python scripts/package_dashboards.py --version 1.0.0 --out dist
@@ -802,7 +912,7 @@ When `G6_SSE_TRACE=on`, each event payload embeds a `_trace` dict:
 | `serialize_ts` | Timestamp after serialization (if instrumentation enabled) |
 | `flush_ts` | Timestamp just before/after flush in SSE HTTP handler |
 
-Metric: `g6_sse_trace_stages_total` increments per stage (serialize + flush) aiding detection of stalled stage emission (alert uses rate). Future work may add client apply timestamp for full diff→apply latency.
+Metric `g6_sse_trace_stages_total` increments per stage (serialize + flush) aiding detection of stalled stage emission (alert uses rate). Future work may add client apply timestamp for full diff→apply latency.
 
 ### 22.4 Snapshot Guard (Re‑exposed)
 Method `enforce_snapshot_guard` reinstated to guarantee full snapshot emission after certain diff patterns—ensures downstream parity correctness post degraded recovery.
@@ -950,7 +1060,8 @@ G6_VOL_SURFACE=1
 
 # Add high-cardinality per-expiry surface metrics (use sparingly)
 G6_VOL_SURFACE_PER_EXPIRY=1
-```
+
+Quantile selector: Use `q` (p50,p90,p95,p99) to switch histogram panels to different recording rule series (`<metric>:<quantile>_5m`, `_30m`, `_ratio_5m_30m`). Default p95.
 
 Troubleshooting gating:
 | Symptom | Likely Cause | Fix |
@@ -1082,5 +1193,11 @@ python scripts/panels_integrity_check.py --strict --json
 ```
 Parse `count` to ensure zero mismatches before deployment.
 
-# ...existing code...
-````
+### Explorer Enhancements (Phase 8)
+#### 1. Overlay Toggle
+Overlay toggle: Set the `overlay` variable to `on` to inject a 30s short-window rate target (refId C) alongside raw & 5m rate for faster responsiveness (approximation of near-real-time trend). Default is `off` (no extra query load).
+
+#### 2. Quantile Summary Panel
+Quantile summary: A compact table panel (`$metric_hist $q summary (5m vs 30m)`) lists last pXX 5m value, 30m value, and 5m/30m ratio for selected histogram metrics (repeats per selection).
+
+The ratio timeseries panel has been collapsed into the summary table: it now includes 5m, 30m, ratio, and delta ((5m-30m)/30m) with color thresholds (ratio >1.2 red, <0.8 green, mid neutral).

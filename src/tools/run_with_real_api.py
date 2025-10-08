@@ -41,6 +41,7 @@ def main():
     # Import components
     from src.config.config_loader import ConfigLoader
     from src.broker.kite_provider import KiteProvider
+    from src.provider.config import get_provider_config
     from src.collectors.providers_interface import Providers
     from src.collectors.unified_collectors import run_unified_collectors
     from src.storage.csv_sink import CsvSink
@@ -55,13 +56,11 @@ def main():
     
     # Initialize KiteProvider
     try:
-        api_key = os.environ.get("KITE_API_KEY")
-        if not api_key:
-            logger.error("KITE_API_KEY not found in environment")
-            return 1
-        
-        logger.info("Initializing KiteProvider")
-        kite_provider = KiteProvider.from_env()
+        logger.info("Initializing KiteProvider (ProviderConfig snapshot)")
+        snap = get_provider_config()
+        kite_provider = KiteProvider.from_provider_config(snap)
+        if not snap.api_key:
+            logger.warning("ProviderConfig snapshot missing api_key (proceeding; downstream may fetch interactively)")
         logger.info("KiteProvider initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize KiteProvider: {e}")

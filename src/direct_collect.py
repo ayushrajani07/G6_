@@ -74,7 +74,7 @@ def main():
     logger.info("Environment variables loaded from .env file")
     
     # Import required modules
-    from src.broker.kite_provider import KiteProvider
+    from src.broker.kite_provider import kite_provider_factory
     from src.storage.csv_sink import CsvSink
     
     # Initialize Kite provider directly
@@ -82,12 +82,12 @@ def main():
         logger.info("Initializing Kite provider...")
         api_key = os.environ.get("KITE_API_KEY")
         access_token = os.environ.get("KITE_ACCESS_TOKEN")
-        
+
         if not api_key or not access_token:
             logger.error("KITE_API_KEY or KITE_ACCESS_TOKEN not set in environment")
             return 1
-            
-        kite_provider = KiteProvider(api_key=api_key, access_token=access_token)
+
+        kite_provider = kite_provider_factory(api_key=api_key, access_token=access_token)
         logger.info("Kite provider initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize Kite provider: {e}", exc_info=True)

@@ -26,6 +26,9 @@ def adaptive_strike_retry(ctx: Any, index_symbol: str, expiry_rec: dict, expiry_
     Mutates `ctx.index_params` in-place to expand strikes_itm / strikes_otm when
     coverage is below threshold. Mirrors original inlined logic.
     """
+    # FINNIFTY: treat as low liquidity -> disable adaptive widening (policy)
+    if (index_symbol or '').upper() == 'FINNIFTY':
+        return
     # Mark per-index cycle flags used by contraction logic
     if not hasattr(ctx, '_adaptive_contraction_state'):
         ctx._adaptive_contraction_state = {}  # type: ignore[attr-defined]

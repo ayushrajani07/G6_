@@ -4,10 +4,37 @@
 All notable changes to this project will be documented in this file. Dates use ISO format (YYYY-MM-DD).
 
 ## [Unreleased]
+### Removed
+- Synthetic fallback system fully excised: phase (`synthetic_fallback`), helper module (`modules/synthetic_fallback.py` logic), status code path (`SYNTH`), settings flag (`disable_synthetic_fallback` / env `G6_DISABLE_SYNTHETIC_FALLBACK`), metrics counter & recording helper, parity harness & structured event synthetic fields, provider capability advertisement. Inert import-safe stubs retained (`collectors.helpers.synthetic`, `collectors.modules.synthetic_fallback`) emitting deprecation warnings if invoked. All tests referencing synthetic behavior either removed or converted to assert absence.
+
+### Changed
+- Pipeline & expiry processor no longer branch on synthetic fallback; empty quote scenarios now surface directly to coverage / alert logic (simpler reasoning, fewer silent data fabrications). Documentation updated to reflect direct empties (operators should rely on coverage + alert metrics rather than synthetic presence).
+
+### Added
+- (Historical reference only) Prior consolidation work: CollectorSettings previously extended with heartbeat/outage/synthetic/salvage/recovery/quiet trace flags; with synthetic removal the synthetic flag is now legacy and omitted from summaries.
+- Immutability tests for CollectorSettings.
+- `kite_provider_factory()` convenience helper wrapping ProviderConfig snapshot + optional overrides; avoids direct constructor credential usage (suppresses deprecation warning for normal instantiation paths).
+- Structured provider event instrumentation (`provider_events` module) with gated JSON line emission via `G6_PROVIDER_EVENTS` / `G6_STRUCT_LOG`; context manager API `provider_event(domain, action)` added.
+- Provider structured event tests (`tests/test_provider_structured_events.py`) asserting success + error outcome emission and error_class taxonomy mapping.
+- Internal error taxonomy raise helper `_raise_classified` reducing duplication across provider methods.
+- Auth wrapper helpers `ensure_client_auth` / `update_credentials_auth` added to `src/broker/kite/auth.py` (facade slimming for Phase A7).
+
+### Changed
+- Unified collectors & expiry processor refactored to use consolidated settings (reduced env lookups on hot path).
+- Partial Provider modularization (A7): extracted rate limiter + startup summary logic into `src/broker/kite/provider_core.py`; `kite_provider.py` now delegates to helpers reducing inline orchestration LOC and clarifying future split boundaries.
+- Provider further modularized (A7 continuation): migrated credential ensure/update logic to auth module; instruments/expiries/options remain separate; facade now primarily orchestration + deprecation shims.
+- Provider methods (`get_instruments`, `get_ltp`, `get_quote`, expiry + options accessors, health) instrumented with structured events (no behavior change; gating defaults to disabled for zero overhead).
+- Exception classification & re-raise in provider consolidated (taxonomy applied consistently: Auth/Timeout/Recoverable/Fatal).
+
+### Removed
+- Deprecated provider shim `src.providers.kite_provider` (A24) – import from `src.broker.kite_provider`.
+- Direct hot-path parsing of multiple env flags (heartbeat, outage, synthetic fallback, salvage, recovery, quiet/trace) now centralized; legacy fallback branches slated for removal 2025-10-20.
+ - Legacy implicit credential discovery inside `KiteProvider` (direct `os.environ` reads for `KITE_API_KEY` / `KITE_ACCESS_TOKEN`) removed; construction now exclusively uses `ProviderConfig` snapshot (`get_provider_config()` + `from_provider_config`). `KiteProvider.from_env()` now only returns a snapshot-backed instance and emits a deprecation warning (no env scanning logic retained). Update any out-of-repo scripts accordingly.
 ### Added
 - Cleanup scaffolding: inventory generator (`scripts/cleanup/gen_inventory.py`), env var scanner (`scripts/cleanup/env_scan.py`), initial validation stub (`scripts/cleanup/validate_cleanup.py`), documentation index (`docs/INDEX.md`), and consolidated cleanup plan (`docs/clean.md`).
  - Shared SSE security & connection governance helper module `scripts/summary/sse_shared.py` (Phase 1 extraction: auth, IP allow, UA allow, per-IP connection rate limiting, rate spec parsing).
  - Phase 2 SSE extraction: event framing (`write_sse_event`) and per-connection token bucket limiter (`allow_event_token_bucket`) centralized; legacy `sse_http` and `unified_http` now delegate for zero drift.
+ - Grafana modular generator Phase D/E/F: new dashboard plans (`bus_health`, `system_overview_minimal`), enriched panel metadata (`g6_meta.metric`, `family`, `kind`, `source`, `split_label`), cross-metric efficiency panels tagged with `source=cross_metric`, verbose drift detection via `G6_DASHBOARD_DIFF_VERBOSE=1` (JSON title lists), generator version bump to `phaseDEF-1`, and new doc `GRAFANA_GENERATION.md` plus README section 7.7.1.
 ### Changed
 - Archived debug & temp scripts: `debug_catalog_http*.py`, `temp_trend_check.py`, `temp_event_debug.py`, `temp_debug_unified_http.py` moved to `archive/` with stubs left in place.
 - Additional archival: `temp_http_trend_check.py`, `temp_sse_diag.py`, `temp_repro_health_test.py`, `temp_debug2.py` migrated to `archive/` with explanatory preserved copies. Originals replaced by inert stubs.
@@ -70,6 +97,20 @@ All notable changes to this project will be documented in this file. Dates use I
 - Phase 2 micro‑batching IMPLEMENTED (see Added above for batcher module) — future enhancement: add metrics & early-fire optimization.
 - Loop heartbeat logging implemented (`G6_LOOP_HEARTBEAT_INTERVAL` seconds) emitting concise `hb.loop.heartbeat` line with cycles & last options processed; future: include avg latency & rate limiter stats.
 - Extended tests to exercise real cycle invocation for daily header gating & integrated batching effectiveness metrics once implemented.
+
+## [2025-10-08]
+### Deprecation / Hygiene
+- Metrics deep import deprecation enforcement refined: facade sets sentinel to suppress redundant warning; genuine direct `import src.metrics.metrics` still emits unless `G6_SUPPRESS_LEGACY_WARNINGS=1`.
+- Replaced remaining runtime deep import usage in `analytics.risk_agg` with facade `from src.metrics import get_metrics`.
+- Added facade helper `_reset_metrics_summary_state()` eliminating need for tests to deep import metrics module to clear one-shot summary sentinel.
+- Gated legacy `_register` shim deprecation noise behind opt-in env `G6_ENABLE_REGISTER_SHIM_WARN=1` (default silent for cleaner baseline runs) while preserving functionality.
+- Introduced `test_deprecation_hygiene.py` ensuring no unexpected `DeprecationWarning` emissions under representative import sequence; supports verbose mode via `G6_DEPRECATION_HYGIENE_VERBOSE=1`.
+- Tombstoned obsolete CollectorSettings immutability assertions (synthetic fallback flag removed) retaining minimal singleton stability test; stale attribute references purged.
+- Orchestrator pipeline flag deprecation remains validated in dedicated test; additional suite runs avoid emitting its warning by not setting deprecated flag.
+
+### Internal
+- Added environment flag `G6_FORCE_METRICS_DEEP_IMPORT_WARN=1` to re‑enable deep import warning even when imported through facade (diagnostic).
+- Clarified deprecation gating guidance in metrics module docstring (future removal window unaffected).
 
 ## [2025-09-30]
 ### Refactor (Metrics Modularization Phase – Cache & Panels Integrity Extraction)

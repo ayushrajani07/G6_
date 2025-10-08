@@ -98,8 +98,9 @@ def bootstrap(
     # Config
     raw = None
     # Optional new loader with migration+validation behind env flag
-    enhanced_cfg = os.environ.get('G6_ENHANCED_CONFIG', '').lower() in ('1','true','yes','on')
-    if enhanced_cfg or os.environ.get('G6_CONFIG_LOADER', '').lower() in ('1','true','yes','on'):
+    from src.utils.env_flags import is_truthy_env  # type: ignore
+    enhanced_cfg = is_truthy_env('G6_ENHANCED_CONFIG')
+    if enhanced_cfg or is_truthy_env('G6_CONFIG_LOADER'):
         try:
             processed, _warns = load_and_process_config(config_path)
             raw = processed
@@ -122,7 +123,8 @@ def bootstrap(
         metrics, stop = setup_metrics_server(port=port, reset=metrics_reset, use_custom_registry=metrics_use_custom_registry)
         # Optional circuit metrics exporter (default off)
         try:
-            enable_circuit_metrics = os.environ.get('G6_CIRCUIT_METRICS', '').lower() in ('1','true','yes','on') or \
+            from src.utils.env_flags import is_truthy_env  # type: ignore
+            enable_circuit_metrics = is_truthy_env('G6_CIRCUIT_METRICS') or \
                 bool(config.get('resilience', {}).get('circuit_metrics', {}).get('enabled', False))  # type: ignore[index]
             if enable_circuit_metrics:
                 interval = float(config.get('resilience', {}).get('circuit_metrics', {}).get('interval', 15.0))  # type: ignore[index]
@@ -132,9 +134,9 @@ def bootstrap(
             circuit_exporter = None
         # Optional health components (default off)
         try:
-            enable_health_api = os.environ.get('G6_HEALTH_API', '').lower() in ('1','true','yes','on') or \
+            enable_health_api = is_truthy_env('G6_HEALTH_API') or \
                 bool(config.get('health', {}).get('api', {}).get('enabled', False))  # type: ignore[index]
-            enable_health_prom = os.environ.get('G6_HEALTH_PROMETHEUS', '').lower() in ('1','true','yes','on') or \
+            enable_health_prom = is_truthy_env('G6_HEALTH_PROMETHEUS') or \
                 bool(config.get('health', {}).get('prometheus', {}).get('enabled', False))  # type: ignore[index]
             if enable_health_api:
                 h_host = str(config.get('health', {}).get('api', {}).get('host', '127.0.0.1'))  # type: ignore[index]
@@ -159,7 +161,7 @@ def bootstrap(
             health_exporter = None
         # Optional alerts subsystem (default off)
         try:
-            enable_alerts = os.environ.get('G6_ALERTS', '').lower() in ('1','true','yes','on') or \
+            enable_alerts = is_truthy_env('G6_ALERTS') or \
                 bool(config.get('health', {}).get('alerts', {}).get('enabled', False))  # type: ignore[index]
             if enable_alerts:
                 alerts_cfg = dict(config.get('health', {}).get('alerts', {}))  # type: ignore[index]

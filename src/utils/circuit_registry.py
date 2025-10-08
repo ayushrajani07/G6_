@@ -51,7 +51,8 @@ def circuit_protected(name: Optional[str] = None, fallback: Optional[Callable[..
                 result = br.execute(func, *args, **kwargs)
                 # On success, update health based on current breaker state
                 try:
-                    if os.environ.get('G6_HEALTH_COMPONENTS', '').lower() in ('1','true','yes','on'):
+                    from src.utils.env_flags import is_truthy_env  # type: ignore
+                    if is_truthy_env('G6_HEALTH_COMPONENTS'):
                         st = br.state
                         if st == CircuitState.CLOSED:
                             health_runtime.set_component(cb_name, HealthLevel.HEALTHY, HealthState.HEALTHY)
@@ -63,7 +64,8 @@ def circuit_protected(name: Optional[str] = None, fallback: Optional[Callable[..
                 return result
             except CircuitOpenError:
                 try:
-                    if os.environ.get('G6_HEALTH_COMPONENTS', '').lower() in ('1','true','yes','on'):
+                    from src.utils.env_flags import is_truthy_env  # type: ignore
+                    if is_truthy_env('G6_HEALTH_COMPONENTS'):
                         health_runtime.set_component(cb_name, HealthLevel.CRITICAL, HealthState.CRITICAL)
                 except Exception:
                     pass

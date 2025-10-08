@@ -38,43 +38,44 @@ class PanelStateStore:
         self._lock = threading.RLock()
         self._panels: Dict[str, Any] = {}
         self._gen = 0  # generation counter (increment on any update)
-        # Lazy metrics family refs (populated on first use if available & env gate)
-        self._metrics_tried = False
-        self._m_full = None
-        self._m_diff = None
+        # Hold registry reference (lazy fetched) for unified metrics
+        self._metrics_ref = None  # populated on first use
 
-    def _ensure_metrics(self) -> None:
-        if self._metrics_tried:
-            return
-        self._metrics_tried = True
+    def _metrics(self):  # pragma: no cover - trivial accessor
+        if self._metrics_ref is not None:
+            return self._metrics_ref
         try:
-            if os.getenv("G6_UNIFIED_METRICS", "0").lower() in {"1","true","yes","on"}:
-                from prometheus_client import Counter  # type: ignore
-                self._m_full = Counter("g6_sse_apply_full_total", "Count of full panel replacements")
-                self._m_diff = Counter("g6_sse_apply_diff_total", "Count of diff panel merges")
-        except Exception:
-            self._m_full = None
-            self._m_diff = None
+            from src.metrics import get_metrics  # type: ignore
+            self._metrics_ref = get_metrics()
+        except Exception:  # noqa: BLE001
+            self._metrics_ref = None
+        return self._metrics_ref
 
     def apply_full(self, panel: str, payload: Any) -> None:
         with self._lock:
-            self._ensure_metrics()
+            m = self._metrics()
             self._panels[panel] = payload
             self._gen += 1
-            if self._m_full:
-                try: self._m_full.inc()  # type: ignore[attr-defined]
-                except Exception: pass
+            try:
+                c = getattr(m, 'sse_apply_full_total', None)
+                if c is not None:
+                    c.inc()
+            except Exception:  # noqa: BLE001
+                pass
 
     def apply_diff(self, panel: str, diff_obj: Any) -> None:
         with self._lock:
-            self._ensure_metrics()
+            m = self._metrics()
             base = self._panels.get(panel)
             merged = merge_panel_diff(base, diff_obj) if base is not None else diff_obj
             self._panels[panel] = merged
             self._gen += 1
-            if self._m_diff:
-                try: self._m_diff.inc()  # type: ignore[attr-defined]
-                except Exception: pass
+            try:
+                c = getattr(m, 'sse_apply_diff_total', None)
+                if c is not None:
+                    c.inc()
+            except Exception:  # noqa: BLE001
+                pass
 
     def snapshot(self) -> Dict[str, Any]:
         with self._lock:
@@ -109,23 +110,18 @@ class SSEClient(threading.Thread):  # pragma: no cover - network/UI side effects
         self._max_backoff = max_backoff
         # Backoff state
         self._attempt = 0
-        # Metrics (lazy init)
-        self._metrics_tried = False
-        self._m_reconnects = None
-        self._m_backoff = None
+        # Metrics registry ref (lazy)
+        self._metrics_ref = None
 
-    def _ensure_metrics(self) -> None:
-        if self._metrics_tried:
-            return
-        self._metrics_tried = True
+    def _metrics(self):  # pragma: no cover
+        if self._metrics_ref is not None:
+            return self._metrics_ref
         try:
-            if os.getenv("G6_UNIFIED_METRICS", "0").lower() in {"1","true","yes","on"}:
-                from prometheus_client import Counter, Histogram  # type: ignore
-                self._m_reconnects = Counter("g6_sse_reconnects_total", "Number of SSE reconnect attempts", ["reason"])  # type: ignore
-                self._m_backoff = Histogram("g6_sse_backoff_seconds", "Backoff sleep duration seconds")  # type: ignore
-        except Exception:
-            self._m_reconnects = None
-            self._m_backoff = None
+            from src.metrics import get_metrics  # type: ignore
+            self._metrics_ref = get_metrics()
+        except Exception:  # noqa: BLE001
+            self._metrics_ref = None
+        return self._metrics_ref
 
     def _next_backoff(self) -> float:
         # Exponential backoff with decorrelated jitter (based on AWS architecture blog variant)
@@ -141,14 +137,22 @@ class SSEClient(threading.Thread):  # pragma: no cover - network/UI side effects
         return min(sleep, self._max_backoff)
 
     def _record_backoff(self, seconds: float) -> None:
-        if self._m_backoff:
-            try: self._m_backoff.observe(seconds)  # type: ignore[attr-defined]
-            except Exception: pass
+        try:
+            m = self._metrics()
+            h = getattr(m, 'sse_backoff_seconds', None)
+            if h is not None:
+                h.observe(seconds)  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001
+            pass
 
     def _inc_reconnect(self, reason: str) -> None:
-        if self._m_reconnects:
-            try: self._m_reconnects.labels(reason=reason).inc()  # type: ignore[attr-defined]
-            except Exception: pass
+        try:
+            m = self._metrics()
+            c = getattr(m, 'sse_reconnects_total', None)
+            if c is not None:
+                c.labels(reason=reason).inc()  # type: ignore[attr-defined]
+        except Exception:  # noqa: BLE001
+            pass
 
     def stop(self) -> None:
         self._stop.set()
@@ -156,7 +160,6 @@ class SSEClient(threading.Thread):  # pragma: no cover - network/UI side effects
     def run(self) -> None:  # noqa: D401
         parsed = urllib.parse.urlparse(self._url)
         scheme = parsed.scheme or 'http'
-        self._ensure_metrics()
         while not self._stop.is_set():
             try:
                 conn_cls = http.client.HTTPSConnection if scheme == 'https' else http.client.HTTPConnection

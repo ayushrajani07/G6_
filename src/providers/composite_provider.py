@@ -77,7 +77,8 @@ class CompositeProvider:
                 prev_name = type(prov).__name__
                 logger.warning("CompositeProvider %s.%s failed provider=%s err=%s", self.name, method, prev_name, e)
                 emit_event("provider_fail", context={"method": method, "provider": prev_name, "error": str(e)})
-                if os.environ.get('G6_PROVIDER_FAILFAST','').lower() in ('1','true','yes','on'):
+                from src.utils.env_flags import is_truthy_env  # type: ignore
+                if is_truthy_env('G6_PROVIDER_FAILFAST'):
                     raise
                 continue
         # Exhausted

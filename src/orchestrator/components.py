@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Tuple
 import os
+from src.utils.env_flags import is_truthy_env  # type: ignore
 import time
 import logging
 import math
@@ -383,7 +384,7 @@ def init_providers(config) -> Providers:  # type: ignore[override]
     providers_wrapper = Providers(primary_provider=provider)  # type: ignore
     # Optional composite provider integration (env gated)
     try:
-        if os.environ.get('G6_COMPOSITE_PROVIDER','').lower() in ('1','true','yes','on'):
+        if is_truthy_env('G6_COMPOSITE_PROVIDER'):
             extra = []
             # Placeholder: attempt to load secondary provider if configured via env (dynamically import path)
             sec_path = os.environ.get('G6_SECONDARY_PROVIDER_PATH')
@@ -484,11 +485,11 @@ def init_health(config, providers, csv_sink, influx_sink):  # type: ignore[overr
 
 def apply_circuit_breakers(config, providers):
     try:
-        adaptive_on = os.environ.get('G6_ADAPTIVE_CB_PROVIDERS', '').lower() in ('1','true','yes','on')
+        adaptive_on = is_truthy_env('G6_ADAPTIVE_CB_PROVIDERS')
     except Exception:
         adaptive_on = False
     try:
-        retries_on = os.environ.get('G6_RETRY_PROVIDERS', '').lower() in ('1','true','yes','on')
+        retries_on = is_truthy_env('G6_RETRY_PROVIDERS')
     except Exception:
         retries_on = False
     prov = getattr(providers, 'primary_provider', None)

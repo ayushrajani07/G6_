@@ -59,5 +59,11 @@ def emit_adaptive_summary(ctx: Any, index_symbol: str) -> None:  # pragma: no co
         # Trim None-only entries (keep index always)
         payload = {k:v for k,v in payload.items() if v is not None or k == 'index'}
         emit_struct('adaptive_summary', payload)
+        # Best-effort aggregation hook (optional)
+        try:
+            from src.collectors.helpers.cycle_tables import record_adaptive  # type: ignore
+            record_adaptive(payload)
+        except Exception:
+            pass
     except Exception:
         logger.debug('adaptive_summary_emit_failed', exc_info=True)

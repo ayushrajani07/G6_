@@ -5,6 +5,7 @@ from typing import Any, Dict
 
 from .adapters.async_kite_adapter import AsyncKiteAdapter
 from .adapters.async_mock_adapter import AsyncMockProvider
+from src.provider.config import get_provider_config
 
 
 def create_async_provider(provider_type: str, config: Dict[str, Any] | None = None):
@@ -16,10 +17,13 @@ def create_async_provider(provider_type: str, config: Dict[str, Any] | None = No
     burst = int(os.environ.get('G6_KITE_RATE_LIMIT_BURST', cfg.get('rate_burst', 0)))
 
     if ptype in ("kite", "zerodha", "kiteconnect"):
-        from src.broker.kite_provider import KiteProvider
+        from src.broker.kite_provider import kite_provider_factory
         api_key = cfg.get("api_key")
         access_token = cfg.get("access_token")
-        prov = KiteProvider(api_key=api_key, access_token=access_token) if api_key and access_token else KiteProvider.from_env()
+        if api_key or access_token:
+            prov = kite_provider_factory(api_key=api_key, access_token=access_token)
+        else:
+            prov = kite_provider_factory()
         return AsyncKiteAdapter(prov, max_workers=max_workers, cps=cps, burst=burst)
     if ptype in ("dummy", "mock"):
         return AsyncMockProvider()

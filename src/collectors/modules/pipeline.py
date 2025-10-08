@@ -61,6 +61,8 @@ Parity Note:
 from __future__ import annotations
 from typing import Any, Dict, List, Tuple
 import time, os, logging, datetime
+from src.collectors.pipeline.logging_schema import phase_log  # type: ignore
+from src.collectors.pipeline.errors import PhaseAbortError, PhaseRecoverableError, PhaseFatalError  # type: ignore
 
 from .context import build_collector_context, CollectorContext
 from .strike_depth import compute_strike_universe
@@ -86,7 +88,6 @@ try:  # finalize_expiry attaches partial_reason + emits option_match stats (via 
 except Exception:  # pragma: no cover
   _finalize_expiry = None  # type: ignore
 from .benchmark_bridge import write_benchmark_artifact
-from .synthetic_quotes import build_synthetic_quotes, record_synthetic_metrics
 from .preventive_validate import run_preventive_validation
 
 logger = logging.getLogger(__name__)
@@ -109,8 +110,9 @@ def _detect_anomalies(series: List[float], threshold: float) -> Tuple[List[bool]
 def run_pipeline(index_params, providers, csv_sink, influx_sink, metrics=None, *,
          compute_greeks: bool = False, risk_free_rate: float = 0.05, estimate_iv: bool = False,
          iv_max_iterations: int | None = None, iv_min: float | None = None, iv_max: float | None = None,
-         iv_precision: float | None = None, build_snapshots: bool = False):  # noqa: D401
-  """Run collectors via staged pipeline (initial sequencing implementation)."""
+         iv_precision: float | None = None, build_snapshots: bool = False,
+         legacy_baseline: Dict[str, Any] | None = None):  # noqa: D401
+  """Run collectors via staged pipeline (synthetic quote fallback removed)."""
   start_wall = time.time()
   phase_timings = {}
   ctx: CollectorContext = build_collector_context(index_params=index_params, metrics=metrics, debug=os.environ.get('G6_COLLECTOR_REFACTOR_DEBUG','').lower() in ('1','true','yes','on'))
@@ -120,6 +122,8 @@ def run_pipeline(index_params, providers, csv_sink, influx_sink, metrics=None, *
   enrich_phase_durations: List[float] = []  # per-expiry enrichment duration
   finalize_phase_durations: List[float] = []  # per-expiry finalize_expiry duration
   provider_call_durations: Dict[str, List[float]] = { 'atm': [], 'instrument_fetch': [] }
+  # Use taxonomy-aware phase_log
+  from src.collectors.pipeline.errors import PhaseRecoverableError, PhaseFatalError
   for index_symbol, cfg in index_params.items():
     index_start = time.time()
     expiries_out: List[Dict[str, Any]] = []
@@ -130,14 +134,16 @@ def run_pipeline(index_params, providers, csv_sink, influx_sink, metrics=None, *
     try:
       attempts += 1
       # ATM strike (best-effort)
-      # ATM strike timing
-      try:
-        _t0_atm = time.time()
-        atm = providers.get_atm_strike(index_symbol)  # type: ignore[attr-defined]
-        provider_call_durations['atm'].append(time.time() - _t0_atm)
-      except Exception:
-        atm = None
-        logger.debug('pipeline_atm_failed', exc_info=True)
+      with phase_log('atm', index=index_symbol, rule='n/a') as rec:
+        try:
+            _t0_atm = time.time()
+            atm = providers.get_atm_strike(index_symbol)  # type: ignore[attr-defined]
+            provider_call_durations['atm'].append(time.time() - _t0_atm)
+            rec.add_meta(found=bool(atm))
+        except Exception as e:
+            atm = None
+            rec.warn(reason='fetch_error')
+            logger.debug('pipeline_atm_failed', exc_info=True)
       # Raw instruments fetch – heuristic method names
       instruments = []
       fetched = False
@@ -152,21 +158,23 @@ def run_pipeline(index_params, providers, csv_sink, influx_sink, metrics=None, *
           except Exception:
             logger.debug('pipeline_instruments_fetch_failed', extra={'method': meth_name}, exc_info=True)
       if not fetched:
-        raise RuntimeError('instrument_fetch_failed')
+        raise PhaseFatalError('instrument_fetch_failed')
       if not instruments:
-        raise RuntimeError('empty_instrument_universe')
+        raise PhaseFatalError('empty_instrument_universe')
       # Expiry map
-      try:
-        expiry_map, expiry_stats = build_expiry_map(instruments)
-      except Exception:
-        logger.debug('pipeline_expiry_map_failed', exc_info=True)
-        raise
+      with phase_log('expiry_map', index=index_symbol, rule='n/a') as rec:
+        try:
+          expiry_map, expiry_stats = build_expiry_map(instruments)
+          rec.add_meta(expiry_count=len(expiry_map))
+        except Exception:
+          rec.fail(reason='map_error')
+          logger.debug('pipeline_expiry_map_failed', exc_info=True)
+          raise PhaseFatalError('expiry_map_error')
       # Iterate expiries (date ordered)
       for expiry_date in sorted(expiry_map.keys()):
         exp_instruments = expiry_map[expiry_date]
         rule = _infer_expiry_rule(expiry_date)
         # Strike universe
-        # Phase 10 adaptive strike policy v2 (pre-strike universe)
         if _resolve_strike_depth is not None:
           try:
             dynamic_itm, dynamic_otm = _resolve_strike_depth(ctx, index_symbol, cfg)
@@ -179,98 +187,124 @@ def run_pipeline(index_params, providers, csv_sink, influx_sink, metrics=None, *
         else:
             strikes_itm = int(cfg.get('strikes_itm', 2) or 2)
             strikes_otm = int(cfg.get('strikes_otm', 2) or 2)
-        strikes, strikes_meta = compute_strike_universe(atm or 0, strikes_itm, strikes_otm, index_symbol)
-        # Enrichment (quotes) + synthetic fallback (Phase 9 async aware)
+        with phase_log('strike_universe', index=index_symbol, rule=rule) as rec:
+          try:
+            strikes, strikes_meta = compute_strike_universe(atm or 0, strikes_itm, strikes_otm, index_symbol)
+            rec.add_meta(strikes_itm=strikes_itm, strikes_otm=strikes_otm, strike_count=len(strikes))
+          except Exception:
+            rec.fail(reason='strike_universe_error')
+            logger.debug('pipeline_strike_universe_failed', exc_info=True)
+            strikes = []
+            strikes_meta = {}
+        # Enrichment (quotes)
         enriched = {}
         synthetic_used_flag = False
         async_flag = os.environ.get('G6_ENRICH_ASYNC','0').lower() in ('1','true','on','yes') and _enrich_quotes_async is not None
-        # Enrichment timing (sync or async path)
         _t0_enrich = time.time()
-        if async_flag and _enrich_quotes_async is not None:
-          try:
-            enriched = _enrich_quotes_async(index_symbol, rule, expiry_date, exp_instruments, providers, metrics)  # type: ignore[misc]
-          except Exception:
-            logger.debug('pipeline_enrichment_async_failed', exc_info=True)
-        if not enriched:
-          try:
-            enriched = enrich_quotes(index_symbol, rule, expiry_date, exp_instruments, providers, metrics)
-          except Exception:
-            logger.debug('pipeline_enrichment_failed', exc_info=True)
+        with phase_log('enrich', index=index_symbol, rule=rule) as rec:
+          rec.add_meta(async_enabled=bool(async_flag))
+          if async_flag and _enrich_quotes_async is not None:
+            try:
+              enriched = _enrich_quotes_async(index_symbol, rule, expiry_date, exp_instruments, providers, metrics)  # type: ignore[misc]
+            except Exception:
+              rec.warn(reason='async_fail')
+              logger.debug('pipeline_enrichment_async_failed', exc_info=True)
+          if not enriched:
+            try:
+              enriched = enrich_quotes(index_symbol, rule, expiry_date, exp_instruments, providers, metrics)
+            except Exception:
+              rec.fail(reason='sync_fail')
+              logger.debug('pipeline_enrichment_failed', exc_info=True)
+          rec.add_meta(enriched_count=len(enriched))
         enrich_phase_durations.append(time.time() - _t0_enrich)
-        if not enriched:
-          try:
-            enriched = build_synthetic_quotes(exp_instruments)
-            if enriched:
-              logger.warning(f"Synthetic quotes generated for {index_symbol} {rule} count={len(enriched)} (pipeline fallback)")
-              record_synthetic_metrics(ctx, index_symbol, expiry_date)
-              synthetic_used_flag = True
-          except Exception:
-            logger.debug('pipeline_synthetic_fallback_failed', exc_info=True)
-        # Preventive validation (clean enriched data) BEFORE field coverage
         cleaned_enriched = enriched
-        try:
-          cleaned_enriched, prevent_report = run_preventive_validation(index_symbol, rule, expiry_date, exp_instruments, enriched, None)
-        except Exception:
-          logger.debug('pipeline_preventive_validation_failed', exc_info=True)
-        # Coverage metrics (strike uses instruments; field uses cleaned enriched)
+        with phase_log('preventive_validate', index=index_symbol, rule=rule) as rec:
+          try:
+            cleaned_enriched, prevent_report = run_preventive_validation(index_symbol, rule, expiry_date, exp_instruments, enriched, None)
+          except Exception:
+            rec.warn(reason='validate_fail')
+            logger.debug('pipeline_preventive_validation_failed', exc_info=True)
         strike_cov = None; field_cov = None
-        try:
-          cov = coverage_metrics(ctx, exp_instruments, strikes, index_symbol, rule, expiry_date)
-          strike_cov = cov.get('strike_coverage') if isinstance(cov, dict) else None
-        except Exception:
-          logger.debug('pipeline_strike_coverage_failed', exc_info=True)
-        try:
-          fcov = field_coverage_metrics(ctx, cleaned_enriched, index_symbol, rule, expiry_date)
-          field_cov = fcov.get('field_coverage') if isinstance(fcov, dict) else None
-        except Exception:
-          logger.debug('pipeline_field_coverage_failed', exc_info=True)
-        # Option count (simplified: length of instruments slice)
+        with phase_log('coverage', index=index_symbol, rule=rule) as rec:
+          try:
+            cov = coverage_metrics(ctx, exp_instruments, strikes, index_symbol, rule, expiry_date)
+            strike_cov = cov.get('strike_coverage') if isinstance(cov, dict) else None
+          except Exception:
+            rec.warn(reason='strike_cov_fail')
+            logger.debug('pipeline_strike_coverage_failed', exc_info=True)
+          try:
+            fcov = field_coverage_metrics(ctx, cleaned_enriched, index_symbol, rule, expiry_date)
+            field_cov = fcov.get('field_coverage') if isinstance(fcov, dict) else None
+          except Exception:
+            rec.warn(reason='field_cov_fail')
+            logger.debug('pipeline_field_coverage_failed', exc_info=True)
+          rec.add_meta(strike_cov=strike_cov, field_cov=field_cov)
         opt_cnt = len(exp_instruments)
         option_count_total += opt_cnt
         expiry_rec = {
           'rule': rule,
-          'status': 'OK' if opt_cnt > 0 else 'EMPTY',  # provisional; may become PARTIAL after classification
+          'status': 'OK' if opt_cnt > 0 else 'EMPTY',
           'options': opt_cnt,
           'strike_coverage': strike_cov,
           'field_coverage': field_cov,
           'partial_reason': None,
-          'synthetic_quotes': synthetic_used_flag,
-          'synthetic_fallback': synthetic_used_flag,  # alias for legacy finalize_expiry expectations
+          'synthetic_quotes': False,
         }
-        # Phase 9: apply status reducer to derive PARTIAL based on coverage thresholds
-        if _compute_expiry_status is not None:
-          try:
-            expiry_rec['status'] = _compute_expiry_status(expiry_rec)  # type: ignore
-          except Exception:
-            logger.debug('pipeline_compute_expiry_status_failed', exc_info=True)
-        # Phase 9: finalize expiry (partial_reason derivation + strike footprint stats emission)
+        with phase_log('status_reduce', index=index_symbol, rule=rule) as rec:
+          if _compute_expiry_status is not None:
+            try:
+              expiry_rec['status'] = _compute_expiry_status(expiry_rec)  # type: ignore
+            except Exception:
+              rec.warn(reason='status_reduce_fail')
+              logger.debug('pipeline_compute_expiry_status_failed', exc_info=True)
         if _finalize_expiry is not None:
           _t0_finalize = time.time()
-          try:
-            int_strikes: list[int] = []
-            for s in (strikes or []):
-              try:
-                int_strikes.append(int(s))
-              except Exception:
-                continue
-            _finalize_expiry(expiry_rec, cleaned_enriched, int_strikes, index_symbol, expiry_date, rule, metrics)
-          except Exception:
-            logger.debug('pipeline_finalize_expiry_failed', exc_info=True)
-          finally:
-            finalize_phase_durations.append(time.time() - _t0_finalize)
+          with phase_log('finalize', index=index_symbol, rule=rule) as rec:
+            try:
+              int_strikes: list[int] = []
+              for s in (strikes or []):
+                try:
+                  int_strikes.append(int(s))
+                except Exception:
+                  continue
+              _finalize_expiry(expiry_rec, cleaned_enriched, int_strikes, index_symbol, expiry_date, rule, metrics)
+              rec.add_meta(partial=bool(expiry_rec.get('partial_reason')))
+            except Exception as e:
+              rec.fail(reason='finalize_fail')
+              logger.debug('pipeline_finalize_expiry_failed', exc_info=True)
+              # Raise recoverable error for expiry-level failure
+              raise PhaseRecoverableError(f'finalize_expiry_failed: {e}')
+            finally:
+              finalize_phase_durations.append(time.time() - _t0_finalize)
         expiries_out.append(expiry_rec)
-        # Adaptive logic post-expiry
-        try:
-          adaptive_post_expiry(ctx, index_symbol, expiry_rec, rule)
-        except Exception:
-          logger.debug('pipeline_adaptive_post_failed', exc_info=True)
-      # Index status heuristic
+        with phase_log('adaptive', index=index_symbol, rule=rule) as rec:
+          try:
+            adaptive_post_expiry(ctx, index_symbol, expiry_rec, rule)
+          except Exception:
+            rec.warn(reason='adaptive_fail')
+            logger.debug('pipeline_adaptive_post_failed', exc_info=True)
       status = 'OK' if option_count_total > 0 else 'EMPTY'
-    except Exception:
+    except PhaseRecoverableError as e:
       failures += 1
-      logger.debug('pipeline_index_failed', extra={'index': index_symbol}, exc_info=True)
+      logging.getLogger('src.collectors.pipeline').error('pipeline_index_failed', extra={'index': index_symbol, 'kind': 'recoverable', 'error': str(e)})
+      try:  # taxonomy counter increment (recoverable)
+        from src.metrics import get_counter  # type: ignore
+        get_counter('pipeline_expiry_recoverable_total','Recoverable expiry-level failures', []).inc()
+      except Exception:
+        pass
       if not expiries_out:
-        expiries_out.append({'failed': True})
+        expiries_out.append({'failed': True, 'reason': str(e)})
+    except PhaseFatalError as e:
+      failures += 1
+      logging.getLogger('src.collectors.pipeline').error('pipeline_index_failed', extra={'index': index_symbol, 'kind': 'fatal', 'error': str(e)})
+      try:  # taxonomy counter increment (fatal)
+        from src.metrics import get_counter  # type: ignore
+        get_counter('pipeline_index_fatal_total','Fatal index-level failures', []).inc()
+      except Exception:
+        pass
+      if not expiries_out:
+        expiries_out.append({'failed': True, 'reason': str(e)})
+      status = 'EMPTY'
     elapsed_index = time.time() - index_start
     # Coverage rollup (Phase 8) – compute index-level averages from built expiries
     try:
@@ -292,6 +326,31 @@ def run_pipeline(index_params, providers, csv_sink, influx_sink, metrics=None, *
       'strike_coverage_avg': strike_cov_avg,
       'field_coverage_avg': field_cov_avg,
     })
+
+  # Parity scoring invocation (Wave 2 + rolling aggregation Wave 3)
+  if os.environ.get('G6_PIPELINE_PARITY_LOG','0').lower() in ('1','true','on','yes') and legacy_baseline is not None:
+    _plogger = logging.getLogger('src.collectors.pipeline')
+    try:
+      from src.collectors.pipeline.parity import compute_parity_score, record_parity_score
+      parity_score = compute_parity_score(legacy_baseline, {'indices': indices_struct})
+      score_val = parity_score.get('score')
+      rolling_info = record_parity_score(score_val)
+      _plogger.info('pipeline_parity_score', extra={'score': score_val, 'components': parity_score.get('components'), 'missing': parity_score.get('missing'), 'version': parity_score.get('version'), 'rolling_avg': rolling_info.get('avg'), 'rolling_count': rolling_info.get('count'), 'rolling_window': rolling_info.get('window')})
+      # Optional gauge emission if metrics and rolling window configured
+      try:
+        if metrics is not None and rolling_info.get('window',0) and rolling_info.get('avg') is not None:
+          from prometheus_client import Gauge as _G  # type: ignore
+          if not hasattr(metrics, 'pipeline_parity_rolling_avg'):
+            try: metrics.pipeline_parity_rolling_avg = _G('g6_pipeline_parity_rolling_avg','Rolling average pipeline parity score')  # type: ignore[attr-defined]
+            except Exception: pass
+          g = getattr(metrics,'pipeline_parity_rolling_avg',None)
+          if g:
+            try: g.set(float(rolling_info['avg']))
+            except Exception: pass
+      except Exception:
+        _plogger.debug('pipeline_parity_rolling_metric_failed', exc_info=True)
+    except Exception:
+      _plogger.debug('pipeline_parity_score_failed', exc_info=True)
   total_elapsed = time.time() - start_wall
   # Benchmark artifact (anomalies) – pass anomaly detector
   try:

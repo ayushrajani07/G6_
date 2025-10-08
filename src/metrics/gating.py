@@ -144,19 +144,27 @@ def configure_registry_groups(reg):  # pragma: no cover - simple wiring
         return True
 
     reg._group_allowed = _group_allowed  # type: ignore[attr-defined]
-    # Structured log for observability
+    # Structured log for observability (deduplicated). Allow override to force every call via env.
     try:  # pragma: no cover
-        logger.info(
-            "metrics.group_filters.loaded",
-            extra={
-                "event": "metrics.group_filters.loaded",
-                "enabled_raw": os.environ.get("G6_ENABLE_METRIC_GROUPS", ""),
-                "disabled_raw": os.environ.get("G6_DISABLE_METRIC_GROUPS", ""),
-                "effective_enabled_count": len(effective_enabled),
-                "enabled_spec_active": enabled_set is not None,
-                "disabled_count": len(disabled_set),
-            },
-        )
+        force_every = os.environ.get('G6_METRICS_GROUP_FILTERS_LOG_EVERY_CALL','').lower() in {'1','true','yes','on'}
+        already = getattr(reg, '_group_filters_structured_emitted', False)
+        if force_every or not already:
+            logger.info(
+                "metrics.group_filters.loaded",
+                extra={
+                    "event": "metrics.group_filters.loaded",
+                    "enabled_raw": os.environ.get("G6_ENABLE_METRIC_GROUPS", ""),
+                    "disabled_raw": os.environ.get("G6_DISABLE_METRIC_GROUPS", ""),
+                    "effective_enabled_count": len(effective_enabled),
+                    "enabled_spec_active": enabled_set is not None,
+                    "disabled_count": len(disabled_set),
+                    "dedup": (not force_every and already),
+                },
+            )
+            try:
+                setattr(reg, '_group_filters_structured_emitted', True)
+            except Exception:
+                pass
     except Exception:
         pass
     return CONTROLLED_GROUPS, enabled_set, disabled_set

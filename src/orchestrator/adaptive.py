@@ -28,6 +28,7 @@ from __future__ import annotations
 
 from typing import Any, Dict
 import os
+from src.utils.env_flags import is_truthy_env  # type: ignore
 import math
 
 try:  # optional event dispatch (graceful if events module absent)
@@ -49,7 +50,7 @@ def _get_env_float(name: str, default: float) -> float:
 def update_strike_scaling(ctx: Any, elapsed: float, interval: float) -> None:
     if not ctx or ctx.index_params is None:
         return
-    if not (os.environ.get('G6_ADAPTIVE_STRIKE_SCALING','').lower() in ('1','true','yes','on')):
+    if not is_truthy_env('G6_ADAPTIVE_STRIKE_SCALING'):
         return
     try:
         metrics = getattr(ctx, 'metrics', None)
@@ -57,7 +58,7 @@ def update_strike_scaling(ctx: Any, elapsed: float, interval: float) -> None:
         restore_threshold = int(os.environ.get('G6_ADAPTIVE_STRIKE_RESTORE_HEALTHY','10'))
         reduction = _get_env_float('G6_ADAPTIVE_STRIKE_REDUCTION', 0.8)
         min_depth = int(os.environ.get('G6_ADAPTIVE_STRIKE_MIN','2'))
-        passthrough = os.environ.get('G6_ADAPTIVE_SCALE_PASSTHROUGH','').lower() in ('1','true','yes','on')
+        passthrough = is_truthy_env('G6_ADAPTIVE_SCALE_PASSTHROUGH')
 
         scale = ctx.flag('adaptive_scale_factor', 1.0)
         breach_streak = ctx.flag('adaptive_breach_streak', 0)

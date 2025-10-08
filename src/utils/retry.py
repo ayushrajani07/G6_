@@ -80,7 +80,11 @@ def build_retry_predicate() -> Callable[[BaseException], bool]:
 
 def build_wait_strategy() -> Any:
     base = float(os.environ.get('G6_RETRY_BACKOFF', '0.2') or '0.2')
-    jitter = os.environ.get('G6_RETRY_JITTER', '1').lower() in ('1','true','yes','on')
+    try:
+        from src.utils.env_flags import is_truthy_env  # type: ignore
+        jitter = is_truthy_env('G6_RETRY_JITTER') or 'G6_RETRY_JITTER' not in os.environ
+    except Exception:
+        jitter = True
     exp = wait_exponential(multiplier=base, min=base, max=2.5)
     if jitter:
         return exp + wait_random(0, base)

@@ -157,12 +157,10 @@ def test_no_instruments_path(base_args):
     assert out['success'] is False
 
 
-def test_synthetic_fallback(base_args):
-    # Instruments with no quotes -> _enrich_quotes returns deterministic non-empty; to force synthetic fallback
-    # we pass quotes mapping that is empty AND override provider to return empty dict explicitly.
+def test_no_synthetic_flag_present_after_removal(base_args):
     class _ProvFallback(DummyProviders):
         def enrich_with_quotes(self, instruments):
-            return {}  # force empty so expiry_processor attempts synthetic generation
+            return {}
     providers = _ProvFallback(instruments=[{'strike':100,'id':'X','symbol':'OPT100CE','type':'CE'}], quotes={})
     ctx = DummyCtx(providers)
     out = process_expiry(
@@ -173,5 +171,4 @@ def test_synthetic_fallback(base_args):
         **base_args
     )
     assert 'expiry_rec' in out
-    # synthetic_fallback may be True if synthetic quotes built; always ensure field exists or success False
-    assert out['expiry_rec'].get('synthetic_fallback') in (True, False)
+    assert 'synthetic_fallback' not in out['expiry_rec']

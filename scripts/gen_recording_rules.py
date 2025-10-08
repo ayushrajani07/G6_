@@ -137,6 +137,32 @@ def synth_rules(metrics: List[Metric], existing: set) -> Dict:
                         "expr": f"{p95_5m} / clamp_min({p95_30m}, 0.001)",
                         "labels": {"job": "g6_platform"},
                     })
+            # Per-label (bus) latency quantiles & ratio for bus publish histogram (dimension-preserving)
+            if m.name == "g6_bus_publish_latency_ms" and "bus" in m.labels:
+                # 5m p95 by bus
+                rec_bus_5m = f"{m.name}:p95_5m_by_bus"
+                if rec_bus_5m not in existing:
+                    rules.append({
+                        "record": rec_bus_5m,
+                        "expr": f"histogram_quantile(0.95, sum(rate({bucket}[5m])) by (le,bus))",
+                        "labels": {"job": "g6_platform"},
+                    })
+                # 30m p95 by bus
+                rec_bus_30m = f"{m.name}:p95_30m_by_bus"
+                if rec_bus_30m not in existing:
+                    rules.append({
+                        "record": rec_bus_30m,
+                        "expr": f"histogram_quantile(0.95, sum(rate({bucket}[30m])) by (le,bus))",
+                        "labels": {"job": "g6_platform"},
+                    })
+                # Ratio by bus
+                rec_bus_ratio = f"{m.name}:p95_ratio_5m_30m_by_bus"
+                if rec_bus_ratio not in existing:
+                    rules.append({
+                        "record": rec_bus_ratio,
+                        "expr": f"{rec_bus_5m} / clamp_min({rec_bus_30m}, 0.001)",
+                        "labels": {"job": "g6_platform"},
+                    })
         # Gauges with labels → topk summary
         if m.kind == "gauge" and m.labels:
             rec = f"{m.name}:top5"
@@ -146,6 +172,27 @@ def synth_rules(metrics: List[Metric], existing: set) -> Dict:
                     "expr": f"topk(5, {m.name})",
                     "labels": {"job": "g6_platform"},
                 })
+        # Derived backlog efficiency rules (column store): only if backlog gauge & rows counter present in spec
+        # We emit them once when we encounter the backlog metric name.
+        if m.name == "g6_cs_ingest_backlog_rows":
+            # Precondition check for rows counter existing in spec
+            has_rows_counter = any(mx.name == "g6_cs_ingest_rows_total" for mx in metrics)
+            if has_rows_counter:
+                eta_record = "g6_cs_ingest_backlog_rows:eta_minutes"
+                burn_record = "g6_cs_ingest_backlog_rows:burn_rows_per_s"
+                if eta_record not in existing:
+                    rules.append({
+                        "record": eta_record,
+                        "expr": "(sum(g6_cs_ingest_backlog_rows) / clamp_min(sum(rate(g6_cs_ingest_rows_total[5m])),1)) / 60",
+                        "labels": {"job": "g6_platform"},
+                    })
+                if burn_record not in existing:
+                    # Positive burn when backlog decreasing (offset 5m – current)/300; clamp at 0
+                    rules.append({
+                        "record": burn_record,
+                        "expr": "max(0, (sum(g6_cs_ingest_backlog_rows offset 5m) - sum(g6_cs_ingest_backlog_rows)) / 300)",
+                        "labels": {"job": "g6_platform"},
+                    })
     if not rules:
         return {}
     return {

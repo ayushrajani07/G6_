@@ -23,6 +23,22 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional, Tuple
 import logging, json, time, os
+try:
+    # Aggregation hooks (best-effort; ignore if module missing for any reason)
+    from .cycle_tables import (
+        record_prefilter,
+        record_option_stats,
+        record_strike_adjust,
+        record_adaptive,
+        emit_cycle_tables,
+    )  # type: ignore
+except Exception:  # pragma: no cover - optional dependency path
+    # Explicit light-weight no-op fallbacks ensure safe removal of cycle_tables module.
+    record_prefilter = lambda *a, **k: None  # type: ignore
+    record_option_stats = lambda *a, **k: None  # type: ignore
+    record_strike_adjust = lambda *a, **k: None  # type: ignore
+    record_adaptive = lambda *a, **k: None  # type: ignore
+    emit_cycle_tables = lambda *a, **k: None  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -30,10 +46,42 @@ _STRUCT_DISABLED = str.__call__( # trick to avoid global mutation if env read fa
     __import__('os').environ.get('G6_DISABLE_STRUCT_EVENTS','0').lower()
 ) in ('1','true','yes','on')
 
+# Fine-grained suppression (comma/space separated list of event names)
+_STRUCT_SUPPRESS: set[str] = set()
+try:
+    _raw_sup = os.environ.get('G6_STRUCT_EVENTS_SUPPRESS','')
+    if _raw_sup:
+        for _tok in _raw_sup.replace(',', ' ').split():
+            if _tok:
+                _STRUCT_SUPPRESS.add(_tok.strip())
+except Exception:  # pragma: no cover
+    pass
+
 # Formatting mode: json (default existing behaviour), human (concise human readable), both
 _STRUCT_FMT_MODE = os.environ.get('G6_STRUCT_EVENTS_FORMAT', 'json').strip().lower()
 if _STRUCT_FMT_MODE not in {'json','human','both'}:
     _STRUCT_FMT_MODE = 'json'
+
+_STRUCT_COMPACT = os.environ.get('G6_STRUCT_COMPACT','').lower() in {'1','true','yes','on'}
+
+def _compact_payload(event: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+    if not _STRUCT_COMPACT:
+        return payload
+    try:
+        p = dict(payload)
+        # Truncate common list fields
+        for key in ('sample','strike_list','contam_samples'):
+            if key in p and isinstance(p[key], list):
+                if len(p[key]) > 5:
+                    p[key] = p[key][:5] + ['+%d' % (len(payload[key])-5,)]
+        # Remove verbose keys rarely needed in compact mode
+        drop_keys = {'rejects','contamination_samples','raw_instruments','raw_quotes'}
+        for dk in drop_keys:
+            if dk in p:
+                del p[dk]
+        return p
+    except Exception:
+        return payload
 
 # Common safe json dumps
 _def_dumps = lambda obj: json.dumps(obj, default=str, ensure_ascii=False, separators=(',', ':'))
@@ -67,9 +115,11 @@ def _human_line(event: str, payload: Dict[str, Any]) -> str:
 def _emit(event: str, payload: Dict[str, Any]) -> None:  # pragma: no cover (thin wrapper)
     if _STRUCT_DISABLED:
         return
+    if event in _STRUCT_SUPPRESS:
+        return
     try:
         if _STRUCT_FMT_MODE in {'json','both'}:
-            logger.info("STRUCT %s | %s", event, _def_dumps(payload))
+            logger.info("STRUCT %s | %s", event, _def_dumps(_compact_payload(event, payload)))
         if _STRUCT_FMT_MODE in {'human','both'}:
             try:
                 logger.info(_human_line(event, payload))
@@ -117,6 +167,10 @@ def emit_instrument_prefilter_summary(
     if contamination_samples:
         payload['contam_samples'] = contamination_samples[:8]
     _emit('instrument_prefilter_summary', payload)
+    try:
+        record_prefilter(payload)
+    except Exception:
+        pass
 
 
 def emit_option_match_stats(
@@ -161,7 +215,21 @@ def emit_option_match_stats(
         payload['field_cov'] = round(field_coverage,3)
     if partial_reason:
         payload['partial_reason'] = partial_reason
+    # FINNIFTY strike sample normalization (log-time only): keep multiples of 100 for readability
+    try:
+        if (payload.get('index') or '').upper() == 'FINNIFTY':
+            sample = payload.get('sample') or []
+            if isinstance(sample, list):
+                filt = [s for s in sample if isinstance(s,(int,float)) and (int(round(float(s))) % 100 == 0)]
+                if filt:
+                    payload['sample'] = filt[:8]
+    except Exception:
+        pass
     _emit('option_match_stats', payload)
+    try:
+        record_option_stats(payload)
+    except Exception:
+        pass
 
 
 def emit_zero_data(
@@ -215,14 +283,13 @@ def emit_cycle_status_summary(
                 partial += 1
             elif st == 'EMPTY':
                 empty += 1
-            elif st == 'SYNTH':
-                synth += 1
+            # SYNTH status removed (synthetic fallback feature deprecated)
     reason_totals = _compute_reason_totals(indices) if include_reason_totals else None
     payload: Dict[str, Any] = {
         'cycle_ts': cycle_ts,
         'duration_s': round(duration_s,2),
         'index_count': index_count,
-        'expiry_status_totals': {'ok': ok,'partial': partial,'empty': empty,'synth': synth},
+    'expiry_status_totals': {'ok': ok,'partial': partial,'empty': empty},
         'indices': [
             {
                 'index': i.get('index'),
@@ -234,7 +301,7 @@ def emit_cycle_status_summary(
                         'strike_cov': e.get('strike_coverage'),
                         'field_cov': e.get('field_coverage'),
                         'options': e.get('options'),
-                        'synthetic': e.get('synthetic_fallback'),
+                        # synthetic flag removed
                         'partial_reason': e.get('partial_reason'),
                     }
                     for e in i.get('expiries', []) or []
@@ -246,6 +313,10 @@ def emit_cycle_status_summary(
     if reason_totals:
         payload['partial_reason_totals'] = reason_totals
     _emit('cycle_status_summary', payload)
+    try:  # best-effort table emission at cycle end
+        emit_cycle_tables(payload)
+    except Exception:
+        pass
 
 
 def emit_strike_depth_adjustment(
@@ -285,6 +356,10 @@ def emit_strike_depth_adjustment(
     if min_threshold is not None:
         payload['threshold'] = min_threshold
     _emit('strike_depth_adjustment', payload)
+    try:
+        record_strike_adjust(payload)
+    except Exception:
+        pass
 
 def emit_prefilter_clamp(
     *,

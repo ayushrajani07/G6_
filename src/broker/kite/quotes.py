@@ -31,13 +31,14 @@ logger = logging.getLogger(__name__)
 
 # Attempt to reuse provider helpers
 try:  # pragma: no cover - defensive import
-    from src.broker.kite_provider import _is_auth_error, _timed_call, _CONCISE
+    from src.broker.kite_provider import _is_auth_error, _timed_call, is_concise_logging
 except Exception:  # pragma: no cover
     def _is_auth_error(e: BaseException) -> bool:
         return False
     def _timed_call(fn, timeout: float):  # type: ignore[unused-ignore]
         return fn()
-    _CONCISE = True
+    def is_concise_logging() -> bool:  # type: ignore
+        return True
 
 # Retry helper imported lazily to avoid cost if synthetic path only
 from src.utils.retry import call_with_retry
@@ -56,28 +57,7 @@ except Exception:  # pragma: no cover
     def get_batcher():  # type: ignore
         raise RuntimeError('batcher_unavailable')
 
-# Simple in-memory quote cache (symbol -> (ts, data)) populated only on real quote success.
-_QUOTE_CACHE_LOCK = threading.Lock()
-_QUOTE_CACHE: dict[str, tuple[float, dict]] = {}
-def _quote_cache_get(symbol: str, ttl: float) -> dict | None:
-    if ttl <= 0:
-        return None
-    with _QUOTE_CACHE_LOCK:
-        entry = _QUOTE_CACHE.get(symbol)
-        if not entry:
-            return None
-        ts, data = entry
-        if (time.time() - ts) <= ttl:
-            return data
-        return None
-def _quote_cache_put(raw: dict, ttl: float) -> None:
-    if ttl <= 0 or not isinstance(raw, dict):
-        return
-    now = time.time()
-    with _QUOTE_CACHE_LOCK:
-        for k, v in raw.items():
-            if isinstance(v, dict):
-                _QUOTE_CACHE[k] = (now, v)
+from . import quote_cache  # new cache module
 
 
 @runtime_checkable
@@ -96,88 +76,51 @@ class ProviderLike(Protocol):
 
 InstrumentLike = Union[str, tuple[str, str], Sequence[str]]
 
-def get_ltp(provider: ProviderLike | Any, instruments: Iterable[InstrumentLike]) -> Dict[str, Any]:
-    """Return last traded prices (dict) for requested instruments.
-
-    Instruments may be tuples (exchange, symbol) or already formatted strings
-    of the form EXCH:SYMBOL. Bare symbol strings are assumed NSE:<symbol>.
-    """
-    data: Dict[str, Any] = {}
-    # Real path
-    try:
-        # Optional proactive refresh advisory
+def _normalize_instruments(instruments: Iterable[InstrumentLike], default_exchange: str = 'NSE') -> list[str]:
+    formatted: list[str] = []
+    for item in instruments:
         try:
-            provider.maybe_refresh_token_proactively()  # may not exist on some provider shims
+            if isinstance(item, str):
+                if ':' in item:
+                    formatted.append(item)
+                else:
+                    formatted.append(f"{default_exchange}:{item}")
+                continue
+            if isinstance(item, (tuple, list)):
+                if len(item) >= 2:
+                    exch, sym = item[0], item[1]
+                    formatted.append(f"{exch}:{sym}")
+                    continue
+                if len(item) == 1:
+                    sym = item[0]
+                    formatted.append(f"{default_exchange}:{sym}")
+                    continue
+            logger.debug(f"Skipping malformed instrument entry: {item}")
         except Exception:
-            pass
-        if getattr(provider, '_auth_failed', False):
-            raise RuntimeError('kite_auth_failed')
-        kite = getattr(provider, 'kite', None)
-        if kite is not None:
-            formatted: list[str] = []
-            for item in instruments:
-                try:
-                    if isinstance(item, str):
-                        if ':' in item:
-                            formatted.append(item)
-                        else:
-                            formatted.append(f"NSE:{item}")
-                        continue
-                    if isinstance(item, (tuple, list)):
-                        if len(item) == 2:
-                            exch, ts = item
-                            formatted.append(f"{exch}:{ts}")
-                            continue
-                        elif len(item) == 1:
-                            sym = item[0]
-                            formatted.append(f"NSE:{sym}")
-                            continue
-                    logger.debug(f"Skipping malformed LTP instrument entry: {item}")
-                except Exception:
-                    logger.debug("Error normalizing LTP instrument entry", exc_info=True)
-            if formatted:
-                def _fetch_ltp() -> Any:
-                    rl = getattr(provider, '_api_rl', None)
-                    if callable(rl):
-                        rl()
-                    return _timed_call(lambda: kite.ltp(formatted), getattr(provider._settings, 'kite_timeout_sec', 5.0))
-                raw = call_with_retry(_fetch_ltp)
-                try:  # quality guard
-                    if isinstance(raw, dict):
-                        if not raw:
-                            raise ValueError('empty_ltp_response')
-                        all_zero = True
-                        for _k, _v in raw.items():
-                            if isinstance(_v, dict):
-                                lp = _v.get('last_price')
-                                if isinstance(lp, (int, float)) and lp and lp > 0:
-                                    all_zero = False
-                                    break
-                        if all_zero:
-                            raise ValueError('zero_ltp_response')
-                    return raw
-                except Exception as ltp_quality_err:
-                    logger.debug(f"LTP response unusable ({ltp_quality_err}); switching to synthetic values")
-    except Exception as e:  # Real path failed
-        if _is_auth_error(e) or str(e) == 'kite_auth_failed':
-            try:
-                provider._auth_failed = True  # may not exist on dummy provider
-            except Exception:
-                pass
-            if getattr(provider, '_rl_fallback', lambda: True)():
-                logger.warning("Kite auth failed; using synthetic LTP. Set KITE_API_KEY/KITE_ACCESS_TOKEN to enable real API.")
-        else:
-            logger.debug(f"LTP real fetch failed, using synthetic: {e}")
-        try:
-            from src.error_handling import handle_provider_error
-            handle_provider_error(e, component='kite_provider.get_ltp')
-        except Exception:
-            pass
+            logger.debug("Error normalizing instrument entry", exc_info=True)
+    return formatted
 
+
+def _quality_guard_ltps(raw: Any) -> Any:
+    if isinstance(raw, dict):
+        if not raw:
+            raise ValueError('empty_ltp_response')
+        all_zero = True
+        for _k, _v in raw.items():
+            if isinstance(_v, dict):
+                lp = _v.get('last_price')
+                if isinstance(lp, (int, float)) and lp and lp > 0:
+                    all_zero = False
+                    break
+        if all_zero:
+            raise ValueError('zero_ltp_response')
+    return raw
+
+
+def _synthetic_ltp(provider, instruments: Iterable[InstrumentLike]) -> Dict[str, Any]:
     # Synthetic fallback
     try:
         from src.broker.kite.synthetic import synth_ltp_for_pairs
-        # Normalize instruments to (exch, symbol) pairs expected by builder
         norm_pairs: list[tuple[str, str]] = []
         for entry in instruments:
             try:
@@ -188,13 +131,13 @@ def get_ltp(provider: ProviderLike | Any, instruments: Iterable[InstrumentLike])
                         ex, sy = 'NSE', entry
                     norm_pairs.append((ex, sy))
                 elif isinstance(entry, (tuple, list)) and len(entry) >= 2:
-                    ex = str(entry[0])
-                    sy = str(entry[1])
+                    ex = str(entry[0]); sy = str(entry[1])
                     norm_pairs.append((ex, sy))
             except Exception:
                 continue
         return synth_ltp_for_pairs(norm_pairs)
     except Exception:  # pragma: no cover
+        data: Dict[str, Any] = {}
         for entry in instruments:
             try:
                 if isinstance(entry, str):
@@ -203,7 +146,7 @@ def get_ltp(provider: ProviderLike | Any, instruments: Iterable[InstrumentLike])
                     else:
                         exch, ts = 'NSE', entry
                 else:
-                    exch, ts = entry  # fallback best-effort unpack
+                    exch, ts = entry  # type: ignore
             except Exception:
                 continue
             price = 1000
@@ -221,6 +164,47 @@ def get_ltp(provider: ProviderLike | Any, instruments: Iterable[InstrumentLike])
         return data
 
 
+def get_ltp(provider: ProviderLike | Any, instruments: Iterable[InstrumentLike]) -> Dict[str, Any]:
+    """Return last traded prices (dict) for requested instruments (parity preserved)."""
+    try:
+        try:
+            provider.maybe_refresh_token_proactively()
+        except Exception:
+            pass
+        if getattr(provider, '_auth_failed', False):
+            raise RuntimeError('kite_auth_failed')
+        kite = getattr(provider, 'kite', None)
+        if kite is not None:
+            formatted = _normalize_instruments(instruments)
+            if formatted:
+                def _fetch_ltp() -> Any:
+                    rl = getattr(provider, '_api_rl', None)
+                    if callable(rl):
+                        rl()
+                    return _timed_call(lambda: kite.ltp(formatted), getattr(provider._settings, 'kite_timeout_sec', 5.0))
+                raw = call_with_retry(_fetch_ltp)
+                try:
+                    return _quality_guard_ltps(raw)
+                except Exception as ltp_quality_err:
+                    logger.debug(f"LTP response unusable ({ltp_quality_err}); switching to synthetic values")
+    except Exception as e:
+        if _is_auth_error(e) or str(e) == 'kite_auth_failed':
+            try:
+                provider._auth_failed = True
+            except Exception:
+                pass
+            if getattr(provider, '_rl_fallback', lambda: True)():
+                logger.warning("Kite auth failed; using synthetic LTP. Set KITE_API_KEY/KITE_ACCESS_TOKEN to enable real API.")
+        else:
+            logger.debug(f"LTP real fetch failed, using synthetic: {e}")
+        try:
+            from src.error_handling import handle_provider_error
+            handle_provider_error(e, component='kite_provider.get_ltp')
+        except Exception:
+            pass
+    return _synthetic_ltp(provider, instruments)
+
+
 def get_quote(provider: ProviderLike | Any, instruments: Iterable[InstrumentLike]) -> Dict[str, QuoteTD]:
     """Return full quotes (fallback to synthetic / LTP-based structure).
 
@@ -230,101 +214,11 @@ def get_quote(provider: ProviderLike | Any, instruments: Iterable[InstrumentLike
     try:
         if getattr(provider, '_auth_failed', False):
             raise RuntimeError('kite_auth_failed')
-        kite = getattr(provider, 'kite', None)
-        if kite is not None:
-            formatted = []
-            for item in instruments:
-                if isinstance(item, str):
-                    if ':' in item:
-                        formatted.append(item)
-                    else:
-                        formatted.append(f"NSE:{item}")
-                elif isinstance(item, (tuple, list)) and len(item) >= 2:
-                    exch, sym = item[0], item[1]
-                    formatted.append(f"{exch}:{sym}")
-            if formatted:
-                # Attempt cache fast-path for all symbols if cache enabled
-                cache_ttl = 0.0
-                try:
-                    cache_ttl = float(os.getenv('G6_KITE_QUOTE_CACHE_SECONDS','1') or 1.0)
-                except Exception:
-                    cache_ttl = 1.0
-                # If every requested symbol present in cache within TTL, return composite immediately
-                if cache_ttl > 0:
-                    aggregate_cached: dict[str, Any] = {}
-                    all_hit = True
-                    for sym in formatted:
-                        cached = _quote_cache_get(sym, cache_ttl)
-                        if cached is None:
-                            all_hit = False
-                            break
-                        aggregate_cached[sym] = cached
-                    if all_hit and aggregate_cached:
-                        try:
-                            provider._last_quotes_synthetic = False
-                        except Exception:
-                            pass
-                        return aggregate_cached  # full cache hit
-                # Phase 1 rate limiter integration (opt-in via env G6_KITE_LIMITER=1)
-                limiter = None
-                if build_default_rate_limiter and (str(os.getenv('G6_KITE_LIMITER','0')).lower() in ('1','true','yes','on')):
-                    # cache a limiter on provider to reuse tokens
-                    limiter = getattr(provider, '_g6_quote_rate_limiter', None)
-                    if limiter is None:
-                        try:
-                            limiter = build_default_rate_limiter()
-                            setattr(provider, '_g6_quote_rate_limiter', limiter)
-                        except Exception:
-                            limiter = None
-                def _direct_fetch() -> Any:
-                    rl = getattr(provider, '_api_rl', None)
-                    if callable(rl):
-                        rl()
-                    if limiter is not None:
-                        try:
-                            limiter.acquire()
-                        except RateLimitedError:
-                            raise
-                    return _timed_call(lambda: kite.quote(formatted), getattr(provider._settings, 'kite_timeout_sec', 5.0))
-
-                def _fetch_quote() -> Any:
-                    # If batching enabled, delegate to batcher (already handles limiter inside batch network call)
-                    if batching_enabled():
-                        try:
-                            batcher = get_batcher()
-                            # batcher expects fully formatted symbols
-                            return batcher.fetch(provider, formatted)
-                        except Exception:
-                            # fallback to direct path on any batcher issue
-                            return _direct_fetch()
-                    return _direct_fetch()
-                try:
-                    raw = call_with_retry(_fetch_quote)
-                    if limiter is not None:
-                        try:
-                            limiter.record_success()
-                        except Exception:
-                            pass
-                    # Populate cache (best-effort)
-                    if cache_ttl > 0:
-                        try:
-                            _quote_cache_put(raw, cache_ttl)
-                        except Exception:
-                            pass
-                except Exception as rate_e:
-                    # Detect provider-level rate limit messages to inform limiter
-                    msg = str(rate_e).lower()
-                    if limiter is not None and any(k in msg for k in ("too many requests","rate limit","429")):
-                        try:
-                            limiter.record_rate_limit_error()
-                        except Exception:
-                            pass
-                    raise
-                try:
-                    provider._last_quotes_synthetic = False
-                except Exception:
-                    pass
-                return raw
+        # Delegate real path to extracted fetch module
+        from .quote_fetch import fetch_real_quotes
+        real = fetch_real_quotes(provider, instruments)
+        if real is not None:
+            return real
     except Exception as e:
         if _is_auth_error(e) or str(e) == 'kite_auth_failed':
             try:

@@ -1,5 +1,6 @@
 import os, threading, time
 from types import SimpleNamespace
+from collections import Counter
 
 # Enable batching for the test
 os.environ['G6_KITE_QUOTE_BATCH'] = '1'
@@ -49,7 +50,21 @@ def test_quote_batching_collapses_calls():
     call_count = len(provider.kite.calls)
     assert call_count <= 2, f"Expected 1 or 2 batched calls, got {call_count} ({provider.kite.calls})"
     # Validate each output contains exactly requested symbols
-    for requested, result in zip(symbol_sets, outputs):
-        assert set(requested) == set(result.keys())
-        for sym in requested:
-            assert sym in result and 'last_price' in result[sym]
+    # Sort outputs alignment because batching may alter thread completion order.
+    # Build a multiset of requested symbol sets vs result symbol sets to ensure 1:1 coverage.
+    requested_sets = [frozenset(s) for s in symbol_sets]
+    result_sets = [frozenset(r.keys()) for r in outputs]
+    assert Counter(requested_sets) == Counter(result_sets), (
+        f"Mismatch requested vs result sets: {requested_sets} vs {result_sets}"
+    )
+    # Validate each requested set has a corresponding output payload with all symbols present
+    unmatched = result_sets.copy()
+    for req in requested_sets:
+        try:
+            idx = next(i for i, rs in enumerate(unmatched) if rs == req)
+        except StopIteration:
+            raise AssertionError(f"No result payload for requested set {req}; outputs={unmatched}")
+        payload = outputs[result_sets.index(req)]  # first occurrence mapping
+        for sym in req:
+            assert sym in payload and 'last_price' in payload[sym]
+        unmatched.pop(idx)

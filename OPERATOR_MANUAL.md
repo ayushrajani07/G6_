@@ -158,6 +158,55 @@ Expect future additions that might change observability patterns:
 Prepare dashboards to adapt to metric name additions (prefix stable: `g6_`).
 
 ---
+## 13. Pipeline Mode Wave 2 Enhancements (2025-10-08)
+
+### 13.1 Parity Score Logging
+Enable via env `G6_PIPELINE_PARITY_LOG=1` and pass a legacy baseline snapshot into the pipeline orchestrator wrapper. Log record emitted:
+- Logger: `src.collectors.pipeline`
+- Message: `pipeline_parity_score`
+- Extras: `score`, `components`, `missing`
+
+Usage hint (pseudo-code):
+```
+legacy = collect_legacy_snapshot()
+pipeline = run_pipeline(index_params, providers, csv_sink, influx_sink, legacy_baseline=legacy)
+```
+
+### 13.2 Phase Duration Metrics
+Set `G6_PIPELINE_PHASE_METRICS=1` to emit histogram observations:
+`pipeline_phase_duration_seconds{phase="<phase>"}`
+
+### 13.3 Error Taxonomy Semantics
+| Type | Typical Cause | Operator Action |
+|------|---------------|-----------------|
+| Recoverable (`PhaseRecoverableError`) | Expiry finalize anomaly, partial metadata | Monitor rate; if localized ignore or file issue |
+| Fatal (`PhaseFatalError`) | Instrument universe failure, expiry map corruption | Investigate provider, consider rollback if sustained |
+
+Trigger rollback drill if fatal rate >2% over 20 consecutive cycles or parity score <0.98 for 10 cycles.
+
+### 13.4 Rollback Drill Script
+`python scripts/rollback_drill.py` (dry-run) or add `--execute` to simulate live rollback path.
+
+Steps performed (current skeleton):
+1. Capture health snapshot placeholder
+2. Disable pipeline flag (in-memory)
+3. Legacy warm run placeholder
+
+Planned (Wave 3): Artifact persistence, metrics counter `pipeline_rollback_total`, actual legacy invocation.
+
+### 13.5 Rapid Investigation Playbook
+```
+export G6_PIPELINE_PARITY_LOG=1
+export G6_PIPELINE_PHASE_METRICS=1
+# run orchestrator for a few cycles
+```
+Review logs for `outcome=fatal` and parity score drift. If rollback required:
+```
+python scripts/rollback_drill.py --execute
+```
+Validate legacy cycle completes and alerts present.
+
+---
 ## 13. Minimal Incident Playbook
 | Incident | Quick Actions |
 |----------|---------------|

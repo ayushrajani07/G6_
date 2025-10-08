@@ -8,6 +8,11 @@ from dataclasses import dataclass, asdict
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional, Protocol, Sequence, Tuple, Union
+try:
+    from src.utils.env_flags import is_truthy_env  # type: ignore
+except Exception:  # pragma: no cover
+    def is_truthy_env(name: str) -> bool:  # type: ignore
+        return os.getenv(name,'').lower() in {'1','true','yes','on'}
 
 # Optional Rich support
 from typing import TYPE_CHECKING, Optional
@@ -198,7 +203,7 @@ class _ColorizingFilter(logging.Filter):  # pragma: no cover (cosmetic)
         else:  # auto
             self._enabled = self._tty
         # Allow explicit force (overrides auto/tty) mainly for Windows terminals supporting ANSI
-        if os.getenv('G6_LOG_COLOR_FORCE','').lower() in {'1','true','yes','on'}:
+        if is_truthy_env('G6_LOG_COLOR_FORCE'):
             self._enabled = True
         # Windows ANSI enable (best-effort)
         if self._enabled and os.name == 'nt':
@@ -330,7 +335,7 @@ class PanelFileSink:
     def _mark_health(self, ok: bool) -> None:
         """Optional graded health for panels file sink (env-gated)."""
         try:
-            if os.getenv('G6_HEALTH_COMPONENTS', '').strip().lower() not in ('1','true','yes','on'):
+            if not is_truthy_env('G6_HEALTH_COMPONENTS'):
                 return
             from src.health import runtime as health_runtime  # lazy import
             from src.health.models import HealthLevel, HealthState
@@ -405,7 +410,7 @@ class PanelFileSink:
                     committed: List[str] = []
                     diag_env = os.getenv("G6_PANELS_TXN_DEBUG","")
                     # Optional auto-debug now gated by explicit env to avoid default noise in CI
-                    if not diag_env and os.getenv('PYTEST_CURRENT_TEST') and os.getenv('G6_PANELS_TXN_AUTO_DEBUG','').lower() in {'1','true','yes','on'}:
+                    if not diag_env and os.getenv('PYTEST_CURRENT_TEST') and is_truthy_env('G6_PANELS_TXN_AUTO_DEBUG'):
                         diag_env = '1'
                     diag = diag_env not in ("","0","false","no","off")
                     if diag:
@@ -453,7 +458,7 @@ class PanelFileSink:
                                     pass
                     else:
                         # Staging missing unexpectedly; emit debug trace if enabled
-                        if os.getenv("G6_PANELS_TXN_DEBUG"):
+                        if is_truthy_env('G6_PANELS_TXN_DEBUG'):
                             print(f"[panels-txn-debug] commit stage_dir_missing id={txn_id} dir={stage_dir}")
                     # Secondary safety: if nothing committed but stage exists, attempt relaxed copy
                     if not committed and os.path.isdir(stage_dir):
@@ -543,7 +548,7 @@ class PanelFileSink:
                         pass
                 else:
                     # Abort -> delete staging dir
-                    diag = os.getenv("G6_PANELS_TXN_DEBUG","") not in ("","0","false","no","off")
+                    diag = is_truthy_env('G6_PANELS_TXN_DEBUG')
                     if diag:
                         try:
                             print(f"[panels-txn-debug] abort_start id={txn_id} path={self._txn_dir(str(txn_id))} exists={os.path.isdir(self._txn_dir(str(txn_id)))}")
@@ -618,7 +623,7 @@ class PanelFileSink:
                                 pass
                 except Exception:
                     pass
-                if os.getenv('G6_PANELS_TXN_DEBUG','') not in ('','0','false','no','off'):
+                if is_truthy_env('G6_PANELS_TXN_DEBUG'):
                     try:
                         print(f"[panels-txn-debug] commit_exception id={txn_id} err={e}")
                     except Exception:

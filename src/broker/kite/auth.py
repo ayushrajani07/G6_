@@ -1,6 +1,16 @@
-"""Authentication & auth error classification helpers (Phase 5)."""
+"""Authentication & auth error classification helpers (Phase 5 + A7 split).
+
+Extended to add small wrappers for client ensure + credential update so the
+facade (`kite_provider.py`) can slim down further without re-implementing
+bootstrap logic. These wrappers delegate to `client_bootstrap` but provide a
+stable, auth-scoped import path for future enhancements (token refresh, expiry
+proactive checks, etc.).
+"""
 from __future__ import annotations
-from typing import Any
+from typing import Any, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 _AUTH_KEYWORDS = (
     "token expired",
@@ -26,3 +36,41 @@ class AuthState:
 
     def record_error(self, exc: BaseException) -> None:
         self.last_error = str(exc)
+
+
+# ----------------------------------------------------------------------------
+# Facade-slimming wrappers (A7 incremental extraction)
+# ----------------------------------------------------------------------------
+__all__ = [
+    "is_auth_error",
+    "AuthState",
+    "ensure_client_auth",
+    "update_credentials_auth",
+]
+
+
+def ensure_client_auth(provider) -> None:  # pragma: no cover - thin delegate
+    try:
+        from .client_bootstrap import ensure_client as _ensure
+        _ensure(provider)
+    except Exception:
+        pass
+
+
+def update_credentials_auth(provider, api_key: Optional[str] = None, access_token: Optional[str] = None, rebuild: bool = True) -> None:
+    try:
+        from .client_bootstrap import update_credentials as _update
+        _update(provider, api_key=api_key, access_token=access_token, rebuild=rebuild)
+    except Exception:
+        # Minimal fallback preserving semantics
+        if api_key:
+            provider._api_key = api_key
+        if access_token:
+            provider._access_token = access_token
+        if rebuild:
+            provider._auth_failed = False
+            provider.kite = None
+            ensure_client_auth(provider)
+        else:
+            if getattr(provider, '_rl_fallback', lambda: False)():
+                logger.info("Credentials updated (deferred rebuild; fallback path)")

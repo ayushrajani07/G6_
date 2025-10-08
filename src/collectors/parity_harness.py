@@ -41,7 +41,7 @@ def capture_parity_snapshot(unified_result: Dict[str, Any]) -> Dict[str, Any]:
       unified_result = {
         'indices_struct_entry': {  # OR list if multi-index future
             'index': str,
-            'expiries': [ { 'rule': .., 'expiry_date': .., 'status': .., 'options': int, 'strike_coverage': ?, 'field_coverage': ?, 'synthetic_fallback': bool? } ],
+            'expiries': [ { 'rule': .., 'expiry_date': .., 'status': .., 'options': int, 'strike_coverage': ?, 'field_coverage': ?, } ],
             'option_count': int,
             'status': str,
             ...
@@ -76,7 +76,6 @@ def capture_parity_snapshot(unified_result: Dict[str, Any]) -> Dict[str, Any]:
                 'options': e.get('options'),
                 'strike_cov': e.get('strike_coverage'),
                 'field_cov': e.get('field_coverage'),
-                'synthetic': e.get('synthetic_fallback', False),
                 'partial_reason': e.get('partial_reason'),
             })
         # Sort expiries deterministically by (expiry_date, rule)

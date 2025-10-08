@@ -2,7 +2,7 @@ import os
 import importlib
 import pytest
 
-from src.metrics.metrics import isolated_metrics_registry
+from src.metrics import isolated_metrics_registry  # facade import; legacy deep path deprecated
 
 
 def test_strict_mode_raises(monkeypatch):

@@ -16,8 +16,10 @@ Future (planned):
 from __future__ import annotations
 
 import datetime as _dt
+from datetime import timedelta
 import logging
 import os
+from src.utils.env_flags import is_truthy_env  # type: ignore
 import time
 from typing import Callable, Tuple, Optional
 
@@ -104,10 +106,12 @@ def should_skip_cycle_market_hours(only_during_market_hours: bool, *, log_prefix
         return False
     # Force-open override
     try:
-        if os.environ.get('G6_FORCE_MARKET_OPEN','').lower() in ('1','true','yes','on'):
+        if is_truthy_env('G6_FORCE_MARKET_OPEN'):
             return False
     except Exception:
         pass
+    # Weekend mode support removed: collection always suppressed outside market hours based solely on is_market_open.
+
     try:
         open_now = is_market_open()
     except Exception:  # pragma: no cover

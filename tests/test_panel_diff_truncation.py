@@ -1,7 +1,8 @@
-import os, json
+import os, json, pytest
 from src.orchestrator.panel_diffs import emit_panel_artifacts
 from src.metrics import get_metrics  # facade import
 
+@pytest.mark.skipif(os.getenv('G6_EGRESS_FROZEN','').lower() in {'1','true','yes','on'}, reason='panel diff egress frozen')
 def test_panel_diff_truncation_and_counters(tmp_path, monkeypatch):
     monkeypatch.setenv('G6_PANEL_DIFFS', '1')
     monkeypatch.setenv('G6_PANEL_DIFF_FULL_INTERVAL', '100')  # avoid periodic full interfering

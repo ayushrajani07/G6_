@@ -1,5 +1,9 @@
 import importlib
 import sys
+import os
+import pytest
+
+BROKER_ENABLED = bool(os.getenv('G6_ENABLE_BROKER_TESTS'))
 
 
 def test_fake_provider_validate_and_acquire(monkeypatch):
@@ -11,6 +15,7 @@ def test_fake_provider_validate_and_acquire(monkeypatch):
     assert prov.validate('ignored', token) is True
 
 
+@pytest.mark.skipif(not BROKER_ENABLED, reason='Broker tests skipped (set G6_ENABLE_BROKER_TESTS=1 to enable)')
 def test_kite_provider_headless_requires_request_token(monkeypatch):
     # Skip if kite provider unavailable (no kiteconnect dependency in env)
     try:

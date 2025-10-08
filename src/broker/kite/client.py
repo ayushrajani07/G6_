@@ -25,9 +25,15 @@ class ClientConfig:
         self.timeout = timeout
 
     @classmethod
-    def from_env(cls) -> 'ClientConfig':
-        api_key = os.environ.get("KITE_API_KEY")
-        token = os.environ.get("KITE_ACCESS_TOKEN")
+    def from_provider_config(cls) -> 'ClientConfig':
+        try:
+            from src.provider.config import get_provider_config as _get_pc  # type: ignore
+            _pc = _get_pc()
+            api_key = _pc.api_key
+            token = _pc.access_token
+        except Exception:
+            api_key = None
+            token = None
         try:
             timeout = float(os.environ.get("KITE_TIMEOUT_SEC", _DEF_TIMEOUT))
         except Exception:

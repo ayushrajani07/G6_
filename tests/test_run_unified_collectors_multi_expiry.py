@@ -6,6 +6,8 @@ class FakeProvidersME:
         today = datetime.date.today()
         self._expiries = [today + datetime.timedelta(days=7), today + datetime.timedelta(days=14)]
         self.primary_provider = self
+    def get_expiry_dates(self, index_symbol):
+        return list(self._expiries)
     def resolve_expiry(self, index_symbol, rule):
         # Map rule positionally for deterministic test
         if rule == 'this_week':

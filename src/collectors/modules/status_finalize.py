@@ -114,7 +114,6 @@ def finalize_expiry(expiry_rec: Dict[str, Any], enriched_data: Dict[str, Any], s
             sample=sample_list,
             ce_per_strike=ce_per_strike,
             pe_per_strike=pe_per_strike,
-            synthetic=expiry_rec.get('synthetic_fallback', False),
             strike_coverage=expiry_rec.get('strike_coverage'),
             field_coverage=expiry_rec.get('field_coverage'),
             partial_reason=_partial_reason,

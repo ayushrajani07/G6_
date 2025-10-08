@@ -2,49 +2,323 @@
   {
     "index": "NIFTY",
     "status": "ok",
-    "dq_score": 74.31,
-    "age": 2
+    "dq_score": 84.13,
+    "time": null
   },
   {
     "index": "BANKNIFTY",
     "status": "ok",
-    "dq_score": 77.78,
-    "age": 5
+    "dq_score": 82.69,
+    "time": null
   },
   {
     "index": "FINNIFTY",
     "status": "ok",
-    "dq_score": 79.66,
-    "age": 1
+    "dq_score": 85.56,
+    "time": null
   },
   {
     "index": "SENSEX",
     "status": "ok",
-    "dq_score": 78.02,
-    "age": 5
+    "dq_score": 84.19,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "OK",
+    "dq_score": 88,
+    "time": "2025-10-05T10:00:05Z",
+    "time_hms": "15:30:05"
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 90,
+    "time": "2025-10-05T10:00:00Z",
+    "time_hms": "15:30:00"
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 90,
+    "time": "2025-10-05T10:01:00Z",
+    "time_hms": "15:31:00"
+  },
+  {
+    "index": "SENSEX",
+    "status": "OK",
+    "dq_score": 91,
+    "time": "2025-10-05T10:00:00Z",
+    "time_hms": "15:30:00"
+  },
+  {
+    "index": "FINNIFTY",
+    "status": "OK",
+    "dq_score": 77,
+    "time": "2025-10-05T10:00:00Z",
+    "time_hms": "15:30:00"
   },
   {
     "index": "NIFTY",
     "status": "ok",
-    "dq_score": 74.31,
+    "dq_score": 84.13,
     "time": null
   },
   {
     "index": "BANKNIFTY",
     "status": "ok",
-    "dq_score": 77.78,
+    "dq_score": 82.69,
     "time": null
   },
   {
     "index": "FINNIFTY",
     "status": "ok",
-    "dq_score": 79.66,
+    "dq_score": 85.56,
     "time": null
   },
   {
     "index": "SENSEX",
     "status": "ok",
-    "dq_score": 78.02,
+    "dq_score": 84.19,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "OK",
+    "dq_score": 88,
+    "time": "2025-10-05T10:00:05Z",
+    "time_hms": "15:30:05"
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 90,
+    "time": "2025-10-05T10:00:00Z",
+    "time_hms": "15:30:00"
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 90,
+    "time": "2025-10-05T10:01:00Z",
+    "time_hms": "15:31:00"
+  },
+  {
+    "index": "SENSEX",
+    "status": "OK",
+    "dq_score": 91,
+    "time": "2025-10-05T10:00:00Z",
+    "time_hms": "15:30:00"
+  },
+  {
+    "index": "FINNIFTY",
+    "status": "OK",
+    "dq_score": 77,
+    "time": "2025-10-05T10:00:00Z",
+    "time_hms": "15:30:00"
+  },
+  {
+    "index": "NIFTY",
+    "status": "ok",
+    "dq_score": 84.13,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "ok",
+    "dq_score": 82.69,
+    "time": null
+  },
+  {
+    "index": "FINNIFTY",
+    "status": "ok",
+    "dq_score": 85.56,
+    "time": null
+  },
+  {
+    "index": "SENSEX",
+    "status": "ok",
+    "dq_score": 84.19,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "OK",
+    "dq_score": 88,
+    "time": "2025-10-05T10:00:05Z",
+    "time_hms": "15:30:05"
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 90,
+    "time": "2025-10-05T10:00:00Z",
+    "time_hms": "15:30:00"
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 90,
+    "time": "2025-10-05T10:01:00Z",
+    "time_hms": "15:31:00"
+  },
+  {
+    "index": "SENSEX",
+    "status": "OK",
+    "dq_score": 91,
+    "time": "2025-10-05T10:00:00Z",
+    "time_hms": "15:30:00"
+  },
+  {
+    "index": "FINNIFTY",
+    "status": "OK",
+    "dq_score": 77,
+    "time": "2025-10-05T10:00:00Z",
+    "time_hms": "15:30:00"
+  },
+  {
+    "index": "NIFTY",
+    "status": "ok",
+    "dq_score": 84.13,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "ok",
+    "dq_score": 82.69,
+    "time": null
+  },
+  {
+    "index": "FINNIFTY",
+    "status": "ok",
+    "dq_score": 85.56,
+    "time": null
+  },
+  {
+    "index": "SENSEX",
+    "status": "ok",
+    "dq_score": 84.19,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "OK",
+    "dq_score": 88,
+    "time": "2025-10-05T10:00:05Z",
+    "time_hms": "15:30:05"
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 90,
+    "time": "2025-10-05T10:00:00Z",
+    "time_hms": "15:30:00"
+  },
+  {
+    "index": "NIFTY",
+    "status": "ok",
+    "dq_score": 84.13,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "ok",
+    "dq_score": 82.69,
+    "time": null
+  },
+  {
+    "index": "FINNIFTY",
+    "status": "ok",
+    "dq_score": 85.56,
+    "time": null
+  },
+  {
+    "index": "SENSEX",
+    "status": "ok",
+    "dq_score": 84.19,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "OK",
+    "dq_score": 88,
+    "time": "2025-10-05T10:00:05Z",
+    "time_hms": "15:30:05"
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 90,
+    "time": "2025-10-05T10:00:30Z",
+    "time_hms": "15:30:30"
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 90,
+    "time": "2025-10-05T10:01:00Z",
+    "time_hms": "15:31:00"
+  },
+  {
+    "index": "NIFTY",
+    "status": "ok",
+    "dq_score": 84.13,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "ok",
+    "dq_score": 82.69,
+    "time": null
+  },
+  {
+    "index": "FINNIFTY",
+    "status": "ok",
+    "dq_score": 85.56,
+    "time": null
+  },
+  {
+    "index": "SENSEX",
+    "status": "ok",
+    "dq_score": 84.19,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "OK",
+    "dq_score": 88,
+    "time": "2025-10-05T10:00:05Z",
+    "time_hms": "15:30:05"
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 90,
+    "time": "2025-10-05T10:00:00Z",
+    "time_hms": "15:30:00"
+  },
+  {
+    "index": "NIFTY",
+    "status": "ok",
+    "dq_score": 84.13,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "ok",
+    "dq_score": 82.69,
+    "time": null
+  },
+  {
+    "index": "FINNIFTY",
+    "status": "ok",
+    "dq_score": 85.56,
+    "time": null
+  },
+  {
+    "index": "SENSEX",
+    "status": "ok",
+    "dq_score": 84.19,
     "time": null
   }
 ]

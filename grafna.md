@@ -111,6 +111,74 @@ Disable entirely with `G6_OPTION_CHAIN_AGG_DISABLED=1`.
 5. Accessor Adoption Completion – eliminate any residual direct client usage (Action Item 3) then mark pilot refactor DONE.
 
 (End of strategic note)
+\n+### Generator Phase A & D/E/F (Consolidated Enhancements)
+Status: COMPLETE (2025-10)
+
+Additions over Phases 6+ (numbering continues logically):
+
+#### Phase A (Foundational Consolidation)
+* Added `health_core` dashboard (system + bus + governance high-signal metrics) for rapid triage.
+* Manifest enrichment: `panel_count`, `generated_at_unix`, stable spec hash propagation.
+* Generator provenance: `g6_meta.generator_version` introduced (initial `phaseA-1`).
+
+#### Phase D (Focused Health Dashboards)
+* New plans: `bus_health` (publish latency & throughput focus) and `system_overview_minimal` (2‑panel compact snapshot) appended to default plan set.
+
+#### Phase E (Panel Metadata Enrichment)
+* Uniform `g6_meta` augmentation for every panel:
+	- `metric`, `family`, `kind`, `source` (one of: spec|auto_rate|auto_hist_quantile|auto_topk|auto_label_split|placeholder|cross_metric|alerts_aggregate|governance_summary)
+	- Optional `split_label` for label-split panels
+	- `panel_uuid` stable 16-hex identity prefix (already present from Phase 5, reiterated for completeness)
+* Cross-metric efficiency panels annotated with `source=cross_metric` improving automated audits.
+
+#### Phase F (Enhanced Drift Diagnostics)
+* Verbose drift mode (`G6_DASHBOARD_DIFF_VERBOSE=1`): emits JSON lines with `changed_titles`, `added_titles`, `removed_titles` boundaries (`DRIFT_DETAILS_BEGIN/END`).
+* Core drift tokens unchanged (hash, added, removed, changed) preserving CI contract.
+
+#### Efficiency & Latency Extensions
+* Multi-window latency ratio panels (5m vs 30m) for column store ingest & bus publish latency added to efficiency dashboards.
+* Ratio expression surfaces short-term degradation signals without bespoke alert queries.
+
+#### Governance Enhancements
+* Recording Rule Usage Summary table (governance dashboard): counts rule-based vs inline histogram quantile panels with migration percentage.
+* Supports deprecation of inline `histogram_quantile` usage as recording rules mature.
+
+#### Current Dashboard Inventory (Post D/E/F)
+`provider_ingestion`, `bus_stream`, `emission_pipeline`, `panels_summary`, `column_store`, `governance`, `option_chain`, `system_overview`, `panels_efficiency`, `lifecycle_storage`, `health_core`, `bus_health`, `system_overview_minimal`.
+
+#### Planned Next Steps
+1. Partial regeneration flag `--only <slug[,slug2]>` (accelerate local iteration & CI).
+2. Panel inventory export (CSV / JSONL) with key metadata (slug,title,metric,source,uuid) for governance audits.
+3. CI coverage check: ensure each spec panel hint is represented in at least one generated dashboard (fail on gap).
+4. Alert suggestion integration loop: automatically generate heuristics for newly introduced cross-metric ratios.
+5. Optional panel stability map to preserve identity through title renames (legacy title aliases).
+
+Generator version advanced to `phaseDEF-1` after Phases D/E/F (bump required on any semantic change affecting panel synthesis to aid forensics during drift events).
+
+\n+### Emission Batcher Adaptive Enhancements (2025-10-05)
+Implemented advanced adaptive batching controls:
+* Metrics Added:
+	- `g6_metrics_batch_adaptive_utilization` (gauge) – last flush distinct entries / adaptive target.
+	- `g6_metrics_batch_dropped_ratio` (gauge) – cumulative dropped / merged ratio.
+* Adaptive Behavior Improvements:
+	- Idle decay path: if instantaneous merged rate < (min_batch / target_interval)/4 uses `G6_EMISSION_BATCH_DECAY_ALPHA_IDLE` (default 0.6) to accelerate target shrink.
+	- Under-utilization downshift: if utilization < `G6_EMISSION_BATCH_UNDER_UTIL_THRESHOLD` (default 0.3) for N consecutive flushes (`G6_EMISSION_BATCH_UNDER_UTIL_CONSEC`, default 3) target reduced by 25% (floor at min batch).
+	- Max-wait enforcement: forced flush if pending entries exist and time since last activity exceeds `G6_EMISSION_BATCH_MAX_WAIT_MS` (default 750ms).
+* Env Tunables Introduced:
+	- `G6_EMISSION_BATCH_UNDER_UTIL_THRESHOLD`
+	- `G6_EMISSION_BATCH_UNDER_UTIL_CONSEC`
+	- `G6_EMISSION_BATCH_DECAY_ALPHA_IDLE`
+	- `G6_EMISSION_BATCH_MAX_WAIT_MS`
+* Instrumentation: Utilization & dropped ratio gauges empower governance panels to track batching efficiency versus contention savings.
+* Stubs: Added `register_histogram` and `batch_observe` no-op stubs for future histogram pre-aggregation phase.
+* Tests: Added `test_emission_batcher_utilization.py` verifying target downshift and utilization metric emission; existing adaptive tests still pass.
+
+Next potential batcher steps:
+1. Histogram bucket coalescing (latency distribution reduction) using ring buffer.
+2. Dynamic alpha selection based on variance of instantaneous rate (volatility-sensitive smoothing).
+3. Alerting on low utilization (<10%) sustained while merged rate high (indicative of too-large target).
+4. Recording rules for utilization and dropped ratio to enable multi-window governance panels.
+
 ### Generator Enrichment Phase 6 (Recording Rules & CI Integration)
 Implemented automated recording rule suggestion & governance pipeline integration:
 * Script `scripts/gen_recording_rules.py` now derives recommended Prometheus recording rules from spec (counters → 5m rate & total aggregate, histograms → p95/p99 quantiles, labeled gauges → topk(5)).
@@ -184,6 +252,16 @@ Implementation Details:
 * Denominator guarded with `clamp_min(..., 0.001)` to prevent spikes due to near-zero baseline.
 
 Next Step (optional): Update dashboards to prefer recorded series over inline quantile expressions for further cost savings; keep at least one raw quantile panel in governance dashboard for validation.
+
+Status (uncommitted change applied locally): Dashboard generator updated so auto histogram p95/p99 panels now reference `<metric>:p95_5m` / `<metric>:p99_5m` recording rules, and multi-window ingest latency panels use `<metric>:p95_5m`, `<metric>:p95_30m`, and `<metric>:p95_ratio_5m_30m`. Bus publish panels still inline due to additional `bus` label (pending decision on recording rule dimensionality).
+Update (local, uncommitted): Added per-bus recording rules (`g6_bus_publish_latency_ms:p95_5m_by_bus`, `:p95_30m_by_bus`, `:p95_ratio_5m_30m_by_bus`) and refactored dashboard panels to use them (removes last inline multi-window histogram_quantile usage in generator).
+Governance Audit (local): Added `scripts/audit_dashboard_quantiles.py` to enforce migration away from inline `histogram_quantile` where recording rules exist (exit 10 on violations). Governance dashboard allowed up to two raw quantiles per histogram (p95 + p99) for validation.
+Latency Regression Alert Suggestions (local): Extended `scripts/gen_alert_suggestions.py` to include p95 latency ratio regression alerts:
+	* CS ingest p95 ratio >1.25 (10m warn), >1.50 (5m critical)
+	* Bus publish p95 ratio >1.30 (10m warn), >1.60 (5m critical) over 5m vs 30m baseline using recording rule series.
+Spec Panel Coverage Validation (local): Added `scripts/validate_spec_panel_coverage.py` (exit 11 on uncovered spec panel expressions). Current uncovered panels: system family simple gauges (API success rate %, API avg response time) pending generator inclusion or manual dashboard mapping.
+Update: Added `system_overview` dashboard plan (system family) so coverage now 100% (78/78 spec panels represented in generated dashboards).
+Governance Dashboard Enhancement (local): Added automatic "Recording Rule Usage Summary" table panel summarizing counts of panels using recording rules vs inline histogram quantiles and overall migration percent.
 
 Next Targets (Phase 7+):
 	- Add storage success ratio panels (success vs failures) and backlog burn rate (backlog_rows / rows_rate window).

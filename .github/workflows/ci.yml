@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, revert-pre-2025-09-16 ]
+    branches: [ main, master, revert-pre-2025-09-16 ]
   pull_request:
-    branches: [ main, revert-pre-2025-09-16 ]
+    branches: [ main, master, revert-pre-2025-09-16 ]
 
 permissions:
   contents: read

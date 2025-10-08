@@ -216,13 +216,14 @@ def main(argv: Sequence[str]) -> int:
         except Exception as e:
             print(f'WARN: failed writing json report: {e}', file=sys.stderr)
     out = format_plain(report) if args.plain else format_markdown(report)
+    # Write directly to original stdout to avoid any print suppression wrappers
+    _out = getattr(sys, '__stdout__', sys.stdout)
     try:
-        print(out)
+        _out.write(out + '\n')
     except UnicodeEncodeError:
-        # Fallback: remap sparkline unicode to ASCII-safe characters
         trans = str.maketrans({u: _ASCII_SPARK_CHARS[i] for i, u in enumerate(_SPARK_CHARS)})
         safe_out = out.translate(trans)
-        print(safe_out)
+        _out.write(safe_out + '\n')
     return 0
 
 if __name__ == '__main__':  # pragma: no cover

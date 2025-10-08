@@ -19,14 +19,13 @@ Modes Summary
    - Indicators: Logs referencing `composite_provider` selection and selective fallback of API calls.
 
 3. Fallback Providers Shim (Resilience Layer)
-   - Source: Defined inside `src/orchestrator/components.py` when optional imports fail and we construct a minimal `Providers` object exposing a subset of methods (`get_index_data`, `get_atm_strike`, `get_ltp`, synthetic price utilities).
-   - Capabilities: Generates deterministic synthetic index prices (monotonic drift + small oscillation) allowing downstream strike building and quote enrichment pathways to execute.
+   - Source: Defined inside `src/orchestrator/components.py` when optional imports fail. Constructs a minimal `Providers` object exposing only a subset of methods (`get_index_data`, `get_atm_strike`, `get_ltp`).
+   - Capabilities: Provides basic index price access (may use simple deterministic placeholder values) allowing downstream strike building logic to execute.
    - Limitations: Does NOT implement `resolve_expiry`, `get_option_instruments`, real quote fetching, or corporate actions.
-   - Indicators: Log messages like `Using fallback Providers shim (synthetic data mode)` and uniform or smoothly increasing index prices.
+   - Indicators: Log messages like `Using fallback Providers shim` and uniform or smoothly increasing index prices.
 
-4. Synthetic Primary Provider (Factory Lambda None Case)
-   - Source: If the broad optional import block originally downgraded `create_provider` to a lambda returning None, the orchestrator previously ended up with `providers=None`. We now attempt recovery: a late re-import in `components.py` (mirroring the CsvSink recovery) restores the genuine `create_provider` when dependencies become available.
-   - Transitional State: Before recovery succeeds, collectors see a providers object with only minimal methods, or None (guarded by early return producing `no_providers` summary entries).
+4. Minimal Primary Provider (Factory Lambda None Case)
+   - Source: If the optional import block downgraded `create_provider` to a lambda returning None, a late re-import in `components.py` attempts recovery (mirrors CsvSink recovery). Until recovery, collectors may see `providers=None` (guarded early return with `no_providers` summary entries).
 
 Automatic Recovery Logic
 ------------------------
@@ -47,8 +46,8 @@ How To Force Real Provider Mode
    - KITE_API_KEY=your_key
    - KITE_API_SECRET=your_secret
    - (If using a refresh/token flow ensure the access token bootstrap logic is satisfied.)
-3. (Optional) Clear any old synthetic state:
-   - Remove or ignore synthetic runtime_status files if present.
+3. (Optional) Clear any stale placeholder state:
+   - Remove or ignore legacy placeholder runtime_status files if present.
 4. Restart the orchestrator script (`scripts/run_orchestrator_loop.py`) so that component bootstrap runs with the restored factory and credentials.
 
 Diagnosing Current Mode
@@ -56,7 +55,7 @@ Diagnosing Current Mode
 Check logs at startup:
 * If you see `Recovered real create_provider` followed by provider-specific initialization logs — you are in Real Provider mode.
 * If you see repeated `resolve_expiry` debug lines with explicit ISO dates and no provider errors — you are likely in Fallback Providers (with ISO short-circuit working) or Real mode with simple date rules.
-* If strikes build successfully but all option instrument fetches return empty and synthetic index prices are constant or patterned — you are still in Fallback Providers mode.
+* If strikes build successfully but all option instrument fetches return empty and index prices are constant/patterned — you are still in Fallback Providers mode.
 
 Limitations & Next Steps
 ------------------------
@@ -72,7 +71,7 @@ Glossary
 --------
 ATM Strike: The nearest strike to current LTP used as center for building a symmetric strike grid.
 Expiry Rule: A semantic token like `this_week`, `next_week`, or a literal ISO date `2025-10-31` describing target expiry.
-Synthetic Quotes: Deterministic generated placeholders used only to maintain control flow when real market data absent.
+Synthetic Quotes (Removed): Prior deterministic placeholder quote generation mechanism eliminated to avoid silent fabricated data. Any remaining placeholder index prices exist only for basic liveness during startup and are not emitted as option quotes.
 
 ---
 For questions or to extend provider capabilities, see `src/providers/` and `src/orchestrator/components.py`.

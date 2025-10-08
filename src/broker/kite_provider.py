@@ -29,6 +29,13 @@ from src.broker.kite.state import ProviderState
 from src.utils.rate_limiter import RateLimiter
 from src.utils.retry import call_with_retry
 from src.error_handling import handle_provider_error, handle_data_collection_error
+from src.provider.errors import (
+    classify_provider_exception,
+    ProviderRecoverableError,
+    ProviderAuthError,
+    ProviderTimeoutError,
+    ProviderFatalError,
+)
 
 # Re-export DummyKiteProvider for backwards compatibility
 from src.broker.kite.dummy_provider import DummyKiteProvider  # noqa: F401
@@ -36,14 +43,63 @@ from src.broker.kite.dummy_provider import DummyKiteProvider  # noqa: F401
 logger = logging.getLogger(__name__)
 
 # ----------------------------------------------------------------------------
-# Concise logging flag (legacy semantics: default ON unless explicit off)
+# Internal error taxonomy raise helper (reduces duplication after instrumentation)
 # ----------------------------------------------------------------------------
-CONCISE_ENV_VAR = "G6_CONCISE_LOGS"
-_raw_concise = os.environ.get(CONCISE_ENV_VAR)
-if _raw_concise is None:
-    _CONCISE = True
-else:
-    _CONCISE = _raw_concise.lower() not in ("0", "false", "no", "off")
+def _raise_classified(e: BaseException):  # pragma: no cover - thin utility
+    """Classify raw exception and raise the mapped Provider* error.
+
+    Maintains existing behavior: message preserved, original chained for trace.
+    Centralizing this logic reduces the repetitive if/elif cascade making future
+    taxonomy adjustments (e.g., introducing ProviderThrottledError) simpler.
+    """
+    err_cls = classify_provider_exception(e)
+    if err_cls is ProviderAuthError:
+        raise ProviderAuthError(str(e)) from e
+    if err_cls is ProviderTimeoutError:
+        raise ProviderTimeoutError(str(e)) from e
+    if err_cls is ProviderRecoverableError:
+        raise ProviderRecoverableError(str(e)) from e
+    raise ProviderFatalError(str(e)) from e
+
+# ----------------------------------------------------------------------------
+# Deprecation warning message constants (centralized to prevent drift)
+# ----------------------------------------------------------------------------
+DEPRECATION_MSG_DIRECT_CREDENTIALS = (
+    "Passing api_key/access_token directly to KiteProvider is deprecated; "
+    "use ProviderConfig (get_provider_config().with_updates(...)) or kite_provider_factory() instead."
+)
+DEPRECATION_MSG_FROM_ENV = (
+    "KiteProvider.from_env removed legacy env scanning; now strictly uses ProviderConfig snapshot."
+)
+DEPRECATION_MSG_FACTORY_IMPLICIT = (
+    "Implicit env credential construction via create_provider('kite', {}) is deprecated; "
+    "pass explicit overrides or use kite_provider_factory() with overrides for silence."
+)
+DEPRECATION_MSG_IMPLICIT_ENV_HELPER = (
+    "Implicit env-sourced credentials path is deprecated; prefer explicit ProviderConfig layering or overrides."
+)
+
+# ----------------------------------------------------------------------------
+# Concise logging flag migration (A23 cleanup):
+# The legacy module-level `_CONCISE` export is being deprecated. Downstream
+# code should call `is_concise_logging()` (new helper) or inspect a provider
+# instance's settings. We keep a private `_legacy_concise` during migration
+# to satisfy any still-active imports until A24 when it will be removed.
+# ----------------------------------------------------------------------------
+try:  # derive initial concise value from settings once to avoid duplicate env parses
+    _BOOT_SETTINGS = load_settings()
+    _legacy_concise = bool(getattr(_BOOT_SETTINGS, 'concise', True))
+except Exception:  # pragma: no cover - very unlikely
+    _BOOT_SETTINGS = None  # type: ignore
+    _legacy_concise = True
+
+def is_concise_logging() -> bool:
+    """Return current concise logging mode (migration safe).
+
+    Prefers live provider settings when a KiteProvider instance updates the
+    mode via enable_concise_logs; falls back to the boot snapshot.
+    """
+    return bool(_legacy_concise)
 
 # ----------------------------------------------------------------------------
 # Index + exchange pool mappings (minimal set used across modules/tests)
@@ -80,9 +136,9 @@ def _is_auth_error(e: BaseException) -> bool:
     return any(k in msg for k in ("auth", "token", "unauthorized", "forbidden", "expired"))
 
 def enable_concise_logs(value: bool = True):
-    global _CONCISE  # noqa: PLW0603
-    _CONCISE = value
-    logger.info(f"Concise logging {'ENABLED' if _CONCISE else 'DISABLED'} (runtime override)")
+    global _legacy_concise  # noqa: PLW0603
+    _legacy_concise = value
+    logger.info(f"Concise logging {'ENABLED' if _legacy_concise else 'DISABLED'} (runtime override)")
 
 # ----------------------------------------------------------------------------
 # Provider
@@ -103,52 +159,121 @@ class KiteProvider:
         kite_client: Optional[_KiteLike] = None,
         settings: Optional[Settings] = None,
     ) -> None:
-        emit_deprecation(
-            'kite-provider-init',
-            'KiteProvider: direct use is stable but internal attribute access is deprecated; use provider_diagnostics() instead.',
-            force=True,
-        )
-        self._settings = settings or load_settings()
-        self._state = ProviderState()
-        self._api_key = api_key or os.environ.get("KITE_API_KEY") or os.environ.get("KITE_APIKEY")
-        self._access_token = access_token or os.environ.get("KITE_ACCESS_TOKEN") or os.environ.get("KITE_ACCESSTOKEN")
+        # Phase A7 Step 4: delegate .env hydration to bootstrap helper (kept for side-effects)
+        try:  # pragma: no cover - best effort
+            from src.broker.kite.client_bootstrap import hydrate_env as _hydrate_env
+            _hydrate_env()
+        except Exception:
+            pass
+
+        # Settings (reuse boot settings if any)
+        self._settings = settings or _BOOT_SETTINGS or load_settings()
+        global _legacy_concise  # noqa: PLW0603
+        if settings is None:
+            try:
+                _legacy_concise = bool(getattr(self._settings, 'concise', _legacy_concise))
+            except Exception:  # pragma: no cover
+                pass
+
+        # Provider configuration snapshot (no legacy env fallback now)
+        from src.provider.config import get_provider_config as _get_pc  # type: ignore
+        _pc = _get_pc()
+        if api_key or access_token:
+            _pc = _pc.with_updates(api_key=api_key, access_token=access_token)
+        self._api_key = getattr(_pc, 'api_key', None)
+        self._access_token = getattr(_pc, 'access_token', None)
+        self._provider_config = _pc
         self.kite: Optional[_KiteLike] = kite_client
         self._auth_failed = False
 
-        # Rate limiter
-        ms = getattr(self._settings, 'kite_throttle_ms', 0) or 0
-        self._api_rl = RateLimiter(ms / 1000.0) if ms > 0 else None
-        self._rl_last_log_ts = 0.0
-        self._rl_last_quote_log_ts = 0.0
+        # Initialize mutable provider state (was lost during refactor removing legacy env fallback)
+        # Tests rely on _state existing for diagnostics + deprecated property shims.
+        try:
+            self._state = ProviderState()  # type: ignore[attr-defined]
+        except Exception:  # pragma: no cover
+            # Extremely unlikely; keep a lightweight fallback object with needed attrs
+            class _FallbackState:  # pragma: no cover
+                instruments_cache = {}
+                instruments_cache_meta = {}
+                expiry_dates_cache = {}
+                option_instrument_cache = {}
+                option_cache_hits = 0
+                option_cache_misses = 0
+            self._state = _FallbackState()  # type: ignore
 
-        # Synthetic / diagnostics counters (referenced by extracted modules)
-        self._synthetic_quotes_used = 0
-        self._last_quotes_synthetic = False
-        self._used_fallback = False
+        # Emit a deprecation warning once when credentials are supplied directly (tests assert this)
+        # Now that ProviderConfig is authoritative, direct constructor credentials are transitional.
+        if (api_key or access_token):  # user passed explicit credentials
+            warnings.warn(DEPRECATION_MSG_DIRECT_CREDENTIALS, DeprecationWarning, stacklevel=2)
 
-        # Lazy create kite client if credentials supplied and not injected
-        if self.kite is None and self._api_key and self._access_token:
-            try:  # pragma: no cover - external dependency
-                from kiteconnect import KiteConnect  # external dependency
-                kc = KiteConnect(api_key=self._api_key)
-                kc.set_access_token(self._access_token)
-                self.kite = kc
-                logger.info("Kite client initialized (lazy)")
-            except Exception as e:  # pragma: no cover
-                logger.debug(f"Kite client init skipped: {e}")
+        # Rate limiter (delegated to provider_core helper)
+        try:
+            from src.broker.kite.provider_core import setup_rate_limiter as _setup_rl_core
+            rl, last_log, last_quote = _setup_rl_core(self._settings)
+            self._api_rl = rl
+            self._rl_last_log_ts = last_log
+            self._rl_last_quote_log_ts = last_quote
+        except Exception:  # pragma: no cover
+            ms = getattr(self._settings, 'kite_throttle_ms', 0) or 0
+            self._api_rl = RateLimiter(ms / 1000.0) if ms > 0 else None
+            self._rl_last_log_ts = 0.0
+            self._rl_last_quote_log_ts = 0.0
+
+        # Legacy synthetic fallback counters removed (Aggressive cleanup 2025-10-08)
+        # Placeholders retained only to avoid AttributeError in any straggler code; values fixed.
+        self._synthetic_quotes_used = 0  # deprecated – always zero
+        self._last_quotes_synthetic = False  # deprecated – always False
+        self._used_fallback = False  # unrelated legacy flag kept
+
+        # Delegate initial client creation if credentials are present
+        try:
+            from src.broker.kite.client_bootstrap import build_client_if_possible as _build_client
+            _build_client(self)
+        except Exception:  # pragma: no cover
+            pass
+
+        # Phase A7 Step 5: startup summary emission via provider_core
+        try:
+            from src.broker.kite.provider_core import emit_startup_summary_if_needed as _emit_core
+            _emit_core(self)
+        except Exception:  # pragma: no cover
+            pass
+
+    # --- late / lazy client initialization ---------------------------------
+    def _ensure_client(self) -> None:  # backward compatibility shim (delegates)
+        try:
+            from src.broker.kite.auth import ensure_client_auth as _ensure
+            _ensure(self)
+        except Exception:  # pragma: no cover
+            pass
+
+    # --- explicit credential update ---------------------------------------
+    def update_credentials(self, api_key: str | None = None, access_token: str | None = None, rebuild: bool = True) -> None:  # delegate
+        try:
+            from src.broker.kite.auth import update_credentials_auth as _update
+            _update(self, api_key=api_key, access_token=access_token, rebuild=rebuild)
+        except Exception:  # pragma: no cover
+            pass
 
     # --- construction helpers ---------------------------------------------
     @classmethod
     def from_env(cls):  # pragma: no cover - tiny wrapper, exercised by test
-        """Instantiate using environment variables (factory relies on this).
+        import warnings
+        warnings.warn(DEPRECATION_MSG_FROM_ENV, DeprecationWarning, stacklevel=2)
+        snap = _get_pc()
+        # Constructor will emit deprecation warning if credentials passed; suppress duplicate warning here
+        with warnings.catch_warnings():  # avoid double emission in tests
+            warnings.simplefilter('ignore', DeprecationWarning)
+            return cls(api_key=snap.api_key, access_token=snap.access_token)
 
-        Looks for KITE_API_KEY / KITE_APIKEY and KITE_ACCESS_TOKEN / KITE_ACCESSTOKEN.
-        Missing values are tolerated; the provider will simply operate in synthetic
-        fallback mode when real calls are attempted.
-        """
-        api_key = os.environ.get("KITE_API_KEY") or os.environ.get("KITE_APIKEY")
-        access_token = os.environ.get("KITE_ACCESS_TOKEN") or os.environ.get("KITE_ACCESSTOKEN")
-        return cls(api_key=api_key, access_token=access_token)
+    @classmethod
+    def from_provider_config(cls, cfg):  # type: ignore[override]
+        """Instantiate from a ProviderConfig snapshot (duck-typed)."""
+        # Suppress constructor deprecation warning for the canonical ProviderConfig path
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore', DeprecationWarning)
+            return cls(api_key=getattr(cfg, 'api_key', None), access_token=getattr(cfg, 'access_token', None))
 
     # --- lifecycle ---------------------------------------------------------
     def close(self) -> None:  # pragma: no cover - graceful no-op
@@ -175,138 +300,119 @@ class KiteProvider:
             return False  # do not suppress exceptions
 
     # --- internal RL helpers ------------------------------------------------
-    def _rl_fallback(self) -> bool:
-        now = time.time()
-        if now - self._rl_last_log_ts > 5.0:
-            self._rl_last_log_ts = now
-            return True
-        return False
+    def _rl_fallback(self) -> bool:  # delegate to helper logic
+        try:
+            from src.broker.kite.rate_limiter_helpers import log_allowed as _allowed
+            # Use ephemeral dict referencing existing timestamps to avoid state drift
+            flags = {'last_log_ts': self._rl_last_log_ts}
+            ok = _allowed(flags)
+            self._rl_last_log_ts = flags['last_log_ts']
+            return ok
+        except Exception:  # pragma: no cover
+            now = time.time()
+            if now - self._rl_last_log_ts > 5.0:
+                self._rl_last_log_ts = now
+                return True
+            return False
 
-    def _rl_quote_fallback(self) -> bool:
-        now = time.time()
-        if now - self._rl_last_quote_log_ts > 5.0:
-            self._rl_last_quote_log_ts = now
-            return True
-        return False
+    def _rl_quote_fallback(self) -> bool:  # delegate to helper logic
+        try:
+            from src.broker.kite.rate_limiter_helpers import quote_log_allowed as _q_allowed
+            flags = {'last_quote_log_ts': self._rl_last_quote_log_ts}
+            ok = _q_allowed(flags)
+            self._rl_last_quote_log_ts = flags['last_quote_log_ts']
+            return ok
+        except Exception:  # pragma: no cover
+            now = time.time()
+            if now - self._rl_last_quote_log_ts > 5.0:
+                self._rl_last_quote_log_ts = now
+                return True
+            return False
 
     # --- token refresh stub -------------------------------------------------
     def maybe_refresh_token_proactively(self) -> None:  # pragma: no cover
         return
 
     # --- instruments --------------------------------------------------------
-    def get_instruments(self, exchange: str | None = None) -> list[dict[str, Any]]:
+    def get_instruments(self, exchange: str | None = None, force_refresh: bool = False) -> list[dict[str, Any]]:
         exch = exchange or "NFO"
-        ttl = getattr(self._settings, 'instrument_cache_ttl', 600.0)
-        now = time.time()
-        cached = self._state.instruments_cache.get(exch)
-        meta_ts = self._state.instruments_cache_meta.get(exch, 0.0)
-        if cached is not None and (now - meta_ts) < ttl:
-            return cached
-        try:
-            if self._auth_failed:
-                raise RuntimeError("kite_auth_failed")
-            if self.kite is None:
-                raise RuntimeError("kite_client_unavailable")
-            def _fetch():
-                if self._api_rl:
-                    self._api_rl()
-                return _timed_call(lambda: self.kite.instruments(), getattr(self._settings, 'kite_timeout_sec', 5.0))  # type: ignore[arg-type]
-            raw = call_with_retry(_fetch)
-            if isinstance(raw, list):
-                self._state.instruments_cache[exch] = raw
-                self._state.instruments_cache_meta[exch] = now
-                return raw
-            raise ValueError("unexpected_instruments_shape")
-        except Exception as e:
-            if _is_auth_error(e) or str(e) == 'kite_auth_failed':
-                self._auth_failed = True
-                if self._rl_fallback():
-                    logger.warning("Kite auth failed; using synthetic instruments. Set KITE_API_KEY/KITE_ACCESS_TOKEN for real API.")
-            else:
-                if self._rl_fallback():
-                    logger.debug(f"Instrument fetch failed, using synthetic: {e}")
+        # Local import to avoid overhead when logging disabled
+        from src.broker.kite.provider_events import provider_event  # type: ignore
+        with provider_event("instruments", "fetch", exchange=exch, force_refresh=force_refresh) as evt:
             try:
-                handle_provider_error(e, component="kite_provider.get_instruments", context={"exchange": exch})
-            except Exception:
-                pass
-        try:
-            from src.broker.kite.synthetic import generate_synthetic_instruments  # type: ignore
-            synth = generate_synthetic_instruments()
-        except Exception:  # pragma: no cover
-            synth = []
-        self._state.instruments_cache[exch] = synth
-        self._state.instruments_cache_meta[exch] = now
-        self._used_fallback = True
-        return synth
+                from src.broker.kite.instruments import fetch_instruments as _fetch_impl
+                data = _fetch_impl(self, exch, force_refresh=force_refresh)
+                try:
+                    evt.add_field("instruments_count", len(data))
+                except Exception:  # pragma: no cover
+                    pass
+                return data
+            except Exception as e:  # pragma: no cover
+                err_cls = classify_provider_exception(e)
+                evt.add_field("error_class", err_cls.__name__)
+                logger.error("provider.instruments.fail cls=%s err=%s", err_cls.__name__, e)
+                _raise_classified(e)
 
     # --- quotes / LTP -------------------------------------------------------
     def get_ltp(self, instruments: Iterable[tuple[str, str]] | Iterable[str]):
+        from src.broker.kite.provider_events import provider_event  # type: ignore
+        # Attempt to derive a simple count for observability (works for list/tuple or set)
         try:
-            from src.broker.kite.quotes import get_ltp as _impl
+            requested = len(list(instruments))  # list() in case of generator (small typical)
         except Exception:  # pragma: no cover
-            logger.error("quotes_module_import_failed", exc_info=True)
-            return {}
-        return _impl(self, instruments)
+            requested = 0
+        with provider_event("quotes", "ltp", instruments_requested=requested) as evt:
+            try:
+                from src.broker.kite.quotes import get_ltp as _impl
+                data = _impl(self, instruments)
+                # data is expected to be a mapping of instrument->price
+                try:
+                    evt.add_field("returned", len(data) if hasattr(data, '__len__') else 0)
+                except Exception:  # pragma: no cover
+                    pass
+                return data
+            except Exception as e:  # pragma: no cover
+                err_cls = classify_provider_exception(e)
+                evt.add_field("error_class", err_cls.__name__)
+                logger.error("provider.ltp.fail cls=%s err=%s", err_cls.__name__, e)
+                _raise_classified(e)
 
     def get_quote(self, instruments: Iterable[tuple[str, str]] | Iterable[str]):
+        from src.broker.kite.provider_events import provider_event  # type: ignore
         try:
-            from src.broker.kite.quotes import get_quote as _impl
+            requested = len(list(instruments))
         except Exception:  # pragma: no cover
-            logger.error("quotes_module_import_failed", exc_info=True)
-            return {}
-        return _impl(self, instruments)
+            requested = 0
+        with provider_event("quotes", "full", instruments_requested=requested) as evt:
+            try:
+                from src.broker.kite.quotes import get_quote as _impl
+                data = _impl(self, instruments)
+                try:
+                    evt.add_field("returned", len(data) if hasattr(data, '__len__') else 0)
+                except Exception:  # pragma: no cover
+                    pass
+                return data
+            except Exception as e:  # pragma: no cover
+                err_cls = classify_provider_exception(e)
+                evt.add_field("error_class", err_cls.__name__)
+                logger.error("provider.quote.fail cls=%s err=%s", err_cls.__name__, e)
+                _raise_classified(e)
 
-    # --- synthetic quote diagnostics ---------------------------------------
-    def pop_synthetic_quote_usage(self) -> tuple[int, bool]:
-        try:
-            cnt = int(self._synthetic_quotes_used)
-            last_flag = bool(self._last_quotes_synthetic)
-            self._synthetic_quotes_used = 0
-            return cnt, last_flag
-        except Exception:  # pragma: no cover
-            return 0, False
+    # Synthetic diagnostics removed: methods retained as inert stubs for one release window.
+    def pop_synthetic_quote_usage(self) -> tuple[int, bool]:  # pragma: no cover - legacy stub
+        return 0, False
 
-    def last_quotes_were_synthetic(self) -> bool:
-        return bool(self._last_quotes_synthetic)
+    def last_quotes_were_synthetic(self) -> bool:  # pragma: no cover - legacy stub
+        return False
 
     # --- diagnostics helper -------------------------------------------------
     def provider_diagnostics(self) -> dict[str, Any]:
-        """Return a structured snapshot of key counters & cache stats.
-
-        This is the preferred replacement for ad-hoc access of internal
-        attributes. Keys kept stable for downstream tooling.
-        """
         try:
-            # Derive token age / expiry metadata if possible
-            token_age_sec = None
-            token_expiry = None
-            try:
-                # Some kiteconnect clients keep public attributes; we try common ones defensively
-                kc = getattr(self, 'kite', None)
-                issued = getattr(kc, 'api_token_issue_time', None)
-                exp = getattr(kc, 'api_token_expiry', None)
-                now_ts = time.time()
-                if isinstance(issued, (int, float)):
-                    token_age_sec = max(0, now_ts - float(issued))
-                if isinstance(exp, (int, float)):
-                    token_expiry = max(0, float(exp) - now_ts)
-            except Exception:
-                token_age_sec = None
-                token_expiry = None
-            return {
-                'option_cache_size': len(getattr(self._state, 'option_instrument_cache', {})),
-                'option_cache_hits': getattr(self._state, 'option_cache_hits', 0),
-                'option_cache_misses': getattr(self._state, 'option_cache_misses', 0),
-                'instruments_cached': {k: len(v or []) for k, v in getattr(self._state, 'instruments_cache', {}).items()},
-                'expiry_dates_cached': {k: len(v or []) for k, v in getattr(self._state, 'expiry_dates_cache', {}).items()},
-                'synthetic_quotes_used': int(self._synthetic_quotes_used),
-                'last_quotes_synthetic': bool(self._last_quotes_synthetic),
-                'used_instrument_fallback': bool(self._used_fallback),
-                'token_age_sec': token_age_sec,
-                'token_time_to_expiry_sec': token_expiry,
-            }
-        except Exception:
+            from src.broker.kite.diagnostics import provider_diagnostics as _impl
+        except Exception:  # pragma: no cover
+            logger.error("diagnostics_import_failed", exc_info=True)
             return {}
+        return _impl(self)
 
     # --- deprecation property shims ----------------------------------------
     def _warn_once(self, name: str):
@@ -346,150 +452,125 @@ class KiteProvider:
             return {}
 
     @property
-    def synthetic_quotes_used(self) -> int:
+    def synthetic_quotes_used(self) -> int:  # pragma: no cover - legacy stub
         self._warn_once('synthetic_quotes_used')
-        return int(self._synthetic_quotes_used)
+        return 0
 
     @property
-    def last_quotes_synthetic_flag(self) -> bool:
+    def last_quotes_synthetic_flag(self) -> bool:  # pragma: no cover - legacy stub
         self._warn_once('last_quotes_synthetic_flag')
-        return bool(self._last_quotes_synthetic)
+        return False
 
     # --- ATM strike heuristic -----------------------------------------------
     def get_atm_strike(self, index_symbol: str) -> int:
-        ltp_data = self.get_ltp([INDEX_MAPPING.get(index_symbol, ("NSE", index_symbol))])
-        if isinstance(ltp_data, dict):
-            for v in ltp_data.values():
-                if isinstance(v, dict):
-                    lp = v.get('last_price')
-                    if isinstance(lp, (int, float)) and lp > 0:
-                        step = 100 if lp > 20000 else 50
-                        return int(round(lp / step) * step)
-        defaults = {"NIFTY": 24800, "BANKNIFTY": 54000, "FINNIFTY": 26000, "MIDCPNIFTY": 12000, "SENSEX": 81000}
-        return defaults.get(index_symbol, 20000)
+        from src.broker.kite.provider_events import provider_event  # type: ignore
+        with provider_event("expiries", "atm", index=index_symbol) as evt:
+            try:
+                from src.broker.kite.expiry_discovery import get_atm_strike as _impl
+            except Exception:  # pragma: no cover
+                logger.error("expiry_discovery_import_failed_atm", exc_info=True)
+                defaults = {"NIFTY": 24800, "BANKNIFTY": 54000, "FINNIFTY": 26000, "MIDCPNIFTY": 12000, "SENSEX": 81000}
+                val = defaults.get(index_symbol, 20000)
+                evt.add_field("fallback", True)
+                evt.add_field("atm", val)
+                return val
+            val = _impl(self, index_symbol)
+            evt.add_field("atm", val)
+            return val
 
     # --- expiry discovery ---------------------------------------------------
     def get_expiry_dates(self, index_symbol: str) -> list[_dt.date]:
-        try:
-            if self._auth_failed:
-                raise RuntimeError("kite_auth_failed")
-            cache = self._state.expiry_dates_cache.get(index_symbol)
-            if cache:
-                return cache
-            atm = self.get_atm_strike(index_symbol)
-            exch = POOL_FOR.get(index_symbol, "NFO")
-            instruments = self.get_instruments(exch)
-            today = _dt.date.today()
-            opts = [
-                inst for inst in instruments
-                if isinstance(inst, dict)
-                and str(inst.get("segment", "")).endswith("-OPT")
-                and index_symbol in str(inst.get("tradingsymbol", ""))
-                and abs(float(inst.get("strike", 0) or 0) - atm) <= 500
-            ]
-            expiries: set[_dt.date] = set()
-            for inst in opts:
-                exp = inst.get('expiry')
-                if isinstance(exp, _dt.date):
-                    if exp >= today:
-                        expiries.add(exp)
-                elif isinstance(exp, str):
-                    try:
-                        dtp = _dt.datetime.strptime(exp[:10], '%Y-%m-%d').date()
-                        if dtp >= today:
-                            expiries.add(dtp)
-                    except Exception:
-                        pass
-            sorted_dates = sorted(expiries)
-            if not sorted_dates:
-                days_until_thu = (3 - today.weekday()) % 7
-                if days_until_thu == 0:
-                    days_until_thu = 7
-                this_week = today + _dt.timedelta(days=days_until_thu)
-                next_week = this_week + _dt.timedelta(days=7)
-                sorted_dates = [this_week, next_week]
-            self._state.expiry_dates_cache[index_symbol] = sorted_dates
-            return sorted_dates
-        except Exception as e:
-            if _is_auth_error(e) or str(e) == 'kite_auth_failed':
-                self._auth_failed = True
-                if self._rl_fallback():
-                    logger.warning("Kite auth failed; using synthetic expiry dates.")
-                today = _dt.date.today()
-                synth = [today + _dt.timedelta(days=14)]
-                self._state.expiry_dates_cache[index_symbol] = synth
-                return synth
-            logger.error(f"Failed to get expiry dates: {e}", exc_info=True)
+        from src.broker.kite.provider_events import provider_event  # type: ignore
+        with provider_event("expiries", "list", index=index_symbol) as evt:
             try:
-                handle_data_collection_error(e, component="kite_provider.get_expiry_dates", index_name=index_symbol, data_type="expiries")
-            except Exception:
-                pass
-            today = _dt.date.today()
-            days_until_thu = (3 - today.weekday()) % 7
-            this_week = today + _dt.timedelta(days=days_until_thu)
-            next_week = this_week + _dt.timedelta(days=7)
-            return [this_week, next_week]
+                from src.broker.kite.expiry_discovery import get_expiry_dates as _impl
+            except Exception:  # pragma: no cover
+                logger.error("expiry_discovery_import_failed_expiries", exc_info=True)
+                evt.add_field("fallback", True)
+                return []
+            dates = _impl(self, index_symbol)
+            evt.add_field("count", len(dates))
+            return dates
 
     def get_weekly_expiries(self, index_symbol: str) -> list[_dt.date]:
-        try:
-            all_exp = self.get_expiry_dates(index_symbol)
-            return all_exp[:2] if len(all_exp) >= 2 else all_exp
-        except Exception:
-            return []
+        from src.broker.kite.provider_events import provider_event  # type: ignore
+        with provider_event("expiries", "weekly", index=index_symbol) as evt:
+            try:
+                from src.broker.kite.expiry_discovery import get_weekly_expiries as _impl
+            except Exception:  # pragma: no cover
+                logger.error("expiry_discovery_import_failed_weekly", exc_info=True)
+                evt.add_field("fallback", True)
+                return []
+            dates = _impl(self, index_symbol)
+            evt.add_field("count", len(dates))
+            return dates
 
     def get_monthly_expiries(self, index_symbol: str) -> list[_dt.date]:
-        try:
-            all_exp = self.get_expiry_dates(index_symbol)
-            today = _dt.date.today()
-            by_month: Dict[tuple[int,int], List[_dt.date]] = {}
-            for d in all_exp:
-                if d >= today:
-                    by_month.setdefault((d.year, d.month), []).append(d)
-            out: list[_dt.date] = []
-            for _, vals in sorted(by_month.items()):
-                out.append(max(vals))
-            return out
-        except Exception:
-            return []
+        from src.broker.kite.provider_events import provider_event  # type: ignore
+        with provider_event("expiries", "monthly", index=index_symbol) as evt:
+            try:
+                from src.broker.kite.expiry_discovery import get_monthly_expiries as _impl
+            except Exception:  # pragma: no cover
+                logger.error("expiry_discovery_import_failed_monthly", exc_info=True)
+                evt.add_field("fallback", True)
+                return []
+            dates = _impl(self, index_symbol)
+            evt.add_field("count", len(dates))
+            return dates
 
     def resolve_expiry(self, index_symbol: str, expiry_rule: str) -> _dt.date:
-        from src.broker.kite.expiries import resolve_expiry_rule  # local import
-        try:
-            chosen = resolve_expiry_rule(self, index_symbol, expiry_rule)
-            (logger.debug if _CONCISE else logger.info)(f"Resolved '{expiry_rule}' for {index_symbol} -> {chosen}")
-            return chosen
-        except Exception:  # pragma: no cover
-            return _dt.date.today()
+        from src.broker.kite.provider_events import provider_event  # type: ignore
+        with provider_event("expiries", "resolve", index=index_symbol, rule=expiry_rule) as evt:
+            from src.broker.kite.expiries import resolve_expiry_rule  # local import
+            try:
+                chosen = resolve_expiry_rule(self, index_symbol, expiry_rule)
+                evt.add_field("resolved", str(chosen))
+                (logger.debug if is_concise_logging() else logger.info)(f"Resolved '{expiry_rule}' for {index_symbol} -> {chosen}")
+                return chosen
+            except Exception:  # pragma: no cover
+                fallback = _dt.date.today()
+                evt.add_field("fallback", True)
+                evt.add_field("resolved", str(fallback))
+                return fallback
 
     # --- options delegation -------------------------------------------------
     def option_instruments(self, index_symbol: str, expiry_date: Any, strikes: Iterable[float]) -> list[dict[str, Any]]:
-        try:
-            from src.broker.kite.options import option_instruments as _impl
-        except Exception:  # pragma: no cover
-            logger.error("options_module_import_failed", exc_info=True)
-            return []
-        return _impl(self, index_symbol, expiry_date, strikes)
+        from src.broker.kite.provider_events import provider_event  # type: ignore
+        with provider_event("options", "filter", index=index_symbol, expiry=str(expiry_date)) as evt:
+            try:
+                from src.broker.kite.options import option_instruments as _impl
+            except Exception:  # pragma: no cover
+                logger.error("options_module_import_failed", exc_info=True)
+                evt.add_field("fallback", True)
+                return []
+            data = _impl(self, index_symbol, expiry_date, strikes)
+            try:
+                evt.add_field("count", len(data))
+            except Exception:  # pragma: no cover
+                pass
+            return data
 
     def get_option_instruments(self, index_symbol: str, expiry_date: Any, strikes: Iterable[float]) -> list[dict[str, Any]]:
         return self.option_instruments(index_symbol, expiry_date, strikes)
 
     # --- health check -------------------------------------------------------
     def check_health(self) -> dict[str, Any]:
-        try:
-            pair = INDEX_MAPPING.get("NIFTY", ("NSE", "NIFTY 50"))
-            ltp = self.get_ltp([pair])
-            price_ok = False
-            if isinstance(ltp, dict):
-                for v in ltp.values():
-                    if isinstance(v, dict) and isinstance(v.get('last_price'), (int,float)) and v['last_price'] > 0:
-                        price_ok = True
-                        break
-            return {"status": "healthy" if price_ok else "degraded", "message": "Provider connected" if price_ok else "Invalid price"}
-        except Exception as e:
-            msg = str(e).lower()
-            if any(k in msg for k in ("token", "auth", "unauthor")):
-                return {"status": "unhealthy", "message": "Auth/token issue detected"}
-            return {"status": "unhealthy", "message": f"Health check failed: {e}"}
+        from src.broker.kite.provider_events import provider_event  # type: ignore
+        with provider_event("health", "check") as evt:
+            try:
+                from src.broker.kite.diagnostics import check_health as _impl
+            except Exception:  # pragma: no cover
+                logger.error("diagnostics_import_failed_health", exc_info=True)
+                evt.add_field("fallback", True)
+                status = {"status": "unhealthy", "message": "Diagnostics module import failed"}
+                evt.add_field("status", status.get("status"))
+                return status
+            status = _impl(self)
+            try:
+                evt.add_field("status", status.get("status"))
+            except Exception:  # pragma: no cover
+                pass
+            return status
 
 # ----------------------------------------------------------------------------
 # Public exports
@@ -498,7 +579,38 @@ __all__ = [
     "KiteProvider",
     "DummyKiteProvider",  # re-export
     "enable_concise_logs",
-    "_CONCISE",
+    "is_concise_logging",
     "INDEX_MAPPING",
     "POOL_FOR",
+    "kite_provider_factory",
 ]
+
+# ----------------------------------------------------------------------------
+# Public convenience helper (post deprecation): kite_provider_factory
+# ----------------------------------------------------------------------------
+def kite_provider_factory(**overrides):
+    """Return a `KiteProvider` built from the current ProviderConfig snapshot.
+
+    Optional keyword arguments (api_key / access_token) are applied via
+    ProviderConfig.with_updates() before instantiation. This avoids triggering
+    the direct-constructor credential deprecation warning in test and runtime
+    paths that simply need a provider instance.
+    """
+    from src.provider.config import get_provider_config as _get_pc  # type: ignore
+    cfg = _get_pc()
+    emit_dep = False
+    if overrides:
+        cfg = cfg.with_updates(**overrides)  # type: ignore[arg-type]
+    else:
+        # If credentials came purely from env (snapshot source) emit a one-time deprecation warning
+        # preserving historical test expectation that creating a provider via factory without explicit
+        # overrides surfaces the transition away from implicit env discovery.
+        try:
+            if getattr(cfg, 'source', '') == 'env' and getattr(cfg, 'complete', False):
+                emit_dep = True
+        except Exception:  # pragma: no cover
+            pass
+    if emit_dep:
+        import warnings
+        warnings.warn(DEPRECATION_MSG_IMPLICIT_ENV_HELPER, DeprecationWarning, stacklevel=2)
+    return KiteProvider.from_provider_config(cfg)

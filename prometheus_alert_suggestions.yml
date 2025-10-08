@@ -1,0 +1,100 @@
+groups:
+- interval: 30s
+  name: g6_suggested_efficiency.alerts
+  rules:
+  - alert: G6CsIngestSuccessRatioLowWarning
+    annotations:
+      description: Column store ingest success ratio below 99.5% over the last 10
+        minutes; investigate failures/retries.
+      summary: CS ingest success ratio < 99.5% (10m)
+    expr: 1 - (clamp_min(sum(rate(g6_cs_ingest_failures_total[5m])),0) / clamp_min(sum(rate(g6_cs_ingest_rows_total[5m])),1))
+      < 0.995
+    for: 10m
+    labels:
+      severity: warning
+  - alert: G6CsIngestSuccessRatioLowCritical
+    annotations:
+      description: 'Critical: Column store ingest success ratio below 99% sustained
+        5m; potential sustained failure path.'
+      summary: CS ingest success ratio < 99% (5m)
+    expr: 1 - (clamp_min(sum(rate(g6_cs_ingest_failures_total[5m])),0) / clamp_min(sum(rate(g6_cs_ingest_rows_total[5m])),1))
+      < 0.99
+    for: 5m
+    labels:
+      severity: critical
+  - alert: G6CsBacklogDrainEtaHighWarning
+    annotations:
+      description: Column store backlog would take >10 minutes to drain at current
+        ingest rate (sustained 10m).
+      summary: CS backlog drain ETA > 10m (10m)
+    expr: (sum(g6_cs_ingest_backlog_rows) / clamp_min(sum(rate(g6_cs_ingest_rows_total[5m])),1))
+      / 60 > 10
+    for: 10m
+    labels:
+      severity: warning
+  - alert: G6CsBacklogDrainEtaHighCritical
+    annotations:
+      description: 'Critical: Column store backlog drain time exceeds 30 minutes sustained
+        5m; ingestion falling behind.'
+      summary: CS backlog drain ETA > 30m (5m)
+    expr: (sum(g6_cs_ingest_backlog_rows) / clamp_min(sum(rate(g6_cs_ingest_rows_total[5m])),1))
+      / 60 > 30
+    for: 5m
+    labels:
+      severity: critical
+  - alert: G6CsBacklogStallWarning
+    annotations:
+      description: Backlog ETA high and burn rate low with large backlog; ingestion
+        may be under-provisioned or stalled.
+      summary: CS backlog stall suspected (low burn, high ETA)
+    expr: (g6_cs_ingest_backlog_rows:eta_minutes > 10) and (g6_cs_ingest_backlog_rows:burn_rows_per_s
+      < 100) and (sum(g6_cs_ingest_backlog_rows) > 50000)
+    for: 10m
+    labels:
+      severity: warning
+  - alert: G6CsBacklogStallCritical
+    annotations:
+      description: 'Critical: Backlog ETA very high and burn rate near zero with large
+        backlog. Immediate intervention required.'
+      summary: CS backlog stall critical (near-zero burn)
+    expr: (g6_cs_ingest_backlog_rows:eta_minutes > 30) and (g6_cs_ingest_backlog_rows:burn_rows_per_s
+      < 20) and (sum(g6_cs_ingest_backlog_rows) > 50000)
+    for: 5m
+    labels:
+      severity: critical
+  - alert: G6CsIngestLatencyP95RegressionWarning
+    annotations:
+      description: Short-term (5m) p95 ingest latency exceeds 30m baseline by >25%
+        for 10m.
+      summary: CS ingest p95 latency regression >25% (10m)
+    expr: g6_cs_ingest_latency_ms:p95_ratio_5m_30m > 1.25
+    for: 10m
+    labels:
+      severity: warning
+  - alert: G6CsIngestLatencyP95RegressionCritical
+    annotations:
+      description: 'Critical: 5m p95 ingest latency >50% above 30m baseline sustained
+        5m.'
+      summary: CS ingest p95 latency regression >50% (5m)
+    expr: g6_cs_ingest_latency_ms:p95_ratio_5m_30m > 1.5
+    for: 5m
+    labels:
+      severity: critical
+  - alert: G6BusPublishLatencyP95RegressionWarning
+    annotations:
+      description: Short-term bus publish p95 latency exceeds 30m baseline by >30%
+        for 10m (any bus).
+      summary: Bus publish p95 latency regression >30% (10m)
+    expr: g6_bus_publish_latency_ms:p95_ratio_5m_30m_by_bus > 1.3
+    for: 10m
+    labels:
+      severity: warning
+  - alert: G6BusPublishLatencyP95RegressionCritical
+    annotations:
+      description: 'Critical: bus publish p95 latency >60% above 30m baseline sustained
+        5m (any bus label).'
+      summary: Bus publish p95 latency regression >60% (5m)
+    expr: g6_bus_publish_latency_ms:p95_ratio_5m_30m_by_bus > 1.6
+    for: 5m
+    labels:
+      severity: critical

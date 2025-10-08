@@ -27,6 +27,9 @@ class CycleContext:
     phase_times: Dict[str, float] = field(default_factory=dict)
     phase_failures: Dict[str, int] = field(default_factory=dict)
     _phase_stack: list[Tuple[str, float]] = field(default_factory=list)
+    # Phase 10 reliability: per-cycle deduplication set for "no instruments" warnings
+    # Key format: f"{index}|{expiry_rule}|{expiry}" (string expiry)
+    no_instruments_dedup: set[str] = field(default_factory=set)
 
     def time_phase(self, name: str):  # context manager
         """Context manager to time a named phase.
@@ -46,6 +49,12 @@ class CycleContext:
     def emit_consolidated_log(self):
         if not self.phase_times:
             return
+        # Suppress raw PHASE_TIMING when higher-level merged single-emission mode is active
+        import os
+        sh = os.environ.get('G6_SINGLE_HEADER_MODE','').lower() in {'1','true','yes','on'}
+        merge = os.environ.get('G6_PHASE_TIMING_MERGE','').lower() in {'1','true','yes','on'}
+        single = os.environ.get('G6_PHASE_TIMING_SINGLE_EMIT','').lower() in {'1','true','yes','on'}
+        # Always emit consolidated PHASE_TIMING line; higher-level merged lines may also appear.
         try:
             total = sum(self.phase_times.values()) or 0.0
             parts = []

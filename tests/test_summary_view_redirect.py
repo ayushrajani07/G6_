@@ -14,7 +14,10 @@ def test_summary_view_main_delegates(monkeypatch):
         return 0
     import scripts.summary.app as app_mod
     monkeypatch.setattr(app_mod, 'run', fake_run)
-    import scripts.summary_view as sv
-    rc = sv.main(['--no-rich','--cycles','1'])
+    import pytest
+    # The legacy scripts.summary_view emits a deprecation warning when imported.
+    with pytest.deprecated_call():
+        import scripts.summary_view as sv  # noqa: F401
+        rc = sv.main(['--no-rich','--cycles','1'])
     assert rc == 0
     assert called.get('args') == ['--no-rich','--cycles','1']

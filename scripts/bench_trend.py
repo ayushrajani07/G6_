@@ -172,11 +172,13 @@ def main(argv: Sequence[str]) -> int:
     if args.no_header:
         # Remove header lines (first two) for raw embedding
         table = '\n'.join(table.splitlines()[2:])
+    # Bypass potential print gating by writing directly to original stdout
+    _out = getattr(sys, '__stdout__', sys.stdout)
     try:
-        print(table)
+        _out.write(table + '\n')
     except UnicodeEncodeError:
         trans = str.maketrans({u: _ASCII_SPARK_CHARS[i] for i,u in enumerate(_SPARK_CHARS)})
-        print(table.translate(trans))
+        _out.write(table.translate(trans) + '\n')
     return 0
 
 if __name__ == '__main__':  # pragma: no cover

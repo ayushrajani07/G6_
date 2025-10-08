@@ -1,16 +1,11 @@
-"""Compatibility shim for older imports.
+"""Deprecated shim removed in A24.
 
-Older code referenced `src.providers.kite_provider`. The implementation
-now lives under `src.broker.kite_provider`. Import and re-export here
-so legacy references continue to work without changing call sites.
+Import path `src.providers.kite_provider` is no longer supported.
+Use `from src.broker.kite_provider import KiteProvider` (and related symbols).
+
+Rationale: centralization of provider code under broker namespace; shim kept
+for multiple releases and now hard-removed to prevent silent divergence.
 """
-from __future__ import annotations
-
-try:
-    # Re-export everything from the canonical module
-    from src.broker.kite_provider import *  # type: ignore  # noqa: F401,F403
-except Exception as _e:  # pragma: no cover - defensive
-    # Provide a helpful error hint if the broker module is missing
-    raise ImportError(
-        "src.providers.kite_provider is a shim. Expected src.broker.kite_provider to exist."
-    ) from _e
+raise ImportError(
+    "Deprecated import path: use 'src.broker.kite_provider'. The providers.kite_provider shim was removed in A24."
+)

@@ -19,6 +19,11 @@ import logging
 import datetime
 from typing import Dict, List, Any, Optional, Tuple
 import os, time as _time
+try:
+    from src.broker.kite_provider import is_concise_logging as _is_concise_logging  # type: ignore
+except Exception:  # pragma: no cover
+    def _is_concise_logging():  # type: ignore
+        return os.environ.get('G6_CONCISE_LOGS', '1').lower() not in ('0','false','no','off')
 try:  # Prometheus client optional during some tests
     from prometheus_client import Counter as _C, Histogram as _H
 except Exception:  # pragma: no cover
@@ -35,8 +40,8 @@ import os  # retained
 
 logger = logging.getLogger(__name__)
 
-# Global concise mode detection (default ON unless explicitly disabled)
-_CONCISE = os.environ.get('G6_CONCISE_LOGS', '1').lower() not in ('0','false','no','off')
+# Global concise mode detection delegated to provider helper
+_CONCISE = _is_concise_logging()
 
 def _safe_inc(lbl, amount=1):  # helper to tolerate label None or unexpected metric type
     try:
@@ -323,7 +328,8 @@ class Providers:
 
             rule = str(expiry_rule).lower()
             # Optional deep trace for debugging mis-mapped tags (e.g. user reported SENSEX this_month issue)
-            if os.environ.get('G6_TRACE_EXPIRY_SELECTION','').lower() in ('1','true','yes','on'):
+            from src.utils.env_flags import is_truthy_env  # type: ignore
+            if is_truthy_env('G6_TRACE_EXPIRY_SELECTION'):
                 try:
                     self.logger.warning(
                         "TRACE_EXPIRY_SELECT index=%s rule=%s raw=%s future=%s nearest=%s second=%s this_month=%s next_month=%s",  # noqa: E501

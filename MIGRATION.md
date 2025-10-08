@@ -21,6 +21,251 @@ Applies to deployments moving from the legacy multi‑row overview & no‑Greeks
 | Legacy loop deprecation | One-time warning on legacy `collection_loop` usage | Deprecation | Plan removal after 2 stable releases |
 | `scripts/run_live.py` | Removed | Removal | Use orchestrator runner (`scripts/run_orchestrator_loop.py`) |
 
+### Phase 0 Configuration Rationalization (Completed)
+Introduced `CollectorSettings` (`src/collectors/settings.py`) providing a single-pass hydration of env-driven collector knobs:
+`G6_FILTER_MIN_VOLUME`, `G6_FILTER_MIN_OI`, `G6_FILTER_VOLUME_PERCENTILE` (stub), `G6_FOREIGN_EXPIRY_SALVAGE`, `G6_DISABLE_SALVAGE`, `G6_RETRY_ON_EMPTY`, `G6_TRACE_COLLECTOR`, `G6_DOMAIN_MODELS`.
+
+Integration Details:
+- Hydrated once per cycle inside `run_unified_collectors` and attached to cycle context (`ctx.collector_settings`).
+- `expiry_processor.process_expiry` consumes settings for basic filtering & salvage gating; retains legacy env fallback if settings absent.
+- Salvage logic prefers `foreign_expiry_salvage` then falls back to broader `salvage_enabled` to preserve prior behavior when only the generic flag existed.
+- Local ad-hoc env parsing removed from expiry path (except fallback guard) reducing repeated `os.getenv` overhead and divergence risk.
+
+Behavior Parity:
+- If the settings module import fails, legacy behavior (direct env lookups) continues—no hard dependency introduced.
+- Filter order unchanged (applied before data quality checks as previously).
+- Percentile threshold currently inert unless explicitly set; cutoff computation guarded for low sample sizes.
+
+Next Steps (Phase 1 Preview):
+- Thread settings into forthcoming shadow pipeline phases for strike span heuristics & advanced salvage tuning.
+- Add metrics surfacing active thresholds and salvage decisions for observability.
+- Deprecate direct env lookups after stable soak (target: remove fallback guards post 2 release cycles).
+
+### Phase 1 Shadow Pipeline (Historical)
+Shadow execution scaffolding added under `src/collectors/pipeline/`:
+- `state.py` (`ExpiryState`) captures structural fields for parity comparison.
+- `phases.py` implements four initial phases: resolve, fetch, prefilter clamp reuse, enrich.
+- `shadow.py` orchestrates and logs either `expiry.shadow.ok` or a compact `expiry.shadow.diff` with differing core counts.
+
+Activation Flag: set `G6_COLLECTOR_PIPELINE_V2=1` (hydrates `CollectorSettings.pipeline_v2_flag`). Legacy path remains authoritative; shadow errors are swallowed after DEBUG log.
+
+Current Diff Surface: `expiry_date`, `strike_count`, `instrument_count`, `enriched_keys`, plus strike list (length + identity) logged when mismatched.
+
+Upcoming (Phase 2) original plan (historical): layer synthetic fallback, preventive validation, salvage & recovery strategy abstraction. (Synthetic fallback portion was later removed entirely in Oct 2025; remaining items proceeded without it.)
+
+### Phase 2 Shadow Pipeline Enhancements (Completed; synthetic later removed)
+Added preventive validation (`preventive_validate`) and salvage rehydration logic (synthetic fallback was temporarily present in this phase but has since been removed). Key behaviors (synthetic bullets removed):
+- Preventive validation runs even on empty enriched sets capturing issues like `foreign_expiry` or insufficient strike coverage.
+- Salvage attempts rehydration of a small set (<=3) of foreign-expiry rows without marking salvage when disabled, preserving parity neutrality.
+<!-- (Removed Oct 2025) Synthetic fallback previously injected a minimal enriched row when enrichment returned empty. Eliminated to avoid silent fabricated data; empty states now surface directly to coverage/alert logic. -->
+Parity hash introduced (initial version) to compactly fingerprint core structural fields for logging/metrics correlation.
+
+### Phase 3 Shadow Pipeline Observational Extensions (In Progress)
+New downstream observational (non-authoritative) phases appended after enrichment (synthetic fallback removed):
+- `coverage`: computes basic strike/field coverage metrics stored under `meta['coverage']`.
+- `iv`: placeholder IV estimation metadata under `meta['iv_phase']` (delegates to modular or legacy helpers as available).
+- `greeks`: placeholder Greeks computation metadata under `meta['greeks_phase']`.
+- `persist_sim`: simulated persistence summary (option count, synthetic PCR) under `meta['persist_sim']` (no side-effects).
+
+Parity Hash v2:
+- Extended hash payload now incorporates coverage and simulated persistence derived metrics plus a truncated head of strikes for limited identity signal.
+- Stored in `meta['parity_hash_v2']` (16 hex chars) with deterministic defaults (0 for missing optional metrics) to avoid None/absence drift.
+- Logging lines `expiry.shadow.ok` / `expiry.shadow.diff` now include the v2 hash; existing diff surface fields unchanged (`DIFF_FIELDS` remains minimal to reduce log noise).
+
+Rationale:
+- Observational phases allow early detection of divergence in downstream analytics readiness before activating the shadow pipeline as a functional replacement.
+- Versioned hash ensures future additions (e.g., IV or Greeks counts) can evolve without destabilizing existing log parsers.
+
+Next (Phase 4 Preview):
+- Potential expansion of diff surface to include select coverage metrics once stability confirmed.
+- Metrics emission for shadow vs legacy structural parity rates (synthetic fallback frequency metric removed post-removal).
+- Gradual gating option for switching authoritative path after sustained parity confidence.
+
+### Phase 4 Shadow Pipeline Gating & Promotion (Active / Incremental)
+Focus: Turning structural parity confidence into actionable promotion decisions with staged safety (dry run → canary → full promotion) and hysteresis.
+
+Implemented Components:
+- Parity hash v2 strike canonicalization (sorted head) ensuring deterministic structural fingerprint.
+- Structural diff metadata: `meta['parity_diff_fields']`, `meta['parity_diff_count']` consumed by gating.
+- Gating controller modes: `off`, `dryrun`, `canary`, `promote`.
+- Rolling window parity ratio tracking with configurable window & minimum sample gate.
+- Canary & promotion thresholds with separate targets (`canary_target` < `parity_target`).
+- Hysteresis via consecutive ok/fail streak counters (`ok_streak`, `fail_streak`) to avoid flapping.
+- Protected field enforcement: diffs on `expiry_date` or `instrument_count` block promotion.
+- Decision schema (stored under `meta['gating_decision']`):
+  ```json
+  {
+    "mode": "dryrun|canary|promote|off",
+    "promote": false,
+    "canary": false,
+    "parity_ok_ratio": 0.992,
+    "window_size": 187,
+    "diff_count": 0,
+    "protected_diff": false,
+    "ok_streak": 42,
+    "fail_streak": 0,
+    "reason": "canary_active|parity_target_met|waiting_hysteresis|..."
+  }
+  ```
+
+Environment Flags (current):
+- `G6_SHADOW_GATE_MODE` = `off|dryrun|canary|promote`
+- `G6_SHADOW_PARITY_WINDOW` (int, default 200)
+- `G6_SHADOW_PARITY_MIN_SAMPLES` (int, default 30)
+- `G6_SHADOW_PARITY_CANARY_TARGET` (float 0-1, default 0.97)
+- `G6_SHADOW_PARITY_OK_TARGET` (float 0-1, default 0.99)
+- `G6_SHADOW_PARITY_OK_STREAK` (int, default 10) consecutive ok samples required for promotion
+- `G6_SHADOW_PARITY_FAIL_STREAK` (int, default 5) consecutive fails to clear canary/promotion
+ - `G6_SHADOW_CANARY_INDICES` (comma list allowlist; if set overrides percentage sampling)
+ - `G6_SHADOW_CANARY_PCT` (float 0-1 subset sampling when allowlist not provided; default 1.0)
+
+Promotion Logic Summary:
+1. Samples < `min_samples` → `reason=insufficient_samples` (no canary/promo).
+2. Ratio ≥ `canary_target` and no protected diff → `canary=true` (modes: canary/promote).
+3. In `promote` mode: require (a) `canary=true`, (b) ratio ≥ `parity_target`, (c) `ok_streak` ≥ `ok_hysteresis`, (d) no protected diff → `promote=true`.
+4. Any protected diff immediately blocks promotion (`reason=protected_block`).
+5. `fail_streak` ≥ `fail_hysteresis` while in canary/promote downgrades / prevents advancement (`reason=fail_hysteresis`).
+6. Else remain observing (`reason=waiting_hysteresis`).
+
+Not Yet Implemented (Planned Enhancements):
+- Canary subset scoping via adaptive dynamic lists (current static allowlist & pct implemented).
+- Metrics emission for gating decisions (counters + histograms).
+  * Implemented: `g6_shadow_gating_decisions_total{index,rule,mode,reason}` and `g6_shadow_gating_promotions_total{index,rule}` counters; parity ratio/window gauges already present. Future: histograms / churn.
+- Hash churn metric (distinct parity hashes per window) for structural volatility.
+- Rollback diff threshold flag for automatic demotion.
+- Extended protected field override flag (`G6_SHADOW_PROTECTED_FIELDS`).
+
+Operational Rollout Recommendation:
+1. Start with `dryrun` for ≥ full trading day; record baseline parity ratio & streak distribution.
+2. Move to `canary` targeting a small, stable index set (temporary manual allowlist until flag lands) validating no protected diffs emerge.
+3. Enable `promote` only after sustained ratio ≥ target and stable ok streak; monitor for immediate fail streak regressions.
+4. Keep rollback procedure documented (set `G6_SHADOW_GATE_MODE=off`) during initial promotion release.
+
+Testing:
+- Added unit tests covering dryrun, canary activation, promotion hysteresis, and protected field blocking.
+- Future tests planned for rollback & churn metrics once implemented.
+
+Rollback Safety:
+Leaving `G6_SHADOW_GATE_MODE` unset or `off` keeps behavior identical to prior phase (gating decision inert).
+
+Next Steps:
+- Add decision log line `shadow.gate.decision` (structured) for audit.
+- Wire metrics adapter for parity_ok/ diff counters + streak gauges.
+- Implement canary subset env parsing and safe allowlist enforcement.
+
+### Phase 5 Shadow Gating Churn & Rollback (Active)
+Focus: Introduce structural volatility insight and automatic rollback guardrails to further de-risk promotion.
+
+New Decision Fields (added to `meta['gating_decision']`):
+- `protected_in_window`: Count of samples in rolling window whose diff touched a protected field.
+- `hash_distinct`: Number of distinct parity hashes observed in the current window.
+- `hash_churn_ratio`: `hash_distinct / window_size` (volatility indicator 0-1).
+
+Rollback Logic:
+- Env `G6_SHADOW_ROLLBACK_PROTECTED_THRESHOLD` (int, default effectively disabled with large sentinel) triggers an immediate rollback decision (`reason=rollback_protected`) when the count of protected diffs within the active window reaches or exceeds the threshold.
+- Rollback short-circuits promotion and canary flags for the cycle (promotion remains false even if parity targets & hysteresis satisfied).
+
+Churn Metric Rationale:
+- High churn (many distinct hashes relative to window) can signal unstable structural footprint even if diff count is frequently zero (e.g., rapid strike list oscillation with salvage/synthetic interplay). Operators can watch `g6_shadow_hash_churn_ratio` to tune window size or investigate upstream volatility.
+
+Prometheus Metrics Added:
+- Gauge `g6_shadow_hash_churn_ratio{index,rule}`: distinct parity hash ratio (0-1).
+- Counter `g6_shadow_rollbacks_total{index,rule,reason}`: counts rollback events (currently reason `rollback_protected`).
+
+Environment Flag Summary (additions):
+- `G6_SHADOW_ROLLBACK_PROTECTED_THRESHOLD`: Integer >=1 to enable rollback after that many protected diffs within the rolling parity window.
+
+Operational Guidance:
+1. Start with threshold unset (disabled) while observing churn ratios; establish baseline (expect low churn for stable expiries; modest churn during high turnover periods).
+2. Set a conservative rollback threshold (e.g., 3) only after confirming protected diffs are rare (should usually be 0 across window).
+3. Alert on any increment of `g6_shadow_rollbacks_total`; couple with log sampling of `expiry.shadow.diff` for root cause.
+4. If churn ratio persistently approaches 1.0 yet parity ratio remains high, consider investigating strike universe feeding logic or salvage oscillation rather than tightening thresholds prematurely.
+
+Testing Additions:
+- `test_shadow_gating_churn.py` validates churn ratio and distinct hash accounting across cycles.
+- `test_shadow_gating_rollback.py` simulates protected diffs breaching threshold to assert rollback decision semantics.
+
+Backward Compatibility:
+- If the new env flag is not set, existing Phase 4 behavior remains unchanged (rollback path inert; decision fields still surfaced but purely observational).
+
+Next (Potential Phase 6 Preview):
+- Expand rollback triggers to include hash churn spike thresholds.
+- Expose decision log line for external auditing (`shadow.gate.decision`).
+- Configurable protected field set (`G6_SHADOW_PROTECTED_FIELDS`).
+
+### Phase 6 Shadow Gating Dynamic Protection & Churn Rollback (Active / Incremental)
+Focus: Operator-configurable protection surface and proactive rollback on structural volatility.
+
+Enhancements:
+- Structured decision log line emitted: `shadow.gate.decision index=... rule=... {json}` (DEBUG level) summarizing mode, ratio, streaks, diff_count, protected stats, churn, reason.
+- Dynamic protected fields via `G6_SHADOW_PROTECTED_FIELDS` (comma list) merged with defaults (`expiry_date`, `instrument_count`). Any diff touching an added field sets `protected_diff` and blocks promotion.
+- Churn-based rollback: `G6_SHADOW_ROLLBACK_CHURN_RATIO` (0-1) triggers `reason=rollback_churn` when `hash_churn_ratio` >= threshold (evaluated after min_samples, before canary/promote logic). Default sentinel (>1) disables.
+- Decision schema additions already present in Phase 5 leveraged for rollback determination (no schema change required this phase).
+
+New Environment Flags:
+| Flag | Default | Description |
+|------|---------|-------------|
+| `G6_SHADOW_PROTECTED_FIELDS` | (empty) | Comma list of extra structural fields to treat as protected for gating decisions |
+| `G6_SHADOW_ROLLBACK_CHURN_RATIO` | 2.0 | Set to <=1.0 to enable churn rollback when distinct-hash ratio exceeds threshold |
+
+Behavioral Notes:
+- Churn rollback fires prior to canary evaluation ensuring volatile structural phases do not enter canary/promotion even if parity diffs are zero most cycles.
+- Dryrun mode will surface `rollback_churn` reason observationally but naturally leaves `promote=False`.
+- Protected field expansion is idempotent; duplicates ignored; whitespace trimmed.
+
+Operational Guidance:
+1. Observe baseline `hash_churn_ratio` for several sessions before setting a rollback threshold.
+2. Start with a conservative threshold (e.g., 0.85) if volatility correlates with downstream issues.
+3. Keep protected field set minimal—over-protection can cause persistent promotion starvation.
+4. Monitor `g6_shadow_rollbacks_total` alongside decision logs for early warning.
+
+Testing Additions (Phase 6):
+- `test_shadow_gating_protected_env.py` validates dynamic protected field blocking.
+- `test_shadow_gating_churn_rollback.py` exercises churn rollback path.
+
+Future Considerations:
+- Separate window for churn evaluation (if hash volatility patterns diverge from parity OK sampling).
+- Metric for protected field incidence rate per field (label cardinality constraints pending evaluation).
+
+### Phase 7 Shadow Gating Operationalization (In Progress)
+Goals: Bridge from observational + promotion readiness to controlled activation hooks and richer safety controls.
+
+Enhancements:
+- Separate churn window (`G6_SHADOW_CHURN_WINDOW`) enabling volatility tracking on a shorter horizon without shrinking parity confidence window.
+- Authoritative promotion flag (`authoritative` in decision) surfaced when `G6_SHADOW_AUTHORITATIVE=1` and promotion criteria met (no automatic switch yet—flag only).
+- Manual demotion override (`G6_SHADOW_FORCE_DEMOTE`) forces `promote=false` (reason=`forced_demote`) regardless of ratio/streak status.
+- Optional per-protected-field diff counters via `G6_SHADOW_PROTECTED_METRICS_FIELDS` (comma list or `*`). Emits `g6_shadow_protected_field_diff_total{index,rule,field}`.
+- Decision bus emission (if implemented earlier) can be paired with authoritative flag for downstream orchestration tooling.
+
+New Environment Flags (Phase 7):
+| Flag | Default | Description |
+|------|---------|-------------|
+| `G6_SHADOW_CHURN_WINDOW` | -1 | Independent hash churn window size (<=0 disables; falls back to parity window) |
+| `G6_SHADOW_AUTHORITATIVE` | (unset) | When truthy, mark decisions with `authoritative=true` on successful promotion |
+| `G6_SHADOW_FORCE_DEMOTE` | (unset) | Force demotion (promotion disabled, reason `forced_demote`) |
+| `G6_SHADOW_PROTECTED_METRICS_FIELDS` | (empty) | Allowlist of protected fields to emit per-field diff counters (`*` => all protected) |
+| `G6_SHADOW_GATE_EVENT_BUS` | (unset) | (If present) publish gating decisions to in-memory bus (event type `shadow.gate.decision`) |
+
+Decision Additions:
+- `churn_window_size`: sample count used for distinct hash churn ratio when separate window active.
+- `authoritative`: boolean (only when authoritative flag enabled and promote path satisfied).
+
+Operational Guidance:
+1. Start with `G6_SHADOW_CHURN_WINDOW` small (e.g., 20% of parity window) to surface rapid oscillations without destabilizing parity evaluation.
+2. Enable `G6_SHADOW_AUTHORITATIVE` only after rollback counters stable and no protected diffs for sustained period.
+3. Use `G6_SHADOW_FORCE_DEMOTE` as a circuit breaker during live incidents (fast rollback) instead of changing gating mode.
+4. Scope `G6_SHADOW_PROTECTED_METRICS_FIELDS` narrowly to avoid label cardinality growth (prefer explicit list over `*`).
+5. If emitting decisions to the bus, subscribe with a filter on `shadow.gate.decision` to drive external dashboards or auto-remediation hooks.
+
+Testing:
+- `test_shadow_gating_phase7.py` validates churn window behavior, authoritative flag presence, and forced demotion override.
+
+Next (Phase 8 Preview):
+- Actual authoritative switching logic gating legacy vs shadow output behind dual-write safety.
+- Field-level protected diff alerting integration.
+- Churn spike adaptive backoff (dynamic thresholding).
+
+
 ## Versioning Assumptions
 If you previously ran without an explicit semantic version, treat your state as "pre‑analytics" baseline. After migration, tag your deployment to reflect the new analytics feature set (e.g. `v1.0.0-analytics`).
 

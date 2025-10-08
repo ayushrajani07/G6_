@@ -32,7 +32,13 @@ The following execution paths or scripts are deprecated or have been removed. Hi
 | (REMOVED) `scripts/summary_view.py` (legacy summary shim) | `scripts/summary/app.py` unified modular summary | 2025-10-03 | REMOVED 2025-10-03 | Replace panel & derive imports with modular equivalents (`scripts.summary.panels.*`, `scripts.summary.derive`) | Completed early after consolidation; zero external import telemetry. |
 | `G6_DISABLE_RESYNC_HTTP` (new) | (Opt-out only) | 2025-10-03 | — | Set `G6_DISABLE_RESYNC_HTTP=1` to suppress resync server when SSE active | Not a deprecation; governance listing for discoverability. |
 | `g6_vol_surface_quality_score_legacy` (duplicate gauge) | `g6_vol_surface_quality_score` | 2025-10-02 (metrics modularization cleanup) | R+1 | Dashboards should reference canonical `g6_vol_surface_quality_score`; update panels/alerts. | Duplicate maintained for one release window; removal planned after confirming no external scrapes rely on legacy name. |
+| (REMOVED) `src.providers.kite_provider` shim | `src.broker.kite_provider` | 2025-10-01 (warning via docs) | REMOVED 2025-10-07 (A24) | Update imports to broker namespace; shim now raises ImportError | Hard removal part of A24 cleanup. |
+| (UPDATED – synthetic removed) Consolidated env flags (`G6_LOOP_HEARTBEAT_INTERVAL`, outage, salvage, recovery, quiet/trace; former synthetic) direct hot-path parsing | `CollectorSettings` hydrated once | 2025-10-06 (post consolidation) | REMOVED synthetic flag 2025-10-08 | Remove synthetic fallback related exports; other flags unchanged | Synthetic fallback flag eliminated; no further action for remaining flags. |
 | `src/metrics/cache.py` direct registrations | `src/metrics/cache_metrics.py` (`init_cache_metrics`) | 2025-10-02 | R+1 | Import stays valid; no action unless depending on internal implementation details. | File now a thin shim delegating to new module (no behavior change). |
+| (REMOVED) Cycle tables output (Prefilter / Option Match) | Structured events only | 2025-10-07 | REMOVED 2025-10-07 | Remove table-related env vars; rely on STRUCT lines & metrics | Human tables deleted; stub module retained temporarily. |
+| G6_DISABLE_CYCLE_TABLES (no-op) | (None – removed feature) | 2025-10-07 | 2025-11 (final removal) | Remove from environments; has no effect | Marked deprecated; scheduled purge after one release if unset in telemetry. |
+| G6_DEFER_CYCLE_TABLES (no-op) | (None) | 2025-10-07 | 2025-11 | Remove env/export | Deferral logic removed. |
+| G6_CYCLE_TABLE_GRACE_MS / G6_CYCLE_TABLE_GRACE_MAX_MS (no-op) | (None) | 2025-10-07 | 2025-11 | Remove env/export | Grace delay logic removed. |
 | (REMOVED) `scripts/bench_aggregate.py` / `bench_diff.py` / `bench_verify.py` | `scripts/bench_tools.py` | 2025-09-30 (Phase 2) | REMOVED 2025-10-05 | Use unified subcommands (aggregate, diff, verify) | Early removal (no direct test imports; consolidation complete). |
 | `--enhanced` flag (run_orchestrator_loop) | Unified collectors default | 2025-09-30 (Phase 2) | R+0 (removed) | Remove flag usage; no action required | CLI arg removed; tests adjusted if any. |
 | (REMOVED) `G6_SUMMARY_PANELS_MODE` (env toggle) | Auto-detect panels presence | 2025-09-30 (Phase 3) | REMOVED 2025-10-02 | Remove env; summarizer ignores it (auto-detect only) | Purged from code & docs; no runtime warning path remains. |
@@ -57,6 +63,16 @@ The following execution paths or scripts are deprecated or have been removed. Hi
 
 ### Unified Suppression Environment Variable
 `G6_SUPPRESS_DEPRECATIONS` now honored by all stubs and wrappers. Legacy per-script suppressors (`G6_SUPPRESS_DEPRECATED_RUN_LIVE`, `G6_SUPPRESS_BENCHMARK_DEPRECATED`) still accepted for one grace release; plan removal of legacy keys in next cleanup wave.
+
+### Cycle Table Flag Set (Deprecated 2025-10-07)
+The following flags are now no-ops; underlying table system removed. They will be fully purged after one release window if no external dependency reports emerge:
+
+| Flag | Status | Replacement | Action |
+|------|--------|-------------|--------|
+| G6_DISABLE_CYCLE_TABLES | deprecated (no-op) | Structured events only | Remove from env configs |
+| G6_DEFER_CYCLE_TABLES | deprecated (no-op) | Structured events only | Remove from env configs |
+| G6_CYCLE_TABLE_GRACE_MS | deprecated (no-op) | N/A | Remove lines; no timing impact |
+| G6_CYCLE_TABLE_GRACE_MAX_MS | deprecated (no-op) | N/A | Remove lines; no timing impact |
 
 ## Removal Preconditions
 
@@ -108,7 +124,7 @@ Central emission now handled by `src.utils.deprecations.emit_deprecation` with:
 * Verbose repeat mode via `G6_VERBOSE_DEPRECATIONS`.
 * Force + critical flags for facade echo (pipeline promotion) to guarantee visibility even under suppression.
  * Migrated sites (phase 1): metrics direct import shim, init_helpers.apply_group_gating, parity_harness.snapshot_hash,
-	 synthetic.generate_synthetic_quotes wrapper, KiteProvider constructor & deprecation property shims.
+	 (REMOVED) synthetic.generate_synthetic_quotes wrapper (stub now inert), KiteProvider constructor & deprecation property shims.
 Future cleanups may migrate remaining ad-hoc deprecation warnings to this helper.
 
 ## Planned Candidates (Not Yet Deprecated)

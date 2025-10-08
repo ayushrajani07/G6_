@@ -1,10 +1,10 @@
 {
   "panel": "system",
-  "updated_at": "2025-10-05T10:18:32Z",
+  "updated_at": "2025-10-06T09:18:18Z",
   "data": {
     "memory_rss_mb": null,
-    "cycle": 105030,
-    "last_duration": 0.977,
+    "cycle": 6248,
+    "last_duration": 0.64,
     "interval": 60
   }
 }

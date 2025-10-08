@@ -345,3 +345,96 @@ Help: Bytes of last diff JSON written
 Labels: type  
 Cardinality Budget: 10
 
+## Family: pipeline
+Owner: collectors/pipeline/executor.py
+
+### g6_pipeline_phase_attempts_total
+Type: counter  
+Help: Total phase attempts (includes initial and any retries)  
+Labels: phase  
+Cardinality Budget: 20
+
+### g6_pipeline_phase_retries_total
+Type: counter  
+Help: Total retry attempts (attempt index > 1) per phase  
+Labels: phase  
+Cardinality Budget: 20
+
+### g6_pipeline_phase_outcomes_total
+Type: counter  
+Help: Final phase outcomes (one increment per phase per execution sequence)  
+Labels: phase, final_outcome  
+Cardinality Budget: 120
+
+### g6_pipeline_phase_duration_ms_total
+Type: counter  
+Help: Cumulative wall clock milliseconds spent executing a phase (aggregated across attempts)  
+Labels: phase, final_outcome  
+Cardinality Budget: 120
+
+### g6_pipeline_phase_runs_total
+Type: counter  
+Help: Completed phase execution sequences (after retries)  
+Labels: phase, final_outcome  
+Cardinality Budget: 120
+
+### g6_pipeline_phase_error_records_total
+Type: counter  
+Help: Total structured phase error records captured (one per legacy token)  
+Labels: phase, classification  
+Cardinality Budget: 240
+
+### g6_pipeline_cycle_success
+Type: gauge  
+Help: Pipeline cycle success state (1 if no phase errors else 0)  
+Labels: (none)  
+Cardinality Budget: 1
+
+### g6_pipeline_cycles_total
+Type: counter  
+Help: Total pipeline cycles executed (summary produced)  
+Labels: (none)  
+Cardinality Budget: 1
+
+### g6_pipeline_cycles_success_total
+Type: counter  
+Help: Total successful pipeline cycles (no phase errors)  
+Labels: (none)  
+Cardinality Budget: 1
+
+### g6_pipeline_phase_duration_seconds
+Type: histogram  
+Help: Phase execution duration distribution (seconds; attempts aggregated)  
+Labels: phase, final_outcome  
+Cardinality Budget: 120
+
+### g6_pipeline_cycle_error_ratio
+Type: gauge  
+Help: Per-cycle phase error ratio (phases_error / phases_total)  
+Labels: (none)  
+Cardinality Budget: 1
+
+### g6_pipeline_cycle_success_rate_window
+Type: gauge  
+Help: Rolling window success rate across last N cycles  
+Labels: (none)  
+Cardinality Budget: 1
+
+### g6_pipeline_cycle_error_rate_window
+Type: gauge  
+Help: Rolling window error rate across last N cycles  
+Labels: (none)  
+Cardinality Budget: 1
+
+### g6_pipeline_trends_success_rate
+Type: gauge  
+Help: Long-horizon success rate derived from trends aggregation file  
+Labels: (none)  
+Cardinality Budget: 1
+
+### g6_pipeline_trends_cycles
+Type: gauge  
+Help: Total cycles represented in the trends aggregation file  
+Labels: (none)  
+Cardinality Budget: 1
+

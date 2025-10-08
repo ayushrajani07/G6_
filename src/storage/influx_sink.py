@@ -299,7 +299,33 @@ class InfluxSink:
             expiry_str = str(expiry_date)
         
         try:
-            # Check if we have data
+            # Validation integration: mirror csv_sink behavior (drop invalid rows, clamp negatives, etc.)
+            try:  # local import to avoid hard dependency if validation package absent
+                from src.validation import run_validators  # type: ignore
+            except Exception:  # pragma: no cover
+                run_validators = None  # type: ignore
+            if options_data and run_validators:
+                raw_rows = []
+                for sym, data in list(options_data.items()):
+                    if isinstance(data, dict):
+                        r = dict(data)
+                        r['__symbol'] = sym
+                        raw_rows.append(r)
+                ctx = {'index': index_symbol, 'expiry': expiry_date, 'stage': 'influx-pre-write'}
+                try:
+                    cleaned, reports = run_validators(ctx, raw_rows)  # type: ignore[misc]
+                    rebuilt = {}
+                    for r in cleaned:
+                        sym = r.pop('__symbol', None)
+                        if sym:
+                            rebuilt[sym] = r
+                    options_data = rebuilt
+                    if reports:
+                        logger.debug('influx_validation_reports', extra={'count': len(reports), 'index': index_symbol})
+                except Exception:  # pragma: no cover
+                    logger.debug('influx_validation_failed', exc_info=True)
+
+            # Check if we still have data after validation
             if not options_data:
                 logger.warning(f"No options data to write for {index_symbol} {expiry_date}")
                 return

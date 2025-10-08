@@ -17,6 +17,7 @@ from typing import List, Any, Dict, Callable, Optional
 from dotenv import load_dotenv
 
 from src.broker.kite_provider import KiteProvider
+from src.provider.config import get_provider_config
 from typing import cast, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -72,7 +73,8 @@ def main() -> int:
     setup_logging()
     load_dotenv()
     try:
-        kite_provider = KiteProvider.from_env()
+        snap = get_provider_config()
+        kite_provider = KiteProvider.from_provider_config(snap)
     except Exception as e:
         logger.error(f"Failed to init KiteProvider: {e}")
         try:

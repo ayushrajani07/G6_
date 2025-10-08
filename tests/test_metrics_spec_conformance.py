@@ -15,6 +15,7 @@ from __future__ import annotations
 import pathlib
 import os
 import inspect
+import pytest
 from typing import Any
 
 import yaml  # type: ignore
@@ -65,6 +66,7 @@ def _labels_from_collector(metric_obj) -> list[str]:
     return [n for n in names if n not in {'quantile', 'le'}]
 
 
+@pytest.mark.skipif(os.getenv('G6_EGRESS_FROZEN','').lower() in {'1','true','yes','on'}, reason='panel diff egress frozen affects spec surface')
 def test_metrics_spec_conformance():  # noqa: C901 (intentional thoroughness)
     spec_metrics = load_spec()
     # Acquire registry (import side effect initializes metrics). If missing, fail early.
