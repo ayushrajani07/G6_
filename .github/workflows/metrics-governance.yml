@@ -58,9 +58,9 @@ jobs:
           sudo mv prometheus-*.linux-amd64/promtool /usr/local/bin/promtool && \
           promtool --version
 
-      - name: Lint dashboard PromQL (strict)
+      - name: Lint dashboard PromQL (strict, sanitized)
         run: |
-          python scripts/lint_dashboard_promql.py --require-promtool
+          python scripts/lint_dashboard_promql.py --require-promtool --sanitize-templated
 
       - name: Regenerate metrics module & catalog (best-effort)
         run: |
