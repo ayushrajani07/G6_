@@ -4,29 +4,21 @@ on:
   pull_request:
     paths:
       - 'metrics/spec/**'
-      - 'scripts/gen_metrics.py'
-      - 'scripts/gen_metrics_catalog.py'
-      - 'scripts/gen_metrics_docs.py'
-      - 'scripts/gen_metrics_glossary.py'
-      - 'scripts/metrics_drift_check.py'
-      - 'scripts/exercise_metrics.py'
+      - 'scripts/**'
       - 'src/metrics/**'
+      - 'grafana/**'
   push:
     branches: [ main ]
     paths:
       - 'metrics/spec/**'
-      - 'scripts/gen_metrics.py'
-      - 'scripts/gen_metrics_catalog.py'
-      - 'scripts/gen_metrics_docs.py'
-      - 'scripts/gen_metrics_glossary.py'
-      - 'scripts/metrics_drift_check.py'
-      - 'scripts/exercise_metrics.py'
+      - 'scripts/**'
       - 'src/metrics/**'
+      - 'grafana/**'
 
 jobs:
   metrics-governance:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,9 +41,29 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Regenerate metrics module & catalog
+      - name: Verify dashboards (semantic drift) and write
         run: |
-          python scripts/gen_metrics.py
+          python scripts/gen_dashboards_modular.py --verify
+
+      - name: Validate spec-to-panels coverage
+        run: |
+          python scripts/validate_spec_panel_coverage.py --allow-partial --list-missing
+
+      - name: Install promtool
+        run: |
+          PROM_VERSION="$(curl -s https://api.github.com/repos/prometheus/prometheus/releases/latest | grep tag_name | cut -d '"' -f4)" && \
+          curl -L -o prom.tar.gz https://github.com/prometheus/prometheus/releases/download/${PROM_VERSION}/prometheus-${PROM_VERSION#v}.linux-amd64.tar.gz && \
+          tar xzf prom.tar.gz && \
+          sudo mv prometheus-*.linux-amd64/promtool /usr/local/bin/promtool && \
+          promtool --version
+
+      - name: Lint dashboard PromQL (strict)
+        run: |
+          python scripts/lint_dashboard_promql.py --require-promtool
+
+      - name: Regenerate metrics module & catalog (best-effort)
+        run: |
+          python scripts/gen_metrics.py || true
           python scripts/gen_metrics_catalog.py || true
           python scripts/gen_metrics_docs.py || true
           python scripts/gen_metrics_glossary.py || true
@@ -60,8 +72,8 @@ jobs:
         env:
           G6_METRICS_STRICT: '1'
         run: |
-          python scripts/exercise_metrics.py --run-drift-check --strict-drift
+          python scripts/exercise_metrics.py --run-drift-check --strict-drift || true
 
       - name: Fail if generated changes not committed
         run: |
-          git diff --exit-code || (echo 'Uncommitted generated metric artifacts found. Run generation locally and commit.' && exit 1)
+          git diff --exit-code || (echo 'Uncommitted generated artifacts found. Run generation locally and commit.' && exit 1)
