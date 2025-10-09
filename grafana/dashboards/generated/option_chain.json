@@ -1,0 +1,840 @@
+{
+  "__inputs": [],
+  "__requires": [
+    {
+      "id": "prometheus",
+      "name": "Prometheus",
+      "type": "prometheus",
+      "version": "1.0.0"
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "g6_meta": {
+    "alerts_count": 2,
+    "alerts_panel": true,
+    "description": "Option chain aggregates & IV health",
+    "enriched": true,
+    "families": [
+      "option_chain"
+    ],
+    "generator_version": "phaseDEF-1",
+    "placeholder_panels": false,
+    "spec_hash": "0533405d11f9f66e"
+  },
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "alerts_count": 2,
+        "panel_uuid": "ea0d9242ddd2bffb",
+        "source": "alerts_aggregate"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 3926757954,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "/* ALERTS:\nG6OptionNewListingSpike|g6_option_contracts_new_total|warning|New option listings spike|sum(rate(g6_option_contracts_new_total[10m])) > 200\nG6OptionNewListingCritical|g6_option_contracts_new_total|critical|New option listings surge|sum(rate(g6_option_contracts_new_total[10m])) > 500\n*/",
+          "refId": "A"
+        }
+      ],
+      "title": "Spec Alerts Overview",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_contracts_active",
+        "panel_uuid": "5e7e8c3a4d1a905c",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "id": 1585351738,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (mny,dte) (g6_option_contracts_active)",
+          "refId": "A"
+        }
+      ],
+      "title": "Active Contracts by Bucket",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_contracts_active",
+        "panel_uuid": "88000a0d6b21c254",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "id": 2281703949,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (mny) (g6_option_contracts_active)",
+          "refId": "A"
+        }
+      ],
+      "title": "Active Contracts by Moneyness",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_contracts_active",
+        "panel_uuid": "c01ad3f3d81936c3",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "id": 3222983667,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (dte) (g6_option_contracts_active)",
+          "refId": "A"
+        }
+      ],
+      "title": "Active Contracts by DTE",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_open_interest",
+        "panel_uuid": "db1351b772f46bba",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "id": 3675476407,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (mny) (g6_option_open_interest)",
+          "refId": "A"
+        }
+      ],
+      "title": "Open Interest by Moneyness",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_open_interest",
+        "panel_uuid": "093db572cdf3c75c",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 26
+      },
+      "id": 155039090,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (dte) (g6_option_open_interest)",
+          "refId": "A"
+        }
+      ],
+      "title": "Open Interest by DTE",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_open_interest",
+        "panel_uuid": "e9242ab23c564aa4",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "id": 3911461554,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (mny,dte) (g6_option_open_interest)",
+          "refId": "A"
+        }
+      ],
+      "title": "OI Heatmap (Mny x DTE)",
+      "type": "heatmap"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_open_interest",
+        "panel_uuid": "f8323739d75bf2f0",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 34
+      },
+      "id": 4164040505,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(g6_option_open_interest)",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Open Interest",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_volume_24h",
+        "panel_uuid": "1362ebc2be14fce0",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 34
+      },
+      "id": 325249986,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (mny) (g6_option_volume_24h)",
+          "refId": "A"
+        }
+      ],
+      "title": "24h Volume by Moneyness",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_volume_24h",
+        "panel_uuid": "3cbf64e4c9cec908",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 42
+      },
+      "id": 1019176164,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (dte) (g6_option_volume_24h)",
+          "refId": "A"
+        }
+      ],
+      "title": "24h Volume by DTE",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_volume_24h",
+        "panel_uuid": "ac37b8a7e3088e44",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 42
+      },
+      "id": 2889332903,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (mny,dte) (g6_option_volume_24h)",
+          "refId": "A"
+        }
+      ],
+      "title": "24h Volume Heatmap (Mny x DTE)",
+      "type": "heatmap"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_volume_24h",
+        "panel_uuid": "15c04c76476687a0",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 50
+      },
+      "id": 364924022,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(g6_option_volume_24h)",
+          "refId": "A"
+        }
+      ],
+      "title": "Total 24h Volume",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_iv_mean",
+        "panel_uuid": "fd090e185fa2190d",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 50
+      },
+      "id": 4245229080,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (mny) (g6_option_iv_mean) / count by (mny) (g6_option_iv_mean)",
+          "refId": "A"
+        }
+      ],
+      "title": "Mean IV by Moneyness",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_iv_mean",
+        "panel_uuid": "f50ccf6b58e809c8",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 58
+      },
+      "id": 4111257451,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (dte) (g6_option_iv_mean) / count by (dte) (g6_option_iv_mean)",
+          "refId": "A"
+        }
+      ],
+      "title": "Mean IV by DTE",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_iv_mean",
+        "panel_uuid": "d937f2cfd83f9ce1",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 58
+      },
+      "id": 3644322511,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (mny,dte) (g6_option_iv_mean) / clamp_min(sum by (mny,dte) (count_values(\"v\", g6_option_iv_mean)),1)",
+          "refId": "A"
+        }
+      ],
+      "title": "Mean IV Heatmap (Mny x DTE)",
+      "type": "heatmap"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_spread_bps_mean",
+        "panel_uuid": "5b4a0db6c5a4abac",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 66
+      },
+      "id": 1531579830,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (mny) (g6_option_spread_bps_mean) / count by (mny) (g6_option_spread_bps_mean)",
+          "refId": "A"
+        }
+      ],
+      "title": "Mean Spread bps by Moneyness",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_spread_bps_mean",
+        "panel_uuid": "c2d94d5723511b11",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 66
+      },
+      "id": 3269021015,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (dte) (g6_option_spread_bps_mean) / count by (dte) (g6_option_spread_bps_mean)",
+          "refId": "A"
+        }
+      ],
+      "title": "Mean Spread bps by DTE",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "gauge",
+        "metric": "g6_option_spread_bps_mean",
+        "panel_uuid": "8c807861337ea08d",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 74
+      },
+      "id": 2357229665,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (mny,dte) (g6_option_spread_bps_mean) / clamp_min(sum by (mny,dte) (count_values(\"v\", g6_option_spread_bps_mean)),1)",
+          "refId": "A"
+        }
+      ],
+      "title": "Mean Spread bps Heatmap (Mny x DTE)",
+      "type": "heatmap"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "counter",
+        "metric": "g6_option_contracts_new_total",
+        "panel_uuid": "7dccffb6ad74fa34",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 74
+      },
+      "id": 2110586806,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(g6_option_contracts_new_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "New Contracts Rate (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "option_chain",
+        "kind": "counter",
+        "metric": "g6_option_contracts_new_total",
+        "panel_uuid": "a6e894f58ac16939",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 82
+      },
+      "id": 2800260341,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (dte) (rate(g6_option_contracts_new_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "New Contracts Rate by DTE (5m)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "g6",
+    "generated"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Option Chain",
+  "uid": "g6-option_chain",
+  "version": 1
+}

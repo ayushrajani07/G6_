@@ -1,0 +1,446 @@
+{
+  "__inputs": [],
+  "__requires": [
+    {
+      "id": "prometheus",
+      "name": "Prometheus",
+      "type": "prometheus",
+      "version": "1.0.0"
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "g6_meta": {
+    "alerts_count": 0,
+    "alerts_panel": false,
+    "description": "Emission batching / sinks metrics",
+    "enriched": true,
+    "families": [
+      "emission"
+    ],
+    "generator_version": "phaseDEF-1",
+    "placeholder_panels": false,
+    "spec_hash": "0533405d11f9f66e"
+  },
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "emission",
+        "kind": "counter",
+        "metric": "g6_emission_failures_total",
+        "panel_uuid": "9f967e1e16ad8c8b",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 2677440030,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(g6_emission_failures_total[10m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Emission Failures Rate (10m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "emission",
+        "kind": "counter",
+        "metric": "g6_emission_failures_total",
+        "panel_uuid": "17770699ba3665d9",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 393676441,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (emitter) (rate(g6_emission_failures_total[10m])))",
+          "refId": "A"
+        }
+      ],
+      "title": "Top Failing Emitters (10m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "emission",
+        "kind": "counter",
+        "metric": "g6_emission_failure_once_total",
+        "panel_uuid": "6da5519fb42b8ad4",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 1839550879,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "count(g6_emission_failure_once_total)",
+          "refId": "A"
+        }
+      ],
+      "title": "Emitters With Any Failure",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "emission",
+        "kind": "counter",
+        "metric": "g6_emission_failure_once_total",
+        "panel_uuid": "08ca107f3d81c747",
+        "source": "auto_rate"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 147460223,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(g6_emission_failure_once_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_emission_failure_once_total Rate (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "emission",
+        "kind": "counter",
+        "metric": "g6_emission_failure_once_total",
+        "panel_uuid": "068c77e5d743944e",
+        "source": "auto_label_split",
+        "split_label": "emitter"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 109869029,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (emitter) (rate(g6_emission_failure_once_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_emission_failure_once_total Rate by emitter (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "emission",
+        "kind": "histogram",
+        "metric": "g6_metrics_batch_flush_duration_ms",
+        "panel_uuid": "da88bbc4123cd1ef",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 3666394052,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(g6_metrics_batch_flush_duration_ms_bucket[5m])) by (le))",
+          "refId": "A"
+        }
+      ],
+      "title": "Batch Flush Latency p95 (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "emission",
+        "kind": "histogram",
+        "metric": "g6_metrics_batch_flush_duration_ms",
+        "panel_uuid": "f1dd6f1c197483f8",
+        "source": "auto_hist_quantile"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "id": 4057820956,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_metrics_batch_flush_duration_ms:p95_5m",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_metrics_batch_flush_duration_ms p95 (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "emission",
+        "kind": "histogram",
+        "metric": "g6_metrics_batch_flush_duration_ms",
+        "panel_uuid": "c97ca965522752b7",
+        "source": "auto_hist_quantile"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "id": 3380390245,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_metrics_batch_flush_duration_ms:p99_5m",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_metrics_batch_flush_duration_ms p99 (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "emission",
+        "kind": "gauge",
+        "metric": "g6_metrics_batch_flush_increments",
+        "panel_uuid": "a6c1b6485ad5696b",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "id": 2797712968,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_metrics_batch_flush_increments",
+          "refId": "A"
+        }
+      ],
+      "title": "Batch Flush Size",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "emission",
+        "kind": "gauge",
+        "metric": "g6_metrics_batch_adaptive_target",
+        "panel_uuid": "b2a6f16fbdd3f6ad",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "id": 2997285231,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_metrics_batch_adaptive_target",
+          "refId": "A"
+        }
+      ],
+      "title": "Adaptive Target Batch Size",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "g6",
+    "generated"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Emission Pipeline",
+  "uid": "g6-emission_pipeline",
+  "version": 1
+}

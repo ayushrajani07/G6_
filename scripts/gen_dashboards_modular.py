@@ -70,6 +70,8 @@ DEFAULT_PLANS: List[DashboardPlan] = [
     DashboardPlan(slug="bus_stream", title="Bus & Stream", families=["bus", "stream"], description="Stream gating, bus throughput, conflicts"),
     DashboardPlan(slug="emission_pipeline", title="Emission Pipeline", families=["emission"], description="Emission batching / sinks metrics"),
     DashboardPlan(slug="panels_summary", title="Panels Summary", families=["panels", "stream"], description="Panel diff efficiency & state gating"),
+    # New coverage: data quality / staleness and SSE latency
+    DashboardPlan(slug="data_quality", title="Data Quality & Staleness", families=["stale"], description="Staleness and empty quote coverage"),
     DashboardPlan(slug="column_store", title="Column Store", families=["column_store"], description="Column store refresh / errors"),
     DashboardPlan(slug="governance", title="Metrics Governance", families=["governance"], description="Governance invariants / catalog generation health"),
     DashboardPlan(slug="option_chain", title="Option Chain", families=["option_chain"], description="Option chain aggregates & IV health"),
@@ -81,6 +83,7 @@ DEFAULT_PLANS: List[DashboardPlan] = [
     DashboardPlan(slug="health_core", title="Core Health", families=["system", "bus", "governance"], description="High-signal health indicators for core subsystems"),
     # Phase D: additional focused health dashboards.
     DashboardPlan(slug="bus_health", title="Bus Health", families=["bus"], description="Bus publish latency & throughput health"),
+    DashboardPlan(slug="sse_latency", title="SSE Latency & Trace", families=["sse"], description="SSE flush latency and tracing counters"),
     DashboardPlan(slug="system_overview_minimal", title="System Overview (Minimal)", families=["system"], description="Compact system success & latency snapshot", tags=["minimal"]),
     # Exploratory dashboard (Phase: explorer initial). Special synthesis (templated multi-pane) not tied to single family enumeration.
     DashboardPlan(slug="multi_pane_explorer", title="Multi-Pane Explorer", families=["system"], description="Ad-hoc single-metric multi-window exploration panels", tags=["explorer", "experimental"]),
@@ -951,6 +954,71 @@ def synth_dashboard(plan: DashboardPlan, metrics: List[Metric], spec_hash: str) 
         if len(panels) >= 36:
             break
 
+    # Priority injections for required coverage panels (must-survive regenerations)
+    # Ensure provider failover rate panel exists in provider_ingestion dashboard
+    if plan.slug == "provider_ingestion":
+        want_expr = "sum(rate(g6_provider_failover_total[6h]))"
+        found_idx = -1
+        for idx, _p in enumerate(panels):
+            for _t in _p.get("targets", []) or []:
+                if isinstance(_t, dict) and _t.get("expr") == want_expr:
+                    found_idx = idx
+                    break
+            if found_idx != -1:
+                break
+        if found_idx == -1:
+            # Not present anywhere: inject at front
+            meta_metric = next((m for m in selected if m.name == "g6_provider_failover_total"), None)
+            kind = (meta_metric.kind if meta_metric else "counter")
+            family = (meta_metric.family if meta_metric else "provider_mode")
+            injected = {
+                "type": "timeseries",
+                "title": "Provider Failover Rate (6h)",
+                "targets": [{"expr": want_expr, "refId": "A"}],
+                "datasource": {"type": "prometheus", "uid": "PROM"},
+                "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+                "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+                "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+                "g6_meta": {"metric": "g6_provider_failover_total", "family": family, "kind": kind, "source": "spec_injected"},
+            }
+            panels.insert(0, injected)
+        else:
+            # Present but may be truncated by core cap; promote to front if deep
+            CORE_CAP = 24
+            if found_idx >= CORE_CAP:
+                panel_obj = panels.pop(found_idx)
+                panels.insert(0, panel_obj)
+
+        # Ensure Provider Mode State panel exists and is not truncated
+        mode_expr = "sum by (mode) (g6_provider_mode)"
+        mode_found_idx = -1
+        for idx, _p in enumerate(panels):
+            for _t in _p.get("targets", []) or []:
+                if isinstance(_t, dict) and _t.get("expr") == mode_expr:
+                    mode_found_idx = idx
+                    break
+            if mode_found_idx != -1:
+                break
+        if mode_found_idx == -1:
+            injected_mode = {
+                "type": "timeseries",
+                "title": "Provider Mode State",
+                "targets": [{"expr": mode_expr, "refId": "A"}],
+                "datasource": {"type": "prometheus", "uid": "PROM"},
+                "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+                "options": {"legend": {"displayMode": "list", "placement": "bottom"}},
+                "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+                "g6_meta": {"metric": "g6_provider_mode", "family": "provider_mode", "kind": "gauge", "source": "spec_injected"},
+            }
+            panels.insert(1, injected_mode)
+        else:
+            CORE_CAP = 24
+            if mode_found_idx >= CORE_CAP:
+                panel_obj = panels.pop(mode_found_idx)
+                # Insert after alerts (index 0 likely alerts overview table)
+                insert_at = 1 if (panels and panels[0].get("title") == "Spec Alerts Overview") else 0
+                panels.insert(insert_at, panel_obj)
+
     # Phase 7: append cross-metric efficiency ratio panels for specific dashboards
     if plan.slug in {"panels_efficiency", "column_store", "lifecycle_storage"}:
         try:
@@ -1317,11 +1385,14 @@ def main(argv: Sequence[str]) -> int:
         dashboards[plan.slug] = synth_dashboard(plan, metrics, spec_hash)
 
     # Drift detection (before writing) if --verify
+    write_on_verify = False
     if args.verify:
         drift = detect_drift(args.output, dashboards)
         if drift:
             print("SEMANTIC DRIFT DETECTED:", ", ".join(drift), file=sys.stderr)
-            return 6  # distinct exit code for semantic drift
+            # Continue to write outputs so local runs can regenerate artifacts in one shot
+            # CI will still fail based on exit code below after writing.
+            write_on_verify = True
 
     # Ensure output dir
     args.output.mkdir(parents=True, exist_ok=True)
@@ -1338,6 +1409,10 @@ def main(argv: Sequence[str]) -> int:
     MANIFEST_PATH.write_text(json.dumps(manifest, indent=2, sort_keys=True))
 
     print(f"Generated {len(dashboards)} dashboards -> {args.output} (spec_hash={spec_hash})")
+
+    # If verify had drift, return 6 after writing to allow commit
+    if args.verify and 'write_on_verify' in locals() and write_on_verify:
+        return 6
     return 0
 
 

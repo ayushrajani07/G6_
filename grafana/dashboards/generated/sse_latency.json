@@ -1,0 +1,205 @@
+{
+  "__inputs": [],
+  "__requires": [
+    {
+      "id": "prometheus",
+      "name": "Prometheus",
+      "type": "prometheus",
+      "version": "1.0.0"
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "g6_meta": {
+    "alerts_count": 0,
+    "alerts_panel": false,
+    "description": "SSE flush latency and tracing counters",
+    "enriched": true,
+    "families": [
+      "sse"
+    ],
+    "generator_version": "phaseDEF-1",
+    "placeholder_panels": false,
+    "spec_hash": "0533405d11f9f66e"
+  },
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "sse",
+        "kind": "histogram",
+        "metric": "g6_sse_flush_seconds",
+        "panel_uuid": "15d87a2ee3f6b6bc",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 366508590,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(g6_sse_flush_seconds_bucket[5m])) by (le))",
+          "refId": "A"
+        }
+      ],
+      "title": "SSE Flush Latency p95 (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "sse",
+        "kind": "histogram",
+        "metric": "g6_sse_flush_seconds",
+        "panel_uuid": "897ca3d802195700",
+        "source": "auto_hist_quantile"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2306647000,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_sse_flush_seconds:p95_5m",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_sse_flush_seconds p95 (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "sse",
+        "kind": "histogram",
+        "metric": "g6_sse_flush_seconds",
+        "panel_uuid": "6cfc8eff1e64593a",
+        "source": "auto_hist_quantile"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 1828491007,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_sse_flush_seconds:p99_5m",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_sse_flush_seconds p99 (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "sse",
+        "kind": "counter",
+        "metric": "g6_sse_trace_stages_total",
+        "panel_uuid": "1d96f8ecdcea44dd",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 496433388,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(g6_sse_trace_stages_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "SSE Trace Stages (5m)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "g6",
+    "generated"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "SSE Latency & Trace",
+  "uid": "g6-sse_latency",
+  "version": 1
+}

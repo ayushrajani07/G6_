@@ -1,0 +1,126 @@
+{
+  "__inputs": [],
+  "__requires": [
+    {
+      "id": "prometheus",
+      "name": "Prometheus",
+      "type": "prometheus",
+      "version": "1.0.0"
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "g6_meta": {
+    "alerts_count": 0,
+    "alerts_panel": false,
+    "description": "Compact system success & latency snapshot",
+    "enriched": true,
+    "families": [
+      "system"
+    ],
+    "generator_version": "phaseDEF-1",
+    "placeholder_panels": false,
+    "spec_hash": "0533405d11f9f66e"
+  },
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "system",
+        "kind": "gauge",
+        "metric": "g6_api_success_rate_percent",
+        "panel_uuid": "0664a2818fd69b0d",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 107258497,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_api_success_rate_percent",
+          "refId": "A"
+        }
+      ],
+      "title": "API Success Rate %",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "system",
+        "kind": "gauge",
+        "metric": "g6_api_response_time_ms",
+        "panel_uuid": "07faa454acd2da2a",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 133866580,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_api_response_time_ms",
+          "refId": "A"
+        }
+      ],
+      "title": "API Avg Response Time (ms)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "minimal",
+    "g6",
+    "generated"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "System Overview (Minimal)",
+  "uid": "g6-system_overview_minimal",
+  "version": 1
+}

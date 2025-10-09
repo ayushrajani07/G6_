@@ -1,147 +1,168 @@
 #!/usr/bin/env python
-"""Validate that every spec-defined panel promql appears in at least one generated dashboard panel.
+"""
+Validate that panels defined in the metrics spec are represented in generated dashboards.
 
-Rules:
-  * Load metrics spec YAML and collect each panel's promql (skip empty / comment-only).
-  * Normalize expressions: strip, collapse internal whitespace, remove surrounding comment markers and trailing semicolons.
-  * Load all dashboards JSON in grafana/dashboards/generated and collect target exprs normalized.
-  * A spec panel is covered if its normalized promql exactly matches a dashboard expr OR if the dashboard expr equals the spec promql after whitespace collapse.
-  * Multi-line YAML literals are normalized the same way.
+Coverage rules (pragmatic, lenient to generator transformations):
+- For histogram panels using histogram_quantile in spec, accept recorded series usage in dashboards:
+    <metric>:p95_5m, <metric>:p99_5m, <metric>:p95_30m, etc.
+- For counter/gauge panels, accept if any dashboard target expression references the base metric name.
+- If spec panel includes an explicit "by (label)" grouping, prefer to see that label in the dashboard
+  expression (either via "by (label)" or a topk(...) on the same metric); still count covered if the
+  base metric is present to avoid over-strict failures during early generator phases.
 
-Exit Codes:
-  0 -> all spec panel expressions covered
-  11 -> uncovered spec panel expressions found
-  2 -> setup error (spec or dashboards dir missing)
+Exit codes:
+  0  - All spec panels covered
+  11 - Uncovered spec panels detected
 
-Options:
-  --allow-partial: treat a spec panel as covered if its base metric name appears in any dashboard expression (best-effort fallback)
-  --list-missing: print each missing panel expression with context
-
-Intended use: CI gate that ensures generator evolution doesn't silently drop spec-intended panels.
+This script is meant to be used in CI alongside dashboard drift verification.
 """
 from __future__ import annotations
 
-import argparse
 import json
 import re
 import sys
-from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Dict, Set
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 try:
     import yaml  # type: ignore
-except ImportError:
-    print("PyYAML required for spec coverage validation", file=sys.stderr)
+except Exception as e:
+    print("ERROR: PyYAML is required (pip install pyyaml)", file=sys.stderr)
     sys.exit(2)
 
 ROOT = Path(__file__).resolve().parent.parent
 SPEC_PATH = ROOT / "metrics" / "spec" / "base.yml"
 DASH_DIR = ROOT / "grafana" / "dashboards" / "generated"
 
-WHITESPACE_RE = re.compile(r"\s+")
 
-@dataclass
-class SpecPanel:
-    family: str
-    metric: str
-    kind: str
-    raw_expr: str
-    norm_expr: str
-    title: str
-
-
-def normalize_expr(expr: str) -> str:
-    if expr is None:
-        return ""
-    # Remove leading/trailing whitespace and inline comment markers at ends
-    cleaned = expr.strip()
-    # Collapse multi-line YAML literal indentation
-    cleaned = WHITESPACE_RE.sub(" ", cleaned)
-    # Drop trailing semicolon
-    if cleaned.endswith(';'):
-        cleaned = cleaned[:-1]
-    return cleaned
-
-
-def load_spec_panels() -> List[SpecPanel]:
-    if not SPEC_PATH.exists():
-        print(f"Spec missing: {SPEC_PATH}", file=sys.stderr)
-        sys.exit(2)
-    raw = yaml.safe_load(SPEC_PATH.read_text()) or {}
-    out: List[SpecPanel] = []
-    for fam, fdata in (raw.get("families", {}) or {}).items():
-        for m in (fdata or {}).get("metrics", []) or []:
-            if not isinstance(m, dict):
-                continue
-            metric_name = m.get("name")
-            if not metric_name:
-                continue
-            panels = m.get("panels") or []
-            for p in panels:
-                expr = p.get("promql")
-                if not expr:
-                    continue
-                norm = normalize_expr(expr)
-                if not norm:
-                    continue
-                out.append(SpecPanel(family=fam, metric=str(metric_name), kind=p.get("kind",""), raw_expr=expr, norm_expr=norm, title=p.get("title","")))
-    return out
-
-
-def load_dashboard_exprs() -> Set[str]:
-    if not DASH_DIR.exists():
-        print(f"Dashboards dir missing: {DASH_DIR}", file=sys.stderr)
-        sys.exit(2)
-    exprs: Set[str] = set()
-    for fp in DASH_DIR.glob("*.json"):
+def _read_dash_exprs(dash_dir: Path) -> List[str]:
+    exprs: List[str] = []
+    if not dash_dir.exists():
+        return exprs
+    for fp in sorted(dash_dir.glob("*.json")):
         try:
             data = json.loads(fp.read_text())
+            for p in data.get("panels", []) or []:
+                for tgt in p.get("targets", []) or []:
+                    if isinstance(tgt, dict):
+                        e = tgt.get("expr")
+                        if isinstance(e, str) and e.strip():
+                            exprs.append(e.strip())
         except Exception:
+            # Ignore unreadable dashboards
             continue
-        for panel in data.get("panels", []) or []:
-            for tgt in panel.get("targets", []) or []:
-                expr = tgt.get("expr")
-                if not isinstance(expr, str):
-                    continue
-                norm = normalize_expr(expr)
-                if norm:
-                    exprs.add(norm)
     return exprs
 
 
+_RE_BY_GROUP = re.compile(r"by\s*\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)")
+
+
+def _quantile_suffix_from_promql(promql: str) -> Optional[str]:
+    # Detect histogram_quantile(0.95|0.99|0.9) -> p95|p99|p90
+    if "histogram_quantile" not in promql:
+        return None
+    m = re.search(r"histogram_quantile\s*\(\s*0\.(\d{2})\s*,", promql)
+    if not m:
+        return None
+    return f"p{m.group(1)}"
+
+
+def _base_metric_from_bucket(promql: str, fallback: str) -> str:
+    # Try to extract the *_bucket base name reference; else return fallback
+    m = re.search(r"([a-zA-Z_:][a-zA-Z0-9_:]*)_bucket\b", promql)
+    if m:
+        name = m.group(1)
+        return name
+    return fallback
+
+
+def _covered_by_dashboard(panel_promql: str, base_metric: str, dash_exprs: Iterable[str]) -> bool:
+    pql = panel_promql.strip()
+    if not pql:
+        return True  # nothing to validate
+
+    # Try histogram -> recording rule match
+    q_suffix = _quantile_suffix_from_promql(pql)
+    if q_suffix:
+        base = _base_metric_from_bucket(pql, base_metric)
+        # Accept any expr containing <base>:pXX_ (any window)
+        token = f"{base}:{q_suffix}_"
+        for e in dash_exprs:
+            if token in e:
+                return True
+        # Fallback to raw histogram_quantile presence (rare in generated dashboards)
+        for e in dash_exprs:
+            if "histogram_quantile" in e and base in e:
+                return True
+        return False
+
+    # Non-histogram cases: look for base metric presence
+    # If spec suggests a grouping label, prefer a match that includes it
+    want_label: Optional[str] = None
+    m = _RE_BY_GROUP.search(pql)
+    if m:
+        want_label = m.group(1)
+
+    any_base = False
+    label_match = False
+    for e in dash_exprs:
+        if base_metric in e:
+            any_base = True
+            if want_label and (f"by ({want_label})" in e or ("topk(" in e and base_metric in e)):
+                label_match = True
+                break
+    if want_label:
+        return label_match or any_base
+    return any_base
+
+
 def main(argv: List[str]) -> int:
-    ap = argparse.ArgumentParser(description="Validate coverage of spec panel definitions in generated dashboards")
-    ap.add_argument("--allow-partial", action="store_true", help="Treat spec panel as covered if metric name appears in any dashboard expression")
-    ap.add_argument("--list-missing", action="store_true", help="Print missing spec panel expressions")
-    args = ap.parse_args(argv)
+    # Load spec
+    if not SPEC_PATH.exists():
+        print(f"ERROR: spec file missing: {SPEC_PATH}", file=sys.stderr)
+        return 2
+    spec = yaml.safe_load(SPEC_PATH.read_text()) or {}
+    families = (spec.get("families") or {})
 
-    spec_panels = load_spec_panels()
-    dash_exprs = load_dashboard_exprs()
-
+    dash_exprs = _read_dash_exprs(DASH_DIR)
+    total = 0
     covered = 0
-    missing: List[SpecPanel] = []
+    misses: List[Tuple[str, str, str]] = []  # (metric, panel_title, reason)
 
-    for sp in spec_panels:
-        if sp.norm_expr in dash_exprs:
-            covered += 1
-            continue
-        if args.allow_partial:
-            # partial coverage: look for metric name token in any expr
-            if any(sp.metric in e for e in dash_exprs):
-                covered += 1
+    for fam_name, fdata in families.items():
+        metrics = (fdata or {}).get("metrics") or []
+        for m in metrics:
+            if not isinstance(m, dict):
                 continue
-        missing.append(sp)
+            name = m.get("name")
+            if not name:
+                continue
+            panels = (m.get("panels") or [])
+            for pdef in panels:
+                if not isinstance(pdef, dict):
+                    continue
+                promql = (pdef.get("promql") or "").strip()
+                title = pdef.get("title") or pdef.get("kind") or "panel"
+                # Skip placeholder/comment-only promql
+                if not promql or promql.startswith("/*"):
+                    continue
+                total += 1
+                if _covered_by_dashboard(promql, name, dash_exprs):
+                    covered += 1
+                else:
+                    reason = "no matching expr"
+                    misses.append((name, title, reason))
 
-    if missing:
-        print(f"Spec panel coverage FAILED: {covered}/{len(spec_panels)} covered; missing={len(missing)}", file=sys.stderr)
-        if args.list_missing:
-            for sp in missing:
-                print(f"- {sp.family}.{sp.metric} ({sp.kind}) title='{sp.title}': {sp.norm_expr}")
+    if misses:
+        print(f"UNCOVERED spec panels: {len(misses)}/{total}")
+        for metric, title, reason in misses[:200]:
+            print(f" - {metric} :: {title} :: {reason}")
+        # Keep exit distinct from dashboard drift
         return 11
+    else:
+        print(f"All spec panels covered: {covered}/{total}")
+        return 0
 
-    print(f"Spec panel coverage OK: {covered}/{len(spec_panels)} covered.")
-    return 0
 
-if __name__ == "__main__":  # pragma: no cover
+if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

@@ -1,0 +1,596 @@
+{
+  "__inputs": [],
+  "__requires": [
+    {
+      "id": "prometheus",
+      "name": "Prometheus",
+      "type": "prometheus",
+      "version": "1.0.0"
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "g6_meta": {
+    "alerts_count": 1,
+    "alerts_panel": true,
+    "description": "Governance invariants / catalog generation health",
+    "enriched": true,
+    "families": [
+      "governance"
+    ],
+    "generator_version": "phaseDEF-1",
+    "placeholder_panels": false,
+    "spec_hash": "0533405d11f9f66e"
+  },
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "alerts_count": 1,
+        "panel_uuid": "5617fdc9fc7602da",
+        "source": "alerts_aggregate"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1444412873,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "/* ALERTS:\nG6CardinalityOffendersDetected|g6_cardinality_guard_offenders_total|warning|>0 cardinality offenders|g6_cardinality_guard_offenders_total > 0\n*/",
+          "refId": "A"
+        }
+      ],
+      "title": "Spec Alerts Overview",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "migrated_percent": 0.0,
+        "panel_uuid": "09b52f358ec233b5",
+        "rule_usage": true,
+        "source": "governance_summary"
+      },
+      "gridPos": {
+        "h": 6,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "id": 162869045,
+      "targets": [
+        {
+          "expr": "/*\nGOVERNANCE_RULE_USAGE\ntotal_panels=10\nrecording_rule_panels=0\ninline_quantile_panels=0\nmigrated_percent=0.0\n*/",
+          "refId": "A"
+        }
+      ],
+      "title": "Recording Rule Usage Summary",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "governance",
+        "kind": "gauge",
+        "metric": "g6_metrics_spec_hash_info",
+        "panel_uuid": "10eb796856a5d09b",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 283867496,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "label_replace(g6_metrics_spec_hash_info, \"hash\", \"$1\", \"hash\", \"(.*)\")",
+          "refId": "A"
+        }
+      ],
+      "title": "Metrics Spec Hash",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "governance",
+        "kind": "gauge",
+        "metric": "g6_metrics_spec_hash_info",
+        "panel_uuid": "8381cfcce64004cc",
+        "source": "auto_label_split",
+        "split_label": "hash"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 2206322636,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (hash) (g6_metrics_spec_hash_info)",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_metrics_spec_hash_info by hash (auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "governance",
+        "kind": "gauge",
+        "metric": "g6_build_config_hash_info",
+        "panel_uuid": "d97d9f8d8846bca0",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "id": 3648888717,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "label_replace(g6_build_config_hash_info, \"hash\", \"$1\", \"hash\", \"(.*)\")",
+          "refId": "A"
+        }
+      ],
+      "title": "Build/Config Hash",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "governance",
+        "kind": "gauge",
+        "metric": "g6_build_config_hash_info",
+        "panel_uuid": "2c4ed8e2cb170c0b",
+        "source": "auto_label_split",
+        "split_label": "hash"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "id": 743364834,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (hash) (g6_build_config_hash_info)",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_build_config_hash_info by hash (auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "governance",
+        "kind": "counter",
+        "metric": "g6_metric_duplicates_total",
+        "panel_uuid": "f4a86b425f2d3936",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "id": 4104678210,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(g6_metric_duplicates_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Duplicate Registrations (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "governance",
+        "kind": "counter",
+        "metric": "g6_metric_duplicates_total",
+        "panel_uuid": "3942508a82769b34",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "id": 960647306,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "topk(10, sum by (name) (rate(g6_metric_duplicates_total[5m])))",
+          "refId": "A"
+        }
+      ],
+      "title": "Duplicates by Metric (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "governance",
+        "kind": "gauge",
+        "metric": "g6_cardinality_guard_offenders_total",
+        "panel_uuid": "7bbdaa8d93214da7",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "id": 2076027533,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_cardinality_guard_offenders_total",
+          "refId": "A"
+        }
+      ],
+      "title": "Cardinality Offending Groups",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "governance",
+        "kind": "gauge",
+        "metric": "g6_cardinality_guard_new_groups_total",
+        "panel_uuid": "03423a8c357900c9",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "id": 54672012,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_cardinality_guard_new_groups_total",
+          "refId": "A"
+        }
+      ],
+      "title": "New Metric Groups Detected",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "governance",
+        "kind": "gauge",
+        "metric": "g6_cardinality_guard_last_run_epoch",
+        "panel_uuid": "ce496b5650cdbe0a",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 48
+      },
+      "id": 3460918102,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_cardinality_guard_last_run_epoch",
+          "refId": "A"
+        }
+      ],
+      "title": "Cardinality Guard Last Run (s)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "governance",
+        "kind": "gauge",
+        "metric": "g6_cardinality_guard_allowed_growth_percent",
+        "panel_uuid": "0b9bcc535b06f158",
+        "source": "placeholder"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "id": 194759763,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_cardinality_guard_allowed_growth_percent",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_cardinality_guard_allowed_growth_percent (auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "governance",
+        "kind": "gauge",
+        "metric": "g6_cardinality_guard_growth_percent",
+        "panel_uuid": "ba38bd7afa1fe58a",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 56
+      },
+      "id": 3124280698,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "topk(10, g6_cardinality_guard_growth_percent)",
+          "refId": "A"
+        }
+      ],
+      "title": "Top Cardinality Growth % (Top 10)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "governance",
+        "kind": "gauge",
+        "metric": "g6_cardinality_guard_growth_percent",
+        "panel_uuid": "fc02bb8135e7aa16",
+        "source": "auto_label_split",
+        "split_label": "group"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 56
+      },
+      "id": 4228037505,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (group) (g6_cardinality_guard_growth_percent)",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_cardinality_guard_growth_percent by group (auto)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "g6",
+    "generated"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Metrics Governance",
+  "uid": "g6-governance",
+  "version": 1
+}

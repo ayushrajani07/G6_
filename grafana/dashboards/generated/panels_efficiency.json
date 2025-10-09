@@ -1,0 +1,677 @@
+{
+  "__inputs": [],
+  "__requires": [
+    {
+      "id": "prometheus",
+      "name": "Prometheus",
+      "type": "prometheus",
+      "version": "1.0.0"
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "g6_meta": {
+    "alerts_count": 0,
+    "alerts_panel": false,
+    "description": "Diff vs full efficiency & truncation health",
+    "enriched": true,
+    "families": [
+      "panels"
+    ],
+    "generator_version": "phaseDEF-1",
+    "placeholder_panels": false,
+    "spec_hash": "0533405d11f9f66e"
+  },
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "group_header": true,
+        "panel_uuid": "72f7478f4fbb9cb1"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1928808335,
+      "targets": [
+        {
+          "expr": "/* GROUP:EFFICIENCY_DIAGNOSTICS */",
+          "refId": "A"
+        }
+      ],
+      "title": "Efficiency & Latency Diagnostics",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "panels",
+        "kind": "counter",
+        "metric": "g6_panel_diff_writes_total",
+        "panel_uuid": "2c63fbb2c251ecf1",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 744750002,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (type) (rate(g6_panel_diff_writes_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Panel Diff Writes Rate (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "panels",
+        "kind": "counter",
+        "metric": "g6_panel_diff_writes_total",
+        "panel_uuid": "d4a2f3f73028fab9",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 3567449079,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(g6_panel_diff_writes_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Diff Writes Rate (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "panels",
+        "kind": "counter",
+        "metric": "g6_panel_diff_truncated_total",
+        "panel_uuid": "0b84ea1d55f8834a",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "id": 193260061,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (reason) (rate(g6_panel_diff_truncated_total[10m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Diff Truncations by Reason (10m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "panels",
+        "kind": "counter",
+        "metric": "g6_panel_diff_bytes_total",
+        "panel_uuid": "b29f063ad511d04d",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "id": 2996766266,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (type) (rate(g6_panel_diff_bytes_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Diff Bytes Rate (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "panels",
+        "kind": "counter",
+        "metric": "g6_panel_diff_bytes_total",
+        "panel_uuid": "b242300a4e5a25b8",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "id": 2990682122,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(g6_panel_diff_bytes_total)",
+          "refId": "A"
+        }
+      ],
+      "title": "Total Diff Bytes (Cumulative)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "panels",
+        "kind": "gauge",
+        "metric": "g6_panel_diff_bytes_last",
+        "panel_uuid": "c453ba57bef28a0a",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "id": 3293821527,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max by (type) (g6_panel_diff_bytes_last)",
+          "refId": "A"
+        }
+      ],
+      "title": "Last Diff Bytes (by Type)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "f167f4a60a1fda3c",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "id": 4050121894,
+      "targets": [
+        {
+          "expr": "(sum(rate(g6_panel_diff_bytes_total[5m])) / clamp_min(sum(rate(g6_panel_diff_writes_total[5m])),1))",
+          "refId": "A"
+        }
+      ],
+      "title": "Diff Bytes per Write (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "f723d1a77eee96cf",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "id": 4146319783,
+      "targets": [
+        {
+          "expr": "(sum(g6_panel_diff_bytes_total) / clamp_min(sum(g6_panel_diff_writes_total),1))",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg Diff Bytes per Write (Cumulative auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "60e4530f326c20be",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      },
+      "id": 1625576207,
+      "targets": [
+        {
+          "expr": "(sum(rate(g6_cs_ingest_bytes_total[5m])) / clamp_min(sum(rate(g6_cs_ingest_rows_total[5m])),1))",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Bytes per Row (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "5e8fec2dcbd53b1b",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      },
+      "id": 1586490413,
+      "targets": [
+        {
+          "expr": "(sum(g6_cs_ingest_bytes_total) / clamp_min(sum(g6_cs_ingest_rows_total),1))",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Avg Bytes per Row (Cumulative auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "84da0728185d4b18",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      },
+      "id": 2228881192,
+      "targets": [
+        {
+          "expr": "g6_cs_ingest_backlog_rows:eta_minutes",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Backlog Drain ETA (mins auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rows"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "834ddb5a96100fa3",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 44
+      },
+      "id": 2202917722,
+      "targets": [
+        {
+          "expr": "g6_cs_ingest_backlog_rows:burn_rows_per_s",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Backlog Burn Rate (rows/s auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "7f54a69f754489eb",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 52
+      },
+      "id": 2136254111,
+      "targets": [
+        {
+          "expr": "1 - (clamp_min(sum(rate(g6_cs_ingest_failures_total[5m])),0) / clamp_min(sum(rate(g6_cs_ingest_rows_total[5m])),1))",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Ingest Success Ratio (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "f50044ba6023dfe9",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 52
+      },
+      "id": 4110435514,
+      "targets": [
+        {
+          "expr": "g6_cs_ingest_latency_ms:p95_5m",
+          "refId": "A"
+        },
+        {
+          "expr": "g6_cs_ingest_latency_ms:p95_30m",
+          "refId": "B"
+        }
+      ],
+      "title": "CS Ingest p95 5m vs 30m (auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ratio"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "c3651c7bbd6d70e2",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 60
+      },
+      "id": 3278183547,
+      "targets": [
+        {
+          "expr": "g6_cs_ingest_latency_ms:p95_ratio_5m_30m",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Ingest p95 Ratio (5m/30m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "289bcd04da58a332",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 60
+      },
+      "id": 681299204,
+      "targets": [
+        {
+          "expr": "g6_bus_publish_latency_ms:p95_5m_by_bus",
+          "refId": "A"
+        },
+        {
+          "expr": "g6_bus_publish_latency_ms:p95_30m_by_bus",
+          "refId": "B"
+        }
+      ],
+      "title": "Bus Publish p95 5m vs 30m (auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ratio"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "028aa6eaf801a22b",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 68
+      },
+      "id": 42641130,
+      "targets": [
+        {
+          "expr": "g6_bus_publish_latency_ms:p95_ratio_5m_30m_by_bus",
+          "refId": "A"
+        }
+      ],
+      "title": "Bus Publish p95 Ratio (5m/30m auto)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "g6",
+    "generated"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Panels Efficiency",
+  "uid": "g6-panels_efficiency",
+  "version": 1
+}

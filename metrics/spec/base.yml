@@ -677,6 +677,82 @@ families:
             title: Last Diff Bytes (by Type)
             promql: max by (type) (g6_panel_diff_bytes_last)
 
+# Data quality and staleness metrics (derived from collectors)
+  stale:
+    owner: collectors/modules/index_processor.py
+    metrics:
+      - name: g6_stale_active
+        type: gauge
+        help: Whether index stale in current cycle (1 stale, 0 ok)
+        labels: [index]
+        cardinality_budget: 25
+        panels:
+          - kind: by_index
+            title: Per-Index Stale Active
+            promql: sum by (index) (g6_stale_active)
+      - name: g6_stale_cycles_total
+        type: counter
+        help: Count of cycles where index or system classified stale
+        labels: [index, mode]
+        cardinality_budget: 50
+        panels:
+          - kind: rate_by_index
+            title: Per-Index Stale Cycles (Rate 15m)
+            promql: sum by (index) (increase(g6_stale_cycles_total[15m]))
+      - name: g6_stale_system_active
+        type: gauge
+        help: Whether system-level stale is active in current cycle
+        labels: []
+        cardinality_budget: 1
+        panels:
+          - kind: system_stale
+            title: System Stale Active
+            promql: max(g6_stale_system_active)
+            panel_type: stat
+      - name: g6_stale_system_cycles_total
+        type: counter
+        help: Count of system-level stale cycles
+        labels: []
+        cardinality_budget: 1
+        panels:
+          - kind: system_stale_rate
+            title: System Stale Cycles (Rate 15m)
+            promql: increase(g6_stale_system_cycles_total[15m])
+      - name: g6_empty_quote_fields_total
+        type: counter
+        help: Empty quote field occurrences grouped by index
+        labels: [index]
+        cardinality_budget: 10
+        panels:
+          - kind: empty_quote_5m
+            title: Empty Quote Expiries (Rate 5m)
+            promql: sum by (index) (increase(g6_empty_quote_fields_total[5m]))
+
+# SSE latency and tracing
+  sse:
+    owner: orchestrator/catalog_http.py
+    metrics:
+      - name: g6_sse_flush_seconds
+        type: histogram
+        help: SSE publish-to-flush latency (seconds)
+        labels: []
+        buckets: [0.01,0.025,0.05,0.1,0.25,0.5,1,2,5]
+        cardinality_budget: 1
+        panels:
+          - kind: flush_p95
+            title: SSE Flush Latency p95 (5m)
+            promql: histogram_quantile(0.95, sum(rate(g6_sse_flush_seconds_bucket[5m])) by (le))
+            unit: s
+      - name: g6_sse_trace_stages_total
+        type: counter
+        help: SSE trace stage counter increments (flush stage observed)
+        labels: []
+        cardinality_budget: 1
+        panels:
+          - kind: trace_rate
+            title: SSE Trace Stages (5m)
+            promql: sum(rate(g6_sse_trace_stages_total[5m]))
+
 # Generation directives
 codegen:
   module: src/metrics/generated.py

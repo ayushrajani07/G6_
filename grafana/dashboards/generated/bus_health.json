@@ -1,0 +1,530 @@
+{
+  "__inputs": [],
+  "__requires": [
+    {
+      "id": "prometheus",
+      "name": "Prometheus",
+      "type": "prometheus",
+      "version": "1.0.0"
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "g6_meta": {
+    "alerts_count": 0,
+    "alerts_panel": false,
+    "description": "Bus publish latency & throughput health",
+    "enriched": true,
+    "families": [
+      "bus"
+    ],
+    "generator_version": "phaseDEF-1",
+    "placeholder_panels": false,
+    "spec_hash": "0533405d11f9f66e"
+  },
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "bus",
+        "kind": "counter",
+        "metric": "g6_bus_events_published_total",
+        "panel_uuid": "c179851ab7b485ae",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 3245966618,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (bus) (rate(g6_bus_events_published_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Bus Events Publish Rate (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "bus",
+        "kind": "counter",
+        "metric": "g6_bus_events_dropped_total",
+        "panel_uuid": "6ee72c04954ef4a9",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 1860643844,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (bus,reason) (rate(g6_bus_events_dropped_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Bus Event Drops (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "bus",
+        "kind": "counter",
+        "metric": "g6_bus_events_dropped_total",
+        "panel_uuid": "e73e67f91b007dd0",
+        "source": "auto_label_split",
+        "split_label": "bus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3879626745,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (bus) (rate(g6_bus_events_dropped_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_bus_events_dropped_total Rate by bus (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "bus",
+        "kind": "counter",
+        "metric": "g6_bus_events_dropped_total",
+        "panel_uuid": "e840594607bed5a4",
+        "source": "auto_label_split",
+        "split_label": "reason"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 3896531270,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (reason) (rate(g6_bus_events_dropped_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_bus_events_dropped_total Rate by reason (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "bus",
+        "kind": "gauge",
+        "metric": "g6_bus_queue_retained_events",
+        "panel_uuid": "9dd82a9d846fcdcd",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 2648189597,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_bus_queue_retained_events",
+          "refId": "A"
+        }
+      ],
+      "title": "Bus Retained Events",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "bus",
+        "kind": "gauge",
+        "metric": "g6_bus_queue_retained_events",
+        "panel_uuid": "470a606721387f3d",
+        "source": "auto_label_split",
+        "split_label": "bus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 1191862375,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (bus) (g6_bus_queue_retained_events)",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_bus_queue_retained_events by bus (auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "bus",
+        "kind": "gauge",
+        "metric": "g6_bus_subscriber_lag_events",
+        "panel_uuid": "e1424edaa5e54b7e",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "id": 3779219162,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "topk(5, g6_bus_subscriber_lag_events)",
+          "refId": "A"
+        }
+      ],
+      "title": "Top Subscriber Lag",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "bus",
+        "kind": "gauge",
+        "metric": "g6_bus_subscriber_lag_events",
+        "panel_uuid": "7e1fc6ff9c6873d9",
+        "source": "auto_label_split",
+        "split_label": "bus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "id": 2116011775,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (bus) (g6_bus_subscriber_lag_events)",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_bus_subscriber_lag_events by bus (auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "bus",
+        "kind": "gauge",
+        "metric": "g6_bus_subscriber_lag_events",
+        "panel_uuid": "8811c4a968eb579d",
+        "source": "auto_label_split",
+        "split_label": "subscriber"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 32
+      },
+      "id": 2282865833,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (subscriber) (g6_bus_subscriber_lag_events)",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_bus_subscriber_lag_events by subscriber (auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "bus",
+        "kind": "histogram",
+        "metric": "g6_bus_publish_latency_ms",
+        "panel_uuid": "6876f79ccbcafb00",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 32
+      },
+      "id": 1752627100,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le,bus) (rate(g6_bus_publish_latency_ms_bucket[5m])))",
+          "refId": "A"
+        }
+      ],
+      "title": "Bus Publish Latency p95 (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "bus",
+        "kind": "histogram",
+        "metric": "g6_bus_publish_latency_ms",
+        "panel_uuid": "f8ffe2532e8ad03a",
+        "source": "auto_hist_quantile"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 40
+      },
+      "id": 4177519187,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_bus_publish_latency_ms:p95_5m",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_bus_publish_latency_ms p95 (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "bus",
+        "kind": "histogram",
+        "metric": "g6_bus_publish_latency_ms",
+        "panel_uuid": "5d1de9cdb438e4a4",
+        "source": "auto_hist_quantile"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 40
+      },
+      "id": 1562241485,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_bus_publish_latency_ms:p99_5m",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_bus_publish_latency_ms p99 (5m auto)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "g6",
+    "generated"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Bus Health",
+  "uid": "g6-bus_health",
+  "version": 1
+}

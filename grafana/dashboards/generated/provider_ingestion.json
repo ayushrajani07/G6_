@@ -1,0 +1,1045 @@
+{
+  "__inputs": [],
+  "__requires": [
+    {
+      "id": "prometheus",
+      "name": "Prometheus",
+      "type": "prometheus",
+      "version": "1.0.0"
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "g6_meta": {
+    "alerts_count": 8,
+    "alerts_panel": true,
+    "description": "Provider success/error and mode mix",
+    "enriched": true,
+    "families": [
+      "provider",
+      "provider_mode"
+    ],
+    "generator_version": "phaseDEF-1",
+    "placeholder_panels": false,
+    "spec_hash": "0533405d11f9f66e"
+  },
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "alerts_count": 8,
+        "panel_uuid": "bf54269e4fc82068",
+        "source": "alerts_aggregate"
+      },
+      "gridPos": {
+        "h": 10,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 3209963166,
+      "options": {
+        "showHeader": true
+      },
+      "targets": [
+        {
+          "expr": "/* ALERTS:\nG6ApiErrorRateHigh|g6_api_calls_total|warning|API error rate >5% (5m)|sum(rate(g6_api_calls_total{result=\"error\"}[5m])) / clamp_mi\nG6ApiErrorRateCritical|g6_api_calls_total|critical|API error rate >15% (5m)|sum(rate(g6_api_calls_total{result=\"error\"}[5m])) / clamp_mi\nG6ZeroPriceFallbackSpike|g6_index_zero_price_fallback_total|warning|Zero price fallbacks >5/10m|sum(rate(g6_index_zero_price_fallback_total[10m])) > 5\nG6ZeroPriceFallbackCritical|g6_index_zero_price_fallback_total|critical|Zero price fallbacks >20/10m|sum(rate(g6_index_zero_price_fallback_total[10m])) > 20\nG6ExpiryFailureSpike|g6_expiry_resolve_fail_total|warning|Expiry resolution failures >3/15m|sum(rate(g6_expiry_resolve_fail_total[15m])) > 3\nG6ExpiryFailureCritical|g6_expiry_resolve_fail_total|critical|Expiry failures >10/15m|sum(rate(g6_expiry_resolve_fail_total[15m])) > 10\nG6CardinalityBudgetApproaching|g6_cardinality_series_total|warning|Some metric >80% of cardinality budget|max(g6_cardinality_series_total) / 200 > 0.8\nG6CardinalityBudgetBreached|g6_cardinality_series_total|critical|Metric cardinality budget breached|max(g6_cardinality_series_total) / 200 > 1\n*/",
+          "refId": "A"
+        }
+      ],
+      "title": "Spec Alerts Overview",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider_mode",
+        "kind": "gauge",
+        "metric": "g6_provider_mode",
+        "panel_uuid": "f9d7685820a600e8",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 10
+      },
+      "id": 4191643736,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (mode) (g6_provider_mode)",
+          "refId": "A"
+        }
+      ],
+      "title": "Provider Mode State",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider_mode",
+        "kind": "counter",
+        "metric": "g6_provider_failover_total",
+        "panel_uuid": "82555976fcd9d5dd",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 10
+      },
+      "id": 2186631542,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(g6_provider_failover_total[6h]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Provider Failover Rate (6h)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_api_calls_total",
+        "panel_uuid": "ef0ba905477aea2e",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 18
+      },
+      "id": 4010518789,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(g6_api_calls_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "API Call Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_api_calls_total",
+        "panel_uuid": "3dab42782caca626",
+        "source": "auto_label_split",
+        "split_label": "endpoint"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 18
+      },
+      "id": 1034633848,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (endpoint) (rate(g6_api_calls_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_api_calls_total Rate by endpoint (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_api_calls_total",
+        "panel_uuid": "b2f0ab36e0c25ff5",
+        "source": "auto_label_split",
+        "split_label": "result"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 26
+      },
+      "id": 3002116918,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(g6_api_calls_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_api_calls_total Rate by result (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "histogram",
+        "metric": "g6_api_response_latency_ms",
+        "panel_uuid": "dd77f78047b1e721",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 26
+      },
+      "id": 3715626880,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(g6_api_response_latency_ms_bucket[5m])))\n",
+          "refId": "A"
+        }
+      ],
+      "title": "API Latency p95 (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "histogram",
+        "metric": "g6_api_response_latency_ms",
+        "panel_uuid": "0994fb8e2339acbf",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 34
+      },
+      "id": 160758670,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(g6_api_response_latency_ms_bucket[5m])))\n",
+          "refId": "A"
+        }
+      ],
+      "title": "API Latency p99 (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "histogram",
+        "metric": "g6_api_response_latency_ms",
+        "panel_uuid": "411e33a785d427f9",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 34
+      },
+      "id": 1092498343,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (le) (rate(g6_api_response_latency_ms_bucket[5m]))\n",
+          "refId": "A"
+        }
+      ],
+      "title": "API Latency Bucket Rates",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "histogram",
+        "metric": "g6_api_response_latency_ms",
+        "panel_uuid": "48b258cf770354ae",
+        "source": "auto_hist_quantile"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 42
+      },
+      "id": 1219647695,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_api_response_latency_ms:p95_5m",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_api_response_latency_ms p95 (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "histogram",
+        "metric": "g6_api_response_latency_ms",
+        "panel_uuid": "3e3839648d0b5994",
+        "source": "auto_hist_quantile"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 42
+      },
+      "id": 1043872100,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_api_response_latency_ms:p99_5m",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_api_response_latency_ms p99 (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_quote_enriched_total",
+        "panel_uuid": "e579e9c76262c932",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 50
+      },
+      "id": 3849972167,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(g6_quote_enriched_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Enriched Quotes Rate (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_quote_enriched_total",
+        "panel_uuid": "c7369f01f4f26657",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 50
+      },
+      "id": 3342245633,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (provider) (rate(g6_quote_enriched_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Enriched Quotes Rate by Provider (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_quote_missing_volume_oi_total",
+        "panel_uuid": "d5fae72950b59678",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 58
+      },
+      "id": 3589990185,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (provider) (rate(g6_quote_missing_volume_oi_total[10m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Missing Vol/OI Rate by Provider (10m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_quote_avg_price_fallback_total",
+        "panel_uuid": "a940902c57b24624",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 58
+      },
+      "id": 2839580716,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(g6_quote_avg_price_fallback_total[10m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg Price Fallback Rate (10m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_quote_avg_price_fallback_total",
+        "panel_uuid": "221949d0990ee521",
+        "source": "auto_label_split",
+        "split_label": "provider"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 66
+      },
+      "id": 572082640,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (provider) (rate(g6_quote_avg_price_fallback_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_quote_avg_price_fallback_total Rate by provider (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_index_zero_price_fallback_total",
+        "panel_uuid": "25244f5d9c6ace19",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 66
+      },
+      "id": 623136605,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (path) (rate(g6_index_zero_price_fallback_total[10m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Zero Price Fallback Rate by Path (10m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_index_zero_price_fallback_total",
+        "panel_uuid": "f1dafd7ce37e753b",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 74
+      },
+      "id": 4057660796,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (index) (rate(g6_index_zero_price_fallback_total[10m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Zero Price Fallback Rate by Index (10m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_expiry_resolve_fail_total",
+        "panel_uuid": "d7f5fca6e14f6f63",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 74
+      },
+      "id": 3623222438,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (reason) (rate(g6_expiry_resolve_fail_total[10m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Expiry Failures by Reason (10m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_expiry_resolve_fail_total",
+        "panel_uuid": "243153994835d6fb",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 82
+      },
+      "id": 607212441,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (rule) (rate(g6_expiry_resolve_fail_total[10m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Expiry Failures by Rule (10m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_expiry_resolve_fail_total",
+        "panel_uuid": "546058d416c6a56e",
+        "source": "auto_label_split",
+        "split_label": "index"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 82
+      },
+      "id": 1415600340,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (index) (rate(g6_expiry_resolve_fail_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_expiry_resolve_fail_total Rate by index (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "gauge",
+        "metric": "g6_metrics_batch_queue_depth",
+        "panel_uuid": "b83ae4c132d09bb5",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 90
+      },
+      "id": 3090867393,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_metrics_batch_queue_depth",
+          "refId": "A"
+        }
+      ],
+      "title": "Batch Queue Depth",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "gauge",
+        "metric": "g6_cardinality_series_total",
+        "panel_uuid": "8d225e23423fa0c5",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 90
+      },
+      "id": 2367839779,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "topk(10, g6_cardinality_series_total)",
+          "refId": "A"
+        }
+      ],
+      "title": "Cardinality Series Count (Top 10)",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "gauge",
+        "metric": "g6_cardinality_series_total",
+        "panel_uuid": "779d1faa48c60f09",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 98
+      },
+      "id": 2006785962,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max(g6_cardinality_series_total)",
+          "refId": "A"
+        }
+      ],
+      "title": "Max Series Count",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "gauge",
+        "metric": "g6_cardinality_series_total",
+        "panel_uuid": "9c86541584590e24",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 98
+      },
+      "id": 2626049045,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "count(g6_cardinality_series_total)",
+          "refId": "A"
+        }
+      ],
+      "title": "Unique Metrics Tracked",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "g6",
+    "generated"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Provider / Ingestion",
+  "uid": "g6-provider_ingestion",
+  "version": 1
+}

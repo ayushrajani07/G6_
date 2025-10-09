@@ -1,0 +1,1001 @@
+{
+  "__inputs": [],
+  "__requires": [
+    {
+      "id": "prometheus",
+      "name": "Prometheus",
+      "type": "prometheus",
+      "version": "1.0.0"
+    }
+  ],
+  "annotations": {
+    "list": []
+  },
+  "g6_meta": {
+    "alerts_count": 0,
+    "alerts_panel": false,
+    "description": "Column store refresh / errors",
+    "enriched": true,
+    "families": [
+      "column_store"
+    ],
+    "generator_version": "phaseDEF-1",
+    "placeholder_panels": false,
+    "spec_hash": "0533405d11f9f66e"
+  },
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "group_header": true,
+        "panel_uuid": "bc28da7da686c469"
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 3156793981,
+      "targets": [
+        {
+          "expr": "/* GROUP:EFFICIENCY_DIAGNOSTICS */",
+          "refId": "A"
+        }
+      ],
+      "title": "Efficiency & Latency Diagnostics",
+      "type": "table"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "counter",
+        "metric": "g6_cs_ingest_rows_total",
+        "panel_uuid": "d54ff9de9a4eab76",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 3578788318,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (table) (rate(g6_cs_ingest_rows_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Ingest Rows Rate (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "counter",
+        "metric": "g6_cs_ingest_rows_total",
+        "panel_uuid": "de5d894be1dd542e",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 4
+      },
+      "id": 3730671947,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(g6_cs_ingest_rows_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Ingest Rows Total Rate (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "counter",
+        "metric": "g6_cs_ingest_bytes_total",
+        "panel_uuid": "46866592996918de",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 12
+      },
+      "id": 1183212946,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (table) (rate(g6_cs_ingest_bytes_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Ingest Bytes Rate (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "histogram",
+        "metric": "g6_cs_ingest_latency_ms",
+        "panel_uuid": "ddfd4fe4aaa90063",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 12
+      },
+      "id": 3724365796,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le,table) (rate(g6_cs_ingest_latency_ms_bucket[5m])))",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Ingest Batch Latency p95 (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "histogram",
+        "metric": "g6_cs_ingest_latency_ms",
+        "panel_uuid": "d71956c83c267999",
+        "source": "auto_hist_quantile"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "id": 3608762056,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_cs_ingest_latency_ms:p95_5m",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_cs_ingest_latency_ms p95 (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "histogram",
+        "metric": "g6_cs_ingest_latency_ms",
+        "panel_uuid": "9676c0684333e562",
+        "source": "auto_hist_quantile"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "id": 2524364904,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_cs_ingest_latency_ms:p99_5m",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_cs_ingest_latency_ms p99 (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "counter",
+        "metric": "g6_cs_ingest_failures_total",
+        "panel_uuid": "a2e902bfc5e20f4e",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "id": 2733179583,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (table,reason) (rate(g6_cs_ingest_failures_total[10m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Ingest Failures Rate (10m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "counter",
+        "metric": "g6_cs_ingest_failures_total",
+        "panel_uuid": "825101830e999d5a",
+        "source": "auto_label_split",
+        "split_label": "table"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "id": 2186346883,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (table) (rate(g6_cs_ingest_failures_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_cs_ingest_failures_total Rate by table (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "counter",
+        "metric": "g6_cs_ingest_failures_total",
+        "panel_uuid": "a8a92840f604a18c",
+        "source": "auto_label_split",
+        "split_label": "reason"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 36
+      },
+      "id": 2829658176,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (reason) (rate(g6_cs_ingest_failures_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_cs_ingest_failures_total Rate by reason (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "gauge",
+        "metric": "g6_cs_ingest_backlog_rows",
+        "panel_uuid": "14b3c18abab00d37",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 36
+      },
+      "id": 347324810,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_cs_ingest_backlog_rows",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Ingest Backlog Rows",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "gauge",
+        "metric": "g6_cs_ingest_backlog_rows",
+        "panel_uuid": "b393a08c38197078",
+        "source": "auto_label_split",
+        "split_label": "table"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 44
+      },
+      "id": 3012796556,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (table) (g6_cs_ingest_backlog_rows)",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_cs_ingest_backlog_rows by table (auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "gauge",
+        "metric": "g6_cs_ingest_backpressure_flag",
+        "panel_uuid": "b198f9a9725e0042",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 44
+      },
+      "id": 2979592617,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_cs_ingest_backpressure_flag",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Backpressure Active",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "gauge",
+        "metric": "g6_cs_ingest_backpressure_flag",
+        "panel_uuid": "6effa6c0166ed65f",
+        "source": "auto_label_split",
+        "split_label": "table"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 52
+      },
+      "id": 1862248128,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (table) (g6_cs_ingest_backpressure_flag)",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_cs_ingest_backpressure_flag by table (auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "counter",
+        "metric": "g6_cs_ingest_retries_total",
+        "panel_uuid": "7bd621220c0c3d78",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 52
+      },
+      "id": 2077630754,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (table) (rate(g6_cs_ingest_retries_total[10m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Ingest Retry Rate (10m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "8085ffc8da04297e",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 60
+      },
+      "id": 2156265416,
+      "targets": [
+        {
+          "expr": "(sum(rate(g6_panel_diff_bytes_total[5m])) / clamp_min(sum(rate(g6_panel_diff_writes_total[5m])),1))",
+          "refId": "A"
+        }
+      ],
+      "title": "Diff Bytes per Write (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "e54eb50e51b2b486",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 60
+      },
+      "id": 3847140622,
+      "targets": [
+        {
+          "expr": "(sum(g6_panel_diff_bytes_total) / clamp_min(sum(g6_panel_diff_writes_total),1))",
+          "refId": "A"
+        }
+      ],
+      "title": "Avg Diff Bytes per Write (Cumulative auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "b629ece775e7adb6",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 68
+      },
+      "id": 3056200935,
+      "targets": [
+        {
+          "expr": "(sum(rate(g6_cs_ingest_bytes_total[5m])) / clamp_min(sum(rate(g6_cs_ingest_rows_total[5m])),1))",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Bytes per Row (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "08a346f9d0259d15",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 68
+      },
+      "id": 144918265,
+      "targets": [
+        {
+          "expr": "(sum(g6_cs_ingest_bytes_total) / clamp_min(sum(g6_cs_ingest_rows_total),1))",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Avg Bytes per Row (Cumulative auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "m"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "a078b9951f89aaf0",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 76
+      },
+      "id": 2692266389,
+      "targets": [
+        {
+          "expr": "g6_cs_ingest_backlog_rows:eta_minutes",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Backlog Drain ETA (mins auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rows"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "439240b10145f284",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 76
+      },
+      "id": 1133658289,
+      "targets": [
+        {
+          "expr": "g6_cs_ingest_backlog_rows:burn_rows_per_s",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Backlog Burn Rate (rows/s auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "4ee3eff5f0acbbd7",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 84
+      },
+      "id": 1323560949,
+      "targets": [
+        {
+          "expr": "1 - (clamp_min(sum(rate(g6_cs_ingest_failures_total[5m])),0) / clamp_min(sum(rate(g6_cs_ingest_rows_total[5m])),1))",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Ingest Success Ratio (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "2908e3fef9558f4f",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 84
+      },
+      "id": 688448510,
+      "targets": [
+        {
+          "expr": "g6_cs_ingest_latency_ms:p95_5m",
+          "refId": "A"
+        },
+        {
+          "expr": "g6_cs_ingest_latency_ms:p95_30m",
+          "refId": "B"
+        }
+      ],
+      "title": "CS Ingest p95 5m vs 30m (auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ratio"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "4aba38e2de6e7c70",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 92
+      },
+      "id": 1253718242,
+      "targets": [
+        {
+          "expr": "g6_cs_ingest_latency_ms:p95_ratio_5m_30m",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Ingest p95 Ratio (5m/30m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "ce29fe21f1d58200",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 92
+      },
+      "id": 3458858529,
+      "targets": [
+        {
+          "expr": "g6_bus_publish_latency_ms:p95_5m_by_bus",
+          "refId": "A"
+        },
+        {
+          "expr": "g6_bus_publish_latency_ms:p95_30m_by_bus",
+          "refId": "B"
+        }
+      ],
+      "title": "Bus Publish p95 5m vs 30m (auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ratio"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "efficiency",
+        "panel_uuid": "63825dafbdb37ea7",
+        "source": "cross_metric"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 100
+      },
+      "id": 1669488047,
+      "targets": [
+        {
+          "expr": "g6_bus_publish_latency_ms:p95_ratio_5m_30m_by_bus",
+          "refId": "A"
+        }
+      ],
+      "title": "Bus Publish p95 Ratio (5m/30m auto)",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": [
+    "g6",
+    "generated"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "browser",
+  "title": "Column Store",
+  "uid": "g6-column_store",
+  "version": 1
+}
