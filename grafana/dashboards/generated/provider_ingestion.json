@@ -72,86 +72,6 @@
         "overrides": []
       },
       "g6_meta": {
-        "family": "provider_mode",
-        "kind": "gauge",
-        "metric": "g6_provider_mode",
-        "panel_uuid": "f9d7685820a600e8",
-        "source": "spec"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 10
-      },
-      "id": 4191643736,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (mode) (g6_provider_mode)",
-          "refId": "A"
-        }
-      ],
-      "title": "Provider Mode State",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "provider_mode",
-        "kind": "counter",
-        "metric": "g6_provider_failover_total",
-        "panel_uuid": "82555976fcd9d5dd",
-        "source": "spec"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 10
-      },
-      "id": 2186631542,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum(rate(g6_provider_failover_total[6h]))",
-          "refId": "A"
-        }
-      ],
-      "title": "Provider Failover Rate (6h)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
         "family": "provider",
         "kind": "counter",
         "metric": "g6_api_calls_total",
@@ -162,7 +82,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 18
+        "y": 10
       },
       "id": 4010518789,
       "options": {
@@ -187,88 +107,6 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "provider",
-        "kind": "counter",
-        "metric": "g6_api_calls_total",
-        "panel_uuid": "3dab42782caca626",
-        "source": "auto_label_split",
-        "split_label": "endpoint"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 18
-      },
-      "id": 1034633848,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (endpoint) (rate(g6_api_calls_total[5m]))",
-          "refId": "A"
-        }
-      ],
-      "title": "g6_api_calls_total Rate by endpoint (5m auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "provider",
-        "kind": "counter",
-        "metric": "g6_api_calls_total",
-        "panel_uuid": "b2f0ab36e0c25ff5",
-        "source": "auto_label_split",
-        "split_label": "result"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 26
-      },
-      "id": 3002116918,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (result) (rate(g6_api_calls_total[5m]))",
-          "refId": "A"
-        }
-      ],
-      "title": "g6_api_calls_total Rate by result (5m auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
           "unit": "ms"
         },
         "overrides": []
@@ -284,7 +122,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 26
+        "y": 10
       },
       "id": 3715626880,
       "options": {
@@ -324,7 +162,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 34
+        "y": 18
       },
       "id": 160758670,
       "options": {
@@ -364,7 +202,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 34
+        "y": 18
       },
       "id": 1092498343,
       "options": {
@@ -389,86 +227,6 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "provider",
-        "kind": "histogram",
-        "metric": "g6_api_response_latency_ms",
-        "panel_uuid": "48b258cf770354ae",
-        "source": "auto_hist_quantile"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 42
-      },
-      "id": 1219647695,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "g6_api_response_latency_ms:p95_5m",
-          "refId": "A"
-        }
-      ],
-      "title": "g6_api_response_latency_ms p95 (5m auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "provider",
-        "kind": "histogram",
-        "metric": "g6_api_response_latency_ms",
-        "panel_uuid": "3e3839648d0b5994",
-        "source": "auto_hist_quantile"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 42
-      },
-      "id": 1043872100,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "g6_api_response_latency_ms:p99_5m",
-          "refId": "A"
-        }
-      ],
-      "title": "g6_api_response_latency_ms p99 (5m auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
           "unit": "short"
         },
         "overrides": []
@@ -484,7 +242,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 50
+        "y": 26
       },
       "id": 3849972167,
       "options": {
@@ -524,7 +282,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 50
+        "y": 26
       },
       "id": 3342245633,
       "options": {
@@ -564,7 +322,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 58
+        "y": 34
       },
       "id": 3589990185,
       "options": {
@@ -604,7 +362,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 58
+        "y": 34
       },
       "id": 2839580716,
       "options": {
@@ -636,47 +394,6 @@
       "g6_meta": {
         "family": "provider",
         "kind": "counter",
-        "metric": "g6_quote_avg_price_fallback_total",
-        "panel_uuid": "221949d0990ee521",
-        "source": "auto_label_split",
-        "split_label": "provider"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 66
-      },
-      "id": 572082640,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (provider) (rate(g6_quote_avg_price_fallback_total[5m]))",
-          "refId": "A"
-        }
-      ],
-      "title": "g6_quote_avg_price_fallback_total Rate by provider (5m auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "provider",
-        "kind": "counter",
         "metric": "g6_index_zero_price_fallback_total",
         "panel_uuid": "25244f5d9c6ace19",
         "source": "spec"
@@ -684,8 +401,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 66
+        "x": 0,
+        "y": 42
       },
       "id": 623136605,
       "options": {
@@ -724,8 +441,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 74
+        "x": 12,
+        "y": 42
       },
       "id": 4057660796,
       "options": {
@@ -764,8 +481,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 74
+        "x": 0,
+        "y": 50
       },
       "id": 3623222438,
       "options": {
@@ -804,8 +521,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 82
+        "x": 12,
+        "y": 50
       },
       "id": 607212441,
       "options": {
@@ -836,47 +553,6 @@
       },
       "g6_meta": {
         "family": "provider",
-        "kind": "counter",
-        "metric": "g6_expiry_resolve_fail_total",
-        "panel_uuid": "546058d416c6a56e",
-        "source": "auto_label_split",
-        "split_label": "index"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 82
-      },
-      "id": 1415600340,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (index) (rate(g6_expiry_resolve_fail_total[5m]))",
-          "refId": "A"
-        }
-      ],
-      "title": "g6_expiry_resolve_fail_total Rate by index (5m auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "provider",
         "kind": "gauge",
         "metric": "g6_metrics_batch_queue_depth",
         "panel_uuid": "b83ae4c132d09bb5",
@@ -886,7 +562,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 90
+        "y": 58
       },
       "id": 3090867393,
       "options": {
@@ -926,7 +602,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 90
+        "y": 58
       },
       "id": 2367839779,
       "options": {
@@ -966,7 +642,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 98
+        "y": 66
       },
       "id": 2006785962,
       "options": {
@@ -1006,7 +682,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 98
+        "y": 66
       },
       "id": 2626049045,
       "options": {
@@ -1022,6 +698,330 @@
         }
       ],
       "title": "Unique Metrics Tracked",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider_mode",
+        "kind": "gauge",
+        "metric": "g6_provider_mode",
+        "panel_uuid": "f9d7685820a600e8",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 74
+      },
+      "id": 4191643736,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (mode) (g6_provider_mode)",
+          "refId": "A"
+        }
+      ],
+      "title": "Provider Mode State",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider_mode",
+        "kind": "counter",
+        "metric": "g6_provider_failover_total",
+        "panel_uuid": "82555976fcd9d5dd",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 74
+      },
+      "id": 2186631542,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(g6_provider_failover_total[6h]))",
+          "refId": "A"
+        }
+      ],
+      "title": "Provider Failover Rate (6h)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_api_calls_total",
+        "panel_uuid": "3dab42782caca626",
+        "source": "auto_label_split",
+        "split_label": "endpoint"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 82
+      },
+      "id": 1034633848,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (endpoint) (rate(g6_api_calls_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_api_calls_total Rate by endpoint (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_api_calls_total",
+        "panel_uuid": "b2f0ab36e0c25ff5",
+        "source": "auto_label_split",
+        "split_label": "result"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 82
+      },
+      "id": 3002116918,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (result) (rate(g6_api_calls_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_api_calls_total Rate by result (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "histogram",
+        "metric": "g6_api_response_latency_ms",
+        "panel_uuid": "48b258cf770354ae",
+        "source": "auto_hist_quantile"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 90
+      },
+      "id": 1219647695,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_api_response_latency_ms:p95_5m",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_api_response_latency_ms p95 (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "histogram",
+        "metric": "g6_api_response_latency_ms",
+        "panel_uuid": "3e3839648d0b5994",
+        "source": "auto_hist_quantile"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 90
+      },
+      "id": 1043872100,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_api_response_latency_ms:p99_5m",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_api_response_latency_ms p99 (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_quote_avg_price_fallback_total",
+        "panel_uuid": "221949d0990ee521",
+        "source": "auto_label_split",
+        "split_label": "provider"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 98
+      },
+      "id": 572082640,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (provider) (rate(g6_quote_avg_price_fallback_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_quote_avg_price_fallback_total Rate by provider (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "provider",
+        "kind": "counter",
+        "metric": "g6_expiry_resolve_fail_total",
+        "panel_uuid": "546058d416c6a56e",
+        "source": "auto_label_split",
+        "split_label": "index"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 98
+      },
+      "id": 1415600340,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (index) (rate(g6_expiry_resolve_fail_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_expiry_resolve_fail_total Rate by index (5m auto)",
       "type": "timeseries"
     }
   ],

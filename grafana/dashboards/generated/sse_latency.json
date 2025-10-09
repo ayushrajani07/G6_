@@ -77,6 +77,46 @@
       },
       "g6_meta": {
         "family": "sse",
+        "kind": "counter",
+        "metric": "g6_sse_trace_stages_total",
+        "panel_uuid": "1d96f8ecdcea44dd",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 496433388,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(g6_sse_trace_stages_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "SSE Trace Stages (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "sse",
         "kind": "histogram",
         "metric": "g6_sse_flush_seconds",
         "panel_uuid": "897ca3d802195700",
@@ -85,8 +125,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 0
+        "x": 0,
+        "y": 8
       },
       "id": 2306647000,
       "options": {
@@ -125,7 +165,7 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
+        "x": 12,
         "y": 8
       },
       "id": 1828491007,
@@ -142,46 +182,6 @@
         }
       ],
       "title": "g6_sse_flush_seconds p99 (5m auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "sse",
-        "kind": "counter",
-        "metric": "g6_sse_trace_stages_total",
-        "panel_uuid": "1d96f8ecdcea44dd",
-        "source": "spec"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 8
-      },
-      "id": 496433388,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum(rate(g6_sse_trace_stages_total[5m]))",
-          "refId": "A"
-        }
-      ],
-      "title": "SSE Trace Stages (5m)",
       "type": "timeseries"
     }
   ],

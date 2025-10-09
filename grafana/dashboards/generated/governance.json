@@ -146,47 +146,6 @@
       "g6_meta": {
         "family": "governance",
         "kind": "gauge",
-        "metric": "g6_metrics_spec_hash_info",
-        "panel_uuid": "8381cfcce64004cc",
-        "source": "auto_label_split",
-        "split_label": "hash"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 16
-      },
-      "id": 2206322636,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (hash) (g6_metrics_spec_hash_info)",
-          "refId": "A"
-        }
-      ],
-      "title": "g6_metrics_spec_hash_info by hash (auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "governance",
-        "kind": "gauge",
         "metric": "g6_build_config_hash_info",
         "panel_uuid": "d97d9f8d8846bca0",
         "source": "spec"
@@ -194,8 +153,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 24
+        "x": 12,
+        "y": 16
       },
       "id": 3648888717,
       "options": {
@@ -226,47 +185,6 @@
       },
       "g6_meta": {
         "family": "governance",
-        "kind": "gauge",
-        "metric": "g6_build_config_hash_info",
-        "panel_uuid": "2c4ed8e2cb170c0b",
-        "source": "auto_label_split",
-        "split_label": "hash"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 24
-      },
-      "id": 743364834,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (hash) (g6_build_config_hash_info)",
-          "refId": "A"
-        }
-      ],
-      "title": "g6_build_config_hash_info by hash (auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "governance",
         "kind": "counter",
         "metric": "g6_metric_duplicates_total",
         "panel_uuid": "f4a86b425f2d3936",
@@ -276,7 +194,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 32
+        "y": 24
       },
       "id": 4104678210,
       "options": {
@@ -316,7 +234,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 32
+        "y": 24
       },
       "id": 960647306,
       "options": {
@@ -356,7 +274,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 40
+        "y": 32
       },
       "id": 2076027533,
       "options": {
@@ -396,7 +314,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 40
+        "y": 32
       },
       "id": 54672012,
       "options": {
@@ -436,7 +354,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 48
+        "y": 40
       },
       "id": 3460918102,
       "options": {
@@ -468,17 +386,17 @@
       "g6_meta": {
         "family": "governance",
         "kind": "gauge",
-        "metric": "g6_cardinality_guard_allowed_growth_percent",
-        "panel_uuid": "0b9bcc535b06f158",
-        "source": "placeholder"
+        "metric": "g6_cardinality_guard_growth_percent",
+        "panel_uuid": "ba38bd7afa1fe58a",
+        "source": "spec"
       },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 48
+        "y": 40
       },
-      "id": 194759763,
+      "id": 3124280698,
       "options": {
         "legend": {
           "displayMode": "list",
@@ -487,11 +405,11 @@
       },
       "targets": [
         {
-          "expr": "g6_cardinality_guard_allowed_growth_percent",
+          "expr": "topk(10, g6_cardinality_guard_growth_percent)",
           "refId": "A"
         }
       ],
-      "title": "g6_cardinality_guard_allowed_growth_percent (auto)",
+      "title": "Top Cardinality Growth % (Top 10)",
       "type": "timeseries"
     },
     {
@@ -508,17 +426,18 @@
       "g6_meta": {
         "family": "governance",
         "kind": "gauge",
-        "metric": "g6_cardinality_guard_growth_percent",
-        "panel_uuid": "ba38bd7afa1fe58a",
-        "source": "spec"
+        "metric": "g6_metrics_spec_hash_info",
+        "panel_uuid": "8381cfcce64004cc",
+        "source": "auto_label_split",
+        "split_label": "hash"
       },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 56
+        "y": 48
       },
-      "id": 3124280698,
+      "id": 2206322636,
       "options": {
         "legend": {
           "displayMode": "list",
@@ -527,11 +446,92 @@
       },
       "targets": [
         {
-          "expr": "topk(10, g6_cardinality_guard_growth_percent)",
+          "expr": "sum by (hash) (g6_metrics_spec_hash_info)",
           "refId": "A"
         }
       ],
-      "title": "Top Cardinality Growth % (Top 10)",
+      "title": "g6_metrics_spec_hash_info by hash (auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "governance",
+        "kind": "gauge",
+        "metric": "g6_build_config_hash_info",
+        "panel_uuid": "2c4ed8e2cb170c0b",
+        "source": "auto_label_split",
+        "split_label": "hash"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 48
+      },
+      "id": 743364834,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (hash) (g6_build_config_hash_info)",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_build_config_hash_info by hash (auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "governance",
+        "kind": "gauge",
+        "metric": "g6_cardinality_guard_allowed_growth_percent",
+        "panel_uuid": "0b9bcc535b06f158",
+        "source": "placeholder"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 56
+      },
+      "id": 194759763,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_cardinality_guard_allowed_growth_percent",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_cardinality_guard_allowed_growth_percent (auto)",
       "type": "timeseries"
     },
     {

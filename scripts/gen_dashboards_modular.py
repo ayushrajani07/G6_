@@ -934,25 +934,32 @@ def synth_dashboard(plan: DashboardPlan, metrics: List[Metric], spec_hash: str) 
     fam_set = set(plan.families)
     selected = [m for m in metrics if m.family in fam_set]
 
-    panels: List[Dict] = []
-    # Build enriched panels per metric (cap total to avoid explosion)
+    # Collect spec vs auto panels separately to protect spec panels from caps/truncation
+    spec_panels_all: List[Dict] = []
+    auto_panels_all: List[Dict] = []
     for metric in selected:
         spec_panels = [_convert_spec_panel(metric, i, p) for i, p in enumerate(metric.panel_defs)] if metric.panel_defs else []
         auto_panels = _auto_extra_panels(metric)
+        # If neither present, fallback placeholder counts as auto panel
         if not spec_panels and not auto_panels:
-            spec_panels = [synth_placeholder_panel(metric)]
-        for p in spec_panels + auto_panels:
-            # Ensure baseline metadata present (some auto helper returns may already set)
+            auto_panels = [synth_placeholder_panel(metric)]
+        # Normalize meta and append
+        for p in spec_panels:
             meta = p.setdefault("g6_meta", {})
             meta.setdefault("metric", metric.name)
             meta.setdefault("family", metric.family)
             meta.setdefault("kind", metric.kind)
-            meta.setdefault("source", meta.get("source", "unspecified"))
-            panels.append(p)
-            if len(panels) >= 36:  # hard safety cap
-                break
-        if len(panels) >= 36:
-            break
+            meta.setdefault("source", meta.get("source", "spec"))
+            spec_panels_all.append(p)
+        for p in auto_panels:
+            meta = p.setdefault("g6_meta", {})
+            meta.setdefault("metric", metric.name)
+            meta.setdefault("family", metric.family)
+            meta.setdefault("kind", metric.kind)
+            meta.setdefault("source", meta.get("source", "auto"))
+            auto_panels_all.append(p)
+
+    panels: List[Dict] = spec_panels_all + auto_panels_all
 
     # Priority injections for required coverage panels (must-survive regenerations)
     # Ensure provider failover rate panel exists in provider_ingestion dashboard
@@ -1024,14 +1031,12 @@ def synth_dashboard(plan: DashboardPlan, metrics: List[Metric], spec_hash: str) 
         try:
             ratio_panels = _efficiency_ratio_panels(metrics)
             for rp in ratio_panels:
-                if len(panels) >= 36:
-                    break
                 panels.append(rp)
         except Exception as e:  # pragma: no cover
             # Non-fatal; continue without ratio panels
             print(f"WARN: efficiency ratio synthesis failed for {plan.slug}: {e}", file=sys.stderr)
 
-    # Per-group caps (core vs efficiency) applied just before layout. We tag efficiency via g6_meta.group.
+    # Per-group caps (core vs efficiency) applied just before layout. Protect spec panels from core cap.
     core_panels: List[Dict] = []
     eff_panels: List[Dict] = []
     for p in panels:
@@ -1040,13 +1045,20 @@ def synth_dashboard(plan: DashboardPlan, metrics: List[Metric], spec_hash: str) 
             eff_panels.append(p)
         else:
             core_panels.append(p)
-    # Caps
+    # Caps with spec protection on core
     CORE_CAP = 24
     EFF_CAP = 12
     truncated = False
-    if len(core_panels) > CORE_CAP:
-        core_panels = core_panels[:CORE_CAP]
-        truncated = True
+    # Separate spec vs non-spec in core
+    core_spec = [p for p in core_panels if (p.get("g6_meta", {}).get("source") == "spec")]
+    core_other = [p for p in core_panels if (p.get("g6_meta", {}).get("source") != "spec")]
+    if len(core_spec) + len(core_other) > CORE_CAP:
+        # Trim only non-spec to fit
+        keep_other = max(0, CORE_CAP - len(core_spec))
+        if len(core_other) > keep_other:
+            core_other = core_other[:keep_other]
+            truncated = True
+    core_panels = core_spec + core_other
     if len(eff_panels) > EFF_CAP:
         eff_panels = eff_panels[:EFF_CAP]
         truncated = True

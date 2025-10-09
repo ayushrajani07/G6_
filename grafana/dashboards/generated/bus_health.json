@@ -117,6 +117,126 @@
       },
       "g6_meta": {
         "family": "bus",
+        "kind": "gauge",
+        "metric": "g6_bus_queue_retained_events",
+        "panel_uuid": "9dd82a9d846fcdcd",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 2648189597,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_bus_queue_retained_events",
+          "refId": "A"
+        }
+      ],
+      "title": "Bus Retained Events",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "bus",
+        "kind": "gauge",
+        "metric": "g6_bus_subscriber_lag_events",
+        "panel_uuid": "e1424edaa5e54b7e",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 3779219162,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "topk(5, g6_bus_subscriber_lag_events)",
+          "refId": "A"
+        }
+      ],
+      "title": "Top Subscriber Lag",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "bus",
+        "kind": "histogram",
+        "metric": "g6_bus_publish_latency_ms",
+        "panel_uuid": "6876f79ccbcafb00",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 1752627100,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le,bus) (rate(g6_bus_publish_latency_ms_bucket[5m])))",
+          "refId": "A"
+        }
+      ],
+      "title": "Bus Publish Latency p95 (5m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "bus",
         "kind": "counter",
         "metric": "g6_bus_events_dropped_total",
         "panel_uuid": "e73e67f91b007dd0",
@@ -126,8 +246,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 8
+        "x": 12,
+        "y": 16
       },
       "id": 3879626745,
       "options": {
@@ -167,8 +287,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 8
+        "x": 0,
+        "y": 24
       },
       "id": 3896531270,
       "options": {
@@ -201,46 +321,6 @@
         "family": "bus",
         "kind": "gauge",
         "metric": "g6_bus_queue_retained_events",
-        "panel_uuid": "9dd82a9d846fcdcd",
-        "source": "spec"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 16
-      },
-      "id": 2648189597,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "g6_bus_queue_retained_events",
-          "refId": "A"
-        }
-      ],
-      "title": "Bus Retained Events",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "bus",
-        "kind": "gauge",
-        "metric": "g6_bus_queue_retained_events",
         "panel_uuid": "470a606721387f3d",
         "source": "auto_label_split",
         "split_label": "bus"
@@ -249,7 +329,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 24
       },
       "id": 1191862375,
       "options": {
@@ -282,46 +362,6 @@
         "family": "bus",
         "kind": "gauge",
         "metric": "g6_bus_subscriber_lag_events",
-        "panel_uuid": "e1424edaa5e54b7e",
-        "source": "spec"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 24
-      },
-      "id": 3779219162,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "topk(5, g6_bus_subscriber_lag_events)",
-          "refId": "A"
-        }
-      ],
-      "title": "Top Subscriber Lag",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "bus",
-        "kind": "gauge",
-        "metric": "g6_bus_subscriber_lag_events",
         "panel_uuid": "7e1fc6ff9c6873d9",
         "source": "auto_label_split",
         "split_label": "bus"
@@ -329,8 +369,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 24
+        "x": 0,
+        "y": 32
       },
       "id": 2116011775,
       "options": {
@@ -370,7 +410,7 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
+        "x": 12,
         "y": 32
       },
       "id": 2282865833,
@@ -387,46 +427,6 @@
         }
       ],
       "title": "g6_bus_subscriber_lag_events by subscriber (auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "bus",
-        "kind": "histogram",
-        "metric": "g6_bus_publish_latency_ms",
-        "panel_uuid": "6876f79ccbcafb00",
-        "source": "spec"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 32
-      },
-      "id": 1752627100,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum by (le,bus) (rate(g6_bus_publish_latency_ms_bucket[5m])))",
-          "refId": "A"
-        }
-      ],
-      "title": "Bus Publish Latency p95 (5m)",
       "type": "timeseries"
     },
     {

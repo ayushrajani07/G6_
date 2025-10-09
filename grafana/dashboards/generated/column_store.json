@@ -223,6 +223,166 @@
       },
       "fieldConfig": {
         "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "counter",
+        "metric": "g6_cs_ingest_failures_total",
+        "panel_uuid": "a2e902bfc5e20f4e",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "id": 2733179583,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (table,reason) (rate(g6_cs_ingest_failures_total[10m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Ingest Failures Rate (10m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "gauge",
+        "metric": "g6_cs_ingest_backlog_rows",
+        "panel_uuid": "14b3c18abab00d37",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "id": 347324810,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_cs_ingest_backlog_rows",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Ingest Backlog Rows",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "gauge",
+        "metric": "g6_cs_ingest_backpressure_flag",
+        "panel_uuid": "b198f9a9725e0042",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 28
+      },
+      "id": 2979592617,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "g6_cs_ingest_backpressure_flag",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Backpressure Active",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "column_store",
+        "kind": "counter",
+        "metric": "g6_cs_ingest_retries_total",
+        "panel_uuid": "7bd621220c0c3d78",
+        "source": "spec"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 28
+      },
+      "id": 2077630754,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (table) (rate(g6_cs_ingest_retries_total[10m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "CS Ingest Retry Rate (10m)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
           "unit": "ms"
         },
         "overrides": []
@@ -238,7 +398,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 20
+        "y": 36
       },
       "id": 3608762056,
       "options": {
@@ -278,7 +438,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 20
+        "y": 36
       },
       "id": 2524364904,
       "options": {
@@ -311,46 +471,6 @@
         "family": "column_store",
         "kind": "counter",
         "metric": "g6_cs_ingest_failures_total",
-        "panel_uuid": "a2e902bfc5e20f4e",
-        "source": "spec"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 28
-      },
-      "id": 2733179583,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (table,reason) (rate(g6_cs_ingest_failures_total[10m]))",
-          "refId": "A"
-        }
-      ],
-      "title": "CS Ingest Failures Rate (10m)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "column_store",
-        "kind": "counter",
-        "metric": "g6_cs_ingest_failures_total",
         "panel_uuid": "825101830e999d5a",
         "source": "auto_label_split",
         "split_label": "table"
@@ -358,8 +478,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 28
+        "x": 0,
+        "y": 44
       },
       "id": 2186346883,
       "options": {
@@ -399,8 +519,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
-        "y": 36
+        "x": 12,
+        "y": 44
       },
       "id": 2829658176,
       "options": {
@@ -433,46 +553,6 @@
         "family": "column_store",
         "kind": "gauge",
         "metric": "g6_cs_ingest_backlog_rows",
-        "panel_uuid": "14b3c18abab00d37",
-        "source": "spec"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 36
-      },
-      "id": 347324810,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "g6_cs_ingest_backlog_rows",
-          "refId": "A"
-        }
-      ],
-      "title": "CS Ingest Backlog Rows",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "column_store",
-        "kind": "gauge",
-        "metric": "g6_cs_ingest_backlog_rows",
         "panel_uuid": "b393a08c38197078",
         "source": "auto_label_split",
         "split_label": "table"
@@ -481,7 +561,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 44
+        "y": 52
       },
       "id": 3012796556,
       "options": {
@@ -514,46 +594,6 @@
         "family": "column_store",
         "kind": "gauge",
         "metric": "g6_cs_ingest_backpressure_flag",
-        "panel_uuid": "b198f9a9725e0042",
-        "source": "spec"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 44
-      },
-      "id": 2979592617,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "g6_cs_ingest_backpressure_flag",
-          "refId": "A"
-        }
-      ],
-      "title": "CS Backpressure Active",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "column_store",
-        "kind": "gauge",
-        "metric": "g6_cs_ingest_backpressure_flag",
         "panel_uuid": "6effa6c0166ed65f",
         "source": "auto_label_split",
         "split_label": "table"
@@ -561,7 +601,7 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
+        "x": 12,
         "y": 52
       },
       "id": 1862248128,
@@ -578,46 +618,6 @@
         }
       ],
       "title": "g6_cs_ingest_backpressure_flag by table (auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "column_store",
-        "kind": "counter",
-        "metric": "g6_cs_ingest_retries_total",
-        "panel_uuid": "7bd621220c0c3d78",
-        "source": "spec"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 52
-      },
-      "id": 2077630754,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (table) (rate(g6_cs_ingest_retries_total[10m]))",
-          "refId": "A"
-        }
-      ],
-      "title": "CS Ingest Retry Rate (10m)",
       "type": "timeseries"
     },
     {

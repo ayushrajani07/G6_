@@ -117,87 +117,6 @@
       },
       "g6_meta": {
         "family": "stale",
-        "kind": "counter",
-        "metric": "g6_stale_cycles_total",
-        "panel_uuid": "a78f4f91341ee06e",
-        "source": "auto_rate"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 8
-      },
-      "id": 2811187089,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum(rate(g6_stale_cycles_total[5m]))",
-          "refId": "A"
-        }
-      ],
-      "title": "g6_stale_cycles_total Rate (5m auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "stale",
-        "kind": "counter",
-        "metric": "g6_stale_cycles_total",
-        "panel_uuid": "e8b26d6f96074158",
-        "source": "auto_label_split",
-        "split_label": "mode"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 8
-      },
-      "id": 3904007535,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (mode) (rate(g6_stale_cycles_total[5m]))",
-          "refId": "A"
-        }
-      ],
-      "title": "g6_stale_cycles_total Rate by mode (5m auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "stale",
         "kind": "gauge",
         "metric": "g6_stale_system_active",
         "panel_uuid": "6e8ea04e8c96b5ab",
@@ -207,7 +126,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 16
+        "y": 8
       },
       "id": 1854840910,
       "options": {
@@ -247,7 +166,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 16
+        "y": 8
       },
       "id": 1959106319,
       "options": {
@@ -279,17 +198,17 @@
       "g6_meta": {
         "family": "stale",
         "kind": "counter",
-        "metric": "g6_stale_system_cycles_total",
-        "panel_uuid": "b724633c1b21ab0e",
-        "source": "auto_rate"
+        "metric": "g6_empty_quote_fields_total",
+        "panel_uuid": "cc43eea995e776ae",
+        "source": "spec"
       },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 24
+        "y": 16
       },
-      "id": 3072615228,
+      "id": 3427004073,
       "options": {
         "legend": {
           "displayMode": "list",
@@ -298,11 +217,11 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(g6_stale_system_cycles_total[5m]))",
+          "expr": "sum by (index) (increase(g6_empty_quote_fields_total[5m]))",
           "refId": "A"
         }
       ],
-      "title": "g6_stale_system_cycles_total Rate (5m auto)",
+      "title": "Empty Quote Expiries (Rate 5m)",
       "type": "timeseries"
     },
     {
@@ -319,17 +238,17 @@
       "g6_meta": {
         "family": "stale",
         "kind": "counter",
-        "metric": "g6_empty_quote_fields_total",
-        "panel_uuid": "cc43eea995e776ae",
-        "source": "spec"
+        "metric": "g6_stale_cycles_total",
+        "panel_uuid": "a78f4f91341ee06e",
+        "source": "auto_rate"
       },
       "gridPos": {
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 24
+        "y": 16
       },
-      "id": 3427004073,
+      "id": 2811187089,
       "options": {
         "legend": {
           "displayMode": "list",
@@ -338,11 +257,92 @@
       },
       "targets": [
         {
-          "expr": "sum by (index) (increase(g6_empty_quote_fields_total[5m]))",
+          "expr": "sum(rate(g6_stale_cycles_total[5m]))",
           "refId": "A"
         }
       ],
-      "title": "Empty Quote Expiries (Rate 5m)",
+      "title": "g6_stale_cycles_total Rate (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "stale",
+        "kind": "counter",
+        "metric": "g6_stale_cycles_total",
+        "panel_uuid": "e8b26d6f96074158",
+        "source": "auto_label_split",
+        "split_label": "mode"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "id": 3904007535,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (mode) (rate(g6_stale_cycles_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_stale_cycles_total Rate by mode (5m auto)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "family": "stale",
+        "kind": "counter",
+        "metric": "g6_stale_system_cycles_total",
+        "panel_uuid": "b724633c1b21ab0e",
+        "source": "auto_rate"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "id": 3072615228,
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(g6_stale_system_cycles_total[5m]))",
+          "refId": "A"
+        }
+      ],
+      "title": "g6_stale_system_cycles_total Rate (5m auto)",
       "type": "timeseries"
     },
     {
