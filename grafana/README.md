@@ -20,6 +20,7 @@ Governance:
      - Strict (require promtool): `python scripts/lint_dashboard_promql.py --require-promtool`
      - If promtool isn't on PATH, point to it: `python scripts/lint_dashboard_promql.py --require-promtool --promtool "C:\\Prometheus\\prometheus-3.5.0.windows-amd64\\promtool.exe"`
      - By default, Grafana-templated expressions containing `$` (e.g., `$__interval`, `$metric`) are skipped to avoid promtool parse errors. Use `--include-templated` to attempt linting them.
+    - CI runs PromQL lint in strict sanitized mode to cover templated queries. Mirror locally with: `python scripts/lint_dashboard_promql.py --require-promtool --sanitize-templated`
 
  Windows promtool setup tips:
  - Install Prometheus bundle (includes promtool) and add its folder to PATH, e.g. `C:\\Prometheus\\prometheus-<VERSION>.windows-amd64`.
