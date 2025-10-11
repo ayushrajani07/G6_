@@ -25,7 +25,7 @@ Introduce dual path: streaming bus (NATS/Redis/Kafka) + column/time-series store
 ## Migration Phases (Updated Reality)
 0. Current foundation complete. **DONE**
 1. Spec + generator. **DONE**
-2. Aggregated chain metrics. **DONE (metrics + seed)** (`g6_option_chain_agg.json` present; panels cover OI, volume, IV, spread, listings; future enhancement: latency & provider health overlays).
+2. Aggregated chain metrics. **DONE (metrics + seed)** (generated dashboard `grafana/dashboards/generated/option_chain.json` present; panels cover OI, volume, IV, spread, listings; future enhancement: latency & provider health overlays).
 3. Streaming bus. **NOT STARTED** (only in-process bus metrics, no external streaming infra yet).
 4. Column Store Integration. **PLANNING** (metrics skeleton + tests; see `COLUMN_STORE_INTEGRATION.md`; ingestion pipeline tests exist but no deployed store adapter).
 5. Live narrow slice (ATM window). **NOT STARTED**
@@ -66,7 +66,7 @@ Recording & alert rules now implemented beyond initial roadmap description:
 Recommendation: incorporate this inventory into governance docs or auto-generate a rules catalog for drift detection.
 
 ## Immediate Action Items (High-Impact)
-1. Dashboard Seed Gap – **DONE** (`grafana/dashboards/g6_option_chain_agg.json` present; governance & multiple ancillary dashboards curated).
+1. Dashboard Seed Gap – **DONE** (generated dashboards present under `grafana/dashboards/generated/` with `manifest.json`; includes `option_chain.json`, `governance.json`, `bus_stream.json`, etc.).
 2. Panel Templates – **DONE (initial)** (`scripts/gen_dashboards.py` emits option chain + governance dashboards; future: richer domain panels & validation).
 3. Accessor Audit – **DONE** (`scripts/audit_metrics_accessors.py`; integrate in CI to block regressions).
 4. Emission Batcher Enhancements – **DESIGN DOC ADDED** (`EMISSION_BATCHER_ENHANCEMENTS.md`; implementation phases pending).
@@ -269,11 +269,13 @@ Next Targets (Phase 7+):
 	- Auto classify efficiency degradation (diff bytes per write 7d p95 vs last hour) for alert candidate generation.
 	- Add retention & pruning metrics (once implemented) into lifecycle dashboard automatically.
 
-## Current Dashboard Snapshot (2025-10-05)
+## Current Dashboard Snapshot (2025-10-09)
 Metrics (Prometheus spec-driven): 61 active metrics (see `docs/METRICS_CATALOG.md`). Newly added spec families: `stream`, `panels` (panel diff) migrated from dynamic registration into YAML; future governance uses spec as sole source.
-Generated via script (`scripts/gen_dashboards.py`):
-* Option Chain Aggregated: `g6_option_chain_agg.json`
-* Governance (planned output name `g6_metrics_governance.json`) – generator present; additional governance/spec dashboards exist (`g6_generated_spec_dashboard.json`, `g6_spec_panels_dashboard.json`). Consider harmonizing naming.
+Generated via modular generator (`scripts/gen_dashboards_modular.py`):
+* Option Chain Aggregated: `grafana/dashboards/generated/option_chain.json`
+* Governance: `grafana/dashboards/generated/governance.json`
+* Also present: `provider_ingestion.json`, `bus_stream.json`, `emission_pipeline.json`, `panels_summary.json`, `column_store.json`, `panels_efficiency.json`, `lifecycle_storage.json`, `health_core.json`, `bus_health.json`, `system_overview.json`, `system_overview_minimal.json` (all under `grafana/dashboards/generated/`).
+* Manifest: `grafana/dashboards/generated/manifest.json` lists 16 dashboards (with `spec_hash` and `generated_at_unix`).
 
 Curated (manually maintained) dashboards (non-exhaustive categories):
 * Core / Health: `g6_core_overview.json`, `g6_health_status.json`, `g6_core_ops.json`, `g6_observability.json`
@@ -301,7 +303,7 @@ Triggers for doc update:
 Proposed Backlog:
 1. Extend generator to lifecycle/storage & diff efficiency panels.
 2. Add validation script comparing spec panel hints to actual dashboards (exit non-zero on drift).
-3. Normalize governance dashboard naming (`g6_metrics_governance.json`).
+3. Normalize governance dashboard naming (use `grafana/dashboards/generated/governance.json`).
 4. Introduce a provisioning manifest snippet under `grafana/provisioning/` enumerating required dashboards.
 5. Optional: add panel test harness verifying PromQL expressions compile (dry-run via promtool if available).
 
@@ -395,3 +397,19 @@ Implemented stable per-panel identifiers:
 * Drift logic ignores ids (still signature-based) to avoid false positives if hashing algorithm remains stable.
 Future: Persist previous signature->uuid mapping for renamed panels (title changes) by embedding an optional `legacy_titles` array.
 (End of strategic note)
+
+---
+
+## Repo reality check (2025-10-09)
+
+- Generator: `scripts/gen_dashboards_modular.py` is present and primary; supports `--verify` and `--only <slug[,slug2]>` for partial regeneration.
+- Generated dashboards are under `grafana/dashboards/generated/`; `manifest.json` currently lists 16 dashboards including `option_chain.json`, `governance.json`, `bus_stream.json`, `lifecycle_storage.json`, `health_core.json`, and `system_overview_minimal.json`.
+- Prometheus artifacts: `prometheus_rules.yml`, `prometheus_alerts.yml`, and the generated `prometheus_recording_rules_generated.yml` exist and align with governance goals.
+- The in‑process EventBus and SSE endpoints are live; external streaming bus remains a future phase.
+
+## Immediate next steps
+
+1) Provisioning: add Grafana provisioning files under `grafana/provisioning/dashboards/` to auto-import dashboards from `grafana/dashboards/generated/`.
+2) CI: run `python scripts/gen_dashboards_modular.py --verify` and fail on drift (exit 6); add `scripts/gen_recording_rules.py --check` (exit 8). Commit regenerated artifacts when these fail.
+3) Dashboard naming: consistently reference `grafana/dashboards/generated/<slug>.json` (avoid legacy `g6_*.json` names in docs).
+4) Coverage: extend generator coverage for lifecycle/storage and panels efficiency where still partial, and validate spec panel hints map 1:1 to panels.

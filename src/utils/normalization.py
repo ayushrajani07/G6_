@@ -10,13 +10,30 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 import datetime as _dt
 import os as _os
+try:
+    from src.collectors.env_adapter import get_float as _env_get_float, get_bool as _env_get_bool  # type: ignore
+except Exception:  # pragma: no cover
+    def _env_get_float(name: str, default: float) -> float:
+        try:
+            v = _os.environ.get(name)
+            if v is None or str(v).strip() == "":
+                return default
+            return float(str(v).strip())
+        except Exception:
+            return default
+    def _env_get_bool(name: str, default: bool) -> bool:
+        try:
+            v = _os.environ.get(name)
+            if v is None:
+                return default
+            return str(v).strip().lower() not in ('0','false','no','off')
+        except Exception:
+            return default
 
 
 def _env_flag(name: str, default: bool) -> bool:
-    v = _os.environ.get(name)
-    if v is None:
-        return default
-    return str(v).lower() not in ('0','false','no','off')
+    # Preserve legacy truthy semantics
+    return _env_get_bool(name, default)
 
 
 def normalize_price(
@@ -25,9 +42,9 @@ def normalize_price(
     strike: Optional[float] = None,
     index_price: Optional[float] = None,
     oi: Optional[float] = None,
-    paise_threshold: float = float(_os.environ.get('G6_PRICE_PAISE_THRESHOLD', '10000')),
-    max_strike_frac: float = float(_os.environ.get('G6_PRICE_MAX_STRIKE_FRAC', '0.35')),
-    max_index_frac: float = float(_os.environ.get('G6_PRICE_MAX_INDEX_FRAC', '0.5')),
+    paise_threshold: float = _env_get_float('G6_PRICE_PAISE_THRESHOLD', 10000.0),
+    max_strike_frac: float = _env_get_float('G6_PRICE_MAX_STRIKE_FRAC', 0.35),
+    max_index_frac: float = _env_get_float('G6_PRICE_MAX_INDEX_FRAC', 0.5),
     enabled: bool = _env_flag('G6_CSV_PRICE_SANITY', True),
 ) -> float:
     """Return a sanitized price value.

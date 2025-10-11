@@ -1096,6 +1096,13 @@ class CsvSink:
                 if not file_exists and header:
                     writer.writerow(header)
                 writer.writerow(row)
+            # If file was newly created, increment csv_files_created metric (best-effort)
+            if not file_exists:
+                try:
+                    if self.metrics and hasattr(self.metrics, 'csv_files_created'):
+                        self.metrics.csv_files_created.inc()  # type: ignore[call-arg]
+                except Exception:
+                    pass
         finally:
             if lock_created:
                 try:
@@ -1123,6 +1130,13 @@ class CsvSink:
                 if not file_exists and header:
                     writer.writerow(header)
                 writer.writerows(rows)
+            # If file was newly created, increment csv_files_created metric (best-effort)
+            if not file_exists:
+                try:
+                    if self.metrics and hasattr(self.metrics, 'csv_files_created'):
+                        self.metrics.csv_files_created.inc()  # type: ignore[call-arg]
+                except Exception:
+                    pass
         finally:
             if lock_created:
                 try:

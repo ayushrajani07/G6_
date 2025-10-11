@@ -8,20 +8,60 @@ from __future__ import annotations
 from dataclasses import dataclass
 import datetime as _dt
 from typing import Any, Optional, Dict, Tuple
+from importlib import import_module
 
-try:  # lightweight root + symbol utilities (optional failure tolerant)
-    from src.utils.symbol_root import detect_root, parse_root_before_digits, symbol_matches_index  # type: ignore
-    from src.utils.root_cache import cached_detect_root  # type: ignore
-except Exception:  # pragma: no cover
-    def detect_root(s: str) -> str:  # type: ignore
-        return ""
-    def cached_detect_root(s: str):  # type: ignore
-        return detect_root(s)
-    def parse_root_before_digits(s: str) -> str:  # type: ignore
-        return ""
-    def symbol_matches_index(index: str, ts: str, mode: str = "strict") -> bool:  # type: ignore
-        # Fallback heuristic: prefix match
-        return ts.upper().startswith(index.upper())
+# Safe adapters around optional utilities with signature normalization
+try:  # pragma: no cover - import resolution only
+    _sym_mod = import_module('src.utils.symbol_root')
+    _detect_root_opt = getattr(_sym_mod, 'detect_root', None)
+    _parse_root_before_digits_opt = getattr(_sym_mod, 'parse_root_before_digits', None)
+    _symbol_matches_index_opt = getattr(_sym_mod, 'symbol_matches_index', None)
+except Exception:
+    _detect_root_opt = None
+    _parse_root_before_digits_opt = None
+    _symbol_matches_index_opt = None
+try:
+    _cache_mod = import_module('src.utils.root_cache')
+    _cached_detect_root_opt = getattr(_cache_mod, 'cached_detect_root', None)
+except Exception:
+    _cached_detect_root_opt = None
+
+def detect_root(s: str) -> str:
+    try:
+        if callable(_detect_root_opt):
+            r = _detect_root_opt(s)
+            return str(r or "")
+    except Exception:
+        pass
+    return ""
+
+def cached_detect_root(s: str) -> str:
+    try:
+        if callable(_cached_detect_root_opt):
+            r = _cached_detect_root_opt(s)
+            return str(r or "")
+    except Exception:
+        pass
+    return detect_root(s)
+
+def parse_root_before_digits(s: str) -> str:
+    try:
+        if callable(_parse_root_before_digits_opt):
+            r = _parse_root_before_digits_opt(s)
+            return str(r or "")
+    except Exception:
+        pass
+    return ""
+
+def symbol_matches_index(index: str, ts: str, mode: str = "strict") -> bool:
+    try:
+        if callable(_symbol_matches_index_opt):
+            # External function may require keyword-only parameters
+            return bool(_symbol_matches_index_opt(index_symbol=index, tradingsymbol=ts, mode=mode))
+    except Exception:
+        pass
+    # Fallback heuristic: prefix match
+    return ts.upper().startswith(index.upper())
 
 @dataclass(slots=True)
 class OptionFilterContext:

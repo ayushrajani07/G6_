@@ -56,6 +56,32 @@ from dataclasses import dataclass
 from datetime import date as _date
 from typing import Callable, Iterable, List, Sequence, Dict, Set
 import os, json, logging
+try:
+    from src.collectors.env_adapter import get_bool as _env_get_bool, get_str as _env_get_str, get_int as _env_get_int  # type: ignore
+except Exception:  # pragma: no cover
+    # Safe fallbacks if adapter not available
+    def _env_get_bool(name: str, default: bool = False) -> bool:
+        try:
+            v = os.getenv(name)
+            if v is None:
+                return default
+            return str(v).strip().lower() in {"1","true","yes","on","y"}
+        except Exception:
+            return default
+    def _env_get_str(name: str, default: str = "") -> str:
+        try:
+            v = os.getenv(name)
+            return default if v is None else v
+        except Exception:
+            return default
+    def _env_get_int(name: str, default: int) -> int:
+        try:
+            v = os.getenv(name)
+            if v is None or str(v).strip() == "":
+                return default
+            return int(str(v).strip())
+        except Exception:
+            return default
 
 __all__ = [
     "ExpiryService",
@@ -231,18 +257,13 @@ def build_expiry_service() -> ExpiryService | None:
      - G6_WEEKLY_EXPIRY_DOW: override int weekday for weekly expiry
      - G6_MONTHLY_EXPIRY_DOW: override int weekday for monthly expiry anchor
     """
-    if os.getenv("G6_EXPIRY_SERVICE", "0").lower() not in {"1", "true", "yes"}:
+    if not _env_get_bool("G6_EXPIRY_SERVICE", False):
         return None
-    holidays = load_holiday_calendar(os.getenv("G6_HOLIDAYS_FILE"))
+    hol_path = _env_get_str("G6_HOLIDAYS_FILE", "").strip() or None
+    holidays = load_holiday_calendar(hol_path)
     holiday_fn = (lambda d: d in holidays) if holidays else None
-    try:
-        weekly = int(os.getenv("G6_WEEKLY_EXPIRY_DOW", "3"))
-    except ValueError:
-        weekly = 3
-    try:
-        monthly = int(os.getenv("G6_MONTHLY_EXPIRY_DOW", "3"))
-    except ValueError:
-        monthly = 3
+    weekly = _env_get_int("G6_WEEKLY_EXPIRY_DOW", 3)
+    monthly = _env_get_int("G6_MONTHLY_EXPIRY_DOW", 3)
     svc = ExpiryService(today=None, holiday_fn=holiday_fn, weekly_dow=weekly, monthly_dow=monthly)
     logging.info(
         f"ExpiryService enabled (weekly_dow={weekly} monthly_dow={monthly} holidays={len(holidays) if holidays else 0})"

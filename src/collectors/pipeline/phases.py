@@ -1,16 +1,27 @@
 from __future__ import annotations
-from typing import Any
+from typing import Any, Iterable, Sequence, Mapping as TypingMapping, Callable, Protocol, List, Dict, MutableMapping, cast
+InstrumentRow = Dict[str, Any]
+
 import logging, datetime, inspect
 from .state import ExpiryState
+from .struct_events import emit_struct_event
 from .error_helpers import add_phase_error
-from src.collectors.errors import PhaseRecoverableError, PhaseAbortError, PhaseFatalError  # type: ignore
+from src.collectors.errors import PhaseRecoverableError, PhaseAbortError, PhaseFatalError
 from src.utils.exceptions import ResolveExpiryError, NoInstrumentsError, NoQuotesError  # domain -> taxonomy mappings
 
 logger = logging.getLogger(__name__)
 
 # Helper import indirections kept local to avoid heavy imports if shadow flag off
 
-def _try_call(fn, variants):
+from typing import Tuple  # (Callable imported above)
+
+# Flexible instrument fetch protocol (accepts minor signature drift)
+class _FetchInstrumentsLike(Protocol):  # pragma: no cover
+    def __call__(self, index: str, rule: str, expiry: Any, strikes: Sequence[float] | Iterable[float], providers: Any, metrics: Any | None = ...) -> Any: ...
+
+Variants = Sequence[Tuple[Any, ...]]
+
+def _try_call(fn: Callable[..., Any], variants: Variants) -> Any | None:
     """Attempt calling fn with each arg tuple in variants, returning first success.
 
     Designed to smooth over signature drift between legacy unified helpers and
@@ -30,12 +41,12 @@ def _try_call(fn, variants):
         return None
 
 
-def phase_resolve(ctx, state: ExpiryState):
+def phase_resolve(ctx: Any, state: ExpiryState) -> ExpiryState:
     if state.expiry_date is not None:
         return state
     try:
         try:
-            from src.collectors.modules.expiry_helpers import resolve_expiry as _resolve_expiry  # type: ignore
+            from src.collectors.modules.expiry_helpers import resolve_expiry as _resolve_expiry
             try:
                 expiry_date = _resolve_expiry(state.index, state.rule, ctx.providers, None, True)
             except ResolveExpiryError as re_err:
@@ -47,7 +58,7 @@ def phase_resolve(ctx, state: ExpiryState):
         except PhaseAbortError:
             raise
         except Exception:
-            from src.collectors.unified_collectors import _resolve_expiry  # type: ignore
+            from src.collectors.unified_collectors import _resolve_expiry
             strikes = getattr(ctx, 'precomputed_strikes', [])
             metrics = getattr(ctx, 'metrics', None)
             variants = [
@@ -70,43 +81,63 @@ def phase_resolve(ctx, state: ExpiryState):
         add_phase_error(state, 'resolve', 'resolve', str(e), token=token)
     return state
 
-def phase_fetch(ctx, state: ExpiryState, precomputed_strikes):
+def phase_fetch(ctx: Any, state: ExpiryState, precomputed_strikes: Sequence[float] | Iterable[float]) -> ExpiryState:
     if not precomputed_strikes:
         # Abort: nothing to fetch (upstream selection produced empty strikes)
         raise PhaseAbortError('no_strikes')
     state.strikes = list(precomputed_strikes)
     try:
         used_unified = False
+        raw_instruments: Any = None
         try:
-            from src.collectors.modules.expiry_helpers import fetch_option_instruments as _fetch_option_instruments  # type: ignore
+            # Use distinct local alias to avoid confusion with unified helper name
+            from src.collectors.modules.expiry_helpers import fetch_option_instruments as _mod_fetch_option_instruments
             try:
-                instruments = _fetch_option_instruments(state.index, state.rule, state.expiry_date, state.strikes, ctx.providers, None)
+                raw_instruments = _mod_fetch_option_instruments(
+                    state.index, state.rule, state.expiry_date, state.strikes, ctx.providers, None
+                )
             except NoInstrumentsError as nie:
-                # Explicit domain mapping: recoverable (provider likely transient or data gap)
                 raise PhaseRecoverableError('no_instruments_domain') from nie
-            if not instruments:
+            if not raw_instruments:
                 raise ValueError('modular_fetch_returned_empty')
         except PhaseRecoverableError:
             raise
         except Exception:
-            from src.collectors.unified_collectors import _fetch_option_instruments  # type: ignore
+            from src.collectors.unified_collectors import _fetch_option_instruments
             variants = [
                 (state.index, state.rule, state.expiry_date, state.strikes, ctx.providers, getattr(ctx, 'metrics', None)),
                 (state.index, state.rule, state.expiry_date, state.strikes, ctx.providers),
             ]
-            instruments = _try_call(_fetch_option_instruments, variants)
+            raw_instruments = _try_call(_fetch_option_instruments, variants)
             used_unified = True
-        state.instruments = instruments or []
+        # Normalize shapes into list[InstrumentRow]
+        norm: List[InstrumentRow] = []
+        if isinstance(raw_instruments, list):
+            norm = [r for r in raw_instruments if isinstance(r, dict)]
+        elif isinstance(raw_instruments, dict):
+            try:
+                norm = [v for v in raw_instruments.values() if isinstance(v, dict)]
+            except Exception:
+                norm = []
+        state.instruments = norm
         if not state.instruments and not used_unified:
             # One more attempt with unified helpers if modular path yielded empty safely
             try:  # pragma: no cover - defensive
-                from src.collectors.unified_collectors import _fetch_option_instruments as _f2  # type: ignore
+                from src.collectors.unified_collectors import _fetch_option_instruments as _f2
                 variants2 = [
                     (state.index, state.rule, state.expiry_date, state.strikes, ctx.providers, getattr(ctx,'metrics', None)),
                     (state.index, state.rule, state.expiry_date, state.strikes, ctx.providers),
                 ]
-                instruments = _try_call(_f2, variants2)
-                state.instruments = instruments or []
+                raw2 = _try_call(_f2, variants2)
+                norm2: List[InstrumentRow] = []
+                if isinstance(raw2, list):
+                    norm2 = [r for r in raw2 if isinstance(r, dict)]
+                elif isinstance(raw2, dict):
+                    try:
+                        norm2 = [v for v in raw2.values() if isinstance(v, dict)]
+                    except Exception:
+                        norm2 = []
+                state.instruments = norm2
             except Exception:
                 pass
         if not state.instruments:
@@ -123,11 +154,11 @@ def phase_fetch(ctx, state: ExpiryState, precomputed_strikes):
         add_phase_error(state, 'fetch', 'fetch', str(e), token=token)
     return state
 
-def phase_prefilter(ctx, state: ExpiryState):
+def phase_prefilter(ctx: Any, state: ExpiryState) -> ExpiryState:
     if not state.instruments:
         return state
     try:
-        from src.collectors.modules.prefilter_flow import run_prefilter_clamp  # type: ignore
+        from src.collectors.modules.prefilter_flow import run_prefilter_clamp
         inst, clamp_meta = run_prefilter_clamp(state.index, state.rule, state.expiry_date, state.instruments)
         state.instruments = inst or []
         if clamp_meta:
@@ -142,13 +173,14 @@ def phase_prefilter(ctx, state: ExpiryState):
         add_phase_error(state, 'prefilter', 'prefilter', str(e), token=token)
     return state
 
-def phase_enrich(ctx, state: ExpiryState):
+def phase_enrich(ctx: Any, state: ExpiryState) -> ExpiryState:
     if not state.instruments:
         return state
     try:
         used_unified = False
+        enriched: Any = None
         try:
-            from src.collectors.modules.expiry_helpers import enrich_quotes as _enrich_quotes  # type: ignore
+            from src.collectors.modules.expiry_helpers import enrich_quotes as _enrich_quotes
             try:
                 try:
                     enriched = _enrich_quotes(state.index, state.rule, state.expiry_date, state.instruments, ctx.providers, getattr(ctx, 'metrics', None))
@@ -163,7 +195,7 @@ def phase_enrich(ctx, state: ExpiryState):
         except PhaseRecoverableError:
             raise
         except Exception:
-            from src.collectors.unified_collectors import _enrich_quotes  # type: ignore
+            from src.collectors.unified_collectors import _enrich_quotes
             variants = [
                 (state.index, state.rule, state.expiry_date, state.instruments, ctx.providers, getattr(ctx,'metrics', None)),
                 (state.index, state.rule, state.expiry_date, state.instruments, ctx.providers, None),
@@ -171,24 +203,22 @@ def phase_enrich(ctx, state: ExpiryState):
             ]
             enriched = _try_call(_enrich_quotes, variants)
             used_unified = True
+        # Normalize enriched shapes
         if isinstance(enriched, dict):
-            # Normalize key->dict shape
             state.enriched = {str(k): v for k, v in enriched.items() if isinstance(v, dict)}
         elif isinstance(enriched, list):
-            state.enriched = {str(i.get('symbol') or i.get('tradingsymbol') or idx): i for idx,i in enumerate(enriched) if isinstance(i, dict)}  # type: ignore
+            state.enriched = {str(i.get('symbol') or i.get('tradingsymbol') or idx): i for idx, i in enumerate(enriched) if isinstance(i, dict)}
         else:
             state.enriched = {}
         if not state.enriched and not used_unified:
-            # final attempt with unified helper if modular returned empty without raising
             try:  # pragma: no cover - defensive
-                from src.collectors.unified_collectors import _enrich_quotes  # type: ignore
+                from src.collectors.unified_collectors import _enrich_quotes
                 enriched2 = _enrich_quotes(state.index, state.rule, state.expiry_date, state.instruments, ctx.providers, None)
                 if isinstance(enriched2, dict) and enriched2:
-                    state.enriched = {str(k): v for k,v in enriched2.items() if isinstance(v, dict)}
+                    state.enriched = {str(k): v for k, v in enriched2.items() if isinstance(v, dict)}
             except Exception:
                 pass
         if not state.enriched:
-            # Recoverable: could be transient quote fetch issue
             raise PhaseRecoverableError('enrich_empty')
     except PhaseRecoverableError as e:  # pragma: no cover
         token = f"enrich_recoverable:{e}"
@@ -198,14 +228,14 @@ def phase_enrich(ctx, state: ExpiryState):
         add_phase_error(state, 'enrich', 'enrich', str(e), token=token)
     return state
 
-def phase_preventive_validate(ctx, state: ExpiryState):
+def phase_preventive_validate(ctx: Any, state: ExpiryState) -> ExpiryState:
     """Mirror preventive validation step to observe potential drops.
 
     Swallows errors; records meta counts similar to legacy preventive_validate block.
     """
     # Run even if enriched empty to surface preventive_report meta for observability
     try:  # pragma: no cover - defensive
-        from src.collectors.modules.preventive_validate import run_preventive_validation  # type: ignore
+        from src.collectors.modules.preventive_validate import run_preventive_validation
         cleaned, report = run_preventive_validation(state.index, state.rule, state.expiry_date, state.instruments, state.enriched, None)
         if isinstance(cleaned, dict):
             state.enriched = cleaned
@@ -221,7 +251,7 @@ def phase_preventive_validate(ctx, state: ExpiryState):
         add_phase_error(state, 'preventive_validate', 'preventive', str(e), token=token)
     return state
 
-def phase_salvage(ctx, state: ExpiryState):
+def phase_salvage(ctx: Any, state: ExpiryState) -> ExpiryState:
     """Attempt foreign expiry salvage mimic (structural only) to gauge impact.
 
     Applies only if enriched empty, preventive report indicates foreign_expiry issues, and settings allow salvage.
@@ -239,17 +269,23 @@ def phase_salvage(ctx, state: ExpiryState):
         if not salvage_enabled:
             # Observability mode: rehydrate original snapshot for parity without marking salvage_applied
             if state.meta.get('orig_enriched_snapshot'):
-                state.enriched = state.meta['orig_enriched_snapshot']  # type: ignore
+                snapshot = state.meta.get('orig_enriched_snapshot')
+                if isinstance(snapshot, dict):
+                    state.enriched = snapshot
             return state
         # Distinct expiry detection: reuse logic simplified (assume instruments contain 'expiry')
         distinct = set()
-        for sym, row in list(state.meta.get('orig_enriched_snapshot', {}).items()):  # type: ignore
+        for _sym, row in list((state.meta.get('orig_enriched_snapshot') or {}).items()):
+            if not isinstance(row, dict):
+                continue
             exp = row.get('expiry') or row.get('expiry_date') or row.get('instrument_expiry')
             if exp:
                 distinct.add(str(exp))
         if len(distinct) == 1 and state.meta.get('orig_enriched_snapshot'):
             # salvage by reusing snapshot (structural parity only)
-            state.enriched = state.meta['orig_enriched_snapshot']  # type: ignore
+            snap2 = state.meta.get('orig_enriched_snapshot')
+            if isinstance(snap2, dict):
+                state.enriched = snap2
             state.meta['salvage_applied'] = True
     except Exception as e:  # pragma: no cover
         token = f"salvage:{e}"
@@ -259,7 +295,7 @@ def phase_salvage(ctx, state: ExpiryState):
 
 # ---------------- Phase 3 shadow extensions (read-only observational) -----------------
 
-def phase_coverage(ctx, state: ExpiryState):
+def phase_coverage(ctx: Any, state: ExpiryState) -> ExpiryState:
     """Capture strike & field coverage metrics without mutating legacy path.
 
     Stores state.meta['coverage'] = {'strike': <float|None>, 'field': <float|None>}.
@@ -273,28 +309,22 @@ def phase_coverage(ctx, state: ExpiryState):
         # Preferred pair: coverage_metrics, field_coverage_metrics
         # Fallback single: compute_coverage(enriched) returning dict or tuple
         strike_cov = field_cov = None
+        from src.collectors.modules.coverage_eval import coverage_metrics as _cov, field_coverage_metrics as _f_cov
         try:
-            from src.collectors.modules.coverage_eval import coverage_metrics as _cov, field_coverage_metrics as _f_cov  # type: ignore
             strike_cov = _cov(ctx, state.instruments, state.strikes, state.index, state.rule, state.expiry_date)
+        except Exception:
+            strike_cov = None
+        try:
             field_cov = _f_cov(ctx, state.enriched, state.index, state.rule, state.expiry_date)
         except Exception:
-            try:
-                from src.collectors.modules.coverage_eval import compute_coverage as _compute  # type: ignore
-                res = _compute(state.enriched)
-                if isinstance(res, dict):
-                    strike_cov = res.get('strike') or res.get('strike_cov') or res.get('s')
-                    field_cov = res.get('field') or res.get('field_cov') or res.get('f')
-                elif isinstance(res, tuple) and len(res) >= 2:
-                    strike_cov, field_cov = res[0], res[1]
-            except Exception as inner:  # pragma: no cover
-                raise inner
+            field_cov = None
         state.meta['coverage'] = {'strike': strike_cov, 'field': field_cov}
     except Exception as e:  # pragma: no cover
         token = f"coverage:{e}"
         add_phase_error(state, 'coverage', 'coverage', str(e), token=token)
     return state
 
-def phase_iv(ctx, state: ExpiryState):
+def phase_iv(ctx: Any, state: ExpiryState) -> ExpiryState:
     """Attempt IV estimation observationally. Does not modify quotes.
 
     Records meta['iv_phase'] with attempted flag and optional error.
@@ -302,42 +332,133 @@ def phase_iv(ctx, state: ExpiryState):
     if not state.enriched:
         # Observability placeholder
         state.meta.setdefault('iv_phase', {'attempted': False, 'skipped': True})
+        try:
+            emit_struct_event(
+                'expiry.phase.event',
+                {
+                    'phase': 'iv',
+                    'outcome': 'skipped',
+                    'attempt': 1,
+                    'index': getattr(state,'index','?'),
+                    'rule': getattr(state,'rule','?'),
+                    'errors': len(getattr(state,'errors',[]) or []),
+                    'enriched': 0,
+                },
+                state=state,
+            )
+        except Exception:
+            pass
         return state
     meta: dict[str, Any] = {'attempted': False}
     try:
-        from src.collectors.modules.iv_estimation import run_iv_estimation  # type: ignore
+        from src.collectors.modules.iv_estimation import run_iv_estimation  # pragma: no cover - optional dependency
         meta['attempted'] = True
         try:
-            # Pass explicit booleans / placeholders where required; tolerate signature drift
-            run_iv_estimation(ctx, state.enriched, state.index, state.rule, state.expiry_date, 0.0, None, False, False, False, False, None, None)  # type: ignore[arg-type]
+            run_iv_estimation(
+                ctx,
+                cast(Dict[str, MutableMapping[str, Any]], state.enriched),
+                state.index,
+                state.rule,
+                state.expiry_date,
+                0.0,
+                None,
+                False,
+                False,
+                False,
+                False,
+                None,
+                None,
+            )
             meta['ok'] = True
         except Exception as inner:  # pragma: no cover
             meta.update({'ok': False, 'error': str(inner)})
     except Exception as e:  # pragma: no cover
         meta.update({'import_error': str(e)})
     state.meta['iv_phase'] = meta
+    # Structured event
+    try:
+        emit_struct_event(
+            'expiry.phase.event',
+            {
+                'phase': 'iv',
+                'outcome': 'ok' if meta.get('ok') else ('error' if meta.get('attempted') else 'skipped'),
+                'attempt': 1,
+                'index': getattr(state,'index','?'),
+                'rule': getattr(state,'rule','?'),
+                'errors': len(getattr(state,'errors',[]) or []),
+                'enriched': len(getattr(state,'enriched',{}) or {}),
+            },
+            state=state,
+        )
+    except Exception:
+        pass
     return state
 
-def phase_greeks(ctx, state: ExpiryState):
+def phase_greeks(ctx: Any, state: ExpiryState) -> ExpiryState:
     """Attempt greeks computation observationally (no persistence coupling)."""
     if not state.enriched:
         state.meta.setdefault('greeks_phase', {'attempted': False, 'skipped': True})
+        try:
+            emit_struct_event(
+                'expiry.phase.event',
+                {
+                    'phase': 'greeks',
+                    'outcome': 'skipped',
+                    'attempt': 1,
+                    'index': getattr(state,'index','?'),
+                    'rule': getattr(state,'rule','?'),
+                    'errors': len(getattr(state,'errors',[]) or []),
+                    'enriched': 0,
+                },
+                state=state,
+            )
+        except Exception:
+            pass
         return state
     meta: dict[str, Any] = {'attempted': False}
     try:
-        from src.collectors.modules.greeks_compute import run_greeks_compute  # type: ignore
+        from src.collectors.modules.greeks_compute import run_greeks_compute  # pragma: no cover - optional dependency
         meta['attempted'] = True
         try:
-            run_greeks_compute(ctx, state.enriched, state.index, state.rule, state.expiry_date, None, None, 0.0, False, False, None, None)  # type: ignore[arg-type]
+            run_greeks_compute(
+                ctx,
+                cast(Dict[str, MutableMapping[str, Any]], state.enriched),
+                state.index,
+                state.rule,
+                state.expiry_date,
+                None,
+                None,
+                0.0,
+                False,
+                False,
+                None,
+                None,
+            )
             meta['ok'] = True
         except Exception as inner:  # pragma: no cover
             meta.update({'ok': False, 'error': str(inner)})
     except Exception as e:  # pragma: no cover
         meta.update({'import_error': str(e)})
     state.meta['greeks_phase'] = meta
+    try:
+        emit_struct_event(
+            'expiry.phase.event',
+            {
+                'phase': 'greeks',
+                'outcome': 'ok' if meta.get('ok') else ('error' if meta.get('attempted') else 'skipped'),
+                'attempt': 1,
+                'index': getattr(state,'index','?'),
+                'rule': getattr(state,'rule','?'),
+                'errors': len(getattr(state,'errors',[]) or []),
+                'enriched': len(getattr(state,'enriched',{}) or {}),
+            },
+            state=state,
+        )
+    except Exception:
+        pass
     return state
 
-def phase_persist_sim(ctx, state: ExpiryState):
+def phase_persist_sim(ctx: Any, state: ExpiryState) -> ExpiryState:
     """Simulate a persist outcome (option count + naive PCR) for parity hashing.
 
     PCR approximation: (# put legs)/(# call legs) if both >0 else None.
@@ -345,6 +466,22 @@ def phase_persist_sim(ctx, state: ExpiryState):
     """
     if not state.enriched:
         state.meta['persist_sim'] = {'option_count': 0, 'simulated': True}
+        try:
+            emit_struct_event(
+                'expiry.phase.event',
+                {
+                    'phase': 'persist_sim',
+                    'outcome': 'skipped',
+                    'attempt': 1,
+                    'index': getattr(state,'index','?'),
+                    'rule': getattr(state,'rule','?'),
+                    'errors': len(getattr(state,'errors',[]) or []),
+                    'enriched': 0,
+                },
+                state=state,
+            )
+        except Exception:
+            pass
         return state
     try:
         puts = calls = 0
@@ -367,9 +504,41 @@ def phase_persist_sim(ctx, state: ExpiryState):
             'pcr': pcr,
             'simulated': True,
         }
+        try:
+            emit_struct_event(
+                'expiry.phase.event',
+                {
+                    'phase': 'persist_sim',
+                    'outcome': 'ok',
+                    'attempt': 1,
+                    'index': getattr(state,'index','?'),
+                    'rule': getattr(state,'rule','?'),
+                    'errors': len(getattr(state,'errors',[]) or []),
+                    'enriched': len(getattr(state,'enriched',{}) or {}),
+                },
+                state=state,
+            )
+        except Exception:
+            pass
     except Exception as e:  # pragma: no cover
         token = f"persist_sim:{e}"
         add_phase_error(state, 'persist_sim', 'persist_sim', str(e), token=token)
+        try:
+            emit_struct_event(
+                'expiry.phase.event',
+                {
+                    'phase': 'persist_sim',
+                    'outcome': 'error',
+                    'attempt': 1,
+                    'index': getattr(state,'index','?'),
+                    'rule': getattr(state,'rule','?'),
+                    'errors': len(getattr(state,'errors',[]) or []),
+                    'enriched': len(getattr(state,'enriched',{}) or {}),
+                },
+                state=state,
+            )
+        except Exception:
+            pass
     return state
 
 __all__ = [

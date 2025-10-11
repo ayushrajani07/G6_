@@ -1,4 +1,3 @@
-BG_YELLOW = "\x1b[43m"
 """Simple colorized logging utilities.
 
 Automatically applies ANSI colors to log level names when outputting to a TTY.
@@ -21,8 +20,21 @@ Colors (default):
 Safe to call multiple times (idempotent).
 """
 from __future__ import annotations
-import os, sys, logging
+
+import logging
+import os
+import sys
 from typing import Optional
+
+try:
+    from src.collectors.env_adapter import get_str as _env_get_str  # type: ignore
+except Exception:  # pragma: no cover
+    def _env_get_str(name: str, default: str = "") -> str:
+        try:
+            v = os.getenv(name)
+            return default if v is None else v
+        except Exception:
+            return default
 
 RESET = "\x1b[0m"
 BOLD = "\x1b[1m"
@@ -37,9 +49,11 @@ FG_WHITE = "\x1b[37m"
 BG_RED = "\x1b[41m"
 BG_BLUE = "\x1b[44m"
 BG_MAGENTA = "\x1b[45m"
+BG_YELLOW = "\x1b[43m"
 
-def _build_themes():
-    base = {
+
+def _build_themes() -> dict:
+    return {
         'default': {
             "DEBUG": DIM + FG_GREEN,
             "INFO": FG_GREEN,
@@ -76,10 +90,9 @@ def _build_themes():
             "CRITICAL": BOLD,
         },
     }
-    return base
+
 
 _THEMES = _build_themes()
-_LEVEL_STYLES = _THEMES['default']
 
 _TAG_COLORS = {
     'startup': FG_CYAN,
@@ -88,6 +101,7 @@ _TAG_COLORS = {
     'cycle': FG_GREEN,
     'metrics': FG_YELLOW,
 }
+
 
 class ColorFormatter(logging.Formatter):
     def __init__(self, fmt: str, datefmt: Optional[str] = None, use_color: bool = True, theme: str = 'default'):
@@ -129,29 +143,30 @@ class ColorFormatter(logging.Formatter):
                 record.levelname = original_level
             # Post-process message segment inside out (only the part after first ': ' following logger name pattern)
             try:
-                # Extract trailing message (already substituted) via record.getMessage alternative
                 msg = record.getMessage()
                 colored_msg = self._color_tags(msg)
                 if colored_msg != msg:
-                    # naive replace of only first occurrence
                     out = out[::-1].replace(msg[::-1], colored_msg[::-1], 1)[::-1]
             except Exception:
                 pass
             return out
         return super().format(record)
 
+
 _DEF_FORMAT = "[%(asctime)s] %(levelname)s %(name)s: %(message)s"
 
 _enabled = False
 
+
 def _ansi_supported() -> bool:
-    if os.getenv('G6_NO_COLOR'):
+    if _env_get_str('G6_NO_COLOR', ''):
         return False
     # Force disable on dumb terminals
-    if os.getenv('TERM') == 'dumb':
+    if _env_get_str('TERM', '') == 'dumb':
         return False
     # Windows 10+ typically supports ANSI in modern terminals; rely on isatty
     return sys.stdout.isatty() if hasattr(sys.stdout, 'isatty') else False
+
 
 def enable_color_logging(format: str = _DEF_FORMAT) -> None:
     global _enabled
@@ -159,18 +174,34 @@ def enable_color_logging(format: str = _DEF_FORMAT) -> None:
         return
     root = logging.getLogger()
     use_color = _ansi_supported()
-    theme = os.getenv('G6_LOG_COLOR_THEME', 'default').lower()
+    theme = _env_get_str('G6_LOG_COLOR_THEME', 'default').lower()
+    if theme not in _THEMES:
+        theme = 'default'
+    # Determine log level from env (string like "INFO" or numeric); default INFO
+    level_name = _env_get_str("G6_LOG_LEVEL", "INFO").strip()
+    level = logging.INFO
+    try:
+        if level_name:
+            if level_name.isdigit():
+                level = int(level_name)
+            else:
+                level = getattr(logging, level_name.upper(), logging.INFO)
+    except Exception:
+        level = logging.INFO
     # Replace existing stream handlers' formatter; leave others unchanged
     for h in root.handlers:
         if isinstance(h, logging.StreamHandler):
             h.setFormatter(ColorFormatter(format, use_color=use_color, theme=theme))
     if not root.handlers:
         # basicConfig not yet called; configure now
-        logging.basicConfig(level=os.environ.get("G6_LOG_LEVEL", "INFO"), format=format)
+        logging.basicConfig(level=level, format=format)
+        # After basicConfig, update any created stream handlers
         if root.handlers:
             for h in root.handlers:
                 if isinstance(h, logging.StreamHandler):
                     h.setFormatter(ColorFormatter(format, use_color=use_color, theme=theme))
     _enabled = True
 
+
 __all__ = ["enable_color_logging", "ColorFormatter"]
+    

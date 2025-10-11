@@ -41,6 +41,8 @@ _METRIC_LAST_RUN = 'g6_panels_integrity_last_run_unixtime'
 _METRIC_MISMATCHES_TOTAL = 'g6_panels_integrity_mismatches_total'
 _METRIC_LAST_MISMATCH_COUNT = 'g6_panels_integrity_last_mismatch_count'
 _METRIC_OK = 'g6_panels_integrity_ok'
+_METRIC_CHECKS_TOTAL = 'g6_panels_integrity_checks_total'
+_METRIC_FAILURES_TOTAL = 'g6_panels_integrity_failures_total'
 
 
 def _ensure_metrics():
@@ -55,6 +57,9 @@ def _ensure_metrics():
             setattr(m, _METRIC_MISMATCHES_TOTAL, Counter(_METRIC_MISMATCHES_TOTAL, 'Panels integrity mismatches total'))
             setattr(m, _METRIC_LAST_MISMATCH_COUNT, Gauge(_METRIC_LAST_MISMATCH_COUNT, 'Panels integrity last mismatch count'))
             setattr(m, _METRIC_OK, Gauge(_METRIC_OK, 'Panels integrity last run OK (1/0)'))
+            # Counters used by Grafana dashboard
+            setattr(m, _METRIC_CHECKS_TOTAL, Counter(_METRIC_CHECKS_TOTAL, 'Total panel integrity checks run'))
+            setattr(m, _METRIC_FAILURES_TOTAL, Counter(_METRIC_FAILURES_TOTAL, 'Total panel integrity check failures'))
         except Exception:  # pragma: no cover
             logger.debug('integrity_monitor: metric registration failed', exc_info=True)
     return m
@@ -76,8 +81,17 @@ def run_integrity_check_once(panels_dir: Optional[str] = None) -> Dict[str, int]
             getattr(m, _METRIC_LAST_RUN).set(ts)  # type: ignore[attr-defined]
             getattr(m, _METRIC_LAST_MISMATCH_COUNT).set(count)  # type: ignore[attr-defined]
             getattr(m, _METRIC_OK).set(1 if count == 0 else 0)  # type: ignore[attr-defined]
+            # Always count a check run
+            try:
+                getattr(m, _METRIC_CHECKS_TOTAL).inc()  # type: ignore[attr-defined]
+            except Exception:
+                pass
             if count:
                 getattr(m, _METRIC_MISMATCHES_TOTAL).inc(count)  # type: ignore[attr-defined]
+                try:
+                    getattr(m, _METRIC_FAILURES_TOTAL).inc(count)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
         except Exception:  # pragma: no cover
             logger.debug('integrity_monitor: metric update failed', exc_info=True)
     strict = os.environ.get('G6_PANELS_INTEGRITY_STRICT','').lower() in ('1','true','yes','on')

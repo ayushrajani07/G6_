@@ -14,7 +14,7 @@
   "g6_meta": {
     "alerts_count": 0,
     "alerts_panel": false,
-    "band_pct": 20.0,
+    "band_pct": 33,
     "compact": false,
     "description": "Ultra compact variant (ratio & cumulative folded into summary).",
     "enriched": true,
@@ -491,7 +491,7 @@
       "g6_meta": {
         "explorer_kind": "histogram_window",
         "group": "explorer",
-        "panel_uuid": "e81596c7a2e6e529",
+        "panel_uuid": "78ae23a416dfae2e",
         "source": "explorer_template"
       },
       "gridPos": {
@@ -500,7 +500,7 @@
         "x": 0,
         "y": 11
       },
-      "id": 3893728967,
+      "id": 2024678308,
       "repeat": "metric_hist",
       "repeatDirection": "h",
       "targets": [
@@ -513,11 +513,11 @@
           "refId": "B"
         },
         {
-          "expr": "($metric_hist:$q_30m) * (1 - 0.200000)",
+          "expr": "($metric_hist:$q_30m) * (1 - 0.330000)",
           "refId": "C"
         },
         {
-          "expr": "($metric_hist:$q_30m) * (1 + 0.200000)",
+          "expr": "($metric_hist:$q_30m) * (1 + 0.330000)",
           "refId": "D"
         }
       ],

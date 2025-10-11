@@ -1,5 +1,18 @@
 # G6 Scripts
 
+## Observability Stack (Windows Auto-Resolve)
+
+- Canonical: `scripts/auto_stack.ps1`
+- Behavior: starts Prometheus, InfluxDB, and Grafana concurrently; waits 10s; checks health; iterates to next free port for any failed service with another 10s wait, until healthy or ports exhausted.
+- Integration: invoked automatically by `auto_resolve_stack.py` at launcher start on Windows.
+- Replaces: legacy `start_all.ps1`, `start_all_enhanced.ps1`, `start_grafana.ps1` (removed on 2025-10-11).
+
+Run directly (optional):
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\auto_stack.ps1
+```
+
 ## init_menu.py (Interactive setup)
 
 A simple, dependency-free menu to configure and launch common tools with organized submenus:

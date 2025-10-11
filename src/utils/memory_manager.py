@@ -52,12 +52,28 @@ class MemoryManager:
         self._registered: Dict[str, RegisteredCache] = {}
         # cadence knobs
         import os
-        self._gc_interval_sec = float(os.getenv('G6_MEMORY_GC_INTERVAL_SEC', '30'))
         try:
-            from src.utils.env_flags import is_truthy_env  # type: ignore
-            self._minor_gc_each_cycle = is_truthy_env('G6_MEMORY_MINOR_GC_EACH_CYCLE') or 'G6_MEMORY_MINOR_GC_EACH_CYCLE' not in os.environ
-        except Exception:
-            self._minor_gc_each_cycle = True
+            from src.collectors.env_adapter import get_float as _env_get_float, get_bool as _env_get_bool  # type: ignore
+        except Exception:  # pragma: no cover
+            def _env_get_float(name: str, default: float) -> float:
+                try:
+                    v = os.getenv(name)
+                    if v is None or str(v).strip() == "":
+                        return default
+                    return float(str(v).strip())
+                except Exception:
+                    return default
+            def _env_get_bool(name: str, default: bool = False) -> bool:
+                try:
+                    v = os.getenv(name)
+                    if v is None:
+                        return default
+                    return str(v).strip().lower() in {"1","true","yes","on","y"}
+                except Exception:
+                    return default
+        self._gc_interval_sec = _env_get_float('G6_MEMORY_GC_INTERVAL_SEC', 30.0)
+        # default True if env missing (legacy behavior)
+        self._minor_gc_each_cycle = _env_get_bool('G6_MEMORY_MINOR_GC_EACH_CYCLE', True)
 
     # -------- Registration ---------
     def register_cache(self, name: str, purge_fn: Optional[Callable[[], Any]] = None, size_fn: Optional[Callable[[], int]] = None) -> None:

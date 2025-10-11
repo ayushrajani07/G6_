@@ -1,14 +1,9 @@
-"""Minimal HTTP handler for /summary/resync (Phase 5 stub).
-
-Design:
-- Uses stdlib http.server.BaseHTTPRequestHandler.
-- Expects a globally updated reference to the last SummarySnapshot (loop can set via set_last_snapshot()).
-- Returns JSON full snapshot (same structure as SSEPublisher full_snapshot) plus schema_version.
-- Safe if no snapshot yet (returns empty panels map and cycle=0).
-
-Deferred (future): authentication, compression, ETag, panel subset filtering.
-"""
 from __future__ import annotations
+"""Minimal HTTP handler for /summary/resync and shared snapshot getters.
+
+Kept lightweight to avoid tight coupling with the main loop; tests patch
+set_last_snapshot/get_last_snapshot implicitly by importing this module.
+"""
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -16,6 +11,7 @@ from typing import Optional, Dict, Any
 
 from .resync import get_resync_snapshot
 from .schema import SCHEMA_VERSION
+
 _last_snapshot = None
 _lock = threading.RLock()
 

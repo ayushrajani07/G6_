@@ -19,38 +19,60 @@ The synthetic fallback generation and preventive validation stage remain in the
 legacy path until subsequent extraction phases; this module stays minimal.
 """
 from __future__ import annotations
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Callable
 import time, logging
+from importlib import import_module
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["enrich_quotes"]
 
-# Lightweight exception imports (soft); if unavailable they are treated as generic
-try:  # pragma: no cover - defensive
-    from src.collectors.unified_collectors import NoQuotesError  # type: ignore
-except Exception:  # pragma: no cover
-    class NoQuotesError(Exception):  # type: ignore
+def _resolve_noquotes_error() -> type[Exception]:  # pragma: no cover - trivial resolution
+    try:
+        mod = import_module('src.collectors.unified_collectors')
+        cls = getattr(mod, 'NoQuotesError', None)
+        if isinstance(cls, type) and issubclass(cls, Exception):
+            return cls
+    except Exception:
         pass
+    return Exception
 
-try:  # pragma: no cover
-    from src.collectors.unified_collectors import handle_collector_error  # type: ignore
-except Exception:  # pragma: no cover
-    def handle_collector_error(exc: Exception, component: str, index_name: str, context: Dict[str, Any]):  # type: ignore
+
+def _resolve_handle_error() -> Callable[[Exception, str, str, Dict[str, Any]], Any]:  # pragma: no cover - wrapper
+    try:
+        mod = import_module('src.collectors.unified_collectors')
+        fn = getattr(mod, 'handle_collector_error', None)
+        if callable(fn):
+            def _adapter(exc: Exception, component: str, index_name: str, context: Dict[str, Any]) -> Any:
+                try:
+                    return fn(exc, component=component, index_name=index_name, context=context)
+                except TypeError:
+                    try:
+                        return fn(exc, component, index_name, context)
+                    except Exception:
+                        return None
+            return _adapter
+    except Exception:
+        pass
+    def _fallback(exc: Exception, component: str, index_name: str, context: Dict[str, Any]) -> None:
         logger.debug("handle_collector_error_fallback", exc_info=True)
+        return None
+    return _fallback
 
 
-def enrich_quotes(index_symbol: str, expiry_rule: str, expiry_date, instruments: List[Dict[str, Any]], providers: Any, metrics: Any) -> Dict[str, Any]:
+def enrich_quotes(index_symbol: str, expiry_rule: str, expiry_date: Any, instruments: List[Dict[str, Any]], providers: Any, metrics: Any) -> Dict[str, Any]:
     start = time.time()
     enriched_data: Dict[str, Any] = {}
+    NoQuotesError = _resolve_noquotes_error()
+    handle_collector_error = _resolve_handle_error()
     try:
         enriched_data = providers.enrich_with_quotes(instruments)
     except (NoQuotesError,) as enrich_err:  # domain-specific path
         handle_collector_error(
             enrich_err,
-            component="collectors.unified_collectors",
-            index_name=index_symbol,
-            context={
+            "collectors.unified_collectors",
+            index_symbol,
+            {
                 "stage": "enrich_with_quotes",
                 "rule": expiry_rule,
                 "expiry": str(expiry_date),

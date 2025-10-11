@@ -18,7 +18,7 @@ Shadow / Migration Strategy:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol, List, Dict, Optional
+from typing import Any, Protocol, List, Dict, Optional, Sequence
 import os
 import logging
 
@@ -54,13 +54,13 @@ class ExpiryState:
 
 class Phase(Protocol):  # pragma: no cover - structural only
     name: str
-    def run(self, ctx, settings, state: ExpiryState) -> ExpiryState: ...
+    def run(self, ctx: Any, settings: Any, state: ExpiryState) -> ExpiryState: ...
 
 class LegacyWrapperPhase:
     name = 'legacy_wrapper'
-    def __init__(self, legacy_fn):
-        self._legacy = legacy_fn
-    def run(self, ctx, settings, state: ExpiryState) -> ExpiryState:
+    def __init__(self, legacy_fn: Any):
+        self._legacy: Any = legacy_fn
+    def run(self, ctx: Any, settings: Any, state: ExpiryState) -> ExpiryState:
         # Feature flag: allow direct finalize from validated_enriched to avoid re-processing legacy path
         use_direct = False
         try:
@@ -86,7 +86,7 @@ class LegacyWrapperPhase:
             pass
         if use_direct and state.validated_enriched and state.expiry_date is not None:
             try:
-                from src.collectors.modules.expiry_finalize import finalize_from_enriched  # type: ignore
+                from src.collectors.modules.expiry_finalize import finalize_from_enriched
                 out = finalize_from_enriched(
                     ctx,
                     index_symbol=state.index_symbol,
@@ -154,13 +154,13 @@ class LegacyWrapperPhase:
             # Ensure aggregation_state present for legacy metrics aggregation
             if not hasattr(ctx, 'aggregation_state') or getattr(ctx, 'aggregation_state') is None:
                 try:
-                    from src.collectors.unified_collectors import AggregationState  # type: ignore
+                    from src.collectors.unified_collectors import AggregationState
                     setattr(ctx, 'aggregation_state', AggregationState())
                 except Exception:
                     class _AggStub:  # minimal stub
                         representative_day_width = 0
                         snapshot_base_time = None
-                        def capture(self, *_a, **_k): return None
+                        def capture(self, *_a: object, **_k: object) -> None: return None
                     setattr(ctx, 'aggregation_state', _AggStub())
             out = self._legacy(
                 ctx=ctx,
@@ -220,11 +220,11 @@ PHASES: List[Phase] = []  # later phases appended dynamically for v2 work
 
 class ResolvePhase:
     name = 'resolve'
-    def __init__(self):
+    def __init__(self) -> None:
         pass
-    def run(self, ctx, settings, state: ExpiryState) -> ExpiryState:
+    def run(self, ctx: Any, settings: Any, state: ExpiryState) -> ExpiryState:
         try:
-            from src.collectors.modules.expiry_helpers import resolve_expiry as _resolve_expiry  # type: ignore
+            from src.collectors.modules.expiry_helpers import resolve_expiry as _resolve_expiry
             expiry_date = _resolve_expiry(state.index_symbol, state.expiry_rule, ctx.providers, getattr(ctx, 'metrics', None), getattr(ctx, 'concise_mode', False))
             state.expiry_date = expiry_date
             # Strikes are precomputed in existing flow; capture if available
@@ -235,7 +235,7 @@ class ResolvePhase:
 
 class FetchPhase:
     name = 'fetch'
-    def run(self, ctx, settings, state: ExpiryState) -> ExpiryState:
+    def run(self, ctx: Any, settings: Any, state: ExpiryState) -> ExpiryState:
         # Skip if resolve failed
         if state.expiry_date is None or not state.strikes:
             try:
@@ -250,7 +250,7 @@ class FetchPhase:
                 pass
             return state
         try:
-            from src.collectors.modules.expiry_helpers import fetch_option_instruments as _fetch  # type: ignore
+            from src.collectors.modules.expiry_helpers import fetch_option_instruments as _fetch
             if getattr(ctx, 'expiry_universe_map', None) and state.expiry_date in getattr(ctx, 'expiry_universe_map'):
                 bucket = getattr(ctx, 'expiry_universe_map')[state.expiry_date]
                 strike_set = set(state.strikes)
@@ -274,17 +274,22 @@ class FetchPhase:
 
 class EnrichPhase:
     name = 'enrich'
-    def run(self, ctx, settings, state: ExpiryState) -> ExpiryState:
+    def run(self, ctx: Any, settings: Any, state: ExpiryState) -> ExpiryState:
         # Preconditions: need fetched instruments
         if not state.fetched_instruments or state.expiry_date is None or not state.strikes:
             return state
         try:
-            from src.collectors.modules.expiry_helpers import enrich_quotes as _enrich  # type: ignore
+            from src.collectors.modules.expiry_helpers import enrich_quotes as _enrich
             enriched = _enrich(state.index_symbol, state.expiry_rule, state.expiry_date, state.fetched_instruments, ctx.providers, getattr(ctx, 'metrics', None))
             # Normalize & capture for downstream validation phase
             if isinstance(enriched, list):
                 try:
-                    enriched = {str(i.get('symbol') or i.get('tradingsymbol') or idx): i for idx,i in enumerate(enriched) if isinstance(i, dict)}  # type: ignore
+                    tmp_map: Dict[str, Dict[str, Any]] = {}
+                    for idx, i in enumerate(enriched):
+                        if isinstance(i, dict):
+                            key = str(i.get('symbol') or i.get('tradingsymbol') or idx)
+                            tmp_map[key] = i  # value is a dict[str, Any]
+                    enriched = tmp_map
                 except Exception:
                     enriched = {}
             if isinstance(enriched, dict):
@@ -296,12 +301,12 @@ class EnrichPhase:
 
 class PrefilterClampPhase:
     name = 'prefilter_clamp'
-    def run(self, ctx, settings, state: ExpiryState) -> ExpiryState:
+    def run(self, ctx: Any, settings: Any, state: ExpiryState) -> ExpiryState:
         # Preconditions: instruments fetched
         if not state.fetched_instruments:
             return state
         try:
-            from src.collectors.modules.prefilter_flow import run_prefilter_clamp  # type: ignore
+            from src.collectors.modules.prefilter_flow import run_prefilter_clamp
             inst_before = len(state.fetched_instruments)
             instruments, clamp_meta = run_prefilter_clamp(state.index_symbol, state.expiry_rule, state.expiry_date, state.fetched_instruments)
             state.fetched_instruments = instruments or []
@@ -333,12 +338,12 @@ class PrefilterClampPhase:
 
 class ValidationPhase:
     name = 'validate'
-    def run(self, ctx, settings, state: ExpiryState) -> ExpiryState:
+    def run(self, ctx: Any, settings: Any, state: ExpiryState) -> ExpiryState:
         # Preconditions: need enriched data & instruments
         if not state.enriched_data or not state.fetched_instruments or state.expiry_date is None:
             return state
         try:
-            from src.collectors.modules.preventive_validate import run_preventive_validation  # type: ignore
+            from src.collectors.modules.preventive_validate import run_preventive_validation
             cleaned, report = run_preventive_validation(
                 state.index_symbol,
                 state.expiry_rule,
@@ -359,16 +364,16 @@ class ValidationPhase:
 
 class CoverageMetricsPhase:
     name = 'coverage_metrics'
-    def run(self, ctx, settings, state: ExpiryState) -> ExpiryState:
+    def run(self, ctx: Any, settings: Any, state: ExpiryState) -> ExpiryState:
         # Preconditions: have instruments & possibly enriched (or validated) data
         if state.expiry_date is None or not state.fetched_instruments:
             return state
         try:
-            from src.collectors.modules.coverage_eval import coverage_metrics as _cov, field_coverage_metrics as _field_cov  # type: ignore
+            from src.collectors.modules.coverage_eval import coverage_metrics as _cov, field_coverage_metrics as _field_cov
             strike_cov = None
             field_cov = None
             try:
-                strike_cov = _cov(ctx, state.fetched_instruments, state.strikes, state.index_symbol, state.expiry_rule, state.expiry_date)  # type: ignore
+                strike_cov = _cov(ctx, state.fetched_instruments, state.strikes, state.index_symbol, state.expiry_rule, state.expiry_date)  # expects numeric coverage
             except Exception:
                 try:
                     log_event("expiry.coverage.fail", component="strike", index=state.index_symbol, rule=state.expiry_rule)
@@ -377,7 +382,7 @@ class CoverageMetricsPhase:
             try:
                 # prefer validated_enriched else enriched_data
                 data_map = state.validated_enriched or state.enriched_data
-                field_cov = _field_cov(ctx, data_map, state.index_symbol, state.expiry_rule, state.expiry_date)  # type: ignore
+                field_cov = _field_cov(ctx, data_map, state.index_symbol, state.expiry_rule, state.expiry_date)
             except Exception:
                 try:
                     log_event("expiry.coverage.fail", component="field", index=state.index_symbol, rule=state.expiry_rule)
@@ -397,7 +402,7 @@ class CoverageMetricsPhase:
             state.errors.append(f'coverage_metrics:{e}')
         return state
 
-def _build_phases(legacy_fn):
+def _build_phases(legacy_fn: Any) -> List[Phase]:
     if not PHASES:  # initialize once
         # Early phases first; legacy wrapper still executes full legacy path for parity.
         PHASES.extend([
@@ -411,7 +416,7 @@ def _build_phases(legacy_fn):
         ])
     return PHASES
 
-def process_expiry_v2(legacy_fn, *, ctx, index_symbol: str, expiry_rule: str, atm_strike: float, settings=None) -> dict:
+def process_expiry_v2(legacy_fn: Any, *, ctx: Any, index_symbol: str, expiry_rule: str, atm_strike: float, settings: Any | None = None) -> Dict[str, Any]:
     phases = _build_phases(legacy_fn)
     state = ExpiryState(index_symbol=index_symbol, expiry_rule=expiry_rule, atm_strike=atm_strike)
     for phase in phases:

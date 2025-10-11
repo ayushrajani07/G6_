@@ -76,7 +76,7 @@ def add_phase_error(state: ExpiryState, phase: str, classification: str, message
         # Conditional metrics increment
         if os.getenv('G6_PIPELINE_STRUCT_ERROR_METRIC','').lower() in ('1','true','yes','on'):
             try:
-                from src.metrics import get_metrics  # type: ignore
+                from src.metrics import get_metrics  # runtime optional import; ignore removed after typing
                 reg = get_metrics()
                 m = getattr(reg, 'pipeline_phase_error_records', None)
                 if m is not None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
-import http.client, time, threading, json, os
+import http.client, time, threading, json, os, socket
+import pytest
 
 from scripts.summary.plugins.sse import SSEPublisher
 from scripts.summary.unified_loop import UnifiedLoop
@@ -28,14 +29,33 @@ def _run_loop_with_mutation(publisher: SSEPublisher, cycles: int = 8):
     loop.run(cycles=cycles)
 
 
-def test_sse_stream_integration(monkeypatch):
+@pytest.fixture()
+def sse_port(monkeypatch) -> int:
+    s = socket.socket(); s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    monkeypatch.setenv('G6_SSE_HTTP_PORT', str(port))
+    return port
+
+
+def test_sse_stream_integration(monkeypatch, sse_port: int):
     monkeypatch.setenv('G6_SSE_HTTP','1')
     monkeypatch.setenv('G6_SSE_HEARTBEAT_CYCLES','2')  # faster heartbeat
     pub = SSEPublisher(diff=True)
     t = threading.Thread(target=lambda: _run_loop_with_mutation(pub, cycles=10), daemon=True)
     t.start()
-    time.sleep(0.4)
-    conn = http.client.HTTPConnection('127.0.0.1', 9320, timeout=4)
+    # Readiness wait for server
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        s = socket.socket(); s.settimeout(0.05)
+        try:
+            s.connect(("127.0.0.1", sse_port))
+            s.close(); break
+        except Exception:
+            try: s.close()
+            except Exception: pass
+            time.sleep(0.025)
+    conn = http.client.HTTPConnection('127.0.0.1', sse_port, timeout=4)
     conn.request('GET','/summary/events')
     resp = conn.getresponse()
     assert resp.status == 200

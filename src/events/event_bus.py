@@ -19,6 +19,19 @@ try:  # Prefer system zoneinfo if available
 except Exception:  # pragma: no cover - fallback when zoneinfo missing
     IST = timezone(timedelta(hours=5, minutes=30))
 
+# Module-level env adapter import with defensive fallback
+try:
+    from src.collectors.env_adapter import get_bool as _env_bool  # type: ignore
+except Exception:  # pragma: no cover - fallback
+    def _env_bool(name: str, default: bool = False) -> bool:
+        try:
+            v = os.getenv(name)
+            if v is None:
+                return default
+            return v.strip().lower() in {"1","true","yes","on","y"}
+        except Exception:
+            return default
+
 
 @runtime_checkable
 class _LabelsMixin(Protocol):
@@ -143,10 +156,15 @@ class EventBus:
             self._adaptive = None  # type: ignore
 
     def _env_int(self, name: str, default: int) -> int:
+        # Prefer centralized env adapter for consistent parsing; fallback to direct os.environ
         try:
-            return int(os.environ.get(name, str(default)))
+            from src.collectors.env_adapter import get_int as _get_int  # type: ignore
+            return _get_int(name, default)
         except Exception:
-            return default
+            try:
+                return int(os.environ.get(name, str(default)))
+            except Exception:
+                return default
 
     # ------------------------------------------------------------------
     # Internal metric helper utilities (DRY guarded interactions)
@@ -326,7 +344,7 @@ class EventBus:
                         import time as _t
                         record.payload['publish_unixtime'] = _t.time()
                     # Trace context (Phase 9) gated by env G6_SSE_TRACE
-                    if event_type in ('panel_full','panel_diff') and os.environ.get('G6_SSE_TRACE','').lower() in ('1','on','true','yes'):
+                    if event_type in ('panel_full','panel_diff') and _env_bool('G6_SSE_TRACE', False):
                         if '_trace' not in record.payload:
                             try:
                                 import uuid as _uuid, time as _t
@@ -368,7 +386,7 @@ class EventBus:
             if isinstance(record_ref.payload, dict) and '_serialized_len' not in record_ref.payload:
                 record_ref.payload['_serialized_len'] = len(serialized_bytes)
             # Trace context: add serialize timestamp + metric
-            if isinstance(record_ref.payload, dict) and os.environ.get('G6_SSE_TRACE','').lower() in ('1','on','true','yes'):
+            if isinstance(record_ref.payload, dict) and _env_bool('G6_SSE_TRACE', False):
                 try:
                     tr = record_ref.payload.get('_trace')
                     if isinstance(tr, dict) and 'serialize_ts' not in tr:
@@ -387,7 +405,7 @@ class EventBus:
                             pass
                 except Exception:
                     pass
-            if os.environ.get('G6_SSE_EMIT_LATENCY_CAPTURE','').lower() in ('1','on','true','yes'):
+            if _env_bool('G6_SSE_EMIT_LATENCY_CAPTURE', False):
                 try:
                     from src.metrics import get_metrics  # type: ignore
                     m = get_metrics()
@@ -592,45 +610,63 @@ class EventBus:
         try:
             registry = None
             try:
-                from src.metrics import metrics as _metrics_mod  # type: ignore
-                get_metrics_fn = getattr(_metrics_mod, 'get_metrics', None)
-                if callable(get_metrics_fn):
-                    registry = get_metrics_fn()
+                # Prefer public facade to avoid deprecated deep import
+                from src.metrics import get_metrics as _get_metrics  # type: ignore
+                registry = _get_metrics()
             except Exception:
-                registry = None
-            _register = getattr(registry, '_register', None) if registry is not None else None
-            if callable(_register):
+                # Fallback: attempt legacy module path if facade unavailable in constrained contexts
+                try:
+                    from src.metrics import metrics as _metrics_mod  # type: ignore
+                    get_metrics_fn = getattr(_metrics_mod, 'get_metrics', None)
+                    if callable(get_metrics_fn):
+                        registry = get_metrics_fn()
+                except Exception:
+                    registry = None
+            _maybe = getattr(registry, '_maybe_register', None) if registry is not None else None
+            if callable(_maybe):
                 from prometheus_client import Counter as _Counter, Gauge as _Gauge, Histogram as _Histogram
                 from typing import cast as _cast
-                # Core counters / gauges (failure tolerant individually)
                 from typing import Any as _Any
-                def _safe(reg_cls, name: str, doc: str, **kw) -> _Any:  # local helper tolerant to duplicates
+                def _safe(reg_cls, attr: str, name: str, doc: str, labels: list[str] | None = None) -> _Any:
+                    metric = None
                     try:
-                        return _register(reg_cls, name, doc, **kw)  # type: ignore[misc]
+                        if labels:
+                            metric = _maybe('sse_ingest', attr, reg_cls, name, doc, labels)  # type: ignore[misc]
+                        else:
+                            metric = _maybe('sse_ingest', attr, reg_cls, name, doc)  # type: ignore[misc]
                     except Exception:
-                        return None
-                self._m_events_total = _cast(CounterLike, _safe(_Counter, 'g6_events_published_total', 'Events published (labeled by type)', labelnames=['type']))
-                self._m_backlog_current = _cast(GaugeLike, _safe(_Gauge, 'g6_events_backlog_current', 'Current event backlog size'))
-                self._m_backlog_highwater = _cast(GaugeLike, _safe(_Gauge, 'g6_events_backlog_highwater', 'High-water mark for event backlog size'))
-                self._m_consumers = _cast(GaugeLike, _safe(_Gauge, 'g6_events_consumers', 'Active SSE consumers'))
-                self._m_generation = _cast(GaugeLike, _safe(_Gauge, 'g6_events_generation', 'Current panel generation (increments on panel_full)'))
-                self._m_last_full_unixtime = _cast(GaugeLike, _safe(_Gauge, 'g6_events_last_full_unixtime', 'Unix timestamp of last panel_full event published'))
-                self._m_events_dropped = _cast(CounterLike, _safe(_Counter, 'g6_events_dropped_total', 'Events dropped (reason,type)', labelnames=['reason','type']))
-                self._m_events_full_recovery = _cast(CounterLike, _safe(_Counter, 'g6_events_full_recovery_total', 'Client-forced full snapshot recoveries'))
-                self._m_events_emitted = _cast(CounterLike, _safe(_Counter, 'g6_events_emitted_total', 'Events emitted to backlog (post-coalesce)', labelnames=['type']))
-                self._m_events_coalesced = _cast(CounterLike, _safe(_Counter, 'g6_events_coalesced_total', 'Events coalesced (replaced prior with same key)', labelnames=['type']))
-                self._m_backlog_capacity = _cast(GaugeLike, _safe(_Gauge, 'g6_events_backlog_capacity', 'Configured event backlog capacity (max events)'))
+                        metric = None
+                    if metric is None:  # fallback to direct constructor (duplicate-tolerant upstream)
+                        try:
+                            if labels:
+                                metric = reg_cls(name, doc, labels)
+                            else:
+                                metric = reg_cls(name, doc)
+                        except Exception:
+                            metric = None
+                    return metric
+                self._m_events_total = _cast(CounterLike, _safe(_Counter, 'events_published_total', 'g6_events_published_total', 'Events published (labeled by type)', ['type']))
+                self._m_backlog_current = _cast(GaugeLike, _safe(_Gauge, 'events_backlog_current', 'g6_events_backlog_current', 'Current event backlog size'))
+                self._m_backlog_highwater = _cast(GaugeLike, _safe(_Gauge, 'events_backlog_highwater', 'g6_events_backlog_highwater', 'High-water mark for event backlog size'))
+                self._m_consumers = _cast(GaugeLike, _safe(_Gauge, 'events_consumers', 'g6_events_consumers', 'Active SSE consumers'))
+                self._m_generation = _cast(GaugeLike, _safe(_Gauge, 'events_generation', 'g6_events_generation', 'Current panel generation (increments on panel_full)'))
+                self._m_last_full_unixtime = _cast(GaugeLike, _safe(_Gauge, 'events_last_full_unixtime', 'g6_events_last_full_unixtime', 'Unix timestamp of last panel_full event published'))
+                self._m_events_dropped = _cast(CounterLike, _safe(_Counter, 'events_dropped_total', 'g6_events_dropped_total', 'Events dropped (reason,type)', ['reason','type']))
+                self._m_events_full_recovery = _cast(CounterLike, _safe(_Counter, 'events_full_recovery_total', 'g6_events_full_recovery_total', 'Client-forced full snapshot recoveries'))
+                self._m_events_emitted = _cast(CounterLike, _safe(_Counter, 'events_emitted_total', 'g6_events_emitted_total', 'Events emitted to backlog (post-coalesce)', ['type']))
+                self._m_events_coalesced = _cast(CounterLike, _safe(_Counter, 'events_coalesced_total', 'g6_events_coalesced_total', 'Events coalesced (replaced prior with same key)', ['type']))
+                self._m_backlog_capacity = _cast(GaugeLike, _safe(_Gauge, 'events_backlog_capacity', 'g6_events_backlog_capacity', 'Configured event backlog capacity (max events)'))
                 if self._m_backlog_capacity is not None:
                     try:
                         self._m_backlog_capacity.set(self._max_events)
                     except Exception:
                         pass
-                self._m_last_id = _cast(GaugeLike, _safe(_Gauge, 'g6_events_last_id', 'Last emitted event id'))
-                self._m_forced_full_total = _cast(CounterLike, _safe(_Counter, 'g6_events_forced_full_total', 'Forced panel_full emissions by snapshot guard', labelnames=['reason']))
-                self._m_conn_duration = _cast(HistogramLike, _safe(_Histogram, 'g6_events_sse_connection_duration_seconds', 'SSE connection duration in seconds'))
+                self._m_last_id = _cast(GaugeLike, _safe(_Gauge, 'events_last_id', 'g6_events_last_id', 'Last emitted event id'))
+                self._m_forced_full_total = _cast(CounterLike, _safe(_Counter, 'events_forced_full_total', 'g6_events_forced_full_total', 'Forced panel_full emissions by snapshot guard', ['reason']))
+                self._m_conn_duration = _cast(HistogramLike, _safe(_Histogram, 'events_sse_connection_duration_seconds', 'g6_events_sse_connection_duration_seconds', 'SSE connection duration in seconds'))
                 # Backpressure metrics
-                self._m_backpressure_events = _cast(CounterLike, _safe(_Counter, 'g6_events_backpressure_events_total', 'Backpressure related events (warn/degrade transitions)', labelnames=['reason']))
-                self._m_degraded_mode = _cast(GaugeLike, _safe(_Gauge, 'g6_events_degraded_mode', 'Degraded mode active (1) or inactive (0)'))
+                self._m_backpressure_events = _cast(CounterLike, _safe(_Counter, 'events_backpressure_events_total', 'g6_events_backpressure_events_total', 'Backpressure related events (warn/degrade transitions)', ['reason']))
+                self._m_degraded_mode = _cast(GaugeLike, _safe(_Gauge, 'events_degraded_mode', 'g6_events_degraded_mode', 'Degraded mode active (1) or inactive (0)'))
             # If helper path failed to create the last_full gauge, perform a direct best-effort registration.
             if self._m_last_full_unixtime is None:
                 try:

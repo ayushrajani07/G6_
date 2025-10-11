@@ -18,7 +18,12 @@ Behavior:
 """
 from __future__ import annotations
 
-from typing import Optional, Set, Tuple
+from typing import Optional, Set, Tuple, Any
+try:
+    from src.orchestrator.gating_types import MetricsRegistryLike  # type: ignore
+except Exception:  # pragma: no cover
+    class MetricsRegistryLike:  # type: ignore
+        pass
 import os
 import logging
 
@@ -83,7 +88,7 @@ def parse_filters() -> tuple[Optional[Set[str]], Set[str]]:
     disabled = {g.strip() for g in disable_env.split(',') if g.strip()}
     return enabled, disabled
 
-def configure_registry_groups(reg):  # pragma: no cover - simple wiring
+def configure_registry_groups(reg: MetricsRegistryLike | Any):  # pragma: no cover - simple wiring
     """Attach group filtering predicate and capture enable/disable sets.
 
     Semantics (verified by tests in test_metric_groups_enable_disable.py):
@@ -169,7 +174,7 @@ def configure_registry_groups(reg):  # pragma: no cover - simple wiring
         pass
     return CONTROLLED_GROUPS, enabled_set, disabled_set
 
-def apply_pruning(reg, controlled: set[str], enabled_set, disabled_set):  # pragma: no cover - deterministic small loop
+def apply_pruning(reg: MetricsRegistryLike | Any, controlled: set[str], enabled_set, disabled_set):  # pragma: no cover - deterministic small loop
     try:
         always_on = getattr(reg, '_always_on_groups', set())
         predicate = getattr(reg, '_group_allowed', lambda n: True)

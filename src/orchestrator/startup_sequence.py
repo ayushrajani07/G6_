@@ -167,8 +167,8 @@ def resolve_expiries(ctx) -> Dict[str, Dict[str,str]]:
     mapping: Dict[str, Dict[str,str]] = {}
     index_params = getattr(ctx, 'index_params', None)
     if not index_params and hasattr(ctx, 'config') and hasattr(ctx.config, 'raw'):
-        raw = ctx.config.raw  # type: ignore[attr-defined]
-        index_params = raw.get('index_params') or raw.get('indices')  # type: ignore[assignment]
+        raw = getattr(ctx.config, 'raw')
+        index_params = raw.get('index_params') or raw.get('indices')
     if not isinstance(index_params, dict) or not index_params:
         logger.warning("[startup] No index_params available; cannot resolve expiries")
         return mapping
@@ -195,7 +195,7 @@ def resolve_expiries(ctx) -> Dict[str, Dict[str,str]]:
             base += timedelta(days=1)
         return base.isoformat()
 
-    for index, cfg in index_params.items():  # type: ignore[union-attr]
+    for index, cfg in index_params.items():
         tags = cfg.get('expiries') if isinstance(cfg, dict) else []
         row: Dict[str,str] = {}
         # Trace raw provider expiries if requested (best effort)
@@ -204,7 +204,7 @@ def resolve_expiries(ctx) -> Dict[str, Dict[str,str]]:
                 raw_list = None
                 pp = getattr(providers, 'primary_provider', None)
                 if pp and hasattr(pp, 'get_expiry_dates'):
-                    raw_list = list(pp.get_expiry_dates(index))  # type: ignore[attr-defined]
+                    raw_list = list(pp.get_expiry_dates(index))
                 if raw_list:
                     logger.info("[startup] raw_expiries index=%s count=%d sample=%s", index, len(raw_list), raw_list[:8])
             except Exception:  # pragma: no cover - diagnostic only
@@ -229,7 +229,7 @@ def resolve_expiries(ctx) -> Dict[str, Dict[str,str]]:
                     resolved = providers.resolve_expiry(index, tag)
                     # providers.resolve_expiry returns a date object
                     if hasattr(resolved, 'isoformat'):
-                        iso = resolved.isoformat()  # type: ignore[assignment]
+                        iso = resolved.isoformat()
                     else:  # unexpected type; attempt string coercion
                         iso = str(resolved)
                     row[tag] = iso

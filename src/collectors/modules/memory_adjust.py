@@ -62,7 +62,12 @@ def apply_memory_and_adaptive_scaling(
         passthrough = False
     if passthrough:
         try:
-            passthrough_scale_factor = float(getattr(ctx, 'flags', {}).get('adaptive_scale_factor', 1.0))  # type: ignore[arg-type]
+            flags = getattr(ctx, 'flags', {})
+            if isinstance(flags, dict):
+                raw = flags.get('adaptive_scale_factor', 1.0)
+            else:
+                raw = getattr(flags, 'adaptive_scale_factor', 1.0)
+            passthrough_scale_factor = float(raw)
         except Exception:
             passthrough_scale_factor = 1.0
 

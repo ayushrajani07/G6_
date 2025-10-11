@@ -17,6 +17,23 @@ import logging
 from dataclasses import dataclass
 from typing import Callable, List, Optional, Dict
 import os
+try:
+    from src.collectors.env_adapter import get_int as _env_get_int, get_str as _env_get_str  # type: ignore
+except Exception:  # pragma: no cover
+    def _env_get_int(name: str, default: int) -> int:
+        try:
+            v = os.getenv(name)
+            if v is None or str(v).strip() == "":
+                return default
+            return int(str(v).strip())
+        except Exception:
+            return default
+    def _env_get_str(name: str, default: str = "") -> str:
+        try:
+            v = os.getenv(name)
+            return default if v is None else v
+        except Exception:
+            return default
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +68,7 @@ class MemoryPressureManager:
         # Hysteresis tracking
         self._last_level_change_ts = time.time()
         self._stable_below_start = None
-        self.recovery_seconds = int(os.getenv('G6_MEMORY_PRESSURE_RECOVERY_SECONDS','60'))
+        self.recovery_seconds = _env_get_int('G6_MEMORY_PRESSURE_RECOVERY_SECONDS', 60)
         self.current_level = 0
         self.active_flags = {
             'reduce_depth': False,
@@ -64,12 +81,12 @@ class MemoryPressureManager:
         self.depth_scale = 1.0
         self._seconds_in_level_start = time.time()
         self._downgrade_pending = False
-        self.rollback_cooldown = int(os.getenv('G6_MEMORY_ROLLBACK_COOLDOWN', '120'))
+        self.rollback_cooldown = _env_get_int('G6_MEMORY_ROLLBACK_COOLDOWN', 120)
         self._last_downgrade_ts = None
         self._greeks_disabled_ts = None
         self.greeks_enabled = True
         self.per_option_metrics_enabled = True
-        self.atm_metric_window = int(os.getenv('G6_OPTION_METRIC_ATM_WINDOW', '3'))
+        self.atm_metric_window = _env_get_int('G6_OPTION_METRIC_ATM_WINDOW', 3)
 
     def sample(self):
         if not self.process:
@@ -226,7 +243,7 @@ class MemoryPressureManager:
             logger.info("Re-enabled per-option metrics after extended cooldown")
 
     def _load_tiers_from_env(self):
-        raw = os.getenv('G6_MEMORY_PRESSURE_TIERS')
+        raw = _env_get_str('G6_MEMORY_PRESSURE_TIERS', '')
         if not raw:
             return DEFAULT_TIERS
         try:

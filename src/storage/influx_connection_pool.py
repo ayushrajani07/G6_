@@ -61,9 +61,9 @@ class InfluxConnectionPool:
             while self._items:
                 c = self._items.pop()
                 try:
-                    close_fn = getattr(c, "close", None)  # type: ignore[attr-defined]
+                    close_fn = getattr(c, "close", None)
                     if callable(close_fn):
-                        close_fn()  # type: ignore[misc]
+                        close_fn()
                 except Exception:
                     pass
 

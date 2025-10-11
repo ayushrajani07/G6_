@@ -34,7 +34,7 @@ from __future__ import annotations
 import os, time, logging, threading
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Dict, Any, Callable, Optional
+from typing import Dict, Any, Callable, Optional, Iterator
 
 logger = logging.getLogger('src.collectors.pipeline')
 
@@ -42,12 +42,17 @@ _BASE_LEVEL = getattr(logging, os.getenv('G6_PIPELINE_LOG_LEVEL_BASE','INFO').up
 _DEDUP_DISABLED = os.getenv('G6_PIPELINE_LOG_DEDUP_DISABLE') in ('1','true','on','yes')
 _PHASE_METRICS = os.getenv('G6_PIPELINE_PHASE_METRICS') in ('1','true','on','yes')
 
-_phase_duration_observer = None
+_phase_duration_observer: Any | None = None
 if _PHASE_METRICS:
     try:
         # Lazy import: expect a metrics facade exposing histogram observe
-        from src.metrics import get_histogram  # type: ignore
-        _phase_duration_observer = get_histogram('pipeline_phase_duration_seconds', 'Pipeline phase durations', ['phase'])
+        import importlib
+        _m = importlib.import_module('src.metrics')
+        get_histogram = getattr(_m, 'get_histogram', None)
+        if callable(get_histogram):
+            _phase_duration_observer = get_histogram('pipeline_phase_duration_seconds', 'Pipeline phase durations', ['phase'])
+        else:
+            _phase_duration_observer = None
     except Exception:  # pragma: no cover
         _phase_duration_observer = None
 
@@ -67,18 +72,18 @@ class _PhaseRecord:
     def add_meta(self, **kw: Any) -> None:
         self.meta.update({k: v for k,v in kw.items() if v is not None})
 
-    def fail(self, reason: str | None = None):
+    def fail(self, reason: str | None = None) -> None:
         self.outcome = 'fail'
         self.reason = reason
-    def warn(self, reason: str | None = None):
+    def warn(self, reason: str | None = None) -> None:
         self.outcome = 'warn'
         self.reason = reason
-    def skip(self, reason: str | None = None):
+    def skip(self, reason: str | None = None) -> None:
         self.outcome = 'skip'
         self.reason = reason
 
 @contextmanager
-def phase_log(phase: str, ctx: Any = None, rule: str = '', index: str = ''):
+def phase_log(phase: str, ctx: Any = None, rule: str = '', index: str = '') -> Iterator[_PhaseRecord]:
     from src.collectors.pipeline.errors import PhaseRecoverableError, PhaseFatalError
     rec = _PhaseRecord(phase=phase, index=index, rule=rule, started=time.time())
     try:
@@ -101,18 +106,19 @@ def phase_log(phase: str, ctx: Any = None, rule: str = '', index: str = ''):
         if _PHASE_METRICS and _phase_duration_observer is not None:
             try:
                 dt = (time.time() - rec.started)
-                _phase_duration_observer.labels(phase=rec.phase).observe(dt)
+                if hasattr(_phase_duration_observer, 'labels'):
+                    _phase_duration_observer.labels(phase=rec.phase).observe(dt)
             except Exception:  # pragma: no cover
                 pass
 
 class PhaseLogger:
     REQUIRED_KEYS = ('phase','dt_ms','index','rule','outcome')
 
-    def __init__(self, base_logger: logging.Logger | None = None):
+    def __init__(self, base_logger: logging.Logger | None = None) -> None:
         self._logger = base_logger or logger
 
     @contextmanager
-    def phase_log(self, phase: str, index: str, rule: str, extra_meta_provider: Callable[[], Dict[str, Any]] | None = None):
+    def phase_log(self, phase: str, index: str, rule: str, extra_meta_provider: Callable[[], Dict[str, Any]] | None = None) -> Iterator[_PhaseRecord]:
         rec = _PhaseRecord(phase=phase, index=index, rule=rule, started=time.perf_counter())
         error: Exception | None = None
         try:
@@ -145,7 +151,7 @@ class PhaseLogger:
             if error is not None:
                 raise error
 
-    def _emit(self, payload: Dict[str, Any]):
+    def _emit(self, payload: Dict[str, Any]) -> None:
         # Dedup signature
         global _last_sig
         sig = (

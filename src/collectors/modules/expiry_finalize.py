@@ -43,48 +43,60 @@ Assumptions / Omissions for minimal risk:
 If any step fails, falls back to a failed legacy-shaped outcome with marker.
 """
 from __future__ import annotations
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Callable
 import logging, os
 
 logger = logging.getLogger(__name__)
 
 # Reuse existing persist flow & context helpers
+class _ExpiryContextFallback:  # baseline fallback; may be replaced by import below
+    def __init__(self, **k: Any) -> None:
+        for a,b in k.items():
+            setattr(self, a, b)
 try:  # pragma: no cover
-    from src.collectors.cycle_context import ExpiryContext  # type: ignore
+    from src.collectors.cycle_context import ExpiryContext as _ExpiryContextReal
+    ExpiryContext = _ExpiryContextReal  # simple alias (safe)
 except Exception:  # pragma: no cover
-    class ExpiryContext:  # type: ignore
-        def __init__(self, **k):
-            for a,b in k.items():
-                setattr(self, a, b)
+    ExpiryContext = _ExpiryContextFallback  # fallback alias
 
 try:  # pragma: no cover
     from src.collectors.modules.persist_flow import run_persist_flow
 except Exception:  # pragma: no cover
-    def run_persist_flow(*a, **k):  # type: ignore
+    def run_persist_flow(ctx: Any, enriched_data: Dict[str, Dict[str, Any]], expiry_ctx: Any, index_ohlc: Any, allowed_expiry_dates: set, trace: Callable[..., None], concise_mode: bool) -> Any:
         raise RuntimeError("persist_flow_unavailable")
 
 # Fallback classifier/status if imports fail
-try:  # pragma: no cover
-    from src.collectors.helpers.synthetic import classify_expiry_result as _classify_expiry_result  # type: ignore
-except Exception:  # pragma: no cover
-    def _classify_expiry_result(expiry_rec, enriched):  # type: ignore
-        return 'OK'
-try:  # pragma: no cover
-    from src.collectors.helpers.status_reducer import compute_expiry_status as _compute_expiry_status  # type: ignore
-except Exception:  # pragma: no cover
-    def _compute_expiry_status(rec):  # type: ignore
+def _classify_expiry_result(_expiry_rec: Dict[str, Any], _enriched: Dict[str, Any]) -> str:
+    status: str = 'OK'
+    try:  # pragma: no cover
+        from src.collectors.helpers.synthetic import classify_expiry_result as _real
+        _res = _real(_expiry_rec, _enriched)
+        if isinstance(_res, str):
+            status = _res
+    except Exception:
+        status = 'OK'
+    return status
+def _compute_expiry_status(_rec: Dict[str, Any]) -> str:
+    try:  # pragma: no cover
+        from src.collectors.helpers.status_reducer import compute_expiry_status as _real_status
+        _res: object = _real_status(_rec)
+        if isinstance(_res, str):
+            return _res
+    except Exception:
         return 'empty'
+    return 'empty'
 
 # Optional concise formatter
-try:  # pragma: no cover
-    from src.collectors.modules.formatters import format_concise_expiry_row  # type: ignore
-except Exception:  # pragma: no cover
-    def format_concise_expiry_row(**k):  # type: ignore
+def format_concise_expiry_row(**_k: Any) -> Any:
+    try:  # pragma: no cover
+        from src.collectors.modules.formatters import format_concise_expiry_row as _real_fmt
+        return _real_fmt(**_k)
+    except Exception:
         return None
 
 
 def finalize_from_enriched(
-    ctx,
+    ctx: Any,
     *,
     index_symbol: str,
     expiry_rule: str,
@@ -121,7 +133,7 @@ def finalize_from_enriched(
             return outcome
         # Extract pipeline clamp sentinel if present (injected by PrefilterClampPhase)
         try:
-            clamp_meta = clamp_sentinal or enriched_data.get('_pipeline_clamp')  # type: ignore
+            clamp_meta = clamp_sentinal or enriched_data.get('_pipeline_clamp')
             if isinstance(clamp_meta, dict):
                 expiry_rec['prefilter_clamped'] = True
                 expiry_rec['prefilter_original_instruments'] = clamp_meta.get('prefilter_original_instruments')
@@ -176,7 +188,7 @@ def finalize_from_enriched(
             _domain_models_enabled = False
         if _domain_models_enabled and enriched_data:
             try:
-                from src.domain.models import OptionQuote  # type: ignore
+                from src.domain.models import OptionQuote
                 for k,q in list(enriched_data.items()):
                     try:
                         OptionQuote.from_raw(k,q)
@@ -187,7 +199,7 @@ def finalize_from_enriched(
         # Snapshot build if requested
         if getattr(ctx, 'build_snapshots', False):
             try:
-                from src.collectors.modules.snapshots import build_expiry_snapshot  # type: ignore
+                from src.collectors.modules.snapshots import build_expiry_snapshot
                 snap_obj = build_expiry_snapshot(index_symbol, expiry_rule, expiry_date, atm_strike, enriched_data, per_index_ts)
                 if snap_obj is not None:
                     getattr(ctx, 'snapshots_accum', []).append(snap_obj)

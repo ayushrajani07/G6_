@@ -9,10 +9,44 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional, Protocol, Sequence, Tuple, Union
 try:
-    from src.utils.env_flags import is_truthy_env  # type: ignore
+    # Prefer central env adapter for consistency
+    from src.collectors.env_adapter import get_str as _env_get_str, get_bool as _env_get_bool, get_int as _env_get_int, get_float as _env_get_float  # type: ignore
 except Exception:  # pragma: no cover
-    def is_truthy_env(name: str) -> bool:  # type: ignore
-        return os.getenv(name,'').lower() in {'1','true','yes','on'}
+    # Safe fallbacks if adapter not available early in import graph
+    def _env_get_str(name: str, default: str = "") -> str:
+        try:
+            v = os.getenv(name)
+            return default if v is None else v
+        except Exception:
+            return default
+    def _env_get_bool(name: str, default: bool = False) -> bool:
+        try:
+            v = os.getenv(name)
+            if v is None:
+                return default
+            return v.strip().lower() in {"1","true","yes","on","y"}
+        except Exception:
+            return default
+    def _env_get_int(name: str, default: int) -> int:
+        try:
+            v = os.getenv(name)
+            if v is None or str(v).strip() == "":
+                return default
+            return int(str(v).strip())
+        except Exception:
+            return default
+    def _env_get_float(name: str, default: float) -> float:
+        try:
+            v = os.getenv(name)
+            if v is None or str(v).strip() == "":
+                return default
+            return float(str(v).strip())
+        except Exception:
+            return default
+
+# Backward-compat shim for existing truthy checks used in this module
+def is_truthy_env(name: str) -> bool:
+    return _env_get_bool(name, False)
 
 # Optional Rich support
 from typing import TYPE_CHECKING, Optional
@@ -60,12 +94,12 @@ def atomic_replace(src_path: str, dst_path: str, retries: int = 20, delay: float
     """
     import time as _time
 
-    fast = os.getenv("G6_TEST_FAST_IO") == "1"
+    fast = _env_get_bool("G6_TEST_FAST_IO", False)
     if fast:
         # Keep a couple quick retries to tolerate a transient race but cap total wait ~<20ms.
         retries = min(retries, 3)
         delay = min(delay, 0.005)
-    trace = fast and os.getenv("G6_TEST_FAST_IO_TRACE") == "1"
+    trace = fast and _env_get_bool("G6_TEST_FAST_IO_TRACE", False)
 
     for attempt in range(max(1, int(retries))):
         try:
@@ -94,7 +128,7 @@ def atomic_write_json(dst_path: str, payload: Dict[str, Any], *, ensure_ascii: b
         os.makedirs(os.path.dirname(dst_path) or ".", exist_ok=True)
     except Exception:
         pass
-    fast = os.getenv("G6_TEST_FAST_IO") == "1"
+    fast = _env_get_bool("G6_TEST_FAST_IO", False)
     tmp = dst_path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(payload, f, ensure_ascii=ensure_ascii, default=str, indent=indent)
@@ -193,7 +227,7 @@ class _ColorizingFilter(logging.Filter):  # pragma: no cover (cosmetic)
     def __init__(self):
         super().__init__('g6.color_filter')
         self._tty = sys.stdout.isatty() if hasattr(sys.stdout, 'isatty') else False
-        self._mode = os.getenv('G6_LOG_COLOR_MODE','auto').lower()
+        self._mode = _env_get_str('G6_LOG_COLOR_MODE','auto').lower()
         if self._mode not in {'auto','on','off'}:
             self._mode = 'auto'
         if self._mode == 'off':
@@ -233,7 +267,7 @@ class _ColorizingFilter(logging.Filter):  # pragma: no cover (cosmetic)
 def _install_color_filter():  # pragma: no cover (runtime cosmetic)
     try:
         # Avoid if Rich sink likely handling color (Rich provides own styling)
-        sinks_env = os.getenv('G6_OUTPUT_SINKS','stdout,logging').lower()
+        sinks_env = _env_get_str('G6_OUTPUT_SINKS','stdout,logging').lower()
         if 'rich' in sinks_env:
             return
         root = logging.getLogger()
@@ -321,9 +355,9 @@ class PanelFileSink:
         self._include = {s.strip().lower() for s in include} if include else None
         self._atomic = bool(atomic)
         # Control meta emission (default on)
-        self._always_meta = os.getenv("G6_PANELS_ALWAYS_META", "true").strip().lower() in ("1", "true", "yes", "on")
+        self._always_meta = _env_get_bool("G6_PANELS_ALWAYS_META", True)
         # Optional schema wrapper gate (v1 wrapper adds version + emitted_at and nests legacy payload under 'panel')
-        self._schema_wrapper = os.getenv("G6_PANELS_SCHEMA_WRAPPER", "").strip().lower() in ("1","true","yes","on")
+        self._schema_wrapper = _env_get_bool("G6_PANELS_SCHEMA_WRAPPER", False)
         # Transaction staging directory (per-txn subfolders)
         self._txn_root = os.path.join(self._base_dir, ".txn")
         # Ensure base dir exists early to make commit meta writes reliable
@@ -408,9 +442,9 @@ class PanelFileSink:
                 if txn_action == "commit":
                     stage_dir = self._txn_dir(str(txn_id))
                     committed: List[str] = []
-                    diag_env = os.getenv("G6_PANELS_TXN_DEBUG","")
+                    diag_env = _env_get_str("G6_PANELS_TXN_DEBUG", "")
                     # Optional auto-debug now gated by explicit env to avoid default noise in CI
-                    if not diag_env and os.getenv('PYTEST_CURRENT_TEST') and is_truthy_env('G6_PANELS_TXN_AUTO_DEBUG'):
+                    if not diag_env and _env_get_str('PYTEST_CURRENT_TEST','') and is_truthy_env('G6_PANELS_TXN_AUTO_DEBUG'):
                         diag_env = '1'
                     diag = diag_env not in ("","0","false","no","off")
                     if diag:
@@ -979,8 +1013,8 @@ class OutputRouter:
                 self.commit()
                 # Fallback verification: if staging directory still exists (commit failed silently), attempt direct copy
                 try:
-                    stage_dir = os.path.join(os.getenv('G6_PANELS_DIR', os.path.join('data','panels')), '.txn', self._txn_id)
-                    base_dir = os.getenv('G6_PANELS_DIR', os.path.join('data','panels'))
+                    base_dir = _env_get_str('G6_PANELS_DIR', os.path.join('data','panels'))
+                    stage_dir = os.path.join(base_dir, '.txn', self._txn_id)
                     if os.path.isdir(stage_dir):
                         for name in os.listdir(stage_dir):
                             if name.endswith('.json'):
@@ -1019,7 +1053,7 @@ class OutputRouter:
                 self.abort()
                 # Abort fallback cleanup if directory persists
                 try:
-                    base_dir = os.getenv('G6_PANELS_DIR', os.path.join('data','panels'))
+                    base_dir = _env_get_str('G6_PANELS_DIR', os.path.join('data','panels'))
                     stage_dir = os.path.join(base_dir, '.txn', self._txn_id)
                     if os.path.isdir(stage_dir):
                         import shutil as _sh, time as _t
@@ -1062,8 +1096,8 @@ _router_singleton: Optional[OutputRouter] = None
 
 
 def _build_from_env() -> OutputRouter:
-    sinks_env = os.getenv("G6_OUTPUT_SINKS", "stdout,logging").strip()
-    min_level = os.getenv("G6_OUTPUT_LEVEL", "info").strip().lower() or "info"
+    sinks_env = _env_get_str("G6_OUTPUT_SINKS", "stdout,logging").strip()
+    min_level = _env_get_str("G6_OUTPUT_LEVEL", "info").strip().lower() or "info"
     sinks: List[OutputSink] = []
 
     for token in [s.strip().lower() for s in sinks_env.split(",") if s.strip()]:
@@ -1075,15 +1109,15 @@ def _build_from_env() -> OutputRouter:
             if _rich_console is not None:
                 sinks.append(RichSink())
         elif token == "jsonl":
-            path = os.getenv("G6_OUTPUT_JSONL_PATH", "g6_output.jsonl")
+            path = _env_get_str("G6_OUTPUT_JSONL_PATH", "g6_output.jsonl")
             sinks.append(JsonlSink(path))
         elif token == "memory":
             sinks.append(MemorySink())
         elif token == "panels":
-            base_dir = os.getenv("G6_PANELS_DIR", os.path.join("data", "panels"))
-            include = os.getenv("G6_PANELS_INCLUDE", "").strip()
+            base_dir = _env_get_str("G6_PANELS_DIR", os.path.join("data", "panels"))
+            include = _env_get_str("G6_PANELS_INCLUDE", "").strip()
             include_set = [s for s in include.split(",") if s.strip()] if include else None
-            atomic = os.getenv("G6_PANELS_ATOMIC", "true").strip().lower() in ("1", "true", "yes", "on")
+            atomic = _env_get_bool("G6_PANELS_ATOMIC", True)
             sinks.append(PanelFileSink(base_dir, include=include_set, atomic=atomic))
         # Unknown tokens are ignored to be forgiving
 

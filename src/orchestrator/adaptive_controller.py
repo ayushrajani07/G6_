@@ -59,8 +59,15 @@ def _get_metrics_counter_value(metrics, name: str) -> int:
         if c is None:
             return 0
         # Prometheus client counters have _value.get() in python-client
-        if hasattr(c, '_value') and hasattr(c._value, 'get'):  # type: ignore[attr-defined]
-            return int(c._value.get())  # type: ignore[no-any-return]
+        v_ref = getattr(c, '_value', None)
+        getter = getattr(v_ref, 'get', None)
+        if callable(getter):
+            try:
+                from typing import Any as _Any
+                val: _Any = getter()
+                return int(val)
+            except Exception:
+                return 0
     except Exception:
         return 0
     return 0
@@ -106,7 +113,7 @@ def evaluate_adaptive_controller(ctx, elapsed: float, interval: float) -> None: 
     # Memory tier (0 good, 1 warning, 2 critical). Prefer dynamic ctx flag populated by memory_pressure evaluator; fallback to env.
     memory_tier = 0
     try:
-        memory_tier = int(ctx.flag('memory_tier'))  # type: ignore[attr-defined]
+        memory_tier = int(ctx.flag('memory_tier'))
     except Exception:
         try:
             memory_tier = int(os.environ.get('G6_MEMORY_TIER','0'))
@@ -176,7 +183,7 @@ def evaluate_adaptive_controller(ctx, elapsed: float, interval: float) -> None: 
 
     # Persist selected detail mode onto context for downstream components (e.g., strike builder, collectors)
     try:
-        ctx.set_flag('option_detail_mode', state.detail_mode)  # type: ignore[attr-defined]
+        ctx.set_flag('option_detail_mode', state.detail_mode)
     except Exception:
         pass
 
@@ -184,15 +191,35 @@ def evaluate_adaptive_controller(ctx, elapsed: float, interval: float) -> None: 
     if metrics:
         if action and hasattr(metrics, 'adaptive_controller_actions'):  # counter with labels
             try:
-                metrics.adaptive_controller_actions.labels(reason=reason or 'unknown', action=action).inc()  # type: ignore[attr-defined]
+                from typing import Any as _Any
+                labeller = getattr(metrics.adaptive_controller_actions, 'labels', None)
+                if callable(labeller):
+                    handle: _Any = labeller(reason=reason or 'unknown', action=action)
+                    inc_fn = getattr(handle, 'inc', None)
+                    if callable(inc_fn):
+                        inc_fn()
             except Exception:
                 pass
         # Per-index gauge updates (if collector loop later wants per-index granularity, replicate for each)
         if hasattr(metrics, 'option_detail_mode'):
             try:
                 # If multiple indices, apply same mode uniformly (future: index-specific decisions)
-                for idx in (list(ctx.index_params.keys()) if getattr(ctx, 'index_params', None) else []):  # type: ignore[assignment]
-                    metrics.option_detail_mode.labels(index=idx).set(state.detail_mode)  # type: ignore[attr-defined]
+                indices = []
+                try:
+                    indices = list(ctx.index_params.keys()) if getattr(ctx, 'index_params', None) else []
+                except Exception:
+                    indices = []
+                labeller = getattr(metrics.option_detail_mode, 'labels', None)
+                if callable(labeller):
+                    from typing import Any as _Any
+                    for idx in indices:
+                        try:
+                            handle: _Any = labeller(index=idx)
+                            set_fn = getattr(handle, 'set', None)
+                            if callable(set_fn):
+                                set_fn(state.detail_mode)
+                        except Exception:
+                            pass
             except Exception:
                 pass
 

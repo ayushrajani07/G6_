@@ -15,26 +15,37 @@ NOTE: This module intentionally keeps logic minimal; any future enhancements
 expiry_processor again.
 """
 from __future__ import annotations
-from typing import Any, Dict, Optional, Callable, Set
+from typing import Any, Dict, Optional, Callable, Set, TYPE_CHECKING
 import logging
 
 logger = logging.getLogger(__name__)
 
-try:  # local import guarding
+if TYPE_CHECKING:  # mypy-only imports
+    from src.collectors.persist_result import PersistResult  # pragma: no cover
+else:
+    class _PersistResultStub:  # lightweight runtime placeholder
+        def __init__(self, option_count: int = 0, pcr: Any = None, metrics_payload: Any = None, failed: bool = True) -> None:  # pragma: no cover
+            self.option_count = option_count
+            self.pcr = pcr
+            self.metrics_payload = metrics_payload
+            self.failed = failed
+    # During runtime (non-TYPE_CHECKING) we expose the stub so callers can still construct a
+    # PersistResult-like object in defensive paths without importing the heavy real class.
+    # No type: ignore needed because mypy never executes this branch.
+    PersistResult = _PersistResultStub
+try:  # pragma: no cover
     from src.collectors.helpers.persist import persist_with_context
-    from src.collectors.persist_result import PersistResult
 except Exception:  # pragma: no cover
-    PersistResult = object  # type: ignore
-    def persist_with_context(*a, **kw):  # type: ignore
+    def persist_with_context(*a: Any, **kw: Any) -> 'PersistResult':  # fallback
         raise RuntimeError("persist_with_context unavailable")
 
 TraceFn = Callable[[str], None] | Callable[[str, Any], None]
 
 
 def run_persist_flow(
-    ctx,
+    ctx: Any,
     enriched_data: Dict[str, Dict[str, Any]],
-    expiry_ctx,
+    expiry_ctx: Any,
     index_ohlc: Any,
     allowed_expiry_dates: Set[Any],
     trace: Callable[..., None],
@@ -87,7 +98,7 @@ def run_persist_flow(
         logger.error('persist_flow_unexpected_exception', exc_info=True)
         # Fabricate a failed PersistResult while avoiding import churn
         try:
-            return PersistResult(option_count=0, pcr=None, metrics_payload=None, failed=True)  # type: ignore
+            return PersistResult(option_count=0, pcr=None, metrics_payload=None, failed=True)
         except Exception:
             raise
 

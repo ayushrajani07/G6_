@@ -10,7 +10,7 @@ def format_concise_expiry_row(
     per_index_ts: datetime.datetime,
     index_price: float | int | None,
     atm_strike: float | int | None,
-    expiry_date,
+    expiry_date: Any,
     expiry_rule: str,
     enriched_data: Dict[str, Dict[str, Any]],
     strikes: Iterable[float] | None,

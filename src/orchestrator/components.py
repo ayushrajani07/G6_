@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Tuple
 import os
-from src.utils.env_flags import is_truthy_env  # type: ignore
+from src.utils.env_flags import is_truthy_env
 import time
 import logging
 import math
@@ -18,23 +18,23 @@ import datetime as _dt
 logger = logging.getLogger(__name__)
 
 try:  # optional imports preserved; fallbacks for early stages
-    from src.collectors.providers_interface import Providers  # type: ignore
+    from src.collectors.providers_interface import Providers as ProvidersFacade
     try:
-        from src.providers.composite_provider import CompositeProvider  # type: ignore
+        from src.providers.composite_provider import CompositeProvider
     except Exception:  # pragma: no cover
-        CompositeProvider = None  # type: ignore
-    from src.providers.factory import create_provider  # type: ignore
-    from src.storage.csv_sink import CsvSink  # type: ignore
-    from src.health.monitor import HealthMonitor  # type: ignore
-    from src.utils.resilience import HealthCheck  # type: ignore
-    from src.utils.circuit_breaker import CircuitBreaker  # type: ignore
-    from src.utils.retry import retryable  # type: ignore
-    from src.utils.circuit_registry import circuit_protected  # type: ignore
+        CompositeProvider = None  # type: ignore[assignment]
+    from src.providers.factory import create_provider
+    from src.storage.csv_sink import CsvSink
+    from src.health.monitor import HealthMonitor
+    from src.utils.resilience import HealthCheck
+    from src.utils.circuit_breaker import CircuitBreaker
+    from src.utils.retry import retryable
+    from src.utils.circuit_registry import circuit_protected
 except Exception as _providers_import_err:  # pragma: no cover
     # We failed to import the real Providers facade and related modules. Capture
     # the root exception so operators understand we are in degraded mode.
     logger.warning("[fallback Providers] Import failure activating degraded provider facade: %s", _providers_import_err)
-    class Providers:  # type: ignore
+    class _ProvidersFallback:
         """Fallback Providers shim (imports failed).
 
         Provides a minimal surface so collectors don't crash with AttributeError('get_index_data').
@@ -59,14 +59,14 @@ except Exception as _providers_import_err:  # pragma: no cover
                 elif isinstance(ltp_obj, dict) and ltp_obj:
                     first_val = next(iter(ltp_obj.values()))
                     if isinstance(first_val, dict):
-                        raw_price = first_val.get('last_price', 0)  # type: ignore[arg-type]
+                        raw_price = first_val.get('last_price', 0)
                         try:
                             price = float(raw_price) if raw_price is not None else 0.0
                         except Exception:
                             price = 0.0
                     else:
                         try:
-                            price = float(first_val)  # type: ignore[arg-type]
+                            price = float(first_val)
                         except Exception:
                             price = 0.0
                 else:
@@ -181,7 +181,7 @@ except Exception as _providers_import_err:  # pragma: no cover
                 def _safe_inc(lbl, amt=1):
                     try:
                         if lbl:
-                            lbl.inc(amt)  # type: ignore[attr-defined]
+                            lbl.inc(amt)
                     except Exception:
                         pass
                 if enriched_count:
@@ -193,13 +193,14 @@ except Exception as _providers_import_err:  # pragma: no cover
             return out
         def __getattr__(self, name):  # final fallback for unimplemented attrs
             raise AttributeError(name)
-    create_provider = lambda *a, **k: None  # type: ignore
-    CsvSink = object  # type: ignore
-    HealthMonitor = object  # type: ignore
-    HealthCheck = object  # type: ignore
-    CircuitBreaker = object  # type: ignore
-    retryable = lambda f: f  # type: ignore
-    circuit_protected = lambda name: (lambda f: f)  # type: ignore
+    ProvidersFacade = _ProvidersFallback
+    create_provider = lambda *a, **k: None
+    CsvSink = object
+    HealthMonitor = object
+    HealthCheck = object
+    CircuitBreaker = object
+    retryable = lambda f: f
+    circuit_protected = lambda name: (lambda f: f)
 
 # --- Defensive re-imports -------------------------------------------------
 # The broad optional import block above is intentionally coarse to keep the
@@ -210,15 +211,15 @@ except Exception as _providers_import_err:  # pragma: no cover
 # non-critical import failure (e.g. provider plugin missing) does not disable
 # storage initialization entirely.
 try:
-    if 'CsvSink' in globals() and getattr(CsvSink, '__name__', '') == 'object':  # type: ignore[name-defined]
-        from src.storage.csv_sink import CsvSink as _RealCsvSink  # type: ignore
-        CsvSink = _RealCsvSink  # type: ignore
+    if 'CsvSink' in globals() and getattr(CsvSink, '__name__', '') == 'object':
+        from src.storage.csv_sink import CsvSink as _RecoveredCsvSink
+        CsvSink = _RecoveredCsvSink
         logger.debug("Recovered real CsvSink after broad optional import fallback")
     # Attempt recovery of create_provider if it was downgraded to lambda None
-    if 'create_provider' in globals() and getattr(create_provider, '__name__', '') == '<lambda>':  # type: ignore[name-defined]
+    if 'create_provider' in globals() and getattr(create_provider, '__name__', '') == '<lambda>':
         try:
-            from src.providers.factory import create_provider as _real_create_provider  # type: ignore
-            create_provider = _real_create_provider  # type: ignore
+            from src.providers.factory import create_provider as _RecoveredCreate
+            create_provider = _RecoveredCreate
             logger.debug("Recovered real create_provider after broad optional import fallback")
         except Exception:
             logger.debug("create_provider recovery attempt failed", exc_info=True)
@@ -226,7 +227,7 @@ except Exception as _csv_reimport_err:  # pragma: no cover
     # Provide a minimal no-op CsvSink to preserve downstream logic; metrics &
     # providers can still function and orchestrator will fall back to unified
     # collectors with synthetic provider if necessary.
-    class _NullCsvSink:  # type: ignore
+    class _NullCsvSink:
         def __init__(self, base_dir: str):  # mimic signature
             self.base_dir = base_dir
             self.logger = logger
@@ -234,31 +235,39 @@ except Exception as _csv_reimport_err:  # pragma: no cover
             logger.warning("Using _NullCsvSink placeholder (CsvSink import failed: %s)", _csv_reimport_err)
         def attach_metrics(self, m):  # noqa: D401 - simple passthrough
             self.metrics = m
-    CsvSink = _NullCsvSink  # type: ignore
+    CsvSink = _NullCsvSink
 
 try:
-    from src.error_handling import get_error_handler, ErrorCategory, ErrorSeverity  # type: ignore
+    from src.error_handling import get_error_handler as _geh, ErrorCategory as _EC, ErrorSeverity as _ES
+    get_error_handler = _geh
+    ErrorCategory = _EC
+    ErrorSeverity = _ES
 except Exception:  # pragma: no cover
-    def get_error_handler():  # type: ignore
+    def _get_error_handler_fallback():
         class _EH:
             def handle_error(self, *a, **k):
                 pass
         return _EH()
-    class ErrorCategory:  # type: ignore
+    class _ErrorCategoryFallback:
         INITIALIZATION = 'init'
         FILE_IO = 'file'
         DATABASE = 'db'
         PROVIDER_API = 'provider'
-    class ErrorSeverity:  # type: ignore
+    class _ErrorSeverityFallback:
         HIGH = 'high'
         MEDIUM = 'med'
         LOW = 'low'
+    get_error_handler = _get_error_handler_fallback
+    ErrorCategory = _ErrorCategoryFallback
+    ErrorSeverity = _ErrorSeverityFallback
 
 try:  # influx optional
-    from src.storage.influx_sink import InfluxSink, NullInfluxSink  # type: ignore
+    from src.storage.influx_sink import InfluxSink as _RealInfluxSink, NullInfluxSink as _RealNullInfluxSink
+    InfluxSink = _RealInfluxSink
+    NullInfluxSink = _RealNullInfluxSink
 except Exception:  # pragma: no cover
-    InfluxSink = None  # type: ignore
-    class NullInfluxSink:  # type: ignore
+    InfluxSink = None
+    class _NullInfluxSink:
         def __init__(self):
             self._fallback = True
         # No-op writer methods expected by collectors
@@ -266,35 +275,36 @@ except Exception:  # pragma: no cover
             return 0
         def write_index_overview(self, *_, **__):  # compatibility no-op
             return 0
+    NullInfluxSink = _NullInfluxSink
 
 # --- Late resilience patches for missing health modules ----------------------
 # If the broad optional import block earlier downgraded HealthMonitor/HealthCheck
 # to the 'object' sentinel, provide lightweight stubs so that bootstrap does not
 # fail partway (which previously prevented ctx.providers from being assigned).
-if 'HealthMonitor' in globals() and HealthMonitor is object:  # type: ignore[name-defined]
-    class _NullHealthMonitor:  # type: ignore
+if 'HealthMonitor' in globals() and HealthMonitor is object:
+    class _NullHealthMonitor:
         def __init__(self, check_interval: int = 60, *_, **__):
             self.check_interval = check_interval
-            self._components = {}
+            self._components: dict[str, Any] = {}
         def register_component(self, name, component):
             self._components[name] = component
         def register_health_check(self, name, fn):  # pragma: no cover - minimal
             pass
         def __repr__(self):  # pragma: no cover
             return f"<NullHealthMonitor interval={self.check_interval}>"
-    HealthMonitor = _NullHealthMonitor  # type: ignore
+    HealthMonitor = _NullHealthMonitor
     logger.debug("HealthMonitor module missing; using _NullHealthMonitor stub")
 
-if 'HealthCheck' in globals() and HealthCheck is object:  # type: ignore[name-defined]
-    class _NullHealthCheck:  # type: ignore
+if 'HealthCheck' in globals() and HealthCheck is object:
+    class _NullHealthCheck:
         @staticmethod
         def check_storage(csv_sink):  # pragma: no cover - simple always-OK
             return True
-    HealthCheck = _NullHealthCheck  # type: ignore
+    HealthCheck = _NullHealthCheck
     logger.debug("HealthCheck module missing; using _NullHealthCheck stub")
 
 
-def init_providers(config) -> Providers:  # type: ignore[override]
+def init_providers(config) -> Any:
     if os.environ.get('G6_USE_MOCK_PROVIDER'):
         import random
         class MockProvider:  # minimal facade-compatible surface
@@ -334,8 +344,8 @@ def init_providers(config) -> Providers:  # type: ignore[override]
                     return out
                 return round(self._tick(self._symbol(instruments)), 2)
         logger.warning("[MOCK] Using synthetic MockProvider (no external API calls / auth).")
-        return Providers(primary_provider=MockProvider())  # type: ignore
-    pconf = config.get('providers', {}).get('primary', {})  # type: ignore[index]
+        return ProvidersFacade(primary_provider=MockProvider())
+    pconf = config.get('providers', {}).get('primary', {})
     ptype = pconf.get('type', 'kite').lower()
     provider = create_provider(ptype, pconf)
     if provider is None:
@@ -381,7 +391,8 @@ def init_providers(config) -> Providers:  # type: ignore[override]
                 return {instruments: {"last_price": base}}
         logger.warning("Provider factory returned None; using synthetic placeholder provider (no real market data).")
         provider = _SyntheticProvider()
-    providers_wrapper = Providers(primary_provider=provider)  # type: ignore
+    providers_wrapper = ProvidersFacade(primary_provider=provider)
+    metrics: Any = None  # optional metrics not wired here
     # Optional composite provider integration (env gated)
     try:
         if is_truthy_env('G6_COMPOSITE_PROVIDER'):
@@ -398,9 +409,9 @@ def init_providers(config) -> Providers:  # type: ignore[override]
                     logger.warning("Failed loading secondary provider from %s", sec_path)
             if extra and CompositeProvider:
                 try:
-                    cp = CompositeProvider([provider] + extra, metrics=metrics, name='primary_cluster')  # type: ignore
+                    cp = CompositeProvider([provider] + extra, metrics=metrics, name='primary_cluster')
                     # Wrap composite under Providers facade for downstream compatibility
-                    providers_wrapper.primary_provider = cp  # type: ignore
+                    providers_wrapper.primary_provider = cp
                 except Exception:
                     logger.debug("CompositeProvider construction failed", exc_info=True)
     except Exception:
@@ -412,25 +423,42 @@ def init_storage(config) -> Tuple[Any, Any]:
     from src.utils.path_utils import resolve_path  # local import to mirror legacy
     data_dir = resolve_path(config.data_dir(), create=True)
     try:
-        storage_cfg = config.get('storage', {})  # type: ignore[index]
+        storage_cfg = config.get('storage', {})
         os.environ.setdefault('G6_CSV_BUFFER_SIZE', str(storage_cfg.get('csv_buffer_size', 0)))
         os.environ.setdefault('G6_CSV_MAX_OPEN_FILES', str(storage_cfg.get('csv_max_open_files', 64)))
         os.environ.setdefault('G6_CSV_FLUSH_INTERVAL', str(storage_cfg.get('csv_flush_interval_seconds', 2.0)))
     except Exception:
         pass
-    csv_sink = CsvSink(base_dir=data_dir)  # type: ignore
+    csv_sink_ctor: Any = CsvSink
+    csv_sink = csv_sink_ctor(base_dir=data_dir)
     influx_cfg = config.get('influx', {})
     try:
-        sc = config.get('storage', {})  # type: ignore[index]
+        sc = config.get('storage', {})
         if isinstance(sc.get('influx'), dict):
-            influx_cfg = sc.get('influx')  # type: ignore[assignment]
+            influx_cfg = sc.get('influx')
     except Exception:
         pass
-    if influx_cfg.get('enable') and InfluxSink:
+    # Support both top-level influx and nested storage.influx and legacy 'enabled' key
+    enabled_flag = bool(influx_cfg.get('enable') or influx_cfg.get('enabled'))
+    # Influx is now mandatory for the platform; enforce enablement and client availability
+    if not InfluxSink:
+        raise RuntimeError("InfluxDB client not available; install influxdb-client and ensure import is working (Influx is mandatory).")
+    if not enabled_flag:
+        raise RuntimeError("InfluxDB is mandatory but disabled in config; set storage.influx.enable=true.")
+    if enabled_flag and InfluxSink:
         try:
+            # Allow environment substitution for token if provided as ${VAR}
+            _token_raw = influx_cfg.get('token') or os.environ.get('INFLUX_TOKEN', '')
+            if isinstance(_token_raw, str) and _token_raw.startswith('${') and _token_raw.endswith('}'):
+                _env_key = _token_raw[2:-1]
+                _token = os.environ.get(_env_key, '')
+            else:
+                _token = _token_raw
+            # Allow env override for URL to support runtime port changes without editing config
+            _url = os.environ.get('G6_INFLUX_URL') or influx_cfg.get('url', 'http://localhost:8086')
             influx = InfluxSink(
-                url=influx_cfg.get('url', 'http://localhost:8086'),
-                token=influx_cfg.get('token', ''),
+                url=_url,
+                token=_token,
                 org=influx_cfg.get('org', ''),
                 bucket=influx_cfg.get('bucket', 'g6_options'),
                 batch_size=int(influx_cfg.get('batch_size', 500)),
@@ -444,38 +472,29 @@ def init_storage(config) -> Tuple[Any, Any]:
                 pool_max_size=int(influx_cfg.get('pool_max_size', 2)),
             )
         except Exception as e:
-            try:
-                get_error_handler().handle_error(
-                    e,
-                    category=ErrorCategory.DATABASE,
-                    severity=ErrorSeverity.HIGH,
-                    component="components",
-                    function_name="init_storage",
-                    message="Influx init failed; falling back to NullInfluxSink",
-                )
-            except Exception:
-                pass
-            influx = NullInfluxSink()
-    else:
-        influx = NullInfluxSink()
+            # Hard fail: Influx mandatory
+            raise RuntimeError(f"InfluxDB initialization failed (mandatory): {e}")
     return csv_sink, influx
 
 
-def init_health(config, providers, csv_sink, influx_sink):  # type: ignore[override]
-    hcfg = config.get('health', {})  # type: ignore[index]
-    hm = HealthMonitor(check_interval=hcfg.get('check_interval', 60))  # type: ignore
+def init_health(config, providers, csv_sink, influx_sink) -> Any:
+    hcfg = config.get('health', {})
+    hm_ctor: Any = HealthMonitor
+    hm = hm_ctor(check_interval=hcfg.get('check_interval', 60))
     try:
-        if hasattr(hm, 'register_component'):
-            try: hm.register_component('providers', providers)  # type: ignore[attr-defined]
+        fn = getattr(hm, 'register_component', None)
+        if callable(fn):
+            try: fn('providers', providers)
             except Exception: pass
-            try: hm.register_component('csv_sink', csv_sink)  # type: ignore[attr-defined]
+            try: fn('csv_sink', csv_sink)
             except Exception: pass
             if influx_sink:
-                try: hm.register_component('influx_sink', influx_sink)  # type: ignore[attr-defined]
+                try: fn('influx_sink', influx_sink)
                 except Exception: pass
-        if hasattr(hm, 'register_health_check'):
+        rhc = getattr(hm, 'register_health_check', None)
+        if callable(rhc):
             try:
-                hm.register_health_check('csv_storage', lambda: HealthCheck.check_storage(csv_sink))  # type: ignore[attr-defined]
+                rhc('csv_storage', lambda: getattr(HealthCheck, 'check_storage', lambda *_: True)(csv_sink))
             except Exception:
                 pass
     except Exception:
@@ -497,37 +516,39 @@ def apply_circuit_breakers(config, providers):
         if hasattr(prov, 'get_quote'):
             base = prov.get_quote
             if retries_on:
-                base = retryable(base)  # type: ignore
-            prov.get_quote = circuit_protected('provider.primary.get_quote')(base)  # type: ignore
+                base = retryable(base)
+            prov.get_quote = circuit_protected('provider.primary.get_quote')(base)
         if hasattr(prov, 'get_ltp'):
             base = prov.get_ltp
             if retries_on:
-                base = retryable(base)  # type: ignore
-            prov.get_ltp = circuit_protected('provider.primary.get_ltp')(base)  # type: ignore
+                base = retryable(base)
+            prov.get_ltp = circuit_protected('provider.primary.get_ltp')(base)
         sec = getattr(providers, 'secondary_provider', None)
         if sec:
             if hasattr(sec, 'get_quote'):
                 base = sec.get_quote
                 if retries_on:
-                    base = retryable(base)  # type: ignore
-                sec.get_quote = circuit_protected('provider.secondary.get_quote')(base)  # type: ignore
+                    base = retryable(base)
+                sec.get_quote = circuit_protected('provider.secondary.get_quote')(base)
             if hasattr(sec, 'get_ltp'):
                 base = sec.get_ltp
                 if retries_on:
-                    base = retryable(base)  # type: ignore
-                sec.get_ltp = circuit_protected('provider.secondary.get_ltp')(base)  # type: ignore
+                    base = retryable(base)
+                sec.get_ltp = circuit_protected('provider.secondary.get_ltp')(base)
         return
     # legacy simple breaker
-    circuit_cfg = config.get('health', {}).get('circuit_breaker', {})  # type: ignore[index]
+    circuit_cfg = config.get('health', {}).get('circuit_breaker', {})
     if not circuit_cfg:
         return
     failure_threshold = circuit_cfg.get('failure_threshold', 5)
     reset_timeout = circuit_cfg.get('reset_timeout', 300)
     if prov:
         if hasattr(prov, 'get_quote'):
-            prov.get_quote = CircuitBreaker('api_quote', failure_threshold, reset_timeout)(prov.get_quote)  # type: ignore
+            cb_ctor: Any = CircuitBreaker
+            prov.get_quote = cb_ctor('api_quote', failure_threshold, reset_timeout)(prov.get_quote)
         if hasattr(prov, 'get_ltp'):
-            prov.get_ltp = CircuitBreaker('api_ltp', failure_threshold, reset_timeout)(prov.get_ltp)  # type: ignore
+            cb_ctor2: Any = CircuitBreaker
+            prov.get_ltp = cb_ctor2('api_ltp', failure_threshold, reset_timeout)(prov.get_ltp)
 
 __all__ = [
     'init_providers',

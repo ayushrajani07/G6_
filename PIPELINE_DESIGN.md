@@ -36,8 +36,21 @@ flags: dict[str, Any]       # transient markers (fabricated, salvaged, recovered
 ## 3. Phase Inventory & Contracts
 Each phase: `(ctx, settings, state) -> state` (returns same or new instance). Failures raise categorized exceptions OR append structured error markers.
 
-| Phase | Purpose | Inputs (read) | Outputs (write) | Primary Events | Failure Category Examples |
-|-------|---------|---------------|------------------|----------------|---------------------------|
+| Phase | Purpose / Contract Summary | Inputs (read) | Outputs / State Mutations | Primary Structured Events (examples) | Failure Category Examples | Retry / Gating Notes |
+|-------|-----------------------------|---------------|---------------------------|--------------------------------------|---------------------------|----------------------|
+| resolve | Determine target expiry; fabricate if provider gap. Ensures `expiry_date` or sets `flags.fabricated`. | index, rule, provider expiries catalogue | `expiry_date` (non-null) OR `flags.fabricated=1`; may seed initial `strikes` list. | `expiry.resolve.ok`, `expiry.resolve.fabricated`, `expiry.resolve.abort` | Abort: no viable expiries; Recoverable: transient provider error; Fatal: invalid rule mapping | No retry inside phase (idempotent); upstream loop may re-enter next cycle. |
+| fetch | Pull raw instrument & quote universe (option chain). Must preserve ordering & uniqueness. | expiry_date, provider client/session, index metadata | `instruments` list (deduped, ordered), may annotate `errors` on soft gaps | `expiry.fetch.count`, `expiry.fetch.empty` | Recoverable: provider timeout/partial; Fatal: structural schema mismatch | Single attempt; upstream may implement exponential backoff across cycles. |
+| prefilter | Reduce universe by liquidity / domain rules; maintain consistent ladder shape. | instruments, settings thresholds | filtered `instruments`, pruned `strikes` list | `expiry.prefilter.applied` | Recoverable: filter eliminates all (empty ladder) | If empty result, downstream may salvage (salvage phase) before abort. |
+| enrich | Build analytics payload (greeks-ready enriched quotes). | instruments (filtered), strikes | `enriched` mapping keyed by instrument id | `expiry.enrich.count`, `expiry.enrich.partial` | Recoverable: calculation subset failures; Fatal: systemic calculator init failure | Partial progress allowed; failures recorded per instrument. |
+| validate | Enforce data quality & structural invariants (strike continuity, coverage). | enriched, strikes, settings | `errors` appended; may set `flags.validation_failed` | `expiry.validate.pass`, `expiry.validate.fail` | Recoverable: coverage shortfall; Abort: fabricated path invalid; Fatal: invariant corruption | No mutation rollback; downstream phases may consult flags. |
+| salvage | Attempt recovery (foreign expiry mapping, synthetic ladder). | state (possibly failed), recovery strategy impl | Potentially adjusted `strikes`, additional `enriched` entries, `flags.salvaged` | `expiry.salvage.applied`, `expiry.salvage.skip` | Recoverable: salvage attempt fails; Fatal: corrupt intermediate state | Guarded by strategy availability; executes only if prior deficiencies detected. |
+| coverage | Compute strike / field coverage metrics; populate summary record. | strikes, enriched | `expiry_rec.coverage` dict | `expiry.coverage.metrics` | Recoverable: insufficient ladder; Fatal: impossible metrics math | Pure read/derive; no retries needed. |
+| iv | Implied volatility estimations; tolerant of per-instrument math errors. | enriched (prices, strikes) | augmented `enriched` (iv fields) | `expiry.iv.metrics` | Recoverable: engine numeric failure; Fatal: misconfigured model params | Per-instrument guarded; continues on individual failures. |
+| greeks | Derive standard greeks; similar tolerances to iv phase. | enriched (with iv) | augmented `enriched` (delta,gamma,theta,vega) | `expiry.greeks.metrics` | Recoverable: divide-by-zero / math domain | Per-instrument guarded; continues on failures. |
+| persist | Emit snapshot to storage / sink (simulation or real). | expiry_rec, enriched snapshot | side effects; may set `flags.persisted` | `expiry.persist.ok`, `expiry.persist.fail` | Recoverable: transient sink error; Fatal: serialization corruption | Optional internal retry (short) if sink transient flagged. |
+| classify | Apply regime / category tags for expiry analytics. | expiry_rec.coverage, enriched stats | `expiry_rec.classification` | `expiry.classify.ok`, `expiry.classify.fail` | Recoverable: rules mismatch; Fatal: classifier config missing | Deterministic; no internal retry. |
+| snapshot | Construct outward-facing payload structure. | prior state (expiry_rec, enriched) | `expiry_rec.snapshot` structure | `expiry.snapshot.ok`, `expiry.snapshot.fail` | Recoverable: serialization corner-case | One-shot JSON build; upstream may still finalize partial. |
+| summarize | Final aggregation + metrics emission + parity hook. | entire state, metrics facade, legacy baseline (optional) | metrics side effects; parity log event (if enabled); final `errors` consolidated | `expiry.complete`, `pipeline_parity_score` (conditional) | Recoverable: metrics emission failure; Fatal: none (should degrade gracefully) | Last phase; never retries; ensures cleanup logging. |
 ## 4. Wave 1 Additions (2025-10-08)
 
 ### 4.1 Structured Phase Logging (Initial)
@@ -85,6 +98,66 @@ Score output JSON shape:
 
 Promotion readiness provisional target: rolling 200-cycle score >= 0.995.
 
+### 4.6 Retry Policy & Backoff Strategy (Wave 4 – W4-17)
+
+This section codifies per-phase retry expectations, metrics, and operator tuning levers formalized in Wave 4.
+
+#### Principles
+1. Avoid hidden unbounded loops inside phases; prefer single attempt or per-instrument guards.
+2. Surface every retry via explicit metrics (attempt, retry, backoff histogram) for tuning & anomaly detection.
+3. Exponential backoff + jitter + ceiling (5s) preserves responsiveness while dampening transient bursts.
+
+#### Metrics
+| Metric | Purpose |
+|--------|---------|
+| `g6_pipeline_phase_attempts{phase}` | Total phase invocations (attempt 1 + retries) |
+| `g6_pipeline_phase_retries{phase}` | Retry attempts only (attempt >1) |
+| `g6_pipeline_phase_retry_backoff_seconds{phase}` | Distribution of applied sleep delays |
+| `g6_pipeline_phase_last_attempts{phase}` | Attempts used in most recent cycle |
+| `g6_pipeline_phase_outcomes{phase,final_outcome}` | Outcome distribution (ok|fail|fatal|abort) |
+
+#### Environment
+| Env Var | Default | Description |
+|---------|---------|-------------|
+| `G6_RETRY_BACKOFF` | 0.2 | Base backoff seconds feeding exponential schedule (capped) |
+
+(Jitter amplitude & cap currently fixed; future flags may expose.)
+
+#### Phase Policies
+| Phase | Internal Retries? | Mode | Notes |
+|-------|-------------------|------|-------|
+| resolve | No | Single | Deterministic; re-run needs fresh provider state |
+| fetch | Yes (exp backoff) | Whole-phase | Transient provider/network issues only; fatal schema aborts |
+| prefilter | No | Transform | Deterministic filtering |
+| enrich | Per-instrument guards | Sub-unit | Each instrument independent; failing ones skipped |
+| validate | No | Check | Invariants deterministic |
+| salvage | No | Strategy | Idempotent; repeat adds no value |
+| coverage | No | Derive | Pure compute |
+| iv/greeks | Per-instrument guards | Sub-unit | Numeric instability isolated |
+| persist | Optional bounded | Whole-phase | Short retry for transient IO only |
+| classify | No | Deterministic | Stable rule eval |
+| snapshot | No | Serialize | Deterministic JSON assembly |
+| summarize | No | Aggregate | Final stage should degrade gracefully |
+
+#### Backoff Mechanics
+Delay = base * 2^(attempt-1) + jitter (0..base) capped at 5s. Observed in `g6_pipeline_phase_retry_backoff_seconds`.
+
+#### Taxonomy Interaction
+- `PhaseFatalError` aborts immediately (no retries).
+- `PhaseRecoverableError` may trigger retry (fetch) or be logged & skipped (enrich per-instrument).
+- Abort conditions (e.g. empty viable expiries) bypass retries; external state must change.
+
+#### Operator Guidance
+1. Watch sustained growth in `pipeline_phase_retries{phase="fetch"}` + latency drift.
+2. Adjust `G6_RETRY_BACKOFF` cautiously; too low amplifies provider pressure, too high increases recovery latency.
+3. Track p95 of backoff histogram for early provider responsiveness signals.
+4. Correlate retries with outcome counters to distinguish systemic vs transient issues.
+
+#### Future Enhancements
+- Configurable jitter & cap.
+- Adaptive scaling based on recent failure ratio.
+- Structured anomaly on retry density spikes.
+
 ### 4.4 Benchmark Harness Skeleton
 Script `scripts/bench_collectors.py` (dummy provider) produces relative p50/p95 deltas:
 ```
@@ -108,8 +181,8 @@ Expected stabilization criteria to adopt in Wave 2:
 1. Parity score threshold: >=0.995 (base components) for rolling window (N=200 cycles).
 2. Performance: pipeline p50 <= legacy p50 * 1.05, p95 <= legacy p95 * 1.10.
 3. Error taxonomy adoption: <2% of expiries marked fatal in observation window.
-4. Alert parity: symmetric difference ratio < 0.02.
-5. Rollback drill documented & validated (automated script TBD).
+4. Alert parity: weighted alert mismatch fraction < 0.02 (see Wave 3 alert weighting); fallback symmetric diff ratio < 0.02 if weighting disabled.
+5. Rollback drill documented & validated (automated script + artifact & counter emitted).
 
 ## 6. Next Documentation Updates
 - Add detailed phase table enumerating phase ordering, outcome semantics, emitted metrics, and retry policy.
@@ -192,11 +265,109 @@ _End Wave 2 additions_
 | snapshot | Build public snapshot structure | prior state | expiry_rec.snapshot | `expiry.snapshot.ok` | serialization fail (recoverable) |
 | summarize | Final log & metrics emission | entire state | none (terminal) | `expiry.complete` | aggregate metrics fail (ignore) |
 
+## 8. Wave 3 Additions (2025-10-08)
+
+### 8.1 Extended Parity (Version 2)
+Feature flag: `G6_PARITY_EXTENDED=1` enables parity score version `2` adding `strike_coverage` component (average strike coverage similarity). If disabled, version `1` emitted. Existing components unchanged.
+
+### 8.2 Rolling Parity Window
+Env flag: `G6_PARITY_ROLLING_WINDOW=<N>` (N>1) records recent parity scores and logs rolling average (`rolling_avg`, `rolling_count`, `rolling_window`). When metrics available a gauge `g6_pipeline_parity_rolling_avg` is emitted.
+
+### 8.3 Benchmark Delta Automation
+Script: `scripts/bench_delta.py`
+Runs internal benchmark harness, computes p50/p95/mean deltas, enforces thresholds (env override or CLI), optional metrics emission (flag `G6_BENCH_METRICS=1`), and writes JSON artifact. Supports CI gating.
+
+#### 8.3.1 Runtime Benchmark Cycle Integration (Wave 4 – W4-09)
+Rationale: Continuous visibility into performance deltas during normal operation without waiting for scheduled CI runs. Provides early detection of regressions introduced by configuration or market regime shifts.
+
+Implementation: Helper `_maybe_run_benchmark_cycle` invoked at the end of each pipeline cycle (post main work, pre-return). It executes a lightweight in-process run of `scripts.bench_collectors` with a small cycle count and emits Gauges mirroring those produced by `bench_delta`.
+
+Environment Flags:
+- `G6_BENCH_CYCLE=1` – master enable (disabled by default)
+- `G6_BENCH_CYCLE_INTERVAL_SECONDS` – minimum seconds between benchmark executions (default 300)
+- `G6_BENCH_CYCLE_INDICES` – indices spec (default `NIFTY:1:1`)
+- `G6_BENCH_CYCLE_CYCLES` – measurement cycles (default 8, capped at 40)
+- `G6_BENCH_CYCLE_WARMUP` – warmup cycles (default 2, capped at 10)
+
+Metrics Emitted (Gauge):
+- `g6_bench_legacy_p50_seconds`
+- `g6_bench_legacy_p95_seconds`
+- `g6_bench_pipeline_p95_seconds`
+- `g6_bench_delta_p50_pct`
+- `g6_bench_delta_p95_pct`
+- `g6_bench_delta_mean_pct`
+
+Safety & Overhead:
+- Timestamp guard prevents re-run before interval elapses.
+- All failures suppressed with debug logs (no impact to main cycle path).
+- Upper bounds on cycles/warmup minimize latency impact (< few ms typical under dummy provider scenario).
+
+Test: `tests/test_bench_cycle_integration.py` uses monkeypatch to simulate harness & prometheus client ensuring gauges populated with expected values.
+
+#### 8.3.2 Benchmark P95 Regression Threshold Alert (Wave 4 – W4-10)
+Purpose: Automated early warning when pipeline p95 latency regresses beyond an operator-configured percentage relative to legacy collector baseline.
+
+Environment Flag:
+- `G6_BENCH_P95_ALERT_THRESHOLD` – Numeric (float) percentage allowed regression (e.g., `25` for 25%). When set, a gauge `g6_bench_p95_regression_threshold_pct` is emitted each benchmark cycle or eagerly created if the cycle is skipped due to interval gating.
+
+Metrics Consumed:
+- `g6_bench_delta_p95_pct` (positive means pipeline slower; negative implies improvement)
+- `g6_bench_p95_regression_threshold_pct` (configured threshold)
+
+Prometheus Alert Rule (`prometheus_alerts.yml`):
+```
+alert: BenchP95RegressionHigh
+expr: (g6_bench_delta_p95_pct > g6_bench_p95_regression_threshold_pct) and (g6_bench_p95_regression_threshold_pct >= 0)
+for: 5m
+labels:
+  severity: warning
+  category: performance
+```
+
+Behavior:
+* Fires if the delta remains above threshold for 5 minutes (scrape interval aggregated via Prometheus for() semantics).
+* Guard term `(g6_bench_p95_regression_threshold_pct >= 0)` prevents accidental firing when threshold unset or negative due to misconfiguration.
+
+Implementation Notes:
+* Threshold gauge created early on `_maybe_run_benchmark_cycle` invocation to allow alert to evaluate even during intervals without a fresh benchmark run (delta gauge retains last value).
+* Gauge value updated only if env var parses as float; parse failures logged at debug and skipped.
+
+Testing:
+Future Enhancements:
+* Extend to p50 and mean thresholds with independent env vars.
+* Add CI pre-merge gate reading last N minutes of scraped metrics to block merges crossing threshold prior to deploy.
+* Adaptive thresholding (dynamic baseline window) if legacy path retired.
+
+### 8.4 Rollback Drill Enhancements
+`scripts/rollback_drill.py` now:
+- Persists artifact (parity snapshot + anomaly summary) to timestamped file (`--artifact-dir`).
+- Increments counter `g6_pipeline_rollback_drill_total` (name via metrics facade).
+- Attempts parity snapshot capture before disabling pipeline.
+
+### 8.5 Taxonomy Counters Exposure
+Added counters:
+- `pipeline_expiry_recoverable_total`
+- `pipeline_index_fatal_total`
+Public facade helpers `dump_metrics` / `get_counter` ensure tests can discover these even if registry initialization race occurs.
+
+### 8.6 Alert Parity Weighting & Detailed Component
+Parity scorer now consumes structured alert categories when available (snapshot `alerts` block). Environment variable `G6_PARITY_ALERT_WEIGHTS` allows severity weighting (format: `cat1:2,cat2:0.5`). Weighted normalized difference becomes alert parity component (0 perfect). Details surface per-category legacy vs pipeline counts, weight, and normalized diff. If weights or structured categories absent, symmetric difference fallback used.
+
+New gauge: `g6_pipeline_alert_parity_diff` (weighted normalized alert mismatch fraction) emitted when parity logging enabled and metrics available.
+
+### 8.7 Documentation & Phase Contract Table
+Inserted comprehensive phase contract table (Section 3) enumerating inputs, mutations, primary events, failure categories, and retry/gating notes.
+
+### 8.8 Promotion Gate Adjustments
+- Alert parity gate updated to use weighted mismatch fraction when weighting enabled.
+- Rolling parity average (window 200 target) emphasized for readiness evaluation.
+
+### 8.9 Pending (Wave 4 Preview)
+- Alert taxonomy severity normalization & UI surfacing.
+- Phase-level retry/backoff strategy tuning & metrics.
+- Metrics cardinality audit + pruning unsupported legacy shims.
 ## 4. Error Taxonomy (Planned Application)
 | Exception | Semantics | Handling |
-|-----------|----------|----------|
-| PhaseRecoverableError | Phase failed but pipeline can proceed or salvage | Record error, attempt salvage/continue |
-| PhaseAbortError | Expected abort (e.g., no viable instruments) | Stop further phases, treat gracefully |
 | PhaseFatalError | Unexpected invariant violation | Terminate processing, escalate metrics/alert |
 
 ## 5. Feature Flag Matrix

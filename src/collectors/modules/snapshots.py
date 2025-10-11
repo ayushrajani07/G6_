@@ -3,26 +3,26 @@
 Separated from legacy unified_collectors to reduce inline complexity.
 """
 from __future__ import annotations
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 import logging
 
 logger = logging.getLogger(__name__)
 
 try:  # domain models may not be present in some reduced test contexts
-    from src.domain.models import OptionQuote, ExpirySnapshot  # type: ignore
+    from src.domain.models import OptionQuote, ExpirySnapshot  # pragma: no cover
 except Exception:  # pragma: no cover
-    OptionQuote = None  # type: ignore
-    ExpirySnapshot = None  # type: ignore
+    OptionQuote = None  # sentinel when models unavailable
+    ExpirySnapshot = None  # sentinel when models unavailable
 
 
 def build_expiry_snapshot(
     index: str,
     expiry_rule: str,
-    expiry_date,
+    expiry_date: Any,
     atm_strike: float | int | None,
     enriched_data: Dict[str, Dict[str, Any]],
-    generated_at,
-) -> Any | None:
+    generated_at: Any,
+) -> Optional[Any]:
     """Build an ExpirySnapshot object from enriched option data.
 
     Returns the snapshot instance or None if construction failed or models unavailable.
@@ -34,8 +34,13 @@ def build_expiry_snapshot(
     try:
         option_objs: List[Any] = []
         for sym, q in enriched_data.items():
+            if OptionQuote is None:
+                break  # no model available; skip building individual option quotes
             try:
-                option_objs.append(OptionQuote.from_raw(sym, q))  # type: ignore[attr-defined]
+                from_raw = getattr(OptionQuote, 'from_raw', None)
+                if from_raw is None:
+                    continue
+                option_objs.append(from_raw(sym, q))
             except Exception:
                 continue
         atm_val: float = float(atm_strike) if atm_strike is not None else 0.0

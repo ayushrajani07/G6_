@@ -26,7 +26,7 @@ Future Extensions (not implemented now):
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol, Any, Dict, List, Optional, Iterable, Tuple
+from typing import Protocol, Any, Dict, List, Optional, Iterable, Tuple, cast
 import datetime
 import os
 import logging
@@ -84,7 +84,7 @@ class PersistenceBlock(Protocol):
 # ----------------------------------------------------------------------------
 class ProvidersAdapter:
     """Adapter over the existing providers facade used in unified collectors."""
-    def __init__(self, providers, metrics=None):
+    def __init__(self, providers: Any, metrics: Any | None = None) -> None:
         self.providers = providers
         self.metrics = metrics
 
@@ -102,10 +102,10 @@ class ProvidersAdapter:
         return wi
 
     def fetch(self, wi: ExpiryWorkItem) -> List[Dict[str, Any]]:  # InstrumentFetcher
-        return self.providers.get_option_instruments(wi.index, wi.expiry_date, wi.strikes)
+        return cast(List[Dict[str, Any]], self.providers.get_option_instruments(wi.index, wi.expiry_date, wi.strikes))
 
     def enrich(self, wi: ExpiryWorkItem, instruments: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:  # QuoteEnricher
-        return self.providers.enrich_with_quotes(instruments)
+        return cast(Dict[str, Dict[str, Any]], self.providers.enrich_with_quotes(instruments))
 
 class NoOpAnalytics(AnalyticsBlock):
     def apply(self, ee: EnrichedExpiry) -> None:  # pragma: no cover - trivial
@@ -113,7 +113,7 @@ class NoOpAnalytics(AnalyticsBlock):
 
 class IVEstimationBlock(AnalyticsBlock):
     """Estimate IV for options lacking iv (lightweight subset of legacy logic)."""
-    def __init__(self, greeks_calculator, risk_free_rate: float, max_iter: int = 100, iv_min: float = 0.01, iv_max: float = 5.0, precision: float = 1e-5):
+    def __init__(self, greeks_calculator: Any, risk_free_rate: float, max_iter: int = 100, iv_min: float = 0.01, iv_max: float = 5.0, precision: float = 1e-5) -> None:
         self.g = greeks_calculator
         self.r = risk_free_rate
         self.max_iter = max_iter
@@ -154,7 +154,7 @@ class IVEstimationBlock(AnalyticsBlock):
 
 class GreeksBlock(AnalyticsBlock):
     """Compute Greeks (delta, gamma, theta, vega, rho) if missing."""
-    def __init__(self, greeks_calculator, risk_free_rate: float):
+    def __init__(self, greeks_calculator: Any, risk_free_rate: float) -> None:
         self.g = greeks_calculator
         self.r = risk_free_rate
 
@@ -185,7 +185,7 @@ class GreeksBlock(AnalyticsBlock):
                 continue
 
 class CsvPersistAdapter(PersistenceBlock):
-    def __init__(self, csv_sink, influx_sink=None, metrics=None):
+    def __init__(self, csv_sink: Any, influx_sink: Any | None = None, metrics: Any | None = None) -> None:
         self.csv = csv_sink
         self.influx = influx_sink
         self.metrics = metrics
@@ -273,10 +273,10 @@ class CollectorPipeline:
             return None, None
 
 def build_default_pipeline(
-    providers,
-    csv_sink,
-    influx_sink=None,
-    metrics=None,
+    providers: Any,
+    csv_sink: Any,
+    influx_sink: Any | None = None,
+    metrics: Any | None = None,
     compute_greeks: bool = False,
     estimate_iv: bool = False,
     risk_free_rate: float = 0.05,
@@ -290,7 +290,7 @@ def build_default_pipeline(
     expiry_service = build_expiry_service()
     if expiry_service:
         class ServiceResolver:
-            def resolve(self, wi: ExpiryWorkItem) -> ExpiryWorkItem:  # type: ignore
+            def resolve(self, wi: ExpiryWorkItem) -> ExpiryWorkItem:
                 try:
                     # Acquire candidate list from provider if available else fallback to adapter
                     cands = []
@@ -306,15 +306,15 @@ def build_default_pipeline(
                     return wi
                 except Exception:  # pragma: no cover
                     return adapter.resolve(wi)
-        resolver = ServiceResolver()
+        resolver: ExpiryResolver = ServiceResolver()
     else:
-        resolver = adapter
+        resolver = cast(ExpiryResolver, adapter)
     persist = CsvPersistAdapter(csv_sink, influx_sink=influx_sink, metrics=metrics)
     analytics: List[AnalyticsBlock] = []
     greeks_calculator = None
     if compute_greeks or estimate_iv:
         try:  # lazy import to avoid overhead when disabled
-            from src.analytics.option_greeks import OptionGreeks  # type: ignore
+            from src.analytics.option_greeks import OptionGreeks
             greeks_calculator = OptionGreeks(risk_free_rate=risk_free_rate)
         except Exception as e:  # pragma: no cover
             logger.debug("Greeks calculator init failed: %s", e)

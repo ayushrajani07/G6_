@@ -13,18 +13,23 @@ from typing import Any, Dict
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
-from src.utils.env_flags import is_truthy_env  # type: ignore
 try:
-    from .adaptive import update_strike_scaling  # type: ignore
+    from src.utils.env_flags import is_truthy_env
 except Exception:  # pragma: no cover
-    def update_strike_scaling(*_, **__):  # type: ignore
+    def is_truthy_env(name: str) -> bool:
+        val = os.environ.get(name, '')
+        return val.lower() in ('1','true','yes','on')
+try:
+    from .adaptive import update_strike_scaling
+except Exception:  # pragma: no cover
+    def update_strike_scaling(*_, **__):
         return None
 
 from src.orchestrator.context import RuntimeContext
 try:  # optional event dispatch (graceful if module absent)
-    from src.events.event_log import dispatch as emit_event  # type: ignore
+    from src.events.event_log import dispatch as emit_event
 except Exception:  # pragma: no cover
-    def emit_event(*_, **__):  # type: ignore
+    def emit_event(*_, **__):
         return None
 
 logger = logging.getLogger(__name__)
@@ -72,19 +77,24 @@ def _env_int(name: str, default: int, *, minimum: Optional[int] = None, maximum:
     return n
 
 try:  # unified collectors (primary path)
-    from src.collectors.unified_collectors import run_unified_collectors  # type: ignore
+    from src.collectors.unified_collectors import run_unified_collectors as _run_uc  # noqa: F401
+    # Expose as Any-typed alias so we can safely replace with None when module missing without mypy Callable assignment errors
+    run_unified_collectors: Any = _run_uc
 except Exception:  # pragma: no cover
-    run_unified_collectors = None  # type: ignore
+    run_unified_collectors: Any = None
 # snapshot_collectors path removed after integration into unified collectors (placeholder kept for backward import safety)
-run_snapshot_collectors = None  # type: ignore
+run_snapshot_collectors = None
 
 # Optional pipeline collector (Phase 4.1 Action #2). Activated via G6_PIPELINE_COLLECTOR=1
 _PIPELINE_FLAG = is_truthy_env('G6_PIPELINE_COLLECTOR')
+# Provide an Any-typed alias to avoid assigning None to a Callable-typed import
+build_default_pipeline: Any = None
 if _PIPELINE_FLAG:
     try:  # defer import cost until flag set
-        from src.collectors.pipeline import build_default_pipeline  # type: ignore
+        from src.collectors.pipeline import build_default_pipeline as _build_default_pipeline  # noqa: F401
+        build_default_pipeline = _build_default_pipeline
     except Exception:  # pragma: no cover
-        build_default_pipeline = None  # type: ignore
+        build_default_pipeline = None
 
 
 def _collect_single_index(index_key: str, index_params: Dict[str, Any], ctx: RuntimeContext) -> None:
@@ -96,16 +106,19 @@ def _collect_single_index(index_key: str, index_params: Dict[str, Any], ctx: Run
     having to patch orchestrator.cycle.run_unified_collectors directly.
     """
     sliced = {index_key: index_params}
-    greeks_cfg = ctx.config.get('greeks', {})  # type: ignore[index]
     try:
-        import src.collectors.unified_collectors as _uni_mod  # type: ignore
+        greeks_cfg = ctx.config.get('greeks', {})
+    except Exception:
+        greeks_cfg = {}
+    try:
+        import src.collectors.unified_collectors as _uni_mod
         _run = getattr(_uni_mod, 'run_unified_collectors', run_unified_collectors)
     except Exception:  # pragma: no cover
         _run = run_unified_collectors
-    if _run:
+    if callable(_run):
         _run(
             sliced,
-            ctx.providers,  # type: ignore[arg-type]
+            ctx.providers,
             ctx.csv_sink,
             ctx.influx_sink,
             ctx.metrics,
@@ -118,8 +131,9 @@ def _collect_single_index(index_key: str, index_params: Dict[str, Any], ctx: Run
         )
     else:  # fallback minimal index price update
         try:  # pragma: no cover
-            if hasattr(ctx, 'providers') and hasattr(ctx.providers, 'get_index_data'):
-                ctx.providers.get_index_data(index_key)  # type: ignore[attr-defined]
+            prov = getattr(ctx, 'providers', None)
+            if prov is not None and hasattr(prov, 'get_index_data'):
+                prov.get_index_data(index_key)
         except Exception:
             logger.debug("fallback get_index_data failed for %s", index_key, exc_info=True)
 
@@ -154,23 +168,27 @@ def run_cycle(ctx: RuntimeContext) -> float:
         if last_start is not None:
             elapsed_since_last = start - float(last_start)
             if elapsed_since_last >= (interval_env * factor):
-                if getattr(ctx, 'metrics', None) and hasattr(ctx.metrics, 'missing_cycles'):
+                mref = getattr(ctx, 'metrics', None)
+                if mref is not None and hasattr(mref, 'missing_cycles'):
                     try:
-                        ctx.metrics.missing_cycles.inc()  # type: ignore[attr-defined]
+                        mref.missing_cycles.inc()
                     except Exception:
                         pass
         # Only update the baseline start when we have providers (i.e., a real collection attempt)
         if getattr(ctx, 'providers', None) is not None:
-            ctx._last_cycle_start = start  # type: ignore[attr-defined]
+            try:
+                setattr(ctx, '_last_cycle_start', start)
+            except Exception:
+                pass
     except Exception:
         logger.debug("missing cycle detection failed", exc_info=True)
 
     # Guard: providers not initialized -> skip rest but return elapsed (non-zero) so tests can advance
     if getattr(ctx, 'providers', None) is None:
-        if not getattr(run_cycle, '_g6_warned_missing_providers', False):  # type: ignore[attr-defined]
+        if not getattr(run_cycle, '_g6_warned_missing_providers', False):
             logger.warning("run_cycle: providers missing; cycle producing NO_DATA (credentials or provider init required)")
             try:
-                setattr(run_cycle, '_g6_warned_missing_providers', True)  # type: ignore[attr-defined]
+                setattr(run_cycle, '_g6_warned_missing_providers', True)
             except Exception:
                 pass
         return 0.0
@@ -188,7 +206,10 @@ def run_cycle(ctx: RuntimeContext) -> float:
         # Guard extremely low or high values
         if max_workers < 1:
             max_workers = 1
-        indices = list(ctx.index_params.keys())  # type: ignore[assignment]
+        try:
+            indices = list(ctx.index_params.keys())
+        except Exception:
+            indices = []
         if parallel_enabled and len(indices) > 1:
             # Budget & timeout parameters
             interval_env = _env_float('G6_CYCLE_INTERVAL', 60.0, minimum=0.1)
@@ -221,9 +242,13 @@ def run_cycle(ctx: RuntimeContext) -> float:
                         break
                     if stagger_ms > 0:
                         time.sleep(stagger_ms/1000.0)
-                    fut = executor.submit(_collect_single_index, idx, ctx.index_params[idx], ctx)  # type: ignore[index]
-                    fut._g6_index = idx  # type: ignore[attr-defined]
-                    fut._g6_start = time.time()  # type: ignore[attr-defined]
+                    params_map = ctx.index_params or {}
+                    fut = executor.submit(_collect_single_index, idx, params_map[idx], ctx)
+                    try:
+                        setattr(fut, '_g6_index', idx)
+                        setattr(fut, '_g6_start', time.time())
+                    except Exception:
+                        pass
                     fut_map[fut] = idx
                 return fut_map
             with ThreadPoolExecutor(max_workers=min(len(indices), max_workers)) as executor:
@@ -238,7 +263,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
                         elapsed_map[idx] = elapsed_i
                         if ctx.metrics and hasattr(ctx.metrics, 'parallel_index_elapsed'):
                             try:
-                                ctx.metrics.parallel_index_elapsed.observe(elapsed_i)  # type: ignore[attr-defined]
+                                ctx.metrics.parallel_index_elapsed.observe(elapsed_i)
                             except Exception:
                                 pass
                         completed.add(idx)
@@ -263,7 +288,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
                         skipped = [i for i in indices if i not in completed and i not in failures]
                         if skipped and ctx.metrics and hasattr(ctx.metrics, 'parallel_cycle_budget_skips'):
                             try:
-                                ctx.metrics.parallel_cycle_budget_skips.inc(len(skipped))  # type: ignore[attr-defined]
+                                ctx.metrics.parallel_cycle_budget_skips.inc(len(skipped))
                             except Exception:
                                 pass
                         break
@@ -276,7 +301,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
                     while attempts < retry_limit:
                         attempts += 1
                         try:
-                            _collect_single_index(idx, ctx.index_params[idx], ctx)  # type: ignore[index]
+                            _collect_single_index(idx, ctx.index_params[idx], ctx)
                             if ctx.metrics and hasattr(ctx.metrics, 'parallel_index_retries'):
                                 try:
                                     ctx.metrics.parallel_index_retries.labels(index=idx).inc()
@@ -291,13 +316,16 @@ def run_cycle(ctx: RuntimeContext) -> float:
                                 logger.debug("Retry attempt %s failed for %s", attempts, idx, exc_info=True)
         else:
             # Fallback to batch invocation (original single-call path)
-            if run_unified_collectors:
+            if callable(run_unified_collectors):
                 # Pipeline mode (non-enhanced path only)
                 if _PIPELINE_FLAG:
-                    if 'build_default_pipeline' in globals() and build_default_pipeline is not None:
+                    if callable(build_default_pipeline):
                         try:
-                            greeks_cfg = ctx.config.get('greeks', {})  # type: ignore[index]
-                            pipe = build_default_pipeline(
+                            try:
+                                greeks_cfg = ctx.config.get('greeks', {})
+                            except Exception:
+                                greeks_cfg = {}
+                            pipe: Any = build_default_pipeline(
                                 ctx.providers,
                                 ctx.csv_sink,
                                 ctx.influx_sink,
@@ -313,23 +341,30 @@ def run_cycle(ctx: RuntimeContext) -> float:
                             overview_capture: dict[str, dict[str,float]] = {}
                             base_ts: dict[str, float] = {}
                             day_width_map: dict[str, int] = {}
-                            for _idx, _params in (ctx.index_params or {}).items():  # type: ignore[union-attr]
+                            for _idx, _params in (ctx.index_params or {}).items():
                                 if not isinstance(_params, dict) or not _params.get('enable', True):
                                     continue
                                 expiries = _params.get('expiries', ['this_week'])
                                 # Index price & ATM
                                 index_price = 0.0
                                 try:
-                                    index_price, _ohlc = ctx.providers.get_index_data(_idx)  # type: ignore[attr-defined]
+                                    prov = getattr(ctx, 'providers', None)
+                                    if prov is not None and hasattr(prov, 'get_index_data'):
+                                        index_price, _ohlc = prov.get_index_data(_idx)
                                 except Exception:
                                     pass
                                 try:
-                                    atm = ctx.providers.get_atm_strike(_idx)  # type: ignore[attr-defined]
+                                    prov2 = getattr(ctx, 'providers', None)
+                                    if prov2 is not None and hasattr(prov2, 'get_atm_strike'):
+                                        atm = prov2.get_atm_strike(_idx)
+                                    else:
+                                        atm = 0.0
                                 except Exception:
                                     atm = 0.0
                                 # Build strikes list via shared utility
                                 try:
-                                    from src.utils.strikes import build_strikes  # type: ignore
+                                    from src.utils import strikes as _strikes_mod
+                                    build_strikes = getattr(_strikes_mod, 'build_strikes', None)
                                     passthrough = is_truthy_env('G6_ADAPTIVE_SCALE_PASSTHROUGH')
                                     scale_factor = None
                                     if passthrough:
@@ -337,18 +372,28 @@ def run_cycle(ctx: RuntimeContext) -> float:
                                             scale_factor = ctx.flag('adaptive_scale_factor', 1.0)
                                         except Exception:
                                             scale_factor = 1.0
-                                    strikes = build_strikes(
-                                        atm,
-                                        int(_params.get('strikes_itm',10)),
-                                        int(_params.get('strikes_otm',10)),
-                                        _idx,
-                                        scale=scale_factor if passthrough else None,
-                                    )
+                                    if callable(build_strikes):
+                                        strikes = build_strikes(
+                                            atm,
+                                            int(_params.get('strikes_itm',10)),
+                                            int(_params.get('strikes_otm',10)),
+                                            _idx,
+                                            scale=scale_factor if passthrough else None,
+                                        )
+                                    else:
+                                        strikes = []
                                 except Exception:
-                                    strikes = []  # type: ignore
+                                    strikes = []
                                 for _rule in expiries:
                                     try:
-                                        from src.collectors.pipeline import ExpiryWorkItem  # type: ignore
+                                        ExpiryWorkItem = None
+                                        try:
+                                            from src.collectors import pipeline as _pipe_mod
+                                            ExpiryWorkItem = getattr(_pipe_mod, 'ExpiryWorkItem', None)
+                                        except Exception:
+                                            ExpiryWorkItem = None
+                                        if ExpiryWorkItem is None:
+                                            raise RuntimeError('ExpiryWorkItem unavailable')
                                         wi = ExpiryWorkItem(index=_idx, expiry_rule=_rule, expiry_date=None, strikes=strikes, index_price=index_price, atm_strike=atm)
                                         _ee, outcome = pipe.run_expiry(wi)
                                         if outcome and not outcome.failed and outcome.pcr is not None and outcome.expiry_code:
@@ -383,41 +428,48 @@ def run_cycle(ctx: RuntimeContext) -> float:
                             _elapsed_pipeline = time.time() - start
                             # Record cycle time histogram if available (mirrors logic at function end)
                             try:
-                                if getattr(ctx, 'metrics', None) and hasattr(ctx.metrics, 'cycle_time_seconds'):
-                                    ctx.metrics.cycle_time_seconds.observe(_elapsed_pipeline)  # type: ignore[attr-defined]
+                                mref = getattr(ctx, 'metrics', None)
+                                c_hist = getattr(mref, 'cycle_time_seconds', None)
+                                if c_hist is not None and hasattr(c_hist, 'observe'):
+                                    c_hist.observe(_elapsed_pipeline)
                             except Exception:
                                 logger.debug("cycle_time_seconds observe failed (pipeline early)")
                             ctx.cycle_count += 1
                             return _elapsed_pipeline  # early return after pipeline execution
                         except Exception:
                             logger.debug("pipeline collector failed; falling back to legacy unified collectors", exc_info=True)
-                greeks_cfg = ctx.config.get('greeks', {})  # type: ignore[index]
+                try:
+                    greeks_cfg = ctx.config.get('greeks', {})
+                except Exception:
+                    greeks_cfg = {}
                 auto_snapshots = is_truthy_env('G6_AUTO_SNAPSHOTS')
                 # Dynamically resolve unified collectors each cycle so external monkeypatching works (tests rely on this)
                 try:
-                    import src.collectors.unified_collectors as _uni_mod  # type: ignore
+                    import src.collectors.unified_collectors as _uni_mod
                     _run_uc = getattr(_uni_mod, 'run_unified_collectors', run_unified_collectors)
                 except Exception:  # pragma: no cover
                     _run_uc = run_unified_collectors
-                result = _run_uc(
-                    ctx.index_params,
-                    ctx.providers,  # type: ignore[arg-type]
-                    ctx.csv_sink,
-                    ctx.influx_sink,
-                    ctx.metrics,
-                    compute_greeks=bool(greeks_cfg.get('enabled')),
-                    risk_free_rate=float(greeks_cfg.get('risk_free_rate', 0.05)),
-                    estimate_iv=bool(greeks_cfg.get('estimate_iv', False)),
-                    iv_max_iterations=int(greeks_cfg.get('iv_max_iterations', 100)),
-                    iv_min=float(greeks_cfg.get('iv_min', 0.01)),
-                    iv_max=float(greeks_cfg.get('iv_max', 5.0)),
-                    build_snapshots=auto_snapshots,
-                )
+                result = None
+                if callable(_run_uc):
+                    result = _run_uc(
+                        ctx.index_params,
+                        ctx.providers,
+                        ctx.csv_sink,
+                        ctx.influx_sink,
+                        ctx.metrics,
+                        compute_greeks=bool(greeks_cfg.get('enabled')),
+                        risk_free_rate=float(greeks_cfg.get('risk_free_rate', 0.05)),
+                        estimate_iv=bool(greeks_cfg.get('estimate_iv', False)),
+                        iv_max_iterations=int(greeks_cfg.get('iv_max_iterations', 100)),
+                        iv_min=float(greeks_cfg.get('iv_min', 0.01)),
+                        iv_max=float(greeks_cfg.get('iv_max', 5.0)),
+                        build_snapshots=auto_snapshots,
+                    )
                 if auto_snapshots and result and isinstance(result, dict):
                     try:
-                        snaps = result.get('snapshots')  # type: ignore[index]
+                        snaps = result.get('snapshots')
                         if snaps:
-                            from src.domain import snapshots_cache  # type: ignore
+                            from src.domain import snapshots_cache
                             snapshots_cache.update(snaps)
                     except Exception:
                         logger.debug("auto_snapshots: unified collectors snapshot integration failed", exc_info=True)
@@ -427,15 +479,17 @@ def run_cycle(ctx: RuntimeContext) -> float:
     elapsed = time.time() - start
     # Record cycle time histogram if metrics registry exposes it
     try:
-        if getattr(ctx, 'metrics', None) and hasattr(ctx.metrics, 'cycle_time_seconds'):
-            ctx.metrics.cycle_time_seconds.observe(elapsed)  # type: ignore[attr-defined]
+        mref = getattr(ctx, 'metrics', None)
+        c_hist = getattr(mref, 'cycle_time_seconds', None)
+        if c_hist is not None and hasattr(c_hist, 'observe'):
+            c_hist.observe(elapsed)
     except Exception:
         logger.debug("cycle_time_seconds observe failed", exc_info=True)
     # Global phase timing consolidated emission (once per overall cycle)
     try:
         if os.environ.get('G6_GLOBAL_PHASE_TIMING','').lower() in ('1','true','yes','on'):
             try:
-                from src.orchestrator import global_phase_timing as _gpt  # type: ignore
+                from src.orchestrator import global_phase_timing as _gpt
                 # runtime context may have cycle_ts attribute else fallback epoch int of start
                 cycle_ts_attr = getattr(ctx, 'cycle_ts', None)
                 if cycle_ts_attr is None:
@@ -456,9 +510,11 @@ def run_cycle(ctx: RuntimeContext) -> float:
             interval_env = _env_float('G6_CYCLE_INTERVAL', 60.0, minimum=0.1)
             sla_fraction = float(os.environ.get('G6_CYCLE_SLA_FRACTION','0.85'))
             sla_budget = max(0.0, interval_env * sla_fraction)
-            if elapsed > sla_budget and hasattr(ctx.metrics, 'cycle_sla_breach'):
+            if elapsed > sla_budget:
                 try:
-                    ctx.metrics.cycle_sla_breach.inc()  # type: ignore[attr-defined]
+                    g_breach = getattr(ctx.metrics, 'cycle_sla_breach', None)
+                    if g_breach is not None and hasattr(g_breach, 'inc'):
+                        g_breach.inc()
                 except Exception:
                     pass
             # Update global data gap seconds (time since last successful cycle)
@@ -466,18 +522,25 @@ def run_cycle(ctx: RuntimeContext) -> float:
                 last_success = getattr(ctx.metrics, '_last_success_cycle_time', None)
                 if last_success:
                     gap = max(0.0, time.time() - last_success)
-                    if hasattr(ctx.metrics, 'data_gap_seconds'):
-                        ctx.metrics.data_gap_seconds.set(gap)  # type: ignore[attr-defined]
+                    g_gap = getattr(ctx.metrics, 'data_gap_seconds', None)
+                    if g_gap is not None and hasattr(g_gap, 'set'):
+                        g_gap.set(gap)
             except Exception:
                 pass
             # Per-index gap updates use index_last_collection_unixtime gauge's internal values are not directly accessible;
             # rely on context if it tracks last per-index success timestamps; fallback skip if absent.
             try:
-                if hasattr(ctx, 'last_index_success_times') and isinstance(ctx.last_index_success_times, dict):  # type: ignore[attr-defined]
-                    for _idx, ts in ctx.last_index_success_times.items():  # type: ignore[assignment]
-                        if ts and hasattr(ctx.metrics, 'index_data_gap_seconds'):
+                last_map = getattr(ctx, 'last_index_success_times', None)
+                if isinstance(last_map, dict):
+                    for _idx, ts in last_map.items():
+                        if ts:
                             gap_i = max(0.0, time.time() - float(ts))
-                            ctx.metrics.index_data_gap_seconds.labels(index=_idx).set(gap_i)  # type: ignore[attr-defined]
+                            g_idx_gap = getattr(ctx.metrics, 'index_data_gap_seconds', None)
+                            if g_idx_gap is not None and hasattr(g_idx_gap, 'labels'):
+                                try:
+                                    g_idx_gap.labels(index=_idx).set(gap_i)
+                                except Exception:
+                                    pass
             except Exception:
                 pass
     except Exception:
@@ -490,7 +553,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
     # Mark successful cycle timestamp for gap metrics (only if not failed)
     try:
         if not cycle_failed and getattr(ctx, 'metrics', None) is not None:
-            setattr(ctx.metrics, '_last_success_cycle_time', time.time())  # type: ignore[attr-defined]
+            setattr(ctx.metrics, '_last_success_cycle_time', time.time())
     except Exception:
         logger.debug("failed to set last_success_cycle_time", exc_info=True)
     # Adaptive strike scaling (optional)
@@ -501,26 +564,26 @@ def run_cycle(ctx: RuntimeContext) -> float:
         logger.debug("adaptive scaling hook failed", exc_info=True)
     # Cardinality guard evaluation (best-effort, does not raise)
     try:
-        from .cardinality_guard import evaluate_cardinality_guard  # type: ignore
+        from .cardinality_guard import evaluate_cardinality_guard
         evaluate_cardinality_guard(ctx)
     except Exception:
         logger.debug("cardinality guard evaluation failed", exc_info=True)
     # Memory pressure evaluation (sets ctx.flag('memory_tier') or no-ops). Placed before adaptive controller.
     try:
-        from .memory_pressure import evaluate_memory_tier  # type: ignore
+        from .memory_pressure import evaluate_memory_tier
         evaluate_memory_tier(ctx)
     except Exception:
         logger.debug("memory pressure evaluation failed", exc_info=True)
     # Adaptive controller evaluation (multi-signal detail mode + scaling decisions)
     try:
-        from .adaptive_controller import evaluate_adaptive_controller  # type: ignore
+        from .adaptive_controller import evaluate_adaptive_controller
         interval_env = _env_float('G6_CYCLE_INTERVAL', 60.0, minimum=0.1)
         evaluate_adaptive_controller(ctx, elapsed, interval_env)
     except Exception:
         logger.debug("adaptive controller evaluation failed", exc_info=True)
     # New adaptive detail mode logic (vol surface + memory + SLA + cardinality) updating option detail modes
     try:
-        from src.adaptive.logic import evaluate_and_apply  # type: ignore
+        from src.adaptive.logic import evaluate_and_apply
         indices = list((ctx.index_params or {}).keys())  # type: ignore[assignment]
         if indices:
             evaluate_and_apply(indices)
@@ -549,7 +612,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
                     from scripts.check_integrity import main as integrity_main  # type: ignore
                 except Exception:
                     integrity_main = None  # type: ignore
-                if integrity_main:
+                if integrity_main is not None:
                     # Write summary output to logs/integrity_auto.json (overwrite) best-effort by passing args
                     out_path = os.path.join('logs','integrity_auto.json')
                     os.makedirs('logs', exist_ok=True)

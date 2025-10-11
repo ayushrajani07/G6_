@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file. Dates use I
 ## [Unreleased]
 ### Removed
 - Synthetic fallback system fully excised: phase (`synthetic_fallback`), helper module (`modules/synthetic_fallback.py` logic), status code path (`SYNTH`), settings flag (`disable_synthetic_fallback` / env `G6_DISABLE_SYNTHETIC_FALLBACK`), metrics counter & recording helper, parity harness & structured event synthetic fields, provider capability advertisement. Inert import-safe stubs retained (`collectors.helpers.synthetic`, `collectors.modules.synthetic_fallback`) emitting deprecation warnings if invoked. All tests referencing synthetic behavior either removed or converted to assert absence.
+ - Legacy parity harness (W4-11): removed `src/orchestrator/parity_harness.py`, `src/collectors/parity_harness.py`, legacy orchestrator parity tests (`test_orchestrator_parity*`, `test_parity_golden_verify.py`) and deprecated snapshot generator scripts now exit early. Parity validation now exercised via `compute_parity_score` tests and parity signature logic. Guidance: use pipeline parity score logging & metrics (`pipeline_parity_score`, rolling avg gauge) for ongoing parity observability.
 
 ### Changed
 - Pipeline & expiry processor no longer branch on synthetic fallback; empty quote scenarios now surface directly to coverage / alert logic (simpler reasoning, fewer silent data fabrications). Documentation updated to reflect direct empties (operators should rely on coverage + alert metrics rather than synthetic presence).
@@ -107,6 +108,66 @@ All notable changes to this project will be documented in this file. Dates use I
 - Introduced `test_deprecation_hygiene.py` ensuring no unexpected `DeprecationWarning` emissions under representative import sequence; supports verbose mode via `G6_DEPRECATION_HYGIENE_VERBOSE=1`.
 - Tombstoned obsolete CollectorSettings immutability assertions (synthetic fallback flag removed) retaining minimal singleton stability test; stale attribute references purged.
 - Orchestrator pipeline flag deprecation remains validated in dedicated test; additional suite runs avoid emitting its warning by not setting deprecated flag.
+
+### Added (Dashboard Envelope Completion – W4-13)
+- Finalized panel envelope schema (`panel-envelope-v1`) introducing explicit fields: `version`, `generated_at`, `meta.source`, `meta.schema`, and truncated data hash `meta.hash` (12 hex) alongside existing `panel`, `updated_at`, `data`.
+- All dashboard panels now emitted exclusively as `<name>_enveloped.json` by default (indices_panel, alerts, system, performance, analytics, links, etc.).
+- Introduced environment flag `G6_PANELS_LEGACY_COMPAT=1` enabling temporary dual-write of legacy plain `<name>.json` files for rollback / consumer migration validation.
+- Added tests `test_panels_enveloped_only.py` asserting envelope-only default and parity under compatibility mode; updated runtime validation tests to accept new fields.
+
+### Changed (Panels Emission)
+- Legacy plain panel filenames no longer written unless compatibility flag is set (previous duplication removed to reduce IO + confusion and eliminate drift risk).
+- README panel schema section rewritten to reflect envelope (`panel`, `version`, `generated_at`, `updated_at`, `data`, `meta{source,schema,hash}`).
+### Added (Fatal Ratio Alert Validation – W4-02)
+- Formalized fatal ratio alert coverage: existing recording rule `g6:pipeline_fatal_ratio_15m` and alerts `G6PipelineFatalSpike` (0.05 > 10m), `G6PipelineFatalSustained` (0.10 > 5m), and `G6PipelineParityFatalCombo` (parity < 0.985 & fatal ratio > 0.05 > 5m) now guarded by dedicated test `tests/test_fatal_ratio_alert_rule.py` asserting expression thresholds and `for:` durations. Tracking updated in `WAVE4_TRACKING.md` (status Done). No runtime changes; codifies acceptance & prevents silent drift.
+### Added (Bench P95 Regression Alert – W4-10)
+- Introduced Prometheus alert `BenchP95RegressionHigh` (warning, 5m) firing when `g6_bench_delta_p95_pct > g6_bench_p95_regression_threshold_pct` and threshold gauge non-negative. Supports configurable regression sensitivity via env `G6_BENCH_P95_ALERT_THRESHOLD` (exported gauge `g6_bench_p95_regression_threshold_pct`). Test `tests/test_bench_p95_regression_alert_rule.py` validates alert presence, expression shape, and duration. README section updated (Runtime Benchmark) and tracking marked Done.
+### Added (Parity Snapshot CLI – W4-14)
+- New operator tool `scripts/parity_snapshot_cli.py` producing JSON snapshot with parity score (components, weights, missing, details), rolling window simulation (optional), and alert category deltas + symmetric diff tokens. Supports flags: `--legacy/--pipeline` JSON inputs, `--weights`, `--extended/--shape/--cov-var` feature toggles, `--rolling-window`, `--version-only`, and `--pretty`. Test `tests/test_parity_snapshot_cli.py` validates schema integrity and component presence. Tracking & README updated.
+### Added (Alert Parity Anomaly Event – W4-15)
+### Added (Parity Weight Tuning Study – W4-18)
+- Introduced parity weight study utility `scripts/parity_weight_study.py` producing empirical component dispersion artifact to guide non-equal weight adoption.
+- Modes: explicit `--pairs`, directory heuristic `--dir`, synthetic `--synthetic N` (noise & missing probability configurable). Methods: `signal_scaled` (default), `inverse-var`, `variance`.
+- Output schema includes per-component statistics (count, mean, std, p50/p90/p95, mean_miss, signal_strength) and normalized weight recommendations (`weight_plan.normalized`).
+- Added design documentation Section 4.7 detailing methodology, schema, adoption workflow, guardrails, and future enhancements.
+- Sample artifact `data/parity_weight_study_sample.json` (synthetic) checked in for reference.
+- Tracking W4-18 marked Done; README pointer pending (optional).
+
+- Introduced structured event emission `pipeline.alert_parity.anomaly` when weighted alert parity difference exceeds `G6_PARITY_ALERT_ANOMALY_THRESHOLD` (disabled by default with -1). Minimum category union gate via `G6_PARITY_ALERT_ANOMALY_MIN_TOTAL` (default 3) reduces noise. Implemented in `src/collectors/pipeline/anomaly.py` and invoked post parity score computation in pipeline loop. Test `tests/test_parity_anomaly_event.py` covers emission, non-emission below threshold, and disabled mode.
+- Manifest hashing logic concept unchanged (hash still computed over canonical `data` only) but documentation clarified alignment with `meta.hash` field.
+
+### Added (Retry Policy Documentation – W4-17)
+- Added Pipeline Design Section 4.6 detailing per-phase retry & backoff strategy: principles, metrics (`g6_pipeline_phase_attempts`, `g6_pipeline_phase_retries`, `g6_pipeline_phase_retry_backoff_seconds`, `g6_pipeline_phase_last_attempts`, `g6_pipeline_phase_outcomes`), environment knob `G6_RETRY_BACKOFF` (base delay), phase matrix (deterministic vs guarded vs whole-phase retries), backoff formula (exponential + jitter capped at 5s), taxonomy interaction (Fatal vs Recoverable vs Abort), operator guidance (monitor fetch retry density & p95 backoff), and future enhancements (adaptive scaling, configurable jitter/cap, anomaly on retry density). Tracking W4-17 marked Done.
+
+### Deprecation
+- Legacy plain panel format slated for removal of dual-write flag after deprecation window (target: remove `G6_PANELS_LEGACY_COMPAT` no earlier than 2025-11-01 pending external dashboard confirmation). Consumers should switch to enveloped files immediately.
+
+### Rationale
+- Provides forward-compatible space (version + meta schema tag) for compression, signatures, or delta streaming without schema ambiguity.
+- Stabilizes integrity & diff tooling (hash unaffected by timestamp churn) while reducing duplication overhead.
+
+### Follow-ups
+- Evaluate adding optional `meta.encoding` for large payload compression.
+- Potential removal of duplicated `updated_at` once all downstream consumers rely solely on envelope semantics (track in WAVE4_TRACKING.md follow-ups section).
+
+### Added (Benchmark P95 Regression Alert – W4-10 Finalization)
+### Added (Panel Performance Benchmark – W4-19)
+- New script `scripts/bench_panels.py` measuring JSON read + parse latency for all `*_enveloped.json` panel files. Reports per-panel distribution stats (mean, p95, min, max, count) plus aggregate summary.
+- Test `tests/test_panels_perf_benchmark.py` validates schema & basic invariants (non-negative, count per iteration, aggregate totals).
+- Supports quick regression detection after schema or payload size changes; intended for CI smoke or local performance tracking. Usage: `python scripts/bench_panels.py --panels-dir data/panels --iterations 50 --json`.
+
+- Prometheus alert `BenchP95RegressionHigh` comparing `g6_bench_delta_p95_pct` against configured threshold gauge `g6_bench_p95_regression_threshold_pct` (env `G6_BENCH_P95_ALERT_THRESHOLD`). Fires after 5m sustained breach.
+- Early gauge creation in `_maybe_run_benchmark_cycle` ensures rule evaluates even if a new benchmark run is skipped due to interval gating.
+- Documentation: Operator Manual section 13.7, README runtime benchmark section, Pipeline Design 8.3.2.
+- Tests: `test_bench_threshold_gauge.py`, `test_bench_alert_rule_present.py` validate gauge emission & alert rule presence.
+
+### Added (CI Gate: Parity & Fatal Guard – W4-20)
+- New script `scripts/ci_gate.py` enforcing minimum rolling parity (`g6_pipeline_parity_rolling_avg`) and maximum fatal ratio (`g6:pipeline_fatal_ratio_15m`) thresholds in CI.
+- Exit codes: 0 (pass), 1 (failure: threshold breach or fetch/parse error in strict mode), 2 (soft-missing when metrics absent and `--allow-missing` supplied).
+- Supports scraping via `--metrics-url` or offline evaluation with `--metrics-file`; emits structured JSON with `--json` for machine parsing / annotations.
+- Test `tests/test_ci_gate.py` covers evaluation branches (pass, parity fail, fatal fail, missing metrics) and subprocess CLI contract.
+- README: new section under Metrics & Observability describing usage and sample GitHub Actions workflow snippet.
+- Intended to run after a brief warm-up (ensure rolling parity gauge populated) before merge/deploy to guard parity regressions and surfacing elevated fatal error ratios early.
 
 ### Internal
 - Added environment flag `G6_FORCE_METRICS_DEEP_IMPORT_WARN=1` to re‑enable deep import warning even when imported through facade (diagnostic).

@@ -13,42 +13,109 @@ Public API:
 Behavior preserved from legacy unified_collectors implementation.
 """
 from __future__ import annotations
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Protocol, Optional, Mapping, MutableMapping, TypedDict, Sequence, Callable, cast
 import logging
 
 logger = logging.getLogger(__name__)
 
-try:  # pragma: no cover
-    from src.collectors.helpers.status_reducer import derive_partial_reason  # type: ignore
-except Exception:  # pragma: no cover
-    def derive_partial_reason(expiry_rec):  # type: ignore
-        return None
+# Helper callable aliases (match concrete imported signatures to avoid spurious mismatches)
+DerivePartialReason = Callable[[Dict[str, Any]], Optional[str]]
+ComputeReasonTotals = Callable[[List[Dict[str, Any]]], Dict[str, int]]
+class EmitMatchStats(Protocol):
+    def __call__(self, **k: Any) -> None: ...  # pragma: no cover
 
 try:  # pragma: no cover
-    from src.collectors.helpers.struct_events import _compute_reason_totals as _crt  # type: ignore
+    from src.collectors.helpers.status_reducer import derive_partial_reason as _derive_partial_reason_any
 except Exception:  # pragma: no cover
-    def _crt(indices_struct):  # type: ignore
+    def _derive_partial_reason_any(expiry_rec: Dict[str, Any]) -> Optional[str]:
+        return None
+derive_partial_reason = cast(DerivePartialReason, _derive_partial_reason_any)
+
+try:  # pragma: no cover
+    from src.collectors.helpers.struct_events import _compute_reason_totals as _crt  # imported signature: (indices: List[Dict[str, Any]]) -> Dict[str,int]
+except Exception:  # pragma: no cover
+    def _crt(indices: List[Dict[str, Any]]) -> Dict[str, int]:  # fallback keeps matching signature
         return {}
 
 try:  # pragma: no cover
-    from src.collectors.helpers.struct_events import emit_option_match_stats as _emit_option_match_stats  # type: ignore
+    from src.collectors.helpers.struct_events import emit_option_match_stats as _emit_option_match_stats_impl  # noqa: F401
+    _emit_option_match_stats_impl = cast(Any, _emit_option_match_stats_impl)
 except Exception:  # pragma: no cover
-    def _emit_option_match_stats(**k):  # type: ignore
+    def _emit_option_match_stats_impl(**k: Any) -> None:  # fallback dynamic
         return None
 
-__all__ = ["finalize_expiry", "compute_cycle_reason_totals"]
+_emit_option_match_stats_impl_t = cast(EmitMatchStats, _emit_option_match_stats_impl)
+
+def _emit_option_match_stats(**k: Any) -> None:
+    try:
+        _emit_option_match_stats_impl_t(**k)
+    except Exception:  # pragma: no cover
+        logger.debug('emit_option_match_stats_wrapper_failed', exc_info=True)
+
+class PartialReasonTotals(TypedDict, total=False):
+    # dynamic keys are partial reasons, values are counts
+    # We can't pre-enumerate reasons yet; keep as open mapping style
+    # Example keys: 'low_option_count', 'missing_quotes', etc.
+    # Using TypedDict (even open) gives us a nominal type anchor
+    ...  # no fixed fields
+
+class MetricsCounterLike(Protocol):  # minimal Protocol for counters
+    def labels(self, **label_values: Any) -> "MetricsCounterLike": ...  # pragma: no cover
+    def inc(self, value: int = 1) -> None: ...  # pragma: no cover
+    def set(self, value: float) -> None: ...  # pragma: no cover
+
+class MetricsLike(Protocol):  # subset of attributes we touch dynamically
+    # Attributes are optional; we test with hasattr before usage
+    partial_expiries_total: Any  # prometheus Counter
+    partial_cycle_reasons_total: Any
+
+__all__ = [
+    "finalize_expiry",
+    "compute_cycle_reason_totals",
+    "PartialReasonTotals",
+    "MetricsLike",
+]
 
 
-def finalize_expiry(expiry_rec: Dict[str, Any], enriched_data: Dict[str, Any], strikes: List[int], index_symbol: str,
-                    expiry_date: Any, expiry_rule: str, metrics) -> None:
+def finalize_expiry(
+    expiry_rec: Dict[str, Any],
+    enriched_data: Mapping[str, Mapping[str, Any] | MutableMapping[str, Any]],
+    strikes: List[int],
+    index_symbol: str,
+    expiry_date: Any,
+    expiry_rule: str,
+    metrics: MetricsLike | Any | None,
+) -> None:
+    """Attach derived partial reason, emit option match stats, and update metrics.
+
+    Parameters
+    ----------
+    expiry_rec : dict (mutated)
+        Expiry record containing at least 'status' and optional coverage keys.
+    enriched_data : mapping
+        Per-option enriched data keyed by symbol.
+    strikes : list[int]
+        Canonical ordered strike list for the expiry.
+    index_symbol : str
+        Index identifier.
+    expiry_date : Any
+        Expiry date object or string (kept loose for now).
+    expiry_rule : str
+        Rule name for the expiry bucket.
+    metrics : MetricsLike | Any | None
+        Metrics collector (prometheus style) or None; accessed dynamically.
+    """
     # Build strike footprint sample
-    precomputed_strikes = strikes or []
+    precomputed_strikes: List[int] = strikes or []
+    strike_min: Optional[float]
+    strike_max: Optional[float]
+    step_val: Optional[float]
     if precomputed_strikes:
         try:
             strike_min = float(min(precomputed_strikes))
             strike_max = float(max(precomputed_strikes))
-            diffs_tmp = [b - a for a,b in zip(precomputed_strikes, precomputed_strikes[1:]) if b>a]
-            step_val = min(diffs_tmp) if diffs_tmp else None
+            diffs_tmp = [b - a for a, b in zip(precomputed_strikes, precomputed_strikes[1:]) if b > a]
+            step_val = float(min(diffs_tmp)) if diffs_tmp else None
         except Exception:
             strike_min = strike_max = step_val = None
     else:
@@ -63,7 +130,8 @@ def finalize_expiry(expiry_rec: Dict[str, Any], enriched_data: Dict[str, Any], s
             tail = [f"{s:.0f}" for s in precomputed_strikes[-2:]]
             sample_list = head + mid + tail
     # Count legs by type
-    ce_legs = pe_legs = 0
+    ce_legs: int = 0
+    pe_legs: int = 0
     try:
         for _q in enriched_data.values():
             _t = (_q.get('instrument_type') or _q.get('type') or '').upper()
@@ -77,7 +145,7 @@ def finalize_expiry(expiry_rec: Dict[str, Any], enriched_data: Dict[str, Any], s
     pe_per_strike = (pe_legs / len(precomputed_strikes)) if precomputed_strikes else None
 
     # Derive partial reason if status PARTIAL
-    _partial_reason = None
+    _partial_reason: Optional[str] = None
     try:
         if expiry_rec.get('status') == 'PARTIAL':
             _partial_reason = derive_partial_reason(expiry_rec)
@@ -86,11 +154,11 @@ def finalize_expiry(expiry_rec: Dict[str, Any], enriched_data: Dict[str, Any], s
                 if metrics is not None:
                     try:
                         if not hasattr(metrics, 'partial_expiries_total'):
-                            from prometheus_client import Counter as _C  # type: ignore
                             try:
-                                metrics.partial_expiries_total = _C('g6_partial_expiries_total','Partial expiries total',['reason'])  # type: ignore[attr-defined]
+                                from prometheus_client import Counter as _C
+                                metrics.partial_expiries_total = _C('g6_partial_expiries_total','Partial expiries total',['reason'])
                             except Exception:
-                                pass
+                                metrics.partial_expiries_total = None
                         pe_counter = getattr(metrics, 'partial_expiries_total', None)
                         if pe_counter:
                             pe_counter.labels(reason=_partial_reason).inc()
@@ -122,21 +190,34 @@ def finalize_expiry(expiry_rec: Dict[str, Any], enriched_data: Dict[str, Any], s
         logger.debug('option_match_stats_emit_failed', exc_info=True)
 
 
-def compute_cycle_reason_totals(indices_struct: List[Dict[str, Any]], metrics) -> Dict[str, int] | None:
+def compute_cycle_reason_totals(
+    indices_struct: List[Dict[str, Any]],
+    metrics: MetricsLike | Any | None,
+) -> PartialReasonTotals | None:
+    """Aggregate partial expiry reasons across indices in a cycle.
+
+    Returns a mapping of partial reason -> count, or None on failure.
+    Populates metrics counters if available.
+    """
     try:
-        partial_reason_totals = _crt(indices_struct)
+        # Accept list of dicts; _crt may expect a Sequence[Mapping]; list is fine at runtime.
+        partial_reason_totals_raw = _crt(indices_struct)
+        filtered: Dict[str, int] = {
+            str(k): int(v) for k, v in partial_reason_totals_raw.items() if isinstance(k, str) and isinstance(v, int)
+        }
+        partial_reason_totals = cast(PartialReasonTotals, filtered)
         if partial_reason_totals and metrics is not None:
             try:
                 if not hasattr(metrics, 'partial_cycle_reasons_total'):
-                    from prometheus_client import Counter as _C  # type: ignore
                     try:
-                        metrics.partial_cycle_reasons_total = _C('g6_partial_cycle_reasons_total','Partial expiry reasons per cycle',['reason'])  # type: ignore[attr-defined]
+                        from prometheus_client import Counter as _C
+                        metrics.partial_cycle_reasons_total = _C('g6_partial_cycle_reasons_total','Partial expiry reasons per cycle',['reason'])
                     except Exception:
-                        pass
+                        metrics.partial_cycle_reasons_total = None
                 c_counter = getattr(metrics, 'partial_cycle_reasons_total', None)
                 if c_counter:
                     for r, cnt in partial_reason_totals.items():
-                        if cnt > 0:
+                        if isinstance(cnt, int) and cnt > 0:
                             c_counter.labels(reason=r).inc(cnt)
             except Exception:
                 logger.debug('partial_cycle_reasons_total_metric_failed', exc_info=True)

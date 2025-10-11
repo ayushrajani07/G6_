@@ -19,25 +19,67 @@ Design goals:
 from __future__ import annotations
 
 import json, os, threading, logging, time, hashlib, gzip, io
-from src.utils.env_flags import is_truthy_env  # type: ignore
+from src.utils.env_flags import is_truthy_env
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
-from typing import Optional
+from typing import Optional, Any, cast
 from pathlib import Path
 import base64
 
 from .catalog import build_catalog, CATALOG_PATH
 
+_get_event_bus: Any = None
 try:  # Optional dependency to keep bootstrap lightweight when events unused
-    from src.events.event_bus import get_event_bus  # type: ignore
+    from src.events.event_bus import get_event_bus as __get_event_bus
+    _get_event_bus = __get_event_bus
 except Exception:  # pragma: no cover
-    get_event_bus = None  # type: ignore
+    pass
+
+# Expose a patchable alias for tests; default delegates to the imported symbol above.
+# Tests can monkeypatch src.orchestrator.catalog_http.get_event_bus to inject a custom bus.
+def get_event_bus(max_events: int = 2048):  # pragma: no cover - simple delegator
+    if _get_event_bus is None:
+        return None
+    return _get_event_bus(max_events=max_events)
+
+def _resolve_get_event_bus():
+    """Resolve a get_event_bus callable, preferring the patchable alias if present.
+
+    This indirection lets tests monkeypatch catalog_http.get_event_bus while keeping
+    production behavior identical (using the imported symbol).
+    """
+    fn = globals().get('get_event_bus')
+    if callable(fn):
+        return fn
+    return _get_event_bus
 
 logger = logging.getLogger(__name__)
+
+# Module-level env adapter helpers with defensive fallbacks
+try:
+    from src.collectors.env_adapter import (
+        get_str as _env_str,
+        get_int as _env_int,
+        get_float as _env_float,
+    )  # type: ignore
+except Exception:  # pragma: no cover - fallback
+    _env_str = lambda name, default="": (os.getenv(name, default) or "")
+    def _env_int(name: str, default: int) -> int:
+        try:
+            v = os.getenv(name)
+            return int(v) if v not in (None, "") else default
+        except Exception:
+            return default
+    def _env_float(name: str, default: float) -> float:
+        try:
+            v = os.getenv(name)
+            return float(v) if v not in (None, "") else default
+        except Exception:
+            return default
 
 # Allow rapid restart in tests (port reuse after shutdown) to ensure updated
 # adaptive severity configuration (e.g., trend window) is reflected.
 try:
-    ThreadingHTTPServer.allow_reuse_address = True  # type: ignore[attr-defined]
+    ThreadingHTTPServer.allow_reuse_address = True
 except Exception:
     pass
 
@@ -68,7 +110,7 @@ class _CatalogHandler(BaseHTTPRequestHandler):
     # ConnectionResetError) or during interpreter shutdown (ValueError on I/O ops).
     _BENIGN_ERRORS = (BrokenPipeError, ConnectionResetError, TimeoutError)
 
-    def handle(self):  # type: ignore[override]
+    def handle(self):  # override w/ same signature
         try:
             super().handle()
         except self._BENIGN_ERRORS as e:  # pragma: no cover - timing dependent
@@ -86,8 +128,8 @@ class _CatalogHandler(BaseHTTPRequestHandler):
 
         This helper centralizes Basic Auth logic for easier testing and reduces duplication.
         """
-        user = os.environ.get('G6_HTTP_BASIC_USER')
-        pw = os.environ.get('G6_HTTP_BASIC_PASS')
+        user = _env_str('G6_HTTP_BASIC_USER', '')
+        pw = _env_str('G6_HTTP_BASIC_PASS', '')
         if not user or not pw:
             return True  # auth not enabled
         expected = base64.b64encode(f"{user}:{pw}".encode()).decode()
@@ -110,22 +152,22 @@ class _CatalogHandler(BaseHTTPRequestHandler):
         # Helper inside handler to build adaptive theme payload (shared REST + SSE)
         def _build_adaptive_payload():  # local to avoid top-level import cost if unused
             try:
-                from src.adaptive import severity as _severity  # type: ignore
+                from src.adaptive import severity as _severity
             except Exception:
                 return {
                     'palette': {
-                        'info': os.environ.get('G6_ADAPTIVE_ALERT_COLOR_INFO') or '#6BAF92',
-                        'warn': os.environ.get('G6_ADAPTIVE_ALERT_COLOR_WARN') or '#FFC107',
-                        'critical': os.environ.get('G6_ADAPTIVE_ALERT_COLOR_CRITICAL') or '#E53935',
+                        'info': _env_str('G6_ADAPTIVE_ALERT_COLOR_INFO', '#6BAF92') or '#6BAF92',
+                        'warn': _env_str('G6_ADAPTIVE_ALERT_COLOR_WARN', '#FFC107') or '#FFC107',
+                        'critical': _env_str('G6_ADAPTIVE_ALERT_COLOR_CRITICAL', '#E53935') or '#E53935',
                     },
                     'active_counts': {},
                     'trend': {},
                     'smoothing_env': {}
                 }
             palette = {
-                'info': os.environ.get('G6_ADAPTIVE_ALERT_COLOR_INFO') or '#6BAF92',
-                'warn': os.environ.get('G6_ADAPTIVE_ALERT_COLOR_WARN') or '#FFC107',
-                'critical': os.environ.get('G6_ADAPTIVE_ALERT_COLOR_CRITICAL') or '#E53935',
+                'info': _env_str('G6_ADAPTIVE_ALERT_COLOR_INFO', '#6BAF92') or '#6BAF92',
+                'warn': _env_str('G6_ADAPTIVE_ALERT_COLOR_WARN', '#FFC107') or '#FFC107',
+                'critical': _env_str('G6_ADAPTIVE_ALERT_COLOR_CRITICAL', '#E53935') or '#E53935',
             }
             enabled = getattr(_severity, 'enabled', lambda: False)()
             payload = {
@@ -133,10 +175,10 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                 'active_counts': _severity.get_active_severity_counts() if enabled else {},
                 'trend': _severity.get_trend_stats() if enabled else {},
                 'smoothing_env': {
-                    'trend_window': os.environ.get('G6_ADAPTIVE_SEVERITY_TREND_WINDOW'),
-                    'smooth': os.environ.get('G6_ADAPTIVE_SEVERITY_TREND_SMOOTH'),
-                    'critical_ratio': os.environ.get('G6_ADAPTIVE_SEVERITY_TREND_CRITICAL_RATIO'),
-                    'warn_ratio': os.environ.get('G6_ADAPTIVE_SEVERITY_TREND_WARN_RATIO'),
+                    'trend_window': _env_str('G6_ADAPTIVE_SEVERITY_TREND_WINDOW', ''),
+                    'smooth': _env_str('G6_ADAPTIVE_SEVERITY_TREND_SMOOTH', ''),
+                    'critical_ratio': _env_str('G6_ADAPTIVE_SEVERITY_TREND_CRITICAL_RATIO', ''),
+                    'warn_ratio': _env_str('G6_ADAPTIVE_SEVERITY_TREND_WARN_RATIO', ''),
                 }
             }
             # Include enriched per-type state summary at top-level (latest snapshot already inside trend)
@@ -158,15 +200,27 @@ class _CatalogHandler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b'Unauthorized')
             return
+        # Adaptive theme endpoint (used by tests and UI)
+        if self.path.startswith('/adaptive/theme'):
+            try:
+                body = json.dumps(_build_adaptive_payload(), separators=(',',':')).encode('utf-8')
+                self._set_headers(200)
+                self.wfile.write(body)
+            except Exception:
+                logger.exception("catalog_http: failure building adaptive theme payload")
+                self._set_headers(500)
+                self.wfile.write(b'{"error":"adaptive_theme_failed"}')
+            return
         if self.path.startswith('/events'):
             # /events/stats JSON introspection (non-stream) handled first
             if self.path.startswith('/events/stats'):
-                if get_event_bus is None:
+                _geb = _resolve_get_event_bus()
+                if _geb is None:
                     self._set_headers(503)
                     self.wfile.write(b'{"error":"event_bus_unavailable"}')
                     return
                 try:
-                    bus = get_event_bus()
+                    bus: Any = _geb()
                     snap = bus.stats_snapshot()
                     # Future Phase additions: forced_full counts, backlog utilization precomputed, connection durations summary
                     body = json.dumps(snap, separators=(',',':')).encode('utf-8')
@@ -177,13 +231,14 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                     self._set_headers(500)
                     self.wfile.write(b'{"error":"events_stats_failed"}')
                 return
-            if get_event_bus is None:
+            _geb = _resolve_get_event_bus()
+            if _geb is None:
                 self._set_headers(503)
                 self.wfile.write(b'{"error":"event_bus_unavailable"}')
                 return
             try:
                 from urllib.parse import urlparse, parse_qs
-                bus = get_event_bus()
+                bus: Any = _geb()
                 parsed = urlparse(self.path)
                 qs = parse_qs(parsed.query or '')
                 force_full = False
@@ -221,9 +276,9 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                         backlog_limit = max(0, int(qs['backlog'][0]))
                     except Exception:
                         backlog_limit = None
-                retry_ms = int(os.environ.get('G6_EVENTS_SSE_RETRY_MS', '5000'))
-                poll_interval = float(os.environ.get('G6_EVENTS_SSE_POLL', '0.5'))
-                heartbeat_interval = float(os.environ.get('G6_EVENTS_SSE_HEARTBEAT', '5.0'))
+                retry_ms = _env_int('G6_EVENTS_SSE_RETRY_MS', 5000)
+                poll_interval = _env_float('G6_EVENTS_SSE_POLL', 0.5)
+                heartbeat_interval = _env_float('G6_EVENTS_SSE_HEARTBEAT', 5.0)
                 last_heartbeat = time.time()
                 conn_start_ts = time.time()
                 self.send_response(200)
@@ -236,7 +291,9 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                 # Consumer bookkeeping start
                 try:
                     if hasattr(bus, '_consumer_started'):
-                        bus._consumer_started()  # type: ignore[attr-defined]
+                        fn = getattr(bus, '_consumer_started', None)
+                        if callable(fn):
+                            fn()
                 except Exception:
                     pass
 
@@ -245,7 +302,7 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                     payload = event.as_sse_payload()
                     # Client-side latency observation hook (in-process consumer path)
                     try:
-                        from src.events.latency_client import observe_event_latency  # type: ignore
+                        from src.events.latency_client import observe_event_latency
                         observe_event_latency(payload)
                     except Exception:
                         pass
@@ -264,7 +321,7 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                                 if isinstance(pub_ts, (int,float)):
                                     now_ts = time.time()
                                     flush_latency = max(0.0, now_ts - pub_ts)
-                                    from src.metrics import get_metrics  # type: ignore
+                                    from src.metrics import get_metrics
                                     m = get_metrics()
                                     if m and hasattr(m, 'sse_flush_seconds'):
                                         try:
@@ -286,7 +343,7 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                                         tr['flush_ts'] = time.time()
                                         # Metric stage counter
                                         try:
-                                            from src.metrics import get_metrics  # type: ignore
+                                            from src.metrics import get_metrics
                                             m = get_metrics()
                                             if m and hasattr(m, 'sse_trace_stages_total'):
                                                 ctr = getattr(m, 'sse_trace_stages_total')
@@ -327,7 +384,7 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                                         def as_sse_payload(self):
                                             p = dict(self._payload)
                                             if '_generation' not in p:
-                                                p['_generation'] = getattr(bus, '_generation', 0)  # type: ignore[attr-defined]
+                                                p['_generation'] = getattr(bus, '_generation', 0)
                                             return {
                                                 'id': self.event_id,
                                                 'sequence': self.event_id,
@@ -342,7 +399,8 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                                     _send(synthetic)
                         except Exception:
                             logger.debug("catalog_http: force_full injection failed", exc_info=True)
-                    for ev in bus.get_since(last_event_id, limit=backlog_limit):
+                    bus_any = cast(Any, bus)
+                    for ev in bus_any.get_since(last_event_id, limit=backlog_limit):
                         _send(ev)
                 except Exception:
                     return
@@ -351,7 +409,7 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                 try:
                     while True:
                         try:
-                            pending = bus.get_since(last_event_id)
+                            pending = cast(Any, bus).get_since(last_event_id)
                             if pending:
                                 for ev in pending:
                                     _send(ev)
@@ -370,16 +428,21 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                 finally:
                     # Consumer bookkeeping stop (only for streaming path, not stats)
                     try:
-                        if get_event_bus is not None:
-                            bus = get_event_bus()
+                        _geb2 = _resolve_get_event_bus()
+                        if _geb2 is not None:
+                            bus = _geb2()
                             duration = max(0.0, time.time() - conn_start_ts)
                             if hasattr(bus, '_observe_connection_duration'):
                                 try:
-                                    bus._observe_connection_duration(duration)  # type: ignore[attr-defined]
+                                    fn = getattr(bus, '_observe_connection_duration', None)
+                                    if callable(fn):
+                                        fn(duration)
                                 except Exception:
                                     pass
                             if hasattr(bus, '_consumer_stopped'):
-                                bus._consumer_stopped()  # type: ignore[attr-defined]
+                                fn2 = getattr(bus, '_consumer_stopped', None)
+                                if callable(fn2):
+                                    fn2()
                     except Exception:
                         pass
             except Exception:
@@ -389,16 +452,16 @@ class _CatalogHandler(BaseHTTPRequestHandler):
             try:
                 # Dynamically resolve build_catalog each request to avoid stale binding if server thread not reloaded
                 try:
-                    from . import catalog as _cat_mod  # type: ignore
+                    from . import catalog as _cat_mod
                     build_fn = getattr(_cat_mod, 'build_catalog', build_catalog)
                 except Exception:  # pragma: no cover
                     build_fn = build_catalog
-                runtime_status = os.environ.get('G6_RUNTIME_STATUS_FILE', 'data/runtime_status.json')
+                runtime_status = _env_str('G6_RUNTIME_STATUS_FILE', 'data/runtime_status.json') or 'data/runtime_status.json'
                 # Always build anew (cheap for tests) to avoid stale file logic complexity
                 catalog = build_fn(runtime_status_path=runtime_status)
                 # Overwrite any integrity with a freshly recomputed inline version (idempotent)
                 try:
-                    events_path = os.environ.get('G6_EVENTS_LOG_PATH', os.path.join('logs','events.log'))
+                    events_path = _env_str('G6_EVENTS_LOG_PATH', os.path.join('logs','events.log')) or os.path.join('logs','events.log')
                     cycles=[]
                     try:
                         with open(events_path,'r',encoding='utf-8') as fh:
@@ -432,7 +495,7 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                 # Minimal final fallback if somehow integrity is still absent
                 if 'integrity' not in catalog:
                     try:
-                        events_path = os.environ.get('G6_EVENTS_LOG_PATH', os.path.join('logs','events.log'))
+                        events_path = _env_str('G6_EVENTS_LOG_PATH', os.path.join('logs','events.log')) or os.path.join('logs','events.log')
                         cycles=[]
                         try:
                             with open(events_path,'r',encoding='utf-8') as fh:
@@ -488,7 +551,7 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                 return
             # Serve snapshot cache
             try:
-                from src.domain import snapshots_cache as _snap  # type: ignore
+                from src.domain import snapshots_cache as _snap
                 from urllib.parse import urlparse, parse_qs
                 parsed = urlparse(self.path)
                 qs = parse_qs(parsed.query or '')
@@ -530,9 +593,9 @@ class _CatalogHandler(BaseHTTPRequestHandler):
                     self.send_header('Cache-Control', 'no-cache')
                     self.send_header('Connection', 'keep-alive')
                     self.end_headers()
-                    interval = float(os.environ.get('G6_ADAPTIVE_THEME_STREAM_INTERVAL','3'))
+                    interval = _env_float('G6_ADAPTIVE_THEME_STREAM_INTERVAL', 3.0)
                     # Soft limit runtime to prevent runaway threads; client can reconnect.
-                    max_events = int(os.environ.get('G6_ADAPTIVE_THEME_STREAM_MAX_EVENTS','200'))
+                    max_events = _env_int('G6_ADAPTIVE_THEME_STREAM_MAX_EVENTS', 200)
                     diff_only = is_truthy_env('G6_ADAPTIVE_THEME_SSE_DIFF')
                     last_payload = None
                     for i in range(max_events):
@@ -685,10 +748,13 @@ def start_http_server_in_thread() -> None:
             pass
     # Auto reload if adaptive trend window changed (test isolation convenience)
     try:
-        from src.adaptive import severity as _severity  # type: ignore
-        current_window = getattr(_severity, '_trend_window')()
+        from src.adaptive import severity as _severity
+        _tw = getattr(_severity, '_trend_window', None)
+        _val: Any = _tw() if callable(_tw) else None
+        current_window: Optional[int]
+        current_window = int(_val) if isinstance(_val, (int, float, str)) else None
     except Exception:
-        current_window = None  # type: ignore
+        current_window = None
     global _LAST_WINDOW
     if _LAST_WINDOW is not None and current_window is not None and current_window != _LAST_WINDOW:
         force_reload = True
@@ -702,10 +768,10 @@ def start_http_server_in_thread() -> None:
                 srv = _get_http_server()
                 if srv:
                     srv_host, srv_port = srv.server_address[:2]
-                    req_host = os.environ.get('G6_CATALOG_HTTP_HOST', '127.0.0.1')
+                    req_host = _env_str('G6_CATALOG_HTTP_HOST', '127.0.0.1') or '127.0.0.1'
                     try:
-                        req_port = int(os.environ.get('G6_CATALOG_HTTP_PORT','9315'))
-                    except ValueError:
+                        req_port = _env_int('G6_CATALOG_HTTP_PORT', 9315)
+                    except Exception:
                         req_port = 9315
                     if srv_host != req_host or srv_port != req_port:
                         force_reload = True
@@ -722,18 +788,18 @@ def start_http_server_in_thread() -> None:
             time.sleep(0.05)
         except Exception:
             pass
-    host = os.environ.get('G6_CATALOG_HTTP_HOST', '127.0.0.1')
+    host = _env_str('G6_CATALOG_HTTP_HOST', '127.0.0.1') or '127.0.0.1'
     try:
-        port = int(os.environ.get('G6_CATALOG_HTTP_PORT', '9315'))
-    except ValueError:
+        port = _env_int('G6_CATALOG_HTTP_PORT', 9315)
+    except Exception:
         port = 9315
     def _run():
         try:
             # Ensure latest catalog logic (hot-reload friendly during tests / dev)
             try:
                 import importlib
-                from . import catalog as _cat_mod  # type: ignore
-                _cat_mod = importlib.reload(_cat_mod)  # type: ignore
+                from . import catalog as _cat_mod
+                _cat_mod = importlib.reload(_cat_mod)
                 globals()['build_catalog'] = _cat_mod.build_catalog  # update binding
                 globals()['CATALOG_PATH'] = _cat_mod.CATALOG_PATH
             except Exception:

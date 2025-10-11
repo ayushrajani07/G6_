@@ -341,15 +341,15 @@ Future Enhancements:
 - Telemetry counter of suppressed log records (sampled) to quantify noise reduction benefits.
 
 
-As of the October 2025 warning cleanup pass:
+As of the October 2025 W4-12 completion:
 
-- All test modules now import metrics via the facade (`from src.metrics import ...`).
-- Direct deep imports (`src.metrics.metrics`) are restricted to the explicit deprecation tests only and wrapped with `pytest.deprecated_call()` where appropriate.
-- The facade re-exports `set_provider_mode` to eliminate the last remaining deep import in observability tests.
-- `pytest.ini` adds `once` filters for unavoidable transitional deprecations (legacy deep import + legacy registration shim) to keep CI output signal-focused while still exercising the paths in targeted tests.
-- When introducing a new deprecation, add: (1) a focused test asserting the warning, (2) an allow-list `once:` filter only if the warning would otherwise appear broadly, and (3) a clear removal timeline entry in this section.
+- All production & test modules import metrics solely via the facade (`from src.metrics import ...`).
+- No remaining runtime usages of `src.metrics.metrics` outside the compatibility shim and migration documentation examples.
+- Deprecation test coverage retained only where explicitly validating warning suppression behavior (if re-enabled in future). Those tests will be removed once the shim enters hard removal phase.
+- New code MUST NOT reintroduce `src.metrics.metrics`; add a review check in code reviews for this pattern.
+- Removal timeline updated: deep import shim slated for removal after two additional minor releases unless blockers logged in `METRICS_MIGRATION.md`.
 
-This keeps baseline test runs below the historical warning volume while preserving intentional coverage of legacy pathways.
+Result: baseline test runs have eliminated prior deep-import deprecation warnings, focusing warning channel on any newly introduced issues.
 
 ### 11.10 Environment Flag Parsing Helper
 

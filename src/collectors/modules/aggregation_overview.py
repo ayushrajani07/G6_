@@ -21,12 +21,12 @@ __all__ = ["emit_overview_aggregation"]
 
 
 def emit_overview_aggregation(
-    ctx,
+    ctx: Any,
     index_symbol: str,
     pcr_snapshot: Dict[str, Any] | None,
     aggregation_state: Any,
-    per_index_ts,
-    expected_expiries,
+    per_index_ts: Any,
+    expected_expiries: Any,
 ) -> Tuple[int, Any]:
     representative_day_width = getattr(aggregation_state, 'representative_day_width', 0)
     snapshot_base_time = getattr(aggregation_state, 'snapshot_base_time', None) or per_index_ts

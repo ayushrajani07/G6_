@@ -438,3 +438,21 @@ Help: Total cycles represented in the trends aggregation file
 Labels: (none)  
 Cardinality Budget: 1
 
+### g6_pipeline_memory_rss_mb
+Type: gauge  
+Help: Approximate process resident set size (MB) sampled once per pipeline cycle (env gate: G6_PIPELINE_MEMORY_GAUGE)  
+Labels: (none)  
+Cardinality Budget: 1
+
+### g6_pipeline_phase_retry_backoff_seconds
+Type: histogram  
+Help: Per-phase retry backoff sleep durations (seconds) observed before a retry attempt (env gate: G6_PIPELINE_RETRY_METRICS)  
+Labels: phase  
+Cardinality Budget: 40
+
+### g6_pipeline_phase_last_attempts
+Type: gauge  
+Help: Attempts consumed (including retries) in the last completed execution of a phase (env gate: G6_PIPELINE_RETRY_METRICS)  
+Labels: phase  
+Cardinality Budget: 40
+

@@ -1,7 +1,10 @@
 import copy
+# NOTE(W4-11): Migrated off deprecated parity harness. This test now validates
+# parity score component behavior (index_count, option_count) under structural
+# differences between legacy baseline and pipeline views.
 import datetime
 from src.collectors.unified_collectors import run_unified_collectors
-from src.collectors.parity_harness import capture_parity_snapshot
+from src.collectors.pipeline.parity import compute_parity_score
 
 # Reusable dummy provider supporting multiple indices and multiple expiries
 class _ProvMulti:
@@ -48,7 +51,7 @@ def _run(indices_conf):
     return run_unified_collectors(index_params=indices_conf, providers=providers, csv_sink=csv_sink, influx_sink=None, compute_greeks=False, estimate_iv=False, build_snapshots=False)
 
 
-def test_parity_harness_multi_index_and_expiry_stability():
+def test_parity_score_degrades_when_index_missing():
     import os
     os.environ['G6_FORCE_MARKET_OPEN'] = '1'
     index_params = {
@@ -65,23 +68,27 @@ def test_parity_harness_multi_index_and_expiry_stability():
             'strikes_otm': 2,
         }
     }
-    result = _run(index_params)
-    snap1 = capture_parity_snapshot(result)  # type: ignore[arg-type]
-    # Deep copy to ensure deterministic reconstruction
-    snap2 = capture_parity_snapshot(copy.deepcopy(result))  # type: ignore[arg-type]
-    assert snap1.get('hash') == snap2.get('hash'), 'Deprecated hash placeholder should be stable'
+    unified_full = _run(index_params)
+    assert isinstance(unified_full, dict)
+    # Sanity shape (indices sorted behavior preserved)
+    full_indices = unified_full['indices'] if isinstance(unified_full.get('indices'), list) else []  # type: ignore[index]
+    indices = [i['index'] for i in full_indices]
+    assert indices == sorted(indices) and indices, 'Expected non-empty sorted indices'
 
-    # Indices sorted alphabetically
-    indices = [i['index'] for i in snap1['indices']]
-    assert indices == sorted(indices)
+    # Full parity (baseline == pipeline) => score 1.0
+    full_score = compute_parity_score(unified_full, unified_full)
+    assert full_score['score'] == 1.0
+    assert full_score['components']['index_count'] == 1.0
+    assert full_score['components']['option_count'] == 1.0
 
-    # Ensure each index captured with at least one expiry entry
-    for idx in snap1['indices']:
-        assert idx['expiries'], f"Index {idx['index']} missing expiries in parity snapshot"
-
-    # Option counts should be positive and deterministic within snapshot
-    option_counts = [idx['option_count'] for idx in snap1['indices']]
-    assert all(isinstance(c, int) and c > 0 for c in option_counts)
-
-    # PCR presence (may be empty dict but key should exist)
-    assert 'pcr' in snap1
+    # Remove one index from pipeline view -> degraded parity
+    degraded_pipeline = copy.deepcopy(unified_full)
+    pipe_indices = degraded_pipeline['indices'] if isinstance(degraded_pipeline.get('indices'), list) else []  # type: ignore[index]
+    degraded_pipeline['indices'] = [i for i in pipe_indices if isinstance(i, dict) and i.get('index') != 'BETA2']
+    degraded_score = compute_parity_score(unified_full, degraded_pipeline)
+    assert 0 < degraded_score['score'] < 1.0
+    assert degraded_score['components']['index_count'] < 1.0
+    assert degraded_score['components']['option_count'] < 1.0
+    # Missing list may be empty depending on component diff semantics; primary
+    # assertion is that score and component weights degrade.
+    assert degraded_score['score'] < full_score['score']

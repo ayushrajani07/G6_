@@ -268,12 +268,57 @@ def _write_rolling_alerts_log(log_path: str, alerts: List[Dict[str, Any]], *, ma
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
         trimmed = alerts[-max_entries:]
         payload = {"updated_at": datetime.now(timezone.utc).isoformat(), "alerts": trimmed}
+        # Always write atomically to avoid interleaved data corruption (observed JSON extra data issue)
         try:
             from src.utils.output import atomic_write_json  # type: ignore
             atomic_write_json(log_path, payload, ensure_ascii=False, indent=2)
+            # Post-write validation: ensure file is valid JSON; if not, rewrite once.
+            try:
+                with open(log_path, 'r', encoding='utf-8') as _vf:
+                    _ = json.load(_vf)
+            except Exception:
+                # One retry on validation failure
+                try:
+                    atomic_write_json(log_path, payload, ensure_ascii=False, indent=2)
+                except Exception:
+                    pass
+            return
         except Exception:
-            with open(log_path, 'w', encoding='utf-8') as f:
-                json.dump(payload, f, indent=2)
+            pass
+        # Fallback manual atomic pattern
+        try:
+            import tempfile
+            tmp_dir = os.path.dirname(log_path) or '.'
+            fd, tmp_path = tempfile.mkstemp(prefix='._alerts_log.', dir=tmp_dir)
+            try:
+                with os.fdopen(fd, 'w', encoding='utf-8') as fh:
+                    json.dump(payload, fh, indent=2)
+                    fh.flush()
+                    os.fsync(fh.fileno()) if hasattr(os, 'fsync') else None
+                os.replace(tmp_path, log_path)
+            except Exception:
+                try:
+                    if os.path.exists(tmp_path):
+                        os.remove(tmp_path)
+                except Exception:
+                    pass
+            # Validate after fallback write
+            try:
+                with open(log_path, 'r', encoding='utf-8') as _vf2:
+                    _ = json.load(_vf2)
+            except Exception:
+                try:
+                    with open(log_path, 'w', encoding='utf-8') as _fw2:
+                        json.dump(payload, _fw2, indent=2)
+                except Exception:
+                    pass
+        except Exception:
+            # Final non-atomic fallback
+            try:
+                with open(log_path, 'w', encoding='utf-8') as f:
+                    json.dump(payload, f, indent=2)
+            except Exception:
+                pass
     except Exception:
         pass
 

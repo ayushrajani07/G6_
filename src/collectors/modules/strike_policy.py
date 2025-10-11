@@ -58,8 +58,8 @@ def resolve_strike_depth(ctx: Any, index_symbol: str, base_cfg: Dict[str, Any]) 
 def _adaptive_v2(ctx: Any, index_symbol: str, base_cfg: Dict[str, Any]) -> Tuple[int,int]:
     # Initialize state container on ctx
     if not hasattr(ctx, '_strike_policy_state'):
-        ctx._strike_policy_state = {}  # type: ignore[attr-defined]
-    st = ctx._strike_policy_state  # type: ignore[attr-defined]
+        setattr(ctx, '_strike_policy_state', {})
+    st = getattr(ctx, '_strike_policy_state')
     if index_symbol not in st:
         st[index_symbol] = {
             'baseline_itm': int(base_cfg.get('strikes_itm', 2) or 2),
@@ -77,7 +77,7 @@ def _adaptive_v2(ctx: Any, index_symbol: str, base_cfg: Dict[str, Any]) -> Tuple
     coverage_val = None
     try:
         if hasattr(ctx, 'last_index_coverage'):
-            coverage_val = ctx.last_index_coverage.get(index_symbol)  # type: ignore[attr-defined]
+            coverage_val = getattr(ctx, 'last_index_coverage').get(index_symbol)
     except Exception:
         coverage_val = None
     if coverage_val is not None:
@@ -118,8 +118,11 @@ def _adaptive_v2(ctx: Any, index_symbol: str, base_cfg: Dict[str, Any]) -> Tuple
         rec['last_adjust_cycle'] = cycle_num
         rec['last_depth'] = (new_itm, new_otm)
         try:
-            from src.collectors.helpers.struct_events import emit_strike_depth_adjustment  # type: ignore
-            emit_strike_depth_adjustment(
+            from importlib import import_module
+            _mod = import_module('src.collectors.helpers.struct_events')
+            emit_strike_depth_adjustment = getattr(_mod, 'emit_strike_depth_adjustment', None)
+            if callable(emit_strike_depth_adjustment):
+                emit_strike_depth_adjustment(
                 index=index_symbol,
                 reason='policy_adaptive_v2_widen' if (new_itm>cur_itm or new_otm>cur_otm) else 'policy_adaptive_v2_narrow',
                 prev_itm=cur_itm,
@@ -129,7 +132,10 @@ def _adaptive_v2(ctx: Any, index_symbol: str, base_cfg: Dict[str, Any]) -> Tuple
                 strike_coverage=coverage_val,
                 field_coverage=None,
                 expiry_rule='policy',
-            )
+                )
         except Exception:
             logger.debug('emit_strike_policy_adjustment_failed', exc_info=True)
-    return rec['last_depth']
+    depth = rec.get('last_depth')
+    return (int(depth[0]), int(depth[1])) if isinstance(depth, tuple) and len(depth) == 2 else (
+        int(base_cfg.get('strikes_itm', 2) or 2), int(base_cfg.get('strikes_otm', 2) or 2)
+    )

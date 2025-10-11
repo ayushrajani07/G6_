@@ -57,6 +57,32 @@ class UnifiedLoop:
         self._panels_dir = panels_dir
         self._cycle = 0
         self._running = False
+        # Eager-start unified HTTP (if enabled) to avoid test races where the
+        # loop thread hasn't yet executed the server startup code.
+        try:
+            env0 = load_summary_env(force_reload=True)
+            if env0.unified_http_enabled:
+                try:
+                    from .unified_http import serve_unified_http
+                    serve_unified_http(port=env0.unified_http_port)
+                    # brief readiness
+                    try:
+                        import socket as _sock, time as _t
+                        for _i in range(10):
+                            s = _sock.socket(); s.settimeout(0.05)
+                            try:
+                                s.connect(("127.0.0.1", env0.unified_http_port))
+                                s.close(); break
+                            except Exception:
+                                try: s.close()
+                                except Exception: pass
+                                _t.sleep(0.05)
+                    except Exception:
+                        pass
+                except Exception:
+                    logger.debug("Unified HTTP eager start failed (init phase)")
+        except Exception:
+            pass
 
     def _read_status(self) -> Optional[dict[str, Any]]:
         env = load_summary_env()  # status file path stable; no need to force reload each cycle
@@ -173,6 +199,35 @@ class UnifiedLoop:
         # the loop observe correct toggles even if a prior test populated the cache.
         env = load_summary_env(force_reload=True)
         unified_http_mode = env.unified_http_enabled
+        # Start unified HTTP ASAP (before plugin setup) to minimize test timing races
+        unified_started = False
+        if unified_http_mode and not unified_started:
+            try:
+                from .unified_http import serve_unified_http
+                serve_unified_http(port=env.unified_http_port)
+                # Readiness probe (extended) to ensure port is listening before tests connect
+                try:
+                    import socket as _sock, time as _t
+                    for _i in range(20):  # ~1s total (20 * 0.05)
+                        for _host in ("127.0.0.1", "localhost"):
+                            s = _sock.socket(); s.settimeout(0.05)
+                            try:
+                                s.connect((_host, env.unified_http_port))
+                                s.close()
+                                unified_started = True
+                                break
+                            except Exception:
+                                try: s.close()
+                                except Exception: pass
+                                continue
+                        if unified_started:
+                            break
+                        _t.sleep(0.05)
+                except Exception:
+                    unified_started = True  # best effort
+                logger.debug("Unified HTTP server active (early start)")
+            except Exception as e:  # noqa: BLE001
+                logger.debug("Failed to start unified HTTP server (early): %s", e)
         # Optional resync HTTP server activation (skip if unified HTTP running)
         if cfg.resync_http and not unified_http_mode:
             try:
@@ -213,10 +268,31 @@ class UnifiedLoop:
             except Exception:
                 pass
         # Unified HTTP server (consolidated SSE, resync, metrics, health)
-        if unified_http_mode:
+        if unified_http_mode and not unified_started:
             try:
                 from .unified_http import serve_unified_http
                 serve_unified_http(port=env.unified_http_port)
+                # Brief readiness probe to avoid connection races in fast tests
+                try:
+                    import socket as _sock, time as _t
+                    for _i in range(20):  # ~1s total
+                        ok = False
+                        for _host in ("127.0.0.1", "localhost"):
+                            s = _sock.socket(); s.settimeout(0.05)
+                            try:
+                                s.connect((_host, env.unified_http_port))
+                                s.close()
+                                ok = True
+                                break
+                            except Exception:
+                                try: s.close()
+                                except Exception: pass
+                                continue
+                        if ok:
+                            break
+                        _t.sleep(0.05)
+                except Exception:
+                    pass
                 logger.debug("Unified HTTP server active (env G6_UNIFIED_HTTP)")
             except Exception as e:  # noqa: BLE001
                 logger.debug("Failed to start unified HTTP server: %s", e)

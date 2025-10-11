@@ -1,0 +1,33 @@
+{
+  "snapshot": {
+    "legacy_source": null,
+    "parity": null,
+    "pipeline_source": null,
+    "ts": "2025-10-08T05:10:56.209845Z"
+  },
+  "steps": [
+    {
+      "data": {
+        "legacy_source": null,
+        "parity": null,
+        "pipeline_source": null,
+        "ts": "2025-10-08T05:10:56.209845Z"
+      },
+      "step": "health_snapshot"
+    },
+    {
+      "data": {
+        "flag_set": false,
+        "new_value": "<unset>"
+      },
+      "step": "disable_pipeline"
+    },
+    {
+      "data": {
+        "invoked": false,
+        "status": "skipped"
+      },
+      "step": "legacy_warm_run"
+    }
+  ]
+}

@@ -12,7 +12,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional, Iterable
 import os
-from src.utils.env_flags import is_truthy_env  # type: ignore
+try:
+    from src.utils.env_flags import is_truthy_env
+except Exception:  # pragma: no cover
+    def is_truthy_env(name: str, default: str | None = None) -> bool:
+        raw = os.environ.get(name, default or '')
+        return str(raw).lower() in ('1','true','yes','on')
 import json
 import time
 import datetime as _dt
@@ -21,20 +26,27 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+from typing import Any as _Any
 try:  # error handler optional during early extraction
-    from src.error_handling import get_error_handler, ErrorCategory, ErrorSeverity  # type: ignore
+    import src.error_handling as _eh
+    _geh_mod_i: _Any = getattr(_eh, 'get_error_handler')
+    _ec_mod_i: _Any = getattr(_eh, 'ErrorCategory')
+    _es_mod_i: _Any = getattr(_eh, 'ErrorSeverity')
 except Exception:  # pragma: no cover
-    def get_error_handler():  # type: ignore
+    def _geh_mod_f():
         class _EH:
             def handle_error(self, *a, **k):
                 pass
         return _EH()
-    class ErrorCategory:  # type: ignore
+    class _ec_mod_f:
         FILE_IO = 'file'
         UNKNOWN = 'unknown'
-    class ErrorSeverity:  # type: ignore
+    class _es_mod_f:
         MEDIUM = 'med'
         LOW = 'low'
+get_error_handler: _Any = locals().get('_geh_mod_i') or locals().get('_geh_mod_f')
+ErrorCategory: _Any = locals().get('_ec_mod_i') or locals().get('_ec_mod_f')
+ErrorSeverity: _Any = locals().get('_es_mod_i') or locals().get('_es_mod_f')
 
 
 def _utc_now_iso() -> str:
@@ -78,18 +90,34 @@ def write_runtime_status(
                 pass
             options_last = getattr(metrics, '_last_cycle_options', None)
             try:
-                per_min = getattr(metrics, 'options_per_minute')._value.get() if hasattr(metrics.options_per_minute, '_value') else None  # type: ignore[attr-defined]
+                m = getattr(metrics, 'options_per_minute', None)
+                if m is not None and hasattr(m, '_value'):
+                    v_get = getattr(getattr(m, '_value', None), 'get', None)
+                    if callable(v_get):
+                        per_min = v_get()
             except Exception:
                 pass
             try:
-                api_success = getattr(metrics, 'api_success_rate')._value.get() if hasattr(metrics.api_success_rate, '_value') else None  # type: ignore[attr-defined]
+                m2 = getattr(metrics, 'api_success_rate', None)
+                if m2 is not None and hasattr(m2, '_value'):
+                    v_get2 = getattr(getattr(m2, '_value', None), 'get', None)
+                    if callable(v_get2):
+                        api_success = v_get2()
             except Exception:
                 pass
             try:
-                if hasattr(metrics, 'memory_usage_mb') and hasattr(metrics.memory_usage_mb, '_value'):
-                    mem_mb = metrics.memory_usage_mb._value.get()  # type: ignore[attr-defined]
-                if hasattr(metrics, 'cpu_usage_percent') and hasattr(metrics.cpu_usage_percent, '_value'):
-                    cpu_pct = metrics.cpu_usage_percent._value.get()  # type: ignore[attr-defined]
+                if hasattr(metrics, 'memory_usage_mb'):
+                    mobj = getattr(metrics, 'memory_usage_mb', None)
+                    if mobj is not None and hasattr(mobj, '_value'):
+                        g = getattr(getattr(mobj, '_value', None), 'get', None)
+                        if callable(g):
+                            mem_mb = g()
+                if hasattr(metrics, 'cpu_usage_percent'):
+                    cobj = getattr(metrics, 'cpu_usage_percent', None)
+                    if cobj is not None and hasattr(cobj, '_value'):
+                        g2 = getattr(getattr(cobj, '_value', None), 'get', None)
+                        if callable(g2):
+                            cpu_pct = g2()
             except Exception:
                 pass
     except Exception:
@@ -114,13 +142,26 @@ def write_runtime_status(
             # Primary attempt: facade get_ltp (already rounded ATM style for indices)
             try:
                 if ltp_val is None:
-                    ltp_val = providers.get_ltp(idx)  # type: ignore[union-attr]
+                    gl = getattr(providers, 'get_ltp', None)
+                    if callable(gl):
+                        ltp_val = gl(idx)
             except Exception:
                 ltp_val = None
             # Fallback: use get_index_data raw last price if ltp_val not numeric
             if not isinstance(ltp_val, (int, float)) or ltp_val <= 0:
                 try:
-                    price, _ohlc = providers.get_index_data(idx)  # type: ignore[union-attr]
+                    gid = getattr(providers, 'get_index_data', None)
+                    price = None
+                    if callable(gid):
+                        rv = gid(idx)
+                        try:
+                            # Expect (price, ohlc) or object with first element price
+                            if isinstance(rv, (list, tuple)) and rv:
+                                price = rv[0]
+                            else:
+                                price = rv  # best-effort
+                        except Exception:
+                            price = None
                     if isinstance(price, (int, float)) and price > 0:
                         ltp_val = price
                 except Exception:
@@ -132,15 +173,15 @@ def write_runtime_status(
                     # Try provider.get_ltp with an instrument tuple pattern the mock supports
                     try:
                         # Map index to canonical instrument tuple used elsewhere
-                        mapping = {
+                        idx_map: Dict[str, tuple[str, str]] = {
                             'NIFTY': ('NSE', 'NIFTY 50'),
                             'BANKNIFTY': ('NSE', 'NIFTY BANK'),
                             'FINNIFTY': ('NSE', 'NIFTY FIN SERVICE'),
                             'SENSEX': ('BSE', 'SENSEX'),
                         }
-                        inst = mapping.get(idx, ('NSE', idx))
+                        inst = idx_map.get(idx, ('NSE', idx))
                         if hasattr(prim, 'get_ltp'):
-                            raw = prim.get_ltp([inst])  # type: ignore[arg-type]
+                            raw = prim.get_ltp([inst])
                             # When list supplied, mock returns dict keyed by instrument
                             if isinstance(raw, dict):
                                 for _k, v in raw.items():
@@ -149,7 +190,7 @@ def write_runtime_status(
                                         ltp_val = cand
                                         break
                         if (not isinstance(ltp_val, (int, float)) or ltp_val <= 0) and hasattr(prim, 'get_quote'):
-                            q = prim.get_quote([inst])  # type: ignore[arg-type]
+                            q = prim.get_quote([inst])
                             if isinstance(q, dict):
                                 for _k, v in q.items():
                                     cand = v.get('last_price') if isinstance(v, dict) else None
@@ -166,14 +207,14 @@ def write_runtime_status(
                 try:
                     prim2 = getattr(providers, 'primary_provider', None)
                     if prim2 and hasattr(prim2, 'get_quote'):
-                        mapping = {
+                        idx_map2: Dict[str, tuple[str, str]] = {
                             'NIFTY': ('NSE', 'NIFTY 50'),
                             'BANKNIFTY': ('NSE', 'NIFTY BANK'),
                             'FINNIFTY': ('NSE', 'NIFTY FIN SERVICE'),
                             'SENSEX': ('BSE', 'SENSEX'),
                         }
-                        inst = mapping.get(idx, ('NSE', idx))
-                        qd = prim2.get_quote([inst])  # type: ignore[arg-type]
+                        inst = idx_map2.get(idx, ('NSE', idx))
+                        qd = prim2.get_quote([inst])
                         if isinstance(qd, dict):
                             for _k, v in qd.items():
                                 cand = v.get('last_price') if isinstance(v, dict) else None
@@ -230,13 +271,16 @@ def write_runtime_status(
             try:
                 if metrics and hasattr(metrics, 'component_health'):
                     status_val = hw.get('status','unknown')
-                    metrics.component_health.labels(component=cname).set(1 if status_val.upper() == 'HEALTHY' else 0)  # type: ignore[attr-defined]
+                    try:
+                        metrics.component_health.labels(component=cname).set(1 if str(status_val).upper() == 'HEALTHY' else 0)
+                    except Exception:
+                        pass
             except Exception:
                 pass
     except Exception:
         pass
 
-    provider_info = {"name": None, "auth": {"valid": None, "expiry": None}, "latency_ms": None}
+    provider_info: Dict[str, Any] = {"name": None, "auth": {"valid": None, "expiry": None}, "latency_ms": None}
     try:
         provider_info["name"] = type(providers.primary_provider).__name__ if providers and providers.primary_provider else None
         provider_info["latency_ms"] = getattr(metrics, '_api_latency_ema', None) if metrics else None
@@ -277,8 +321,8 @@ def write_runtime_status(
         # Derive human string + band window (env) for UI exposure
         try:
             if isinstance(option_detail_mode, (int, float)):
-                mapping = {0: 'full', 1: 'band', 2: 'agg'}
-                option_detail_mode_str = mapping.get(int(option_detail_mode))
+                _mode_map: Dict[int, str] = {0: 'full', 1: 'band', 2: 'agg'}
+                option_detail_mode_str = _mode_map.get(int(option_detail_mode))
         except Exception:
             option_detail_mode_str = None
         try:
@@ -379,7 +423,7 @@ def write_runtime_status(
                 pass
         # Panel diff artifacts (best-effort)
         try:
-            from .panel_diffs import emit_panel_artifacts  # type: ignore
+            from .panel_diffs import emit_panel_artifacts
             emit_panel_artifacts(status, status_path=path)
         except Exception:
             logger.debug("panel diff emission failed", exc_info=True)

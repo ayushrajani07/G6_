@@ -92,9 +92,10 @@ from collections import OrderedDict
 import threading
 
 try:  # canonical generator (Phase 2 centralization)
-    from src.utils.strikes import build_strikes as _base_build_strikes  # type: ignore
+    # Import may fail in stripped-down environments (tests / minimal builds).
+    from src.utils.strikes import build_strikes as _base_build_strikes  # pragma: no cover
 except Exception:  # pragma: no cover
-    _base_build_strikes = None  # type: ignore
+    _base_build_strikes = None  # fallback placeholder
 
 __all__ = [
     "StrikeUniverseResult",
@@ -106,9 +107,12 @@ __all__ = [
 
 class StrikeStepPolicy(Protocol):  # pragma: no cover - interface only
     def compute_step(self, index_symbol: str, atm: float) -> float:  # noqa: D401
-        """Return desired step size for given index & atm.
-        Must be > 0; non-positive results are ignored.
+        """Return desired step size for given index & atm (>0).
+
+        Implementations must return a positive float. This Protocol
+        supplies only the signature for static type checking.
         """
+        ...
 
 
 @dataclass
@@ -119,7 +123,7 @@ class StrikeUniverseResult:
 
 # ------------------------ internal cache implementation ---------------------
 class _LRUStrikeCache:
-    def __init__(self, capacity: int = 256):
+    def __init__(self, capacity: int = 256) -> None:
         self.capacity = max(16, capacity)
         self._data: OrderedDict[Tuple[Any, ...], List[float]] = OrderedDict()
         self._lock = threading.Lock()
@@ -132,7 +136,7 @@ class _LRUStrikeCache:
                 self._data.move_to_end(key)
             return val
 
-    def put(self, key: Tuple[Any, ...], value: List[float]):
+    def put(self, key: Tuple[Any, ...], value: List[float]) -> None:
         with self._lock:
             if key in self._data:
                 self._data.move_to_end(key)
@@ -179,7 +183,7 @@ def _resolve_step(index_symbol: str, atm: float, explicit_step: float | None, po
             pass
     # 4. index registry
     try:
-        from src.utils.index_registry import get_index_meta  # type: ignore
+        from src.utils.index_registry import get_index_meta  # pragma: no cover
         v = float(get_index_meta(index_symbol).step)
         if v > 0:
             return v, "registry"
@@ -268,8 +272,20 @@ def build_strike_universe(
 
     if metrics is not None:
         try:  # best-effort optional metrics hooks
-            if hasattr(metrics, "strike_universe_cache_hits"):
-                metrics.strike_universe_cache_hits.inc() if cache_hit else metrics.strike_universe_cache_miss.inc()  # type: ignore[attr-defined]
+            if cache_hit:
+                inc_hits = getattr(metrics, "strike_universe_cache_hits", None)
+                if inc_hits is not None:
+                    try:
+                        inc_hits.inc()
+                    except Exception:
+                        pass
+            else:
+                inc_miss = getattr(metrics, "strike_universe_cache_miss", None)
+                if inc_miss is not None:
+                    try:
+                        inc_miss.inc()
+                    except Exception:
+                        pass
         except Exception:  # pragma: no cover
             pass
 
@@ -279,7 +295,12 @@ def build_strike_universe(
 def _generate_strikes(atm: float, itm: int, otm: int, index_symbol: str, step: float) -> List[float]:
     # Use canonical generator if present for parity.
     if _base_build_strikes is not None:
-        return _base_build_strikes(atm, itm, otm, index_symbol, step=step)
+        # Defensive: upstream may return any iterable; coerce explicitly.
+        try:
+            res = _base_build_strikes(atm, itm, otm, index_symbol, step=step)
+            return [float(x) for x in list(res)]
+        except Exception:
+            return []
     # Fallback simplified generation
     if atm <= 0:
         return []

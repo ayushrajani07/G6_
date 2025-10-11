@@ -53,7 +53,7 @@ def _increment_deprecated_metrics(cfg: Dict[str, Any], metrics: Any) -> None:
                 legacy_keys.append(f"storage.{k}")
     for key in legacy_keys:
         try:
-            metrics.config_deprecated_keys.labels(key=key).inc()  # type: ignore[attr-defined]
+            metrics.config_deprecated_keys.labels(key=key).inc()
         except Exception:
             pass
 
@@ -69,7 +69,7 @@ def load_and_validate_config(path: str | os.PathLike[str], *, metrics: Any = Non
         if not strict and 'application' in msg and 'does not match' in msg:
             try:
                 # Reload raw JSON directly and attempt sanitization
-                with open(path, 'r', encoding='utf-8') as fh:  # type: ignore[arg-type]
+                with open(path, 'r', encoding='utf-8') as fh:
                     raw = json.load(fh)
                 app = raw.get('application')
                 if isinstance(app, str):
@@ -93,7 +93,7 @@ def load_and_validate_config(path: str | os.PathLike[str], *, metrics: Any = Non
             # Attempt expiry token coercion fallback (rule tokens -> deterministic ISO dates)
             if not strict and 'expiries' in msg and 'does not match' in msg:
                 try:
-                    with open(path, 'r', encoding='utf-8') as fh:  # type: ignore[arg-type]
+                    with open(path, 'r', encoding='utf-8') as fh:
                         raw2 = json.load(fh)
                     from datetime import date, timedelta
                     today = date.today()
@@ -140,9 +140,9 @@ def load_and_validate_config(path: str | os.PathLike[str], *, metrics: Any = Non
         # Providers referenced implicitly via config indices section; attempt dynamic import of src.providers if present
         problems: list[str] = []
         try:
-            from src import providers as _prov_mod  # type: ignore
+            from src import providers as _prov_mod
         except Exception:  # pragma: no cover - if providers module absent we skip
-            _prov_mod = None  # type: ignore
+            _prov_mod = None
         # Heuristic: if providers module exposes a registry dict, use it; else introspect attributes
         registry = {}
         try:
@@ -160,7 +160,7 @@ def load_and_validate_config(path: str | os.PathLike[str], *, metrics: Any = Non
             pass
         indices = cfg.get('indices') or {}
         if isinstance(indices, dict):
-            for idx, params in indices.items():  # type: ignore[assignment]
+            for idx, params in indices.items():
                 if not isinstance(params, dict):
                     continue
                 provider_name = params.get('provider') or params.get('provider_name')

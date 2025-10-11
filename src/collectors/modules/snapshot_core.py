@@ -18,16 +18,17 @@ Design Notes:
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 import time
 import logging
 
 logger = logging.getLogger(__name__)
 
 try:  # optional import (legacy path may run before module available during rollout)
-    from src.collectors.modules.status_finalize import compute_cycle_reason_totals  # type: ignore
+    # Import via facade to keep types loose and avoid cross-module TypedDict mismatches
+    from src.collectors.modules.status_finalize_core import compute_cycle_reason_totals
 except Exception:  # pragma: no cover
-    def compute_cycle_reason_totals(indices_struct, metrics):  # type: ignore
+    def compute_cycle_reason_totals(indices_struct: List[Dict[str, Any]], metrics: Any | None) -> Optional[Dict[str, int]]:
         return None
 
 @dataclass
@@ -89,13 +90,14 @@ def _derive_alerts_total(indices_struct: List[Dict[str, Any]]) -> Optional[int]:
     return None
 
 
-def build_snapshot(indices_struct: List[Dict[str, Any]], index_param_count: int, metrics, *, build_reason_totals: bool = True) -> SnapshotSummary:
+def build_snapshot(indices_struct: List[Dict[str, Any]], index_param_count: int, metrics: Any | None, *, build_reason_totals: bool = True) -> SnapshotSummary:
     idx_count, opt_total, expiries_total, indices_ok, indices_empty = _compute_basic_counts(indices_struct)
     alerts_total = _derive_alerts_total(indices_struct)
-    reason_totals = None
+    reason_totals: Optional[Dict[str, int]] = None
     if build_reason_totals:
         try:
-            reason_totals = compute_cycle_reason_totals(indices_struct, metrics)
+            # The facade returns a Dict[str,int] | None at runtime; cast for mypy harmony with dataclass field type.
+            reason_totals = cast(Optional[Dict[str, int]], compute_cycle_reason_totals(indices_struct, metrics))
         except Exception:
             logger.debug('compute_cycle_reason_totals_failed', exc_info=True)
             reason_totals = None

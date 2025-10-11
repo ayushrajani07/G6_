@@ -61,3 +61,18 @@ groups:
         annotations:
           summary: "Memory pressure flapping (>6 transitions/15m)"
           description: "Frequent pressure level oscillations detected. Adjust hysteresis or thresholds to stabilize."
+
+  - name: g6_benchmark.alerts
+    interval: 60s
+    rules:
+      - alert: BenchP95RegressionHigh
+        expr: (g6_bench_delta_p95_pct > g6_bench_p95_regression_threshold_pct) and (g6_bench_p95_regression_threshold_pct >= 0)
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Pipeline p95 latency regression exceeds threshold"
+          description: |
+            Observed pipeline vs legacy p95 latency delta (g6_bench_delta_p95_pct) is above configured threshold (g6_bench_p95_regression_threshold_pct) for 5m.
+            Investigate recent changes, provider slowness, or resource constraints.

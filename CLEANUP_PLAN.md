@@ -26,7 +26,7 @@ Status: Draft (to be iterated and checked into main after validation)
 | scripts/panel_updater.py | REMOVED | Superseded by unified summary PanelsWriter | Deleted (2025-10-01); start scripts invoke summary_view directly |  | DONE |
 | scripts/mock_live_updates.py | REMOVED | No references; optional demo server | Deleted (2025-10-05); doc updated with replacement snippet |  | DONE |
 | start_live_dashboard_v2.ps1 | DEPRECATE -> REMOVE | Duplicate launcher; canonical is `scripts/start_live_dashboard.ps1` | Added deprecation shim chaining to canonical; remove after next release |  | R+1 |
-| start_all.ps1 / start_all_enhanced.ps1 | CONSOLIDATE | Overlapping orchestrator start bundles | Provide single unified `start_platform.ps1` |  | 2 weeks |
+| start_all.ps1 / start_all_enhanced.ps1 | REMOVED | Superseded by Windows auto-resolve flow | Replaced by `scripts/auto_stack.ps1` (invoked via `auto_resolve_stack.py` at launcher start) |  | DONE (2025-10-11) |
 | start_panels_flow.ps1 | REMOVED | Panels flow duplicative now that tasks exist | Deleted (2025-10-05); docs will reference tasks instead |  | DONE |
 | plot_weekday_overlays.py / weekday_overlay.py / generate_overlay_layout_samples.py | MONITOR | Overlays feature niche; confirm active usage | Add usage metric or doc pointer; re-eval next wave |  | Next wave |
 | diagnose_expiries.py / expiry_matrix.py / sanitize_csv_expiries.py | KEEP | Operational troubleshooting (expiry correctness critical) | Add doc index linking these |  | 2 weeks |

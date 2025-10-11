@@ -17,18 +17,19 @@ Public API:
 from __future__ import annotations
 import os, datetime, logging
 from typing import Any, Dict, Tuple, Optional
+import importlib
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["evaluate_market_gate"]
 
 
-def evaluate_market_gate(build_snapshots: bool, metrics) -> Tuple[bool, Optional[Dict[str, Any]]]:
+def evaluate_market_gate(build_snapshots: bool, metrics: Any | None) -> Tuple[bool, Optional[Dict[str, Any]]]:
     # Determine market open status (permissive default on failure)
     _market_open = True
     try:  # pragma: no cover
-        from src.utils import market_hours as _mh  # type: ignore
-        _market_open = _mh.is_market_open(market_type="equity", session_type="regular")
+        _mh = importlib.import_module('src.utils.market_hours')
+        _market_open = bool(getattr(_mh, 'is_market_open', lambda **k: True)(market_type="equity", session_type="regular"))
     except Exception:
         _market_open = True
 
@@ -53,21 +54,22 @@ def evaluate_market_gate(build_snapshots: bool, metrics) -> Tuple[bool, Optional
             # In single header mode we always suppress duplicates regardless of disable_repeat
             if sentinel not in globals():
                 logger.info("Equity market is open, starting collection")
-                globals()[sentinel] = True  # type: ignore
+                globals()[sentinel] = True
             else:
                 if banner_debug:
                     logger.debug("banner_suppressed market_open single_header_mode=1")
         else:
             if not (disable_repeat and sentinel in globals()):
                 logger.info("Equity market is open, starting collection")
-                globals()[sentinel] = True  # type: ignore
+                globals()[sentinel] = True
             elif banner_debug:
                 logger.debug("banner_suppressed market_open disable_repeat=1")
         return True, None
 
     # Market closed path
     try:
-        from src.utils.market_hours import get_next_market_open  # type: ignore
+        _mh = importlib.import_module('src.utils.market_hours')
+        get_next_market_open = getattr(_mh, 'get_next_market_open')
         next_open = get_next_market_open(market_type="equity", session_type="regular")
         wait_time = (next_open - datetime.datetime.now(datetime.timezone.utc)).total_seconds()
     except Exception:
@@ -80,19 +82,23 @@ def evaluate_market_gate(build_snapshots: bool, metrics) -> Tuple[bool, Optional
     )
     # Emit trace via existing lightweight tracer if available
     try:  # pragma: no cover
-        from src.collectors.helpers.struct_events import emit_trace_event  # type: ignore
-        emit_trace_event("market_closed", next_open=str(next_open), wait_s=wait_time)  # type: ignore
+        _se = importlib.import_module('src.collectors.helpers.struct_events')
+        emit_trace_event = getattr(_se, 'emit_trace_event', None)
+        if callable(emit_trace_event):
+            emit_trace_event("market_closed", next_open=str(next_open), wait_s=wait_time)
     except Exception:
         try:
             # Fallback: attempt global _trace imported by unified collectors
-            from src.collectors.unified_collectors import _trace  # type: ignore
-            _trace("market_closed", next_open=str(next_open), wait_s=wait_time)
+            _uc = importlib.import_module('src.collectors.unified_collectors')
+            _trace = getattr(_uc, '_trace', None)
+            if callable(_trace):
+                _trace("market_closed", next_open=str(next_open), wait_s=wait_time)
         except Exception:
             logger.debug("trace_event_failed_market_closed", exc_info=True)
 
     if metrics and hasattr(metrics, 'collection_cycle_in_progress'):
         try:
-            metrics.collection_cycle_in_progress.set(0)  # type: ignore
+            metrics.collection_cycle_in_progress.set(0)
         except Exception:
             pass
 

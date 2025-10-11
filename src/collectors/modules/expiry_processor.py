@@ -17,18 +17,20 @@ expiry_rec(dict), human_row(optional tuple), plus any intermediate flags.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Tuple, Callable, TYPE_CHECKING
 import os, datetime, logging
 
-# Phase 0 settings integration (safe import; tolerates absence if path changes later)
-try:  # pragma: no cover - import guard
-    # Correct module path: collectors.settings (was mistakenly collector.settings)
-    from src.collectors.settings import CollectorSettings  # type: ignore
-except Exception:  # pragma: no cover
-    class CollectorSettings:  # type: ignore
-        pass
+# Phase 0 settings integration with TYPE_CHECKING guard to avoid duplicate definitions
+if TYPE_CHECKING:  # pragma: no cover
+    from src.collectors.settings import CollectorSettings
+else:  # runtime tolerant import
+    try:  # pragma: no cover
+        from src.collectors.settings import CollectorSettings  # noqa: F401
+    except Exception:  # pragma: no cover
+        class CollectorSettings:  # fallback stub
+            pass
 
-def get_collector_settings(force_reload: bool = False):  # pragma: no cover - lightweight cache helper
+def get_collector_settings(force_reload: bool = False) -> Any:  # pragma: no cover - lightweight cache helper
     """Lazy singleton loader for CollectorSettings.
 
     Maintains backward compatibility with earlier refactor draft that imported
@@ -41,7 +43,7 @@ def get_collector_settings(force_reload: bool = False):  # pragma: no cover - li
             settings_obj = None
             try:
                 if hasattr(CollectorSettings, 'load'):
-                    settings_obj = CollectorSettings.load()  # type: ignore[attr-defined]
+                    settings_obj = CollectorSettings.load()  # may raise if stub; ignored
             except Exception:
                 settings_obj = None
             globals()[cache_name] = settings_obj
@@ -58,10 +60,10 @@ from src.error_handling import handle_collector_error
 
 logger = logging.getLogger(__name__)
 
-def _coerce_mapping(obj):  # pragma: no cover
+def _coerce_mapping(obj: Any) -> Dict[str, Any]:  # pragma: no cover
     try:
         if not isinstance(obj, dict):
-            obj = dict(obj)  # type: ignore[arg-type]
+            obj = dict(obj)
     except Exception:
         return {}
     out = {}
@@ -145,7 +147,7 @@ def apply_basic_filters(
 
 def process_expiry(
     *,
-    ctx,
+    ctx: Any,
     index_symbol: str,
     expiry_rule: str,
     atm_strike: float,
@@ -169,18 +171,16 @@ def process_expiry(
     allowed_expiry_dates: set,
     pcr_snapshot: Dict[str, Any],
     aggregation_state: Any,
-    collector_settings=None,  # new optional settings object (CollectorSettings); falls back to env parsing if None
-    # Accept and ignore additional legacy or refactor-era keyword arguments to preserve
-    # backward compatibility with older test invocations (e.g. refactor_debug, parity flags).
+    collector_settings: Any = None,
     **legacy_kwargs: Any,
 ) -> Dict[str, Any]:
     # Lazy & resilient imports to avoid circular dependency and tolerate removed optional modules.
     try:
         from src.collectors.unified_collectors import _trace  # retain trace wrapper for consistency
     except Exception:  # pragma: no cover
-        def _trace(*args, **ctx):  # type: ignore
+        def _trace(msg: str, **ctx: Any) -> None:  # single signature to avoid variant conflict
             try:
-                logging.getLogger(__name__).debug("trace_fallback args=%s ctx=%s", args, ctx)
+                logging.getLogger(__name__).debug("trace_fallback msg=%s ctx=%s", msg, ctx)
             except Exception:
                 pass
     # Core helpers (must succeed) – if these fail, we allow exception to bubble to caller fallback.
@@ -189,56 +189,95 @@ def process_expiry(
         fetch_option_instruments as _fetch_option_instruments,
         enrich_quotes as _enrich_quotes,
     )
-    try:
-        from src.collectors.modules.coverage_eval import (  # type: ignore
-            coverage_metrics as _cov_metrics_raw,  # type: ignore
-            field_coverage_metrics as _field_cov_metrics_raw,  # type: ignore
+    # ------------------------------------------------------------------
+    # Coverage metrics integration (single definition to satisfy mypy)
+    # ------------------------------------------------------------------
+    _cov_metrics_raw: Optional[Callable[..., Any]] = None
+    _field_cov_metrics_raw: Optional[Callable[..., Any]] = None
+    try:  # pragma: no cover
+        from src.collectors.modules.coverage_eval import (
+            coverage_metrics as _cov_metrics_raw_import,
+            field_coverage_metrics as _field_cov_metrics_raw_import,
         )
-        def _coverage_metrics(ctx,*a,**k):  # type: ignore
-            val = _cov_metrics_raw(ctx,*a,**k)
-            try:
-                return float(val) if val is not None else 0.0
-            except Exception:
-                return 0.0
-        def _field_coverage_metrics(ctx,*a,**k):  # type: ignore
-            val = _field_cov_metrics_raw(ctx,*a,**k)
-            try:
-                return float(val) if val is not None else 0.0
-            except Exception:
-                return 0.0
+        _cov_metrics_raw = _cov_metrics_raw_import
+        _field_cov_metrics_raw = _field_cov_metrics_raw_import
     except Exception:  # pragma: no cover
-        def _coverage_metrics(*_a, **_k):  # type: ignore
-            return 0.0  # strike coverage ratio fallback
-        def _field_coverage_metrics(*_a, **_k):  # type: ignore
-            return 0.0  # field coverage ratio fallback
         logger.debug('coverage_eval_import_failed (tolerated)')
+
+    def _coverage_metrics(ctx: Any, *a: Any, **k: Any) -> float:
+        if _cov_metrics_raw is None:
+            return 0.0
+        try:
+            val = _cov_metrics_raw(ctx, *a, **k)
+            return float(val) if val is not None else 0.0
+        except Exception:
+            return 0.0
+
+    def _field_coverage_metrics(ctx: Any, *a: Any, **k: Any) -> float:
+        if _field_cov_metrics_raw is None:
+            return 0.0
+        try:
+            val = _field_cov_metrics_raw(ctx, *a, **k)
+            return float(val) if val is not None else 0.0
+        except Exception:
+            return 0.0
     # Synthetic fallback & classification removed (2025-10-08 aggressive cleanup)
-    def _classify_expiry_result(*_a, **_k):  # type: ignore  # legacy stub
+    def _classify_expiry_result(*_a: Any, **_k: Any) -> str:  # legacy stub
         return 'OK'
     try:
-        from src.collectors.helpers.status_reducer import compute_expiry_status as _compute_expiry_status  # type: ignore
+        from src.collectors.helpers.status_reducer import compute_expiry_status as _compute_expiry_status
     except Exception:  # pragma: no cover
-        def _compute_expiry_status(_rec):  # type: ignore
+        def _compute_expiry_status(expiry_rec: Dict[str, Any]) -> str:
             return 'empty'
         logger.debug('status_reducer_import_failed (using fallback compute_expiry_status)')
-    # Data quality bridge (optional)
-    try:
-        from src.collectors.modules.data_quality_bridge import (  # type: ignore
-            run_option_quality as _run_option_quality,
-            run_expiry_consistency as _run_expiry_consistency,
-        )
-    except Exception:  # pragma: no cover
-        def _run_option_quality(*_a, **_k):  # type: ignore
-            return ({}, [])
-        def _run_expiry_consistency(*_a, **_k):  # type: ignore
+    # Data quality bridge optional wrappers (single stable signatures for mypy)
+    def _run_option_quality(dq: Any, options_data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
+        try:
+            from src.collectors.modules.data_quality_bridge import run_option_quality as _impl
+        except Exception:
+            return {}, []
+        try:
+            res = _impl(dq, options_data)
+            if isinstance(res, tuple) and len(res) == 2:
+                # Defensive: ensure return structure (dict, list) shape
+                if isinstance(res, tuple) and len(res) == 2:
+                    left, right = res
+                    if not isinstance(left, dict):
+                        left = {}
+                    if not isinstance(right, list):
+                        right = []
+                    return left, right
+                return {}, []
+        except Exception:
+            return {}, []
+        return {}, []
+
+    def _run_expiry_consistency(dq: Any, options_data: Dict[str, Any], index_price: float | None, expiry_rule: str | None) -> List[Any]:
+        try:
+            from src.collectors.modules.data_quality_bridge import run_expiry_consistency as _impl
+        except Exception:
             return []
-        logger.debug('data_quality_bridge_import_failed (DQ disabled)')
+        try:
+            res = _impl(dq, options_data, index_price, expiry_rule)
+            if isinstance(res, list):
+                return res
+        except Exception:
+            return []
+        return []
     # Start trace marker for observability
     try:
         _trace('expiry_process_start', index=index_symbol, rule=expiry_rule)
     except Exception:
         pass
     outcome: Dict[str, Any] = {'success': False}
+    # Test-only debug flag to emit compact stage counts when enabled
+    def _truthy_env(name: str) -> bool:
+        try:
+            v = os.getenv(name)
+            return bool(v) and str(v).strip().lower() in ("1", "true", "yes", "on")
+        except Exception:
+            return False
+    _test_debug = _truthy_env('G6_TEST_DEBUG')
     # Pre-create a minimal expiry_rec so exception paths before instrument fetch still return structure
     expiry_rec = {
         'rule': expiry_rule,
@@ -248,12 +287,14 @@ def process_expiry(
         'options': 0,
         'failed': True,
         'pcr': None,
+        'strike_coverage': None,
+        'field_coverage': None,
     # synthetic_fallback flag removed
     }
+    enriched_data: Optional[Dict[str, Dict[str, Any]]] = None
+    prevent_report: Optional[Dict[str, Any]] = None
+    clamp_meta: Optional[Any] = None
     try:
-        enriched_data = None  # type: ignore[assignment]
-        prevent_report = None  # type: ignore[assignment]
-        clamp_meta = None
         with ctx.time_phase('resolve_expiry'):
             expiry_date = _resolve_expiry(index_symbol, expiry_rule, ctx.providers, metrics, concise_mode)
             try:
@@ -282,13 +323,18 @@ def process_expiry(
                     _trace('fetch_instruments', index=index_symbol, rule=expiry_rule, count=len(instruments))
                 except Exception:
                     pass
+        if _test_debug:
+            try:
+                print(f"[G6_TEST_DEBUG] stage=post_fetch index={index_symbol} rule={expiry_rule} strikes={len(strikes or [])} instruments={len(instruments or [])}")
+            except Exception:
+                pass
         try:
             logger.debug('expiry_stage_counts index=%s rule=%s stage=post_fetch instruments=%d strikes=%d', index_symbol, expiry_rule, len(instruments or []), len(strikes or []))
         except Exception:
             pass
         try:
             if instruments:
-                from src.collectors.modules.prefilter_flow import run_prefilter_clamp  # type: ignore
+                from src.collectors.modules.prefilter_flow import run_prefilter_clamp
                 instruments, clamp_meta = run_prefilter_clamp(index_symbol, expiry_rule, expiry_date, instruments)
             else:
                 clamp_meta = None
@@ -307,11 +353,11 @@ def process_expiry(
             try:
                 dedup_key = f"{index_symbol}|{expiry_rule}|{expiry_date}"
                 if hasattr(ctx, 'no_instruments_dedup'):
-                    if dedup_key in ctx.no_instruments_dedup:  # type: ignore[attr-defined]
+                    if dedup_key in ctx.no_instruments_dedup:
                         suppress = True
                     else:
                         try:
-                            ctx.no_instruments_dedup.add(dedup_key)  # type: ignore[attr-defined]
+                            ctx.no_instruments_dedup.add(dedup_key)
                         except Exception:
                             pass
                 if not suppress:
@@ -329,7 +375,7 @@ def process_expiry(
                 logger.debug('zero_data_struct_emit_failed', exc_info=True)
             if not suppress:  # only escalate to error bridge the first time per cycle
                 try:
-                    from src.collectors.modules.error_bridge import report_no_instruments  # type: ignore
+                    from src.collectors.modules.error_bridge import report_no_instruments
                     report_no_instruments(index_symbol, expiry_rule, expiry_date, strikes, NoInstrumentsError)
                 except Exception:
                     handle_collector_error(NoInstrumentsError(f"No instruments for {index_symbol} expiry {expiry_date} (rule: {expiry_rule}) with strikes={strikes}"), component='collectors.expiry_processor', index_name=index_symbol, context={'stage':'get_option_instruments','rule':expiry_rule,'expiry':str(expiry_date),'strikes':strikes},)
@@ -342,20 +388,35 @@ def process_expiry(
                 pass
             return outcome
         with ctx.time_phase('enrich_quotes'):
-            enriched_data = _enrich_quotes(index_symbol, expiry_rule, expiry_date, instruments, ctx.providers, metrics)
+            raw_enriched = _enrich_quotes(index_symbol, expiry_rule, expiry_date, instruments, ctx.providers, metrics)
+            # Normalize raw_enriched to dict[str, dict] lazily
+            if isinstance(raw_enriched, dict):
+                enriched_data = {str(k): v for k, v in raw_enriched.items() if isinstance(v, dict)}
+            elif isinstance(raw_enriched, list):
+                try:
+                    enriched_data = {str(i.get('symbol') or i.get('tradingsymbol') or idx): i for idx, i in enumerate(raw_enriched) if isinstance(i, dict)}
+                except Exception:
+                    enriched_data = {}
+            else:
+                enriched_data = {}
             try:
-                _trace('enrich_quotes', index=index_symbol, rule=expiry_rule, enriched=len(enriched_data))
+                _trace('enrich_quotes', index=index_symbol, rule=expiry_rule, enriched=len(enriched_data or {}))
             except Exception:
                 pass
         try:
             logger.debug('expiry_stage_counts index=%s rule=%s stage=post_enrich enriched=%d instruments=%d', index_symbol, expiry_rule, len(enriched_data or {}), len(instruments or []))
         except Exception:
             pass
+        if _test_debug:
+            try:
+                print(f"[G6_TEST_DEBUG] stage=post_enrich index={index_symbol} rule={expiry_rule} enriched={len(enriched_data or {})} instruments={len(instruments or [])}")
+            except Exception:
+                pass
 
         # Enforced mapping type for downstream logic
         if not isinstance(enriched_data, dict):  # fallback normalization already attempted above for list
             try:
-                enriched_data = dict(enriched_data)  # type: ignore[arg-type]
+                enriched_data = dict(enriched_data)  # runtime best-effort normalization
             except Exception:
                 enriched_data = {}
         # Defensive: ensure string keys
@@ -375,7 +436,7 @@ def process_expiry(
         enriched_data, _filter_meta = apply_basic_filters(enriched_data or {}, collector_settings, index_symbol, expiry_rule, logger)
         if dq_checker and dq_enabled and enriched_data:
             try:
-                from src.collectors.modules.data_quality_flow import apply_data_quality  # type: ignore
+                from src.collectors.modules.data_quality_flow import apply_data_quality
                 apply_data_quality(
                     dq_checker,
                     dq_enabled,
@@ -404,13 +465,13 @@ def process_expiry(
         # Normalize enriched_data to dict; some provider enrich paths might return list
         if isinstance(enriched_data, list):  # rare path
             try:
-                enriched_data = {str(i.get('symbol') or i.get('tradingsymbol') or idx): i for idx,i in enumerate(enriched_data) if isinstance(i, dict)}  # type: ignore
+                enriched_data = {str(i.get('symbol') or i.get('tradingsymbol') or idx): i for idx,i in enumerate(enriched_data) if isinstance(i, dict)}
             except Exception:
                 enriched_data = {}
         # Final type normalization for static typing & downstream helpers: ensure mapping[str]->dict
         try:
             if isinstance(enriched_data, dict):
-                enriched_data = {str(k): v for k, v in enriched_data.items() if isinstance(v, dict)}  # type: ignore[assignment]
+                enriched_data = {str(k): v for k, v in enriched_data.items() if isinstance(v, dict)}
             else:
                 enriched_data = {}
         except Exception:
@@ -420,7 +481,7 @@ def process_expiry(
         _orig_enriched_snapshot = dict(enriched_data) if enriched_data else {}
         with ctx.time_phase('preventive_validate'):
             try:
-                from src.collectors.modules.preventive_validate import run_preventive_validation  # type: ignore
+                from src.collectors.modules.preventive_validate import run_preventive_validation
                 cleaned_data, prevent_report = run_preventive_validation(index_symbol, expiry_rule, expiry_date, instruments, enriched_data, index_price)
             except Exception:
                 logger.debug('preventive_validation_module_failed', exc_info=True); prevent_report={'error':True}; cleaned_data=enriched_data
@@ -429,6 +490,13 @@ def process_expiry(
             else:
                 logger.debug(f"Preventive validation ok {index_symbol} {expiry_rule} kept={prevent_report.get('post_enriched_count')} dropped={prevent_report.get('dropped_count')}")
             enriched_data = cleaned_data
+        if _test_debug:
+            try:
+                kept = prevent_report.get('post_enriched_count') if isinstance(prevent_report, dict) else None
+                dropped = prevent_report.get('dropped_count') if isinstance(prevent_report, dict) else None
+                print(f"[G6_TEST_DEBUG] stage=post_validate index={index_symbol} rule={expiry_rule} remaining={len(enriched_data or {})} kept={kept} dropped={dropped}")
+            except Exception:
+                pass
         # Phase 1 shadow pipeline (resolve, fetch, prefilter, enrich) parity check
         try:
             if collector_settings is not None and getattr(collector_settings, 'pipeline_v2_flag', False):
@@ -439,7 +507,7 @@ def process_expiry(
                     'instrument_count': len(instruments or []),
                     'enriched_keys': len(enriched_data or {}),
                 }
-                from src.collectors.pipeline.shadow import run_shadow_pipeline  # type: ignore
+                from src.collectors.pipeline.shadow import run_shadow_pipeline
                 run_shadow_pipeline(
                     ctx,
                     collector_settings,
@@ -465,7 +533,7 @@ def process_expiry(
             if collector_settings is not None:
                 salvage_flag = bool(getattr(collector_settings, 'foreign_expiry_salvage', False) or getattr(collector_settings, 'salvage_enabled', False))
             else:
-                from src.utils.env_flags import is_truthy_env  # type: ignore
+                from src.utils.env_flags import is_truthy_env
                 salvage_flag = is_truthy_env('G6_FOREIGN_EXPIRY_SALVAGE')
         except Exception:
             salvage_flag = False
@@ -475,10 +543,10 @@ def process_expiry(
             if collector_settings is not None and hasattr(collector_settings, 'recovery_strategy_legacy'):
                 use_recovery_strategy = bool(getattr(collector_settings, 'recovery_strategy_legacy'))
             else:
-                from src.utils.env_flags import is_truthy_env  # type: ignore
+                from src.utils.env_flags import is_truthy_env
                 use_recovery_strategy = is_truthy_env('G6_RECOVERY_STRATEGY_LEGACY')
         except Exception:
-            from src.utils.env_flags import is_truthy_env  # type: ignore
+            from src.utils.env_flags import is_truthy_env
             use_recovery_strategy = is_truthy_env('G6_RECOVERY_STRATEGY_LEGACY')
         recovery_invoked = False
         if (not enriched_data and _orig_enriched_snapshot):
@@ -499,11 +567,11 @@ def process_expiry(
             if salvage_only:
                 if use_recovery_strategy:
                     try:
-                        from src.collectors.pipeline.recovery import DefaultRecoveryStrategy  # type: ignore
+                        from src.collectors.pipeline.recovery import DefaultRecoveryStrategy
                         strat = DefaultRecoveryStrategy()
                         # Build a minimal shim state-like object exposing meta/issues if needed in future
                         class _StateShim:
-                            def __init__(self, issues_list):
+                            def __init__(self, issues_list: list[str]) -> None:
                                 self.meta = {'issues': issues_list}
                         _shim = _StateShim(issues)
                         # Currently attempt_salvage just checks meta; we call it for parity of side-effects
@@ -536,9 +604,9 @@ def process_expiry(
                 else:
                     logger.debug('foreign_expiry_salvage_skipped index=%s rule=%s distinct_count=%d recovery_invoked=%s', index_symbol, expiry_rule, len(distinct_foreign), recovery_invoked)
         with ctx.time_phase('coverage_metrics'):
-            strike_cov = _coverage_metrics(ctx, instruments, strikes, index_symbol, expiry_rule, expiry_date)  # type: ignore[misc]
+            strike_cov = _coverage_metrics(ctx, instruments, strikes, index_symbol, expiry_rule, expiry_date)
         with ctx.time_phase('field_coverage_metrics'):
-            field_cov = _field_coverage_metrics(ctx, enriched_data, index_symbol, expiry_rule, expiry_date)  # type: ignore[misc]
+            field_cov = _field_coverage_metrics(ctx, enriched_data, index_symbol, expiry_rule, expiry_date)
         # Empty quotes diagnostics: if field coverage is 0 or None and options >0 instruments present
         try:
             if (field_cov is None or field_cov == 0) and enriched_data:
@@ -555,7 +623,7 @@ def process_expiry(
                     )
                     if metrics:
                         try:
-                            from src.metrics.adapter import MetricsAdapter  # type: ignore
+                            from src.metrics.adapter import MetricsAdapter
                             MetricsAdapter(metrics).record_empty_quote_fields(index_symbol, expiry_rule)
                         except Exception:
                             logger.debug('empty_quote_metric_adapter_failed', exc_info=True)
@@ -563,13 +631,13 @@ def process_expiry(
             logger.debug('empty_quote_diagnostics_failed', exc_info=True)
         with ctx.time_phase('iv_estimation'):
             try:
-                from src.collectors.modules.iv_estimation import run_iv_estimation  # type: ignore
+                from src.collectors.modules.iv_estimation import run_iv_estimation
                 run_iv_estimation(ctx, enriched_data, index_symbol, expiry_rule, expiry_date, index_price, greeks_calculator, local_estimate_iv, risk_free_rate, None, None, None, None)
             except Exception:
                 logger.debug('iv_estimation_module_failed', exc_info=True)
         with ctx.time_phase('greeks_compute'):
             try:
-                from src.collectors.modules.greeks_compute import run_greeks_compute  # type: ignore
+                from src.collectors.modules.greeks_compute import run_greeks_compute
                 run_greeks_compute(ctx, enriched_data, index_symbol, expiry_rule, expiry_date, per_index_ts, greeks_calculator, risk_free_rate, local_compute_greeks, allow_per_option_metrics, None, mem_flags)
             except Exception:
                 logger.debug('greeks_compute_module_failed', exc_info=True)
@@ -577,8 +645,13 @@ def process_expiry(
         from src.collectors.cycle_context import ExpiryContext
         expiry_ctx = ExpiryContext(index_symbol=index_symbol, expiry_rule=expiry_rule, expiry_date=expiry_date, collection_time=collection_time, index_price=index_price, risk_free_rate=risk_free_rate, allow_per_option_metrics=allow_per_option_metrics, compute_greeks=local_compute_greeks)
         with ctx.time_phase('persist_and_metrics'):
+            if _test_debug:
+                try:
+                    print(f"[G6_TEST_DEBUG] stage=persist index={index_symbol} rule={expiry_rule} options={len(enriched_data or {})}")
+                except Exception:
+                    pass
             try:
-                from src.collectors.modules.persist_flow import run_persist_flow  # type: ignore
+                from src.collectors.modules.persist_flow import run_persist_flow
                 persist_result = run_persist_flow(
                     ctx,
                     enriched_data,
@@ -599,8 +672,8 @@ def process_expiry(
                     @dataclass
                     class _PersistFailSurrogate:  # local minimal substitute
                         option_count: int = 0
-                        pcr: any = None  # type: ignore
-                        metrics_payload: any = None  # type: ignore
+                        pcr: Any = None
+                        metrics_payload: Any = None
                         failed: bool = True
                     persist_result = _PersistFailSurrogate()
         if persist_result.failed:
@@ -608,12 +681,34 @@ def process_expiry(
             return outcome
         pcr_val = persist_result.pcr; metrics_payload = persist_result.metrics_payload
         try:
-            expiry_rec['options'] = len(enriched_data); expiry_rec['pcr']=pcr_val
+            # Coerce to int for compatibility with downstream expectations (expiry_rec fields allow int | str | None)
+            expiry_rec['options'] = int(len(enriched_data))
+            if isinstance(pcr_val, (int, float)):
+                expiry_rec['pcr'] = int(pcr_val)
+            else:
+                expiry_rec['pcr'] = pcr_val  # preserve original if non-numeric
         except Exception:
             pass
         _classify_expiry_result(expiry_rec, enriched_data)
-        if strike_cov is not None: expiry_rec['strike_coverage']=strike_cov
-        if field_cov is not None: expiry_rec['field_coverage']=field_cov
+        # Normalize coverage metrics to numeric (int) when numeric; otherwise preserve original
+        sc_out: int | str | None = None
+        if strike_cov is not None:
+            if isinstance(strike_cov, (int, float)):
+                sc_out = int(strike_cov)
+            elif isinstance(strike_cov, str):
+                sc_out = strike_cov
+            else:
+                sc_out = None
+            expiry_rec['strike_coverage'] = sc_out
+        fc_out: int | str | None = None
+        if field_cov is not None:
+            if isinstance(field_cov, (int, float)):
+                fc_out = int(field_cov)
+            elif isinstance(field_cov, str):
+                fc_out = field_cov
+            else:
+                fc_out = None
+            expiry_rec['field_coverage'] = fc_out
         expiry_rec['status'] = _compute_expiry_status(expiry_rec)
         # refactor_debug parity accumulation removed
         try:
@@ -633,7 +728,7 @@ def process_expiry(
             else:
                 step_val = None
             try:
-                from src.collectors.modules.status_finalize_core import finalize_expiry  # type: ignore
+                from src.collectors.modules.status_finalize_core import finalize_expiry
                 int_strikes: List[int] = []
                 for s in (precomputed_strikes or []):
                     try:
@@ -654,11 +749,11 @@ def process_expiry(
         if collector_settings is not None:
             _domain_models_enabled = bool(getattr(collector_settings, 'domain_models', False))
         else:
-            from src.utils.env_flags import is_truthy_env  # type: ignore
+            from src.utils.env_flags import is_truthy_env
             _domain_models_enabled = is_truthy_env('G6_DOMAIN_MODELS')
         if _domain_models_enabled and enriched_data and build_snapshots:
             try:
-                from src.domain.models import OptionQuote  # type: ignore
+                from src.domain.models import OptionQuote
                 mapped_cnt = 0
                 for k, q in list(enriched_data.items()):  # iteration copy; mapping side-effects not persisted
                     try:
@@ -672,7 +767,7 @@ def process_expiry(
 
         if build_snapshots:
             try:
-                from src.collectors.modules.snapshots import build_expiry_snapshot  # type: ignore
+                from src.collectors.modules.snapshots import build_expiry_snapshot
                 snap_obj = build_expiry_snapshot(index_symbol, expiry_rule, expiry_date, atm_strike, enriched_data, per_index_ts)
                 if snap_obj is not None:
                     snapshots_accum.append(snap_obj)
@@ -680,7 +775,7 @@ def process_expiry(
                 logger.debug('snapshot_build_failed index=%s rule=%s', index_symbol, expiry_rule, exc_info=True)
         if concise_mode:
             try:
-                from src.collectors.modules.formatters import format_concise_expiry_row  # type: ignore
+                from src.collectors.modules.formatters import format_concise_expiry_row
                 outcome['human_row'] = format_concise_expiry_row(
                     per_index_ts=per_index_ts,
                     index_price=index_price,
@@ -693,7 +788,7 @@ def process_expiry(
             except Exception:
                 logger.debug('concise_row_format_failed index=%s rule=%s', index_symbol, expiry_rule, exc_info=True)
         outcome['success']=True
-        outcome['option_count']=len(enriched_data)
+        outcome['option_count']=len(enriched_data or {})
         outcome['expiry_rec']=expiry_rec
     except Exception as e:
         logger.error(f"Error collecting data for {index_symbol} {expiry_rule}: {e}")

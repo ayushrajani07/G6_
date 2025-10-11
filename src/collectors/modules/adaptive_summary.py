@@ -19,24 +19,29 @@ Payload (fields optional when unavailable):
 Honors G6_DISABLE_STRUCT_EVENTS via struct_events_bridge; never raises.
 """
 from __future__ import annotations
-from typing import Any, Dict
+from typing import Any, Dict, Protocol
 import logging
 
 logger = logging.getLogger(__name__)
 
 try:  # reuse existing bridge for uniform formatting + gating
-    from src.collectors.modules.struct_events_bridge import emit_struct  # type: ignore
+    from src.collectors.modules.struct_events_bridge import emit_struct
 except Exception:  # pragma: no cover
-    def emit_struct(event: str, fields: Dict[str, Any]):  # type: ignore
+    def emit_struct(event: str, fields: Dict[str, Any]) -> None:
         try:
             import json, logging as _l
             _l.getLogger(__name__).info("STRUCT %s | %s", event, json.dumps(fields, default=str, ensure_ascii=False))
         except Exception:
             pass
 
-__all__ = ["emit_adaptive_summary"]
+class AdaptiveCtxLike(Protocol):  # re-uses shape from adaptive_adjust (duplicated locally to avoid import cycle)
+    index_params: Dict[str, Dict[str, Any]]
+    _adaptive_contraction_state: Dict[str, Dict[str, Any]]
+    flags: Dict[str, Any]
 
-def emit_adaptive_summary(ctx: Any, index_symbol: str) -> None:  # pragma: no cover (side-effect wrapper)
+__all__ = ["emit_adaptive_summary", "AdaptiveCtxLike"]
+
+def emit_adaptive_summary(ctx: AdaptiveCtxLike | Any, index_symbol: str) -> None:  # pragma: no cover (side-effect wrapper)
     try:
         flags = getattr(ctx, 'flags', {}) or {}
         scale_factor = flags.get('adaptive_scale_factor')
@@ -61,8 +66,11 @@ def emit_adaptive_summary(ctx: Any, index_symbol: str) -> None:  # pragma: no co
         emit_struct('adaptive_summary', payload)
         # Best-effort aggregation hook (optional)
         try:
-            from src.collectors.helpers.cycle_tables import record_adaptive  # type: ignore
-            record_adaptive(payload)
+            from importlib import import_module
+            _mod = import_module('src.collectors.helpers.cycle_tables')
+            record_adaptive = getattr(_mod, 'record_adaptive', None)
+            if callable(record_adaptive):
+                record_adaptive(payload)
         except Exception:
             pass
     except Exception:

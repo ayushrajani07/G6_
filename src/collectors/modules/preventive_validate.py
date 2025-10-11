@@ -22,15 +22,66 @@ import os, datetime, json, pathlib, logging
 logger = logging.getLogger(__name__)
 
 try:  # pragma: no cover
-    from src.collectors.helpers.validation import preventive_validation_stage as _preventive_validation_stage  # type: ignore
+    from src.collectors.helpers.validation import preventive_validation_stage as _raw_preventive_validation_stage
+    def _preventive_validation_stage(
+        index_symbol: str,
+        rule: str,
+        expiry_date: Any,
+        instruments: List[Dict[str, Any]],
+        enriched: Dict[str, Any],
+        index_price: float | None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Adapter ensuring stable parameter names and return typing.
+
+        Underlying implementation may use different parameter names
+        (e.g., expiry_rule, enriched_data) and may return a custom
+        PreventiveResult; we normalize to plain dict report.
+        """
+        try:
+            cleaned, report = _raw_preventive_validation_stage(
+                index_symbol,  # expiry_rule positional name difference tolerated
+                rule,
+                expiry_date,
+                instruments,
+                enriched,
+                index_price if index_price is not None else 0.0,
+            )
+        except Exception:
+            return enriched, {'error': True}
+        # Normalize cleaned
+        if not isinstance(cleaned, dict):
+            cleaned = enriched
+        # Normalize report (PreventiveResult or dict)
+        if hasattr(report, 'as_dict'):
+            try:
+                report = getattr(report, 'as_dict')()
+            except Exception:
+                report = {'error': True}
+        if not isinstance(report, dict):
+            report = {'malformed_report': True}
+        return cleaned, report
 except Exception:  # pragma: no cover
-    def _preventive_validation_stage(index_symbol, rule, expiry_date, instruments, enriched, index_price):  # type: ignore
-        return enriched, { 'skipped': True }
+    def _preventive_validation_stage(
+        index_symbol: str,
+        rule: str,
+        expiry_date: Any,
+        instruments: List[Dict[str, Any]],
+        enriched: Dict[str, Any],
+        index_price: float | None,
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        return enriched, {'skipped': True}
 
 __all__ = ["run_preventive_validation"]
 
 
-def run_preventive_validation(index_symbol: str, rule: str, expiry_date, instruments: List[Dict[str, Any]], enriched: Dict[str, Any], index_price: float | None) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+def run_preventive_validation(
+    index_symbol: str,
+    rule: str,
+    expiry_date: Any,
+    instruments: List[Dict[str, Any]],
+    enriched: Dict[str, Any],
+    index_price: float | None,
+) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     preventive_debug = os.environ.get('G6_PREVENTIVE_DEBUG','0').lower() in ('1','true','yes','on')
     snap_root = None
     ts_key = None

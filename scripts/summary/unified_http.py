@@ -17,7 +17,7 @@ import logging
 import os
 import threading
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any, Dict, Optional
 
 try:
@@ -58,6 +58,12 @@ except Exception:  # pragma: no cover
     CONTENT_TYPE_LATEST = 'text/plain; version=0.0.4; charset=utf-8'
 
 logger = logging.getLogger(__name__)
+
+# Improve fast test reliability: allow quick port reuse between runs
+try:
+    ThreadingHTTPServer.allow_reuse_address = True  # type: ignore[attr-defined]
+except Exception:
+    pass
 
 _shutdown = False
 _shutdown_lock = threading.RLock()
@@ -245,12 +251,8 @@ class UnifiedSummaryHandler(BaseHTTPRequestHandler):  # pragma: no cover - netwo
                 panel_meta = {}
             diff_stats = panel_meta.get('diff_stats', {}) if isinstance(panel_meta, dict) else {}
             timing_stats = panel_meta.get('timing', {}) if isinstance(panel_meta, dict) else {}
+            # Import lightweight metrics snapshot to enrich fields used by tests
             summary_metrics: Dict[str, Any] = {}
-            try:
-                from scripts.summary.summary_metrics import snapshot as _metrics_snap  # type: ignore
-                summary_metrics = _metrics_snap()
-            except Exception:
-                pass
             sse_state = {}
             try:
                 from .sse_state import get_sse_state  # type: ignore
@@ -263,21 +265,36 @@ class UnifiedSummaryHandler(BaseHTTPRequestHandler):  # pragma: no cover - netwo
                     }
             except Exception:
                 pass
+            # Attempt to take a point-in-time snapshot from summary_metrics
+            try:
+                from . import summary_metrics as sm  # type: ignore
+                snap = sm.snapshot()  # returns { 'gauge': { ... }, 'counter': {...} }
+                if isinstance(snap, dict):
+                    summary_metrics = snap
+            except Exception:
+                summary_metrics = {}
             adaptive = {}
             try:
                 if 'gauge' in summary_metrics and 'g6_adaptive_backlog_ratio' in summary_metrics.get('gauge', {}):
                     adaptive['backlog_ratio'] = summary_metrics['gauge']['g6_adaptive_backlog_ratio']  # type: ignore[index]
             except Exception:
                 pass
+            # Pull enriched gauges if available
+            gauges = summary_metrics.get('gauge', {}) if isinstance(summary_metrics, dict) else {}
+            panel_updates_last = gauges.get('g6_summary_panel_updates_last') if isinstance(gauges, dict) else None
+            hit_ratio_g = gauges.get('g6_summary_diff_hit_ratio') if isinstance(gauges, dict) else None
+            churn_ratio = gauges.get('g6_summary_panel_churn_ratio') if isinstance(gauges, dict) else None
+            high_churn_streak = gauges.get('g6_summary_panel_high_churn_streak') if isinstance(gauges, dict) else None
+
             health_payload = {
                 'ok': True,
                 'cycle': cycle,
                 'schema_version': SCHEMA_VERSION,
                 'diff': diff_stats,
-                'panel_updates_last': summary_metrics.get('gauge', {}).get('g6_summary_panel_updates_last') if isinstance(summary_metrics.get('gauge'), dict) else None,
-                'hit_ratio': summary_metrics.get('gauge', {}).get('g6_summary_diff_hit_ratio') if isinstance(summary_metrics.get('gauge'), dict) else None,
-                'churn_ratio': summary_metrics.get('gauge', {}).get('g6_summary_panel_churn_ratio') if isinstance(summary_metrics.get('gauge'), dict) else None,
-                'high_churn_streak': summary_metrics.get('gauge', {}).get('g6_summary_panel_high_churn_streak') if isinstance(summary_metrics.get('gauge'), dict) else None,
+                'panel_updates_last': panel_updates_last,
+                'hit_ratio': (diff_stats.get('hit_ratio') if isinstance(diff_stats, dict) and 'hit_ratio' in diff_stats else hit_ratio_g),
+                'churn_ratio': churn_ratio,
+                'high_churn_streak': high_churn_streak,
                 'timing': timing_stats,
                 'sse': sse_state,
                 'adaptive': adaptive,
@@ -305,12 +322,22 @@ class UnifiedSummaryHandler(BaseHTTPRequestHandler):  # pragma: no cover - netwo
         self._json(404, {'error': 'not found'})
 
 
-def serve_unified_http(port: int = 9329, bind: str = '127.0.0.1', background: bool = True) -> HTTPServer:
-    srv = HTTPServer((bind, port), UnifiedSummaryHandler)
+def serve_unified_http(port: int = 9329, bind: str = '127.0.0.1', background: bool = True):
+    try:
+        srv = ThreadingHTTPServer((bind, port), UnifiedSummaryHandler)
+    except Exception:
+        # Fallback: bind all interfaces if loopback fails unexpectedly on some platforms
+        srv = ThreadingHTTPServer(('0.0.0.0', port), UnifiedSummaryHandler)
     if background:
         t = threading.Thread(target=srv.serve_forever, name='g6-summary-unified-http', daemon=True)
         t.start()
     logger.debug("Unified summary HTTP server listening on %s:%s", bind, port)
+    try:
+        # Best-effort sentinel to aid tests/diagnostics
+        with open(f".unified_http_started_{port}", 'w', encoding='utf-8') as _f:
+            _f.write(str(time.time()))
+    except Exception:
+        pass
     return srv
 
 __all__ = [

@@ -8,10 +8,10 @@ reduce churn when wired in.
 from typing import Protocol, Any
 
 class RecoveryStrategy(Protocol):  # pragma: no cover - interface
-    def attempt_salvage(self, ctx, settings, state) -> bool: ...
+    def attempt_salvage(self, ctx: Any, settings: Any, state: Any) -> bool: ...
 
 class DefaultRecoveryStrategy:
-    def attempt_salvage(self, ctx, settings, state) -> bool:  # pragma: no cover - simple stub
+    def attempt_salvage(self, ctx: Any, settings: Any, state: Any) -> bool:  # pragma: no cover - simple stub
         # Delegate to phase_salvage semantics (already executed); returns True if salvage_applied meta present.
         return bool(getattr(state, 'meta', {}).get('salvage_applied'))
 

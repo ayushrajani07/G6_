@@ -12,12 +12,31 @@ Future phases will:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Dict, Callable, Optional, Any
+from typing import List, Dict, Callable, Optional, Any, Protocol
+class _SupportsMetricOps(Protocol):  # minimal structural typing for labels objects
+    def set(self, value: float | int) -> Any: ...  # pragma: no cover - interface only
+    def inc(self, value: float | int = 1) -> Any: ...
+    def observe(self, value: float | int) -> Any: ...
+
+def _safe(obj: Any) -> Optional[_SupportsMetricOps]:
+    return obj if obj is not None else None
 import threading
 import time
 import os
 
-from src.metrics import generated as m  # type: ignore
+try:
+    from src.metrics import generated as m  # runtime-provided metrics family
+except Exception:  # pragma: no cover - defensive fallback
+    class _Dummy:
+        def __getattr__(self, name: str):  # returns no-op callables preserving chain
+            def _f(*_a: Any, **_k: Any):
+                class _Leaf:
+                    def set(self, *_a2: Any, **_k2: Any): pass
+                    def inc(self, *_a2: Any, **_k2: Any): pass
+                    def observe(self, *_a2: Any, **_k2: Any): pass
+                return _Leaf()
+            return _f
+    m = _Dummy()
 from src.metrics.safe_emit import safe_emit
 
 # ---------------------------------------------------------------------------
@@ -109,9 +128,12 @@ class ColumnStorePipeline:
 
     def _update_backlog_metrics(self):
         try:
-            m.m_cs_ingest_backlog_rows_labels(self.cfg.table).set(len(self._buf.rows))  # type: ignore[attr-defined]
-            backpressure_active = 1 if len(self._buf.rows) >= self.cfg.high_watermark_rows else 0
-            m.m_cs_ingest_backpressure_flag_labels(self.cfg.table).set(backpressure_active)  # type: ignore[attr-defined]
+            backlog = len(self._buf.rows)
+            _g = _safe(m.m_cs_ingest_backlog_rows_labels(self.cfg.table))
+            if _g: _g.set(backlog)
+            backpressure_active = 1 if backlog >= self.cfg.high_watermark_rows else 0
+            _g2 = _safe(m.m_cs_ingest_backpressure_flag_labels(self.cfg.table))
+            if _g2: _g2.set(backpressure_active)
         except Exception:
             pass
 
@@ -144,20 +166,32 @@ class ColumnStorePipeline:
 
         @safe_emit(emitter="cs.ingest.batch")
         def _emit_batch_metrics():
-            if failure_reason:
-                m.m_cs_ingest_failures_total_labels(self.cfg.table, failure_reason).inc()  # type: ignore[attr-defined]
-            else:
-                rows = len(batch)
-                # Approximate byte size (rough heuristic) for simulation
-                est_bytes = sum(sum(len(str(v)) for v in r.values()) for r in batch)
-                m.m_cs_ingest_rows_total_labels(self.cfg.table).inc(rows)  # type: ignore[attr-defined]
-                m.m_cs_ingest_bytes_total_labels(self.cfg.table).inc(est_bytes)  # type: ignore[attr-defined]
-                m.m_cs_ingest_latency_ms_labels(self.cfg.table).observe(elapsed_ms)  # type: ignore[attr-defined]
-            # Update backlog (now empty after flush)
-            m.m_cs_ingest_backlog_rows_labels(self.cfg.table).set(len(self._buf.rows))  # type: ignore[attr-defined]
-            # Adjust backpressure flag (may clear)
-            bp = 1 if len(self._buf.rows) >= self.cfg.high_watermark_rows else 0
-            m.m_cs_ingest_backpressure_flag_labels(self.cfg.table).set(bp)  # type: ignore[attr-defined]
+            try:
+                if failure_reason:
+                    _c_fail = _safe(m.m_cs_ingest_failures_total_labels(self.cfg.table, failure_reason))
+                    if _c_fail: _c_fail.inc()
+                else:
+                    rows = len(batch)
+                    est_bytes = 0
+                    try:
+                        est_bytes = sum(sum(len(str(v)) for v in r.values()) for r in batch)
+                    except Exception:
+                        pass
+                    _c_rows = _safe(m.m_cs_ingest_rows_total_labels(self.cfg.table))
+                    if _c_rows: _c_rows.inc(rows)
+                    _c_bytes = _safe(m.m_cs_ingest_bytes_total_labels(self.cfg.table))
+                    if _c_bytes: _c_bytes.inc(est_bytes)
+                    _h_lat = _safe(m.m_cs_ingest_latency_ms_labels(self.cfg.table))
+                    if _h_lat: _h_lat.observe(elapsed_ms)
+                # Update backlog (now empty after flush)
+                backlog_now = len(self._buf.rows)
+                _g_backlog = _safe(m.m_cs_ingest_backlog_rows_labels(self.cfg.table))
+                if _g_backlog: _g_backlog.set(backlog_now)
+                bp = 1 if backlog_now >= self.cfg.high_watermark_rows else 0
+                _g_bp = _safe(m.m_cs_ingest_backpressure_flag_labels(self.cfg.table))
+                if _g_bp: _g_bp.set(bp)
+            except Exception:
+                pass
         _emit_batch_metrics()
 
     def flush(self):

@@ -23,9 +23,9 @@ ClampMeta = Tuple[int, int, int, bool]
 __all__ = ["run_prefilter_clamp"]
 
 
-def run_prefilter_clamp(index_symbol: str, expiry_rule: str, expiry_date: Any, instruments: List[dict]):
+def run_prefilter_clamp(index_symbol: str, expiry_rule: str, expiry_date: Any, instruments: List[dict]) -> Tuple[List[dict], Optional[ClampMeta]]:
     try:
-        from src.collectors.modules.prefilter import apply_prefilter_clamp  # type: ignore
+        from src.collectors.modules.prefilter import apply_prefilter_clamp
     except Exception:  # pragma: no cover - import error path
         logger.debug('prefilter_module_import_failed', exc_info=True)
         return instruments, None

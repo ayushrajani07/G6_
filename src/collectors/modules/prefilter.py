@@ -67,8 +67,11 @@ def apply_prefilter_clamp(index_symbol: str, expiry_rule: str, expiry_date: Any,
 
     # Emit struct event (best-effort)
     try:  # pragma: no cover - observability path
-        from src.collectors.helpers.struct_events import emit_prefilter_clamp  # type: ignore
-        emit_prefilter_clamp(
+        import importlib
+        _m = importlib.import_module('src.collectors.helpers.struct_events')
+        emit_prefilter_clamp = getattr(_m, 'emit_prefilter_clamp', None)
+        if callable(emit_prefilter_clamp):
+            emit_prefilter_clamp(
             index=index_symbol,
             expiry=str(expiry_date),
             rule=expiry_rule,
@@ -79,7 +82,7 @@ def apply_prefilter_clamp(index_symbol: str, expiry_rule: str, expiry_date: Any,
             strategy='head',
             disabled=False,
             strict=strict,
-        )
+            )
     except Exception:
         logger.debug("emit_prefilter_clamp_failed", exc_info=True)
 

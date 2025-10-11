@@ -10,14 +10,18 @@ the heavy monolithic `metrics` module early.
 from __future__ import annotations
 from prometheus_client.metrics import Counter as _C, Gauge as _G, Histogram as _H, Summary as _S  # type: ignore
 import os
+try:
+    from src.collectors.env_adapter import get_str as _env_str  # type: ignore
+except Exception:  # pragma: no cover - fallback
+    _env_str = lambda k, d="": (os.getenv(k, d) or "")
 from typing import Any, Dict
 
 __all__ = ["reload_group_filters", "dump_metrics_metadata"]
 
 
 def reload_group_filters(reg) -> None:  # pragma: no cover - thin adapter
-    reg._enabled_groups_raw = os.environ.get('G6_ENABLE_METRIC_GROUPS','')
-    reg._disabled_groups_raw = os.environ.get('G6_DISABLE_METRIC_GROUPS','')
+    reg._enabled_groups_raw = _env_str('G6_ENABLE_METRIC_GROUPS','')
+    reg._disabled_groups_raw = _env_str('G6_DISABLE_METRIC_GROUPS','')
     reg._enabled_groups = {g.strip() for g in reg._enabled_groups_raw.split(',') if g.strip()} if reg._enabled_groups_raw else None
     reg._disabled_groups = {g.strip() for g in reg._disabled_groups_raw.split(',') if g.strip()}
 

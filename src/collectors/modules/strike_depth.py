@@ -10,9 +10,9 @@ from typing import List, Tuple
 
 # We intentionally import the same underlying builder to guarantee parity.
 try:
-    from src.utils.strikes import build_strikes as _legacy_build_strikes  # type: ignore
+    from src.utils.strikes import build_strikes as _legacy_build_strikes
 except Exception:  # pragma: no cover
-    _legacy_build_strikes = None  # type: ignore
+    _legacy_build_strikes = None
 
 __all__ = ["compute_strike_universe"]
 

@@ -25,6 +25,13 @@ def persist_and_metrics(ctx, enriched_data: Dict[str, Dict[str, Any]], index_sym
             expiry_rule_tag=expiry_rule
         )
     except (OSError, IOError, CsvWriteError) as e:
+        # Emit CSV write error counter for Grafana wiring (best-effort)
+        try:
+            metrics = getattr(ctx, 'metrics', None) or getattr(getattr(ctx, 'csv_sink', None), 'metrics', None)
+            if metrics is not None and hasattr(metrics, 'csv_write_errors'):
+                getattr(metrics, 'csv_write_errors').inc()  # type: ignore[call-arg]
+        except Exception:
+            pass
         handle_collector_error(
             CsvWriteError(f"CSV write failed for {index_symbol} {expiry_rule} (expiry {expiry_date}): {e}"),
             component="collectors.unified_collectors", index_name=index_symbol,

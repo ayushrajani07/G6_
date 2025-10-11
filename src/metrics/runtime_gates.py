@@ -3,9 +3,24 @@
 Provides side-effect free functions operating on a MetricsRegistry-like object.
 """
 from __future__ import annotations
-from prometheus_client import Counter, Gauge, Histogram  # type: ignore
+
 import os
 from typing import Any
+
+try:
+    from prometheus_client import Counter, Gauge, Histogram
+except Exception:  # pragma: no cover
+    # Minimal fallbacks for environments without prometheus_client
+    class _Dummy:
+        def __init__(self, *a, **k):
+            pass
+        def labels(self, *a, **k):
+            return self
+        def inc(self, *a, **k):
+            return None
+        def set(self, *a, **k):
+            return None
+    Counter = Gauge = Histogram = _Dummy  # type: ignore
 
 __all__ = ["enforce_runtime_metric_gates", "late_bind_lazy_metrics"]
 
@@ -44,13 +59,13 @@ def late_bind_lazy_metrics(reg: Any) -> None:  # noqa: C901 - retained complexit
             needs_replace = False
             if existing is not None:
                 try:
-                    existing.labels(**{l: 'x' for l in labels})  # type: ignore[arg-type]
+                    existing.labels(**{l: 'x' for l in labels})
                     return
                 except Exception:
                     needs_replace = True
             try:
                 if needs_replace:
-                    from prometheus_client import REGISTRY as _R  # type: ignore
+                    from prometheus_client import REGISTRY as _R
                     names_map = getattr(_R, '_names_to_collectors', {})
                     coll = names_map.get(prom_name)
                     if coll is not None:
@@ -60,7 +75,10 @@ def late_bind_lazy_metrics(reg: Any) -> None:  # noqa: C901 - retained complexit
                             pass
                 metric = ctor(prom_name, doc, labels)
                 setattr(reg, attr, metric)
-                getattr(reg, '_metric_groups', {})[attr] = 'panel_diff'  # type: ignore[index]
+                try:
+                    getattr(reg, '_metric_groups', {})[attr] = 'panel_diff'
+                except Exception:
+                    pass
             except Exception:
                 pass
 
@@ -81,13 +99,13 @@ def late_bind_lazy_metrics(reg: Any) -> None:  # noqa: C901 - retained complexit
         for attr, grp in mapping_candidates.items():
             if hasattr(reg, attr) and attr not in getattr(reg, '_metric_groups', {}) and getattr(reg, '_group_allowed', lambda *_: True)(grp):
                 try:
-                    reg._metric_groups[attr] = grp  # type: ignore[attr-defined]
+                    reg._metric_groups[attr] = grp
                 except Exception:
                     pass
         for attr, grp in list(getattr(reg, '_metric_groups', {}).items()):
             if not getattr(reg, '_group_allowed', lambda *_: True)(grp):
                 try:
-                    reg._metric_groups.pop(attr, None)  # type: ignore[attr-defined]
+                    reg._metric_groups.pop(attr, None)
                 except Exception:
                     pass
     except Exception:

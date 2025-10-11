@@ -10,31 +10,47 @@ from __future__ import annotations
 import os
 import time
 import logging
-from typing import Any
+from typing import Any, Dict, MutableMapping, Mapping, Protocol, Optional
 
 logger = logging.getLogger(__name__)
+
+OptionRecord = MutableMapping[str, Any]
+ExpiryRecordLike = Dict[str, Any]
+IndexParamsMap = Dict[str, Dict[str, Any]]
+
+class AdaptiveCtxLike(Protocol):  # minimal attribute surface we touch
+    index_params: IndexParamsMap  # may be mutated
+    _adaptive_contraction_state: Dict[str, Dict[str, Any]]  # created lazily
+    _adaptive_retry_cache: Dict[str, Any]  # created lazily
+    metrics: Any
+    flags: Dict[str, Any]
 
 __all__ = [
     "adaptive_strike_retry",
     "adaptive_contraction",
     "adaptive_post_expiry",
+    "AdaptiveCtxLike",
+    "ExpiryRecordLike",
 ]
 
-def adaptive_strike_retry(ctx: Any, index_symbol: str, expiry_rec: dict, expiry_rule: str) -> None:
-    """Apply adaptive strike expansion (retry) logic based on strike coverage.
+def adaptive_strike_retry(ctx: AdaptiveCtxLike | Any, index_symbol: str, expiry_rec: ExpiryRecordLike, expiry_rule: str) -> None:
+    """Expand strike depth adaptively when coverage is below threshold.
 
-    Mutates `ctx.index_params` in-place to expand strikes_itm / strikes_otm when
-    coverage is below threshold. Mirrors original inlined logic.
+    Side effects:
+      - May mutate ctx.index_params[index_symbol]['strikes_itm'|'strikes_otm']
+      - Updates internal adaptive contraction state flags
+      - Emits struct event on successful expansion
+    Safe-fail: logs debug on unexpected errors; never raises.
     """
     # FINNIFTY: treat as low liquidity -> disable adaptive widening (policy)
     if (index_symbol or '').upper() == 'FINNIFTY':
         return
     # Mark per-index cycle flags used by contraction logic
     if not hasattr(ctx, '_adaptive_contraction_state'):
-        ctx._adaptive_contraction_state = {}  # type: ignore[attr-defined]
-    _acs = ctx._adaptive_contraction_state  # type: ignore[attr-defined]
+        setattr(ctx, '_adaptive_contraction_state', {})
+    _acs = getattr(ctx, '_adaptive_contraction_state')
     if index_symbol not in _acs:
-        base_cfg = (getattr(ctx, 'index_params', {}) or {}).get(index_symbol, {})  # type: ignore[index]
+        base_cfg = (getattr(ctx, 'index_params', {}) or {}).get(index_symbol, {})
         _acs[index_symbol] = {
             'baseline_itm': int(base_cfg.get('strikes_itm', 2) or 2),
             'baseline_otm': int(base_cfg.get('strikes_otm', 2) or 2),
@@ -45,14 +61,14 @@ def adaptive_strike_retry(ctx: Any, index_symbol: str, expiry_rec: dict, expiry_
         }
     # One-time caching of adaptive retry env controls on context
     if not hasattr(ctx, '_adaptive_retry_cache'):
-        ctx._adaptive_retry_cache = {  # type: ignore[attr-defined]
+        setattr(ctx, '_adaptive_retry_cache', {
             'disable': os.environ.get('G6_DISABLE_ADAPTIVE_STRIKE_RETRY','').lower() in ('1','true','yes','on'),
             'strike_ok_raw': os.environ.get('G6_STRIKE_COVERAGE_OK'),
             'max_itm_raw': os.environ.get('G6_ADAPTIVE_STRIKE_MAX_ITM'),
             'max_otm_raw': os.environ.get('G6_ADAPTIVE_STRIKE_MAX_OTM'),
             'step_raw': os.environ.get('G6_ADAPTIVE_STRIKE_STEP'),
-        }
-    _arc = ctx._adaptive_retry_cache  # type: ignore[attr-defined]
+        })
+    _arc = getattr(ctx, '_adaptive_retry_cache')
     if _arc['disable']:
         return
     strike_cov_local = expiry_rec.get('strike_coverage')
@@ -63,7 +79,7 @@ def adaptive_strike_retry(ctx: Any, index_symbol: str, expiry_rec: dict, expiry_
         base_thresh = 0.75
     trigger = max(0.05, min(0.99, base_thresh * 0.9))
     if strike_cov_local is not None and strike_cov_local < trigger and expiry_rec.get('options',0) > 0:
-        idx_cfg = (getattr(ctx, 'index_params', {}) or {}).get(index_symbol, {})  # type: ignore[index]
+        idx_cfg = (getattr(ctx, 'index_params', {}) or {}).get(index_symbol, {})
         cur_itm = int(idx_cfg.get('strikes_itm', 10))
         cur_otm = int(idx_cfg.get('strikes_otm', 10))
         max_itm_env = _arc['max_itm_raw']
@@ -85,15 +101,16 @@ def adaptive_strike_retry(ctx: Any, index_symbol: str, expiry_rec: dict, expiry_
         new_otm = min(max_otm, cur_otm + step_inc)
         if new_itm > cur_itm or new_otm > cur_otm:
             try:
-                if getattr(ctx, 'index_params', None) and index_symbol in ctx.index_params:  # type: ignore[attr-defined]
-                    ctx.index_params[index_symbol]['strikes_itm'] = new_itm  # type: ignore[index]
-                    ctx.index_params[index_symbol]['strikes_otm'] = new_otm  # type: ignore[index]
-                    _acs[index_symbol]['had_expansion_this_cycle'] = True  # type: ignore[index]
+                idx_params = getattr(ctx, 'index_params', None)
+                if isinstance(idx_params, dict) and index_symbol in idx_params:
+                    idx_params[index_symbol]['strikes_itm'] = new_itm
+                    idx_params[index_symbol]['strikes_otm'] = new_otm
+                    _acs[index_symbol]['had_expansion_this_cycle'] = True
             except Exception:
                 logger.debug("adaptive_strike_param_update_failed", exc_info=True)
             # Structured event emit left inline (import deferred to avoid cycles)
             try:
-                from src.collectors.helpers.struct_events import emit_strike_depth_adjustment  # type: ignore
+                from src.collectors.helpers.struct_events import emit_strike_depth_adjustment
                 emit_strike_depth_adjustment(
                     index=index_symbol,
                     reason='low_strike_cov',
@@ -110,16 +127,16 @@ def adaptive_strike_retry(ctx: Any, index_symbol: str, expiry_rec: dict, expiry_
                 logger.debug("emit_strike_depth_adjustment_failed", exc_info=True)
     else:
         if strike_cov_local is not None and strike_cov_local < trigger:
-            _acs[index_symbol]['had_low_cov'] = True  # type: ignore[index]
+            _acs[index_symbol]['had_low_cov'] = True
 
 
-def adaptive_contraction(ctx: Any, index_symbol: str, expiry_rec: dict, expiry_rule: str) -> None:
-    """Apply contraction logic after expansion decisions.
+def adaptive_contraction(ctx: AdaptiveCtxLike | Any, index_symbol: str, expiry_rec: ExpiryRecordLike, expiry_rule: str) -> None:
+    """Contract strike depth after sustained healthy coverage streak.
 
-    Contracts strike depth after a healthy streak, respecting cooldowns and
-    baselines. Mirrors original logic ordering.
+    Applies cooldown and baseline guards; mutates strike depths downward
+    (never below baseline). Emits struct event on contraction.
     """
-    _acs = getattr(ctx, '_adaptive_contraction_state', {})  # type: ignore[attr-defined]
+    _acs = getattr(ctx, '_adaptive_contraction_state', {})
     if index_symbol not in _acs:
         return
     st = _acs[index_symbol]
@@ -144,7 +161,7 @@ def adaptive_contraction(ctx: Any, index_symbol: str, expiry_rec: dict, expiry_r
         step_dec = int(step_env) if step_env else 2
     except ValueError:
         step_dec = 2
-    idx_cfg = (getattr(ctx, 'index_params', {}) or {}).get(index_symbol, {})  # type: ignore[index]
+    idx_cfg = (getattr(ctx, 'index_params', {}) or {}).get(index_symbol, {})
     cur_itm = int(idx_cfg.get('strikes_itm', 0) or 0)
     cur_otm = int(idx_cfg.get('strikes_otm', 0) or 0)
     baseline_itm = st['baseline_itm']
@@ -155,7 +172,7 @@ def adaptive_contraction(ctx: Any, index_symbol: str, expiry_rec: dict, expiry_r
     cur_cycle_num = None
     try:
         if cycle_count and hasattr(cycle_count, 'count'):
-            cur_cycle_num = int(getattr(cycle_count, 'count'))  # type: ignore
+            cur_cycle_num = int(getattr(cycle_count, 'count'))
     except Exception:
         cur_cycle_num = None
     if cur_cycle_num is None:
@@ -171,15 +188,16 @@ def adaptive_contraction(ctx: Any, index_symbol: str, expiry_rec: dict, expiry_r
     if new_itm >= cur_itm and new_otm >= cur_otm:
         return
     try:
-        if getattr(ctx, 'index_params', None) and index_symbol in ctx.index_params:  # type: ignore[attr-defined]
-            ctx.index_params[index_symbol]['strikes_itm'] = new_itm  # type: ignore[index]
-            ctx.index_params[index_symbol]['strikes_otm'] = new_otm  # type: ignore[index]
+        idx_params = getattr(ctx, 'index_params', None)
+        if isinstance(idx_params, dict) and index_symbol in idx_params:
+            idx_params[index_symbol]['strikes_itm'] = new_itm
+            idx_params[index_symbol]['strikes_otm'] = new_otm
             st['cycle_last_action'] = cur_cycle_num
             st['healthy_streak'] = 0
     except Exception:
         logger.debug("adaptive_contraction_param_update_failed", exc_info=True)
     try:
-        from src.collectors.helpers.struct_events import emit_strike_depth_adjustment  # type: ignore
+        from src.collectors.helpers.struct_events import emit_strike_depth_adjustment
         # Signature parity: keep only parameters supported by existing struct event helper
         emit_strike_depth_adjustment(
             index=index_symbol,
@@ -196,8 +214,11 @@ def adaptive_contraction(ctx: Any, index_symbol: str, expiry_rec: dict, expiry_r
         logger.debug("emit_contraction_event_failed", exc_info=True)
 
 
-def adaptive_post_expiry(ctx: Any, index_symbol: str, expiry_rec: dict, expiry_rule: str) -> None:
-    """Convenience wrapper executing retry then contraction phases."""
+def adaptive_post_expiry(ctx: AdaptiveCtxLike | Any, index_symbol: str, expiry_rec: ExpiryRecordLike, expiry_rule: str) -> None:
+    """Run strike expansion then contraction phases sequentially.
+
+    Each phase is independently wrapped in try/except to ensure resilience.
+    """
     try:
         adaptive_strike_retry(ctx, index_symbol, expiry_rec, expiry_rule)
     except Exception:

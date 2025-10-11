@@ -308,19 +308,29 @@ def build_risk(snapshot_source) -> Optional[_RiskPayload]:
                 # Optional per-index notionals (labelled) behind env flag (dynamic registration allowed)
                 if os.environ.get('G6_RISK_NOTIONALS_PER_INDEX','').lower() in ('1','true','yes','on'):
                     try:
-                        if not hasattr(metrics, 'risk_agg_notional_delta_index') and hasattr(metrics, '_register') and hasattr(metrics, 'risk_agg_notional_delta') and hasattr(metrics, 'risk_agg_notional_vega'):
-                            metrics.risk_agg_notional_delta_index = metrics._register(
-                                type(metrics.risk_agg_notional_delta),  # reuse Gauge type
-                                'g6_risk_agg_notional_delta_index',
-                                'Aggregate delta notional per index (optional flag)',
-                                labelnames=['index']
-                            )
-                            metrics.risk_agg_notional_vega_index = metrics._register(
-                                type(metrics.risk_agg_notional_vega),
-                                'g6_risk_agg_notional_vega_index',
-                                'Aggregate vega notional per index (optional flag)',
-                                labelnames=['index']
-                            )
+                        # Prefer modern grouped registration helper; idempotent and group-aware
+                        if not hasattr(metrics, 'risk_agg_notional_delta_index') and hasattr(metrics, '_maybe_register'):
+                            try:
+                                from prometheus_client import Gauge as _Gauge  # type: ignore
+                            except Exception:  # pragma: no cover - defensive
+                                _Gauge = None  # type: ignore
+                            if _Gauge is not None:
+                                metrics._maybe_register(  # type: ignore[attr-defined]
+                                    'analytics_risk_agg',
+                                    'risk_agg_notional_delta_index',
+                                    _Gauge,
+                                    'g6_risk_agg_notional_delta_index',
+                                    'Aggregate delta notional per index (optional flag)',
+                                    ['index']
+                                )
+                                metrics._maybe_register(  # type: ignore[attr-defined]
+                                    'analytics_risk_agg',
+                                    'risk_agg_notional_vega_index',
+                                    _Gauge,
+                                    'g6_risk_agg_notional_vega_index',
+                                    'Aggregate vega notional per index (optional flag)',
+                                    ['index']
+                                )
                         if hasattr(metrics, 'risk_agg_notional_delta_index'):
                             _emit_per_index_notionals(metrics, rows)
                     except Exception:
@@ -418,40 +428,28 @@ def build_risk(snapshot_source) -> Optional[_RiskPayload]:
             # Optional per-index metrics
             if os.environ.get('G6_RISK_NOTIONALS_PER_INDEX','').lower() in ('1','true','yes','on'):
                 try:
-                    if not hasattr(m, 'risk_agg_notional_delta_index') and hasattr(m, '_register'):
-                        # Try to discover Gauge type from existing attributes
-                        gauge_cls = None
+                    if not hasattr(m, 'risk_agg_notional_delta_index') and hasattr(m, '_maybe_register'):
                         try:
-                            from prometheus_client import Gauge as _Gauge
-                            gauge_cls = _Gauge
+                            from prometheus_client import Gauge as _Gauge  # type: ignore
                         except Exception:
-                            gauge_cls = None
-                        base_delta = getattr(m, 'risk_agg_notional_delta', None)
-                        base_vega = getattr(m, 'risk_agg_notional_vega', None)
-                        delta_type = base_delta.__class__ if base_delta is not None else gauge_cls
-                        vega_type = base_vega.__class__ if base_vega is not None else gauge_cls
-                        reg = getattr(m, '_register', None)
-                        if callable(reg) and gauge_cls is not None:
-                            try:
-                                delta_metric = reg(
-                                    delta_type,
-                                    'g6_risk_agg_notional_delta_index',
-                                    'Aggregate delta notional per index (optional flag)',
-                                    labelnames=['index']
-                                )
-                                vega_metric = reg(
-                                    vega_type,
-                                    'g6_risk_agg_notional_vega_index',
-                                    'Aggregate vega notional per index (optional flag)',
-                                    labelnames=['index']
-                                )
-                                try:
-                                    setattr(m, 'risk_agg_notional_delta_index', delta_metric)
-                                    setattr(m, 'risk_agg_notional_vega_index', vega_metric)
-                                except Exception:
-                                    pass
-                            except Exception:
-                                pass
+                            _Gauge = None  # type: ignore
+                        if _Gauge is not None:
+                            m._maybe_register(  # type: ignore[attr-defined]
+                                'analytics_risk_agg',
+                                'risk_agg_notional_delta_index',
+                                _Gauge,
+                                'g6_risk_agg_notional_delta_index',
+                                'Aggregate delta notional per index (optional flag)',
+                                ['index']
+                            )
+                            m._maybe_register(  # type: ignore[attr-defined]
+                                'analytics_risk_agg',
+                                'risk_agg_notional_vega_index',
+                                _Gauge,
+                                'g6_risk_agg_notional_vega_index',
+                                'Aggregate vega notional per index (optional flag)',
+                                ['index']
+                            )
                     if hasattr(m, 'risk_agg_notional_delta_index'):
                         per_index_delta: Dict[str,float] = {}
                         per_index_vega: Dict[str,float] = {}

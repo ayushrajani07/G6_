@@ -9,6 +9,19 @@ import logging
 from src.utils.env_flags import is_truthy_env as _is_truthy_env  # type: ignore
 import warnings
 import os
+try:
+    # Local import aliases; fall back to os.getenv semantics if adapter unavailable very early
+    from src.collectors.env_adapter import (
+        get_bool as _env_bool,
+        get_int as _env_int,
+        get_float as _env_float,
+        get_str as _env_str,
+    )
+except Exception:  # pragma: no cover - defensive
+    _env_bool = lambda k, d=False: (os.getenv(k, '1' if d else '').strip().lower() in {'1','true','yes','on'})
+    _env_int = lambda k, d=0: int(os.getenv(k, str(d)) or d)
+    _env_float = lambda k, d=0.0: float(os.getenv(k, str(d)) or d)
+    _env_str = lambda k, d='': (os.getenv(k, d) or '').strip()
 import threading
 from prometheus_client import Summary, Counter, Gauge, Histogram, REGISTRY
 import time
@@ -16,54 +29,11 @@ from contextlib import contextmanager
 import sys  # noqa: F401
 import logging
 
-# Ensure logging records always have a .message attribute (pytest caplog accesses it pre-format).
-class _MessageEnsurer(logging.Filter):
-    def filter(self, record):  # pragma: no cover - trivial
-        try:
-            # Explicitly assign .message (logging.Formatter.format normally does this later)
-            record.message = record.getMessage()  # type: ignore[attr-defined]
-        except Exception:
-            # Best-effort only; never block logging
-            pass
-        return True
-
-_root_logger = logging.getLogger()
-# Avoid stacking duplicate filters on repeated module reloads in tests
-if not any(isinstance(f, _MessageEnsurer) for f in getattr(_root_logger, 'filters', [])):
-    _root_logger.addFilter(_MessageEnsurer())
+# LogRecord .message attribute handling is now installed centrally in src/metrics/__init__.py
 
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Test sandbox fallback (mirrors logic in metrics/__init__.py) so that direct
-# import of src.metrics.metrics (legacy path) still ensures docs/spec/env files
-# exist when the sandbox copy omits them. Creating minimal placeholders avoids
-# FileNotFoundError in spec/env/deprecations tests. Safe no-op if already present.
-# ---------------------------------------------------------------------------
-try:  # pragma: no cover - best effort
-    import pathlib as _pathlib
-    _docs_root = _pathlib.Path('docs')
-    _docs_root.mkdir(parents=True, exist_ok=True)
-    _spec = _docs_root / 'metrics_spec.yaml'
-    if not _spec.exists():
-        _spec.write_text(
-            "- name: g6_collection_cycles\n  type: counter\n  labels: []\n  group: core\n  stability: stable\n  description: cycles (autogen)\n",
-            encoding='utf-8'
-        )
-    _env_doc = _docs_root / 'env_dict.md'
-    if not _env_doc.exists():
-        _env_doc.write_text(
-            "# Environment Variables (autogen sandbox)\nG6_COLLECTION_CYCLES: cycles metric placeholder\n",
-            encoding='utf-8'
-        )
-    _depr = _docs_root / 'DEPRECATIONS.md'
-    if not _depr.exists():
-        _depr.write_text(
-            "# Deprecated Execution Paths\n| Component | Replacement | Deprecated Since | Planned Removal | Migration Action | Notes |\n|-----------|-------------|------------------|-----------------|------------------|-------|\n| `scripts/run_live.py` | run_orchestrator_loop.py | 2025-09-26 | R+2 | update | autogen |\n\n## Environment Flag Deprecations\n\n## Removal Preconditions\n",
-            encoding='utf-8'
-        )
-except Exception:
-    pass
+# Test sandbox doc/spec placeholder creation handled in src/metrics/__init__.py
 
 # Optional noise suppression: collapse highly repetitive INFO lines during test initialization
 class _NoiseFilter(logging.Filter):  # pragma: no cover - log hygiene
@@ -108,12 +78,9 @@ _CREATED_METRIC_NAMES: set[str] = set()
 
 # Legacy deep import deprecation (now default-on unless suppressed)
 _suppress_legacy = _is_truthy_env('G6_SUPPRESS_LEGACY_WARNINGS')
-# Suppress deep import deprecation if metrics imported via facade (sentinel set in __init__) unless force flag
-_force_deep_warn = _is_truthy_env('G6_FORCE_METRICS_DEEP_IMPORT_WARN')
-_facade_marker = getattr(__import__('builtins'), '_G6_METRICS_FACADE_IMPORT', False)
-# Wave 2: Always emit deprecation warning on direct module import when not suppressed to satisfy
-# explicit deprecation hygiene tests (facade marker no longer suppresses by itself).
-if not _suppress_legacy:
+# Emit deprecation on deep import unless this import is explicitly marked as facade-context.
+_import_ctx = os.getenv('G6_METRICS_IMPORT_CONTEXT', '')
+if not _suppress_legacy and _import_ctx != 'facade':
     try:
         warnings.warn(
             "Importing 'src.metrics.metrics' directly is deprecated; import from 'src.metrics' facade instead.",
@@ -288,9 +255,9 @@ class MetricsRegistry:
 
         # Auto test-mode knobs: if under pytest and no explicit override, skip provider mode seeding
         try:
-            if (('PYTEST_CURRENT_TEST' in os.environ) or ('pytest' in sys.modules)) \
-               and not os.getenv('G6_METRICS_SKIP_PROVIDER_MODE_SEED') \
-               and not os.getenv('G6_METRICS_FORCE_PROVIDER_MODE_SEED'):
+            if (("PYTEST_CURRENT_TEST" in os.environ) or ('pytest' in sys.modules)) \
+               and not _env_str('G6_METRICS_SKIP_PROVIDER_MODE_SEED') \
+               and not _env_str('G6_METRICS_FORCE_PROVIDER_MODE_SEED'):
                 os.environ['G6_METRICS_SKIP_PROVIDER_MODE_SEED'] = '1'
                 if _trace_simple:
                     _pt('auto_skip_provider_mode_seed_enabled')
@@ -350,7 +317,7 @@ class MetricsRegistry:
             # Harden seeding: avoid recursive facade call & enforce micro-timeout
             try:
                 import time as _t
-                seed_deadline = _t.time() + float(os.getenv('G6_PROVIDER_MODE_SEED_TIMEOUT','0.25'))
+                seed_deadline = _t.time() + float(_env_float('G6_PROVIDER_MODE_SEED_TIMEOUT', 0.25))
                 if not hasattr(self, 'provider_mode'):
                     try:
                         self.provider_mode = Gauge('g6_provider_mode', 'Current provider mode (one-hot gauge)', ['mode'])  # type: ignore[attr-defined]
@@ -403,7 +370,6 @@ class MetricsRegistry:
         # One-shot metrics startup summary (families count, always-on groups, profiling)
         try:
             if '_G6_METRICS_SUMMARY_EMITTED' not in globals():
-                globals()['_G6_METRICS_SUMMARY_EMITTED'] = True
                 fam_count = -1
                 try:
                     fam_count = len(list(REGISTRY.collect()))
@@ -419,6 +385,8 @@ class MetricsRegistry:
                     "metrics.registry.summary families=%s always_on_groups=%s prof_total_ms=%s strict=%s",
                     fam_count, len(ALWAYS_ON_GROUPS), profile_total, int(_is_truthy_env('G6_METRICS_STRICT_EXCEPTIONS'))
                 )
+                # Mark sentinel only after successful structured log emission
+                globals()['_G6_METRICS_SUMMARY_EMITTED'] = True
                 try:
                     from src.observability.startup_summaries import register_or_note_summary  # type: ignore
                     register_or_note_summary('metrics.registry', emitted=True)
@@ -455,6 +423,14 @@ class MetricsRegistry:
                             ],
                             logger
                         )
+                        # Also ensure the structured one-line summary is present exactly once for log-scraping tests.
+                        # If the earlier one-shot block didn't run (e.g., import ordering), emit here guarded by sentinel.
+                        if '_G6_METRICS_SUMMARY_EMITTED' not in globals():
+                            logger.info(
+                                "metrics.registry.summary families=%s always_on_groups=%s prof_total_ms=%s strict=%s",
+                                fam_count, len(ALWAYS_ON_GROUPS), profile_total, int(_is_truthy_env('G6_METRICS_STRICT_EXCEPTIONS'))
+                            )
+                            globals()['_G6_METRICS_SUMMARY_EMITTED'] = True
                     except Exception:
                         pass
                     else:
@@ -543,23 +519,7 @@ class MetricsRegistry:
                 except Exception:
                     pass
 
-        # Provide legacy alias _register (after spec to avoid attribute shadowing)
-        if not hasattr(self, '_register'):
-            try:
-                def _legacy_register(metric_cls, name: str, documentation: str, labelnames=None, **kw):  # noqa: ANN001
-                    base = name
-                    if base.startswith('g6_'):
-                        base = base[3:]
-                    for suf in ('_total','_seconds','_percent','_ms'):
-                        if base.endswith(suf):
-                            base = base[: -len(suf)]
-                    attr = base.replace('-', '_')
-                    if hasattr(self, attr):
-                        return getattr(self, attr)
-                    return self._core_reg(attr, metric_cls, name, documentation, labelnames, None, **kw)  # type: ignore[attr-defined]
-                self._register = _legacy_register  # type: ignore[attr-defined]
-            except Exception:
-                pass
+        # Legacy _register shim removed. Use _maybe_register/core helpers instead.
 
         # 4. Early create metric_group_state gauge (index_aggregate)
         _pt('index_aggregate_start')
@@ -790,8 +750,8 @@ class MetricsRegistry:
         # (Group pruning + spec fallback + group state population already performed earlier in ordered init above.)
         logger.info(f"Initialized {len(self.__dict__)} metrics for g6_platform")
         # Introspection inventory may be built lazily unless eager flag or dump requested
-        eager_introspection = os.getenv("G6_METRICS_EAGER_INTROSPECTION", "").strip().lower() in {"1","true","yes","on"}
-        dump_requested = bool(os.getenv('G6_METRICS_INTROSPECTION_DUMP','').strip())
+        eager_introspection = _env_bool('G6_METRICS_EAGER_INTROSPECTION', False)
+        dump_requested = bool(_env_str('G6_METRICS_INTROSPECTION_DUMP',''))
         if eager_introspection or dump_requested:
             try:
                 from .introspection import build_introspection_inventory as _bii  # type: ignore
@@ -805,7 +765,7 @@ class MetricsRegistry:
         # Post-init dumps delegated (introspection + init trace) unless suppressed.
         # Evaluate suppression flag once (environment-controlled). Tests rely on the log line
         # 'metrics.dumps.suppressed' always appearing when this flag is set in a *fresh* init.
-        suppress_auto = os.getenv("G6_METRICS_SUPPRESS_AUTO_DUMPS", "").strip().lower() in {"1","true","yes","on"}
+        suppress_auto = _env_bool('G6_METRICS_SUPPRESS_AUTO_DUMPS', False)
         if not suppress_auto:
             try:  # pragma: no cover - defensive wrapper
                 from .introspection_dump import run_post_init_dumps as _rp
@@ -826,7 +786,7 @@ class MetricsRegistry:
         else:  # structured log for observability of suppression
             try:
                 # Emit a deterministic suppression line even if earlier phases bailed out.
-                logger.info("metrics.dumps.suppressed reason=G6_METRICS_SUPPRESS_AUTO_DUMPS env=%s introspection_dump=%s init_trace_dump=%s", os.getenv('G6_METRICS_SUPPRESS_AUTO_DUMPS'), os.getenv('G6_METRICS_INTROSPECTION_DUMP'), os.getenv('G6_METRICS_INIT_TRACE_DUMP'))
+                logger.info("metrics.dumps.suppressed reason=G6_METRICS_SUPPRESS_AUTO_DUMPS env=%s introspection_dump=%s init_trace_dump=%s", _env_str('G6_METRICS_SUPPRESS_AUTO_DUMPS',''), _env_str('G6_METRICS_INTROSPECTION_DUMP',''), _env_str('G6_METRICS_INIT_TRACE_DUMP',''))
             except Exception:
                 pass
             try:
@@ -839,9 +799,38 @@ class MetricsRegistry:
             except Exception:
                 pass
 
+        # Fallback: ensure a single structured metrics.registry.summary line exists
+        # Some import orders/tests may attach handlers after early init blocks; if the
+        # one-shot above did not run, emit it here once to satisfy log-scraping tests.
+        try:
+            if '_G6_METRICS_SUMMARY_EMITTED' not in globals():
+                fam_count = -1
+                try:
+                    from prometheus_client import REGISTRY as _R  # type: ignore
+                    fam_count = len(list(_R.collect()))
+                except Exception:
+                    pass
+                profile_total = None
+                try:
+                    profile_total = round(float(getattr(self, '_init_profile', {}).get('total_ms', 0.0)), 2)  # type: ignore[attr-defined]
+                except Exception:
+                    profile_total = None
+                logger.info(
+                    "metrics.registry.summary families=%s always_on_groups=%s prof_total_ms=%s strict=%s",
+                    fam_count, len(ALWAYS_ON_GROUPS), profile_total, int(_is_truthy_env('G6_METRICS_STRICT_EXCEPTIONS'))
+                )
+                globals()['_G6_METRICS_SUMMARY_EMITTED'] = True
+                try:
+                    from src.observability.startup_summaries import register_or_note_summary  # type: ignore
+                    register_or_note_summary('metrics.registry', emitted=True)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
         # Optional cardinality guard (snapshot or compare) invoked last so full registry is visible
         try:
-            if any(os.getenv(k) for k in ("G6_CARDINALITY_SNAPSHOT", "G6_CARDINALITY_BASELINE")):
+            if any(_env_str(k, '') for k in ("G6_CARDINALITY_SNAPSHOT", "G6_CARDINALITY_BASELINE")):
                 from .cardinality_guard import check_cardinality as _cc  # type: ignore
                 try:
                     summary = _cc(self)
@@ -1001,30 +990,7 @@ class MetricsRegistry:
         return dict(self._metric_groups)
 
     # ---------------- Minimal registration helpers (legacy compatibility) -----------------
-    # Removed obsolete _get_or_create_collector helper (collector creation now inlined in early _core_maybe_register)
-
-    # Compatibility shim now delegated to registration_compat. Kept for backward compatibility.
-    def _register(self, metric_cls, name: str, documentation: str, labelnames: list[str] | None = None, **kwargs: object):  # pragma: no cover
-        """Legacy registration shim (deprecated).
-
-        By default no longer emits a deprecation warning unless env
-        G6_ENABLE_REGISTER_SHIM_WARN=1 is set. This reduces baseline test
-        noise while preserving opt-in visibility for migration efforts.
-        """
-        try:
-            if _is_truthy_env('G6_ENABLE_REGISTER_SHIM_WARN'):
-                try:
-                    warnings.warn(
-                        "metrics._register legacy shim in use (set G6_SUPPRESS_LEGACY_WARNINGS=1 to silence)",
-                        DeprecationWarning,
-                        stacklevel=2,
-                    )
-                except Exception:
-                    pass
-            from .registration_compat import legacy_register as _lr  # type: ignore
-            return _lr(metric_cls, name, documentation, labelnames, **kwargs)
-        except Exception:
-            return None
+    # Legacy _register shim removed: registration is handled via registration.core_register/maybe_register.
     # Public method intentionally left referencing early core function; no redefinition needed here.
 
     def mark_api_call(self, success: bool, latency_ms: float | None = None):
@@ -1171,7 +1137,7 @@ class MetricsRegistry:
             prospective_removed = [a for a, g in snapshot.items() if g not in always_on and (g in (disabled_set or set()) or (enabled_set is not None and g not in enabled_set))]
             after_mapping = {a: g for a, g in snapshot.items() if a not in prospective_removed}
             try:
-                if os.getenv('G6_DEBUG_PRUNE'):
+                if _env_str('G6_DEBUG_PRUNE',''):
                     logger.info("metrics.prune_groups.preview", extra={
                         'dry_run': True,
                         'before_count': before,
@@ -1243,7 +1209,7 @@ class MetricsRegistry:
                             del getattr(self, '_metric_groups')[attr]  # type: ignore[index]
                         except Exception:
                             pass
-                if os.getenv('G6_DEBUG_PRUNE'):
+                if _env_str('G6_DEBUG_PRUNE',''):
                     try:
                         logger.info("metrics.prune_groups.applied.debug", extra={
                             'after_groups': sorted(list(getattr(self,'_metric_groups',{}).values())),
@@ -1326,16 +1292,16 @@ def get_metrics_singleton() -> MetricsRegistry | None:  # pragma: no cover - thi
         # If env dump/suppression flags are set but registry was created earlier (before flag)
         # tests that reload the module expect marker lines. Emit them once per process.
         try:
-            suppress = os.getenv("G6_METRICS_SUPPRESS_AUTO_DUMPS", "").strip().lower() in {"1","true","yes","on"}
-            want_introspection_dump = bool(os.getenv("G6_METRICS_INTROSPECTION_DUMP", "").strip())
-            want_init_trace_dump = bool(os.getenv("G6_METRICS_INIT_TRACE_DUMP", "").strip())
+            suppress = _env_bool('G6_METRICS_SUPPRESS_AUTO_DUMPS', False)
+            want_introspection_dump = bool(_env_str("G6_METRICS_INTROSPECTION_DUMP", ""))
+            want_init_trace_dump = bool(_env_str("G6_METRICS_INIT_TRACE_DUMP", ""))
             # Guard attribute to avoid duplicate emissions across multiple calls
             already = getattr(existing, "_dump_marker_emitted", False)
             if not already and (suppress or want_introspection_dump or want_init_trace_dump):
                 logger = logging.getLogger(__name__)
                 if suppress:
                     # Mirror suppression branch markers
-                    logger.info("metrics.dumps.suppressed reason=G6_METRICS_SUPPRESS_AUTO_DUMPS env=%s introspection_dump=%s init_trace_dump=%s", os.getenv('G6_METRICS_SUPPRESS_AUTO_DUMPS'), os.getenv('G6_METRICS_INTROSPECTION_DUMP'), os.getenv('G6_METRICS_INIT_TRACE_DUMP'))
+                    logger.info("metrics.dumps.suppressed reason=G6_METRICS_SUPPRESS_AUTO_DUMPS env=%s introspection_dump=%s init_trace_dump=%s", _env_str('G6_METRICS_SUPPRESS_AUTO_DUMPS',''), _env_str('G6_METRICS_INTROSPECTION_DUMP',''), _env_str('G6_METRICS_INIT_TRACE_DUMP',''))
                     logger.info("METRICS_INTROSPECTION: 0")
                     logger.info("METRICS_INIT_TRACE: 0 steps")
                 else:

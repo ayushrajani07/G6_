@@ -11,14 +11,33 @@ Public API:
     compute_cycle_reason_totals(...)
 """
 from __future__ import annotations
-from typing import Any, Dict, List
+from typing import Any, cast
 
-try:  # re-export existing implementations
-    from .status_finalize import finalize_expiry, compute_cycle_reason_totals  # type: ignore
+try:  # pragma: no cover
+    from .status_finalize import (
+        finalize_expiry as _finalize_expiry,
+        compute_cycle_reason_totals as _compute_cycle_reason_totals,
+        PartialReasonTotals as _PartialReasonTotals,
+        MetricsLike as _MetricsLike,
+    )
+    finalize_expiry = cast(Any, _finalize_expiry)
+    compute_cycle_reason_totals = cast(Any, _compute_cycle_reason_totals)
+    PartialReasonTotals = cast(Any, _PartialReasonTotals)
+    MetricsLike = cast(Any, _MetricsLike)
 except Exception:  # pragma: no cover
-    def finalize_expiry(*a, **k):  # type: ignore
-        return None
-    def compute_cycle_reason_totals(*a, **k):  # type: ignore
+    # Fallbacks: keep runtime behavior safe and names available
+    def finalize_expiry(*args: Any, **kwargs: Any) -> None:
         return None
 
-__all__ = ["finalize_expiry", "compute_cycle_reason_totals"]
+    def compute_cycle_reason_totals(*args: Any, **kwargs: Any) -> None:
+        return None
+
+    PartialReasonTotals = dict
+    MetricsLike = object
+
+__all__ = [
+    "finalize_expiry",
+    "compute_cycle_reason_totals",
+    "PartialReasonTotals",
+    "MetricsLike",
+]

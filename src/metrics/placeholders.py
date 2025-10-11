@@ -74,6 +74,9 @@ def init_always_on_placeholders(reg: Any, group_allowed: Callable[[str], bool]) 
     _ensure('expiry_rejected_total', Counter, 'g6_expiry_rejected_total', 'Expiry misclassification rejected rows', ['index','expiry_code'], group='expiry_remediation')
     _ensure('expiry_quarantine_pending', Gauge, 'g6_expiry_quarantine_pending', 'Pending quarantined expiry rows', ['date'], group='expiry_remediation')
     _ensure('expiry_quarantined_total', Counter, 'g6_expiry_quarantined_total', 'Quarantined expiry rows total', ['index','expiry_code'], group='expiry_remediation')
+    # Additional gauges/counters referenced by CsvSink and error routing
+    _ensure('expiry_misclassification_total', Counter, 'g6_expiry_misclassification_total', 'Expiry misclassification detections', ['index','expiry_code','expected_date','actual_date'], group='expiry_remediation')
+    _ensure('expiry_canonical_date', Gauge, 'g6_expiry_canonical_date', 'Observed canonical expiry date by tag', ['index','expiry_code','expiry_date'], group='expiry_remediation')
 
     # IV estimation histogram (placeholder single source of truth post redundancy cleanup)
     # Buckets mirrored from historical group_registry registration

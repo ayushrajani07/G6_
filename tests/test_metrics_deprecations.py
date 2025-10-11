@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import importlib, sys, warnings
+import importlib, sys, warnings, pytest
 
 
 def _purge_metrics_modules(*names: str) -> None:
@@ -30,25 +30,16 @@ def reload_module(mod_name):
     return importlib.import_module(mod_name)
 
 
-def test_legacy_register_emits_warning(monkeypatch):
-    monkeypatch.delenv('G6_SUPPRESS_LEGACY_WARNINGS', raising=False)
-    # Force a fresh import of registration_compat
-    reload_module('src.metrics.registration_compat')
-    from src.metrics.registration_compat import legacy_register
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter('always', DeprecationWarning)
-        legacy_register(lambda *a, **k: None, 'dummy_metric', 'doc')
-        assert any(isinstance(x.message, DeprecationWarning) for x in w)
+def test_legacy_register_removed_import_error():
+    """registration_compat module has been removed; importing it should fail."""
+    with pytest.raises(ImportError):
+        importlib.import_module('src.metrics.registration_compat')
 
 
-def test_legacy_register_suppressed(monkeypatch):
+def test_legacy_register_removed_import_error_suppressed_env_has_no_effect(monkeypatch):
     monkeypatch.setenv('G6_SUPPRESS_LEGACY_WARNINGS','1')
-    reload_module('src.metrics.registration_compat')
-    from src.metrics.registration_compat import legacy_register
-    with warnings.catch_warnings(record=True) as w:
-        warnings.simplefilter('always', DeprecationWarning)
-        legacy_register(lambda *a, **k: None, 'dummy_metric2', 'doc')
-        assert not any(isinstance(x.message, DeprecationWarning) for x in w)
+    with pytest.raises(ImportError):
+        importlib.import_module('src.metrics.registration_compat')
 
 
 def test_direct_import_metrics_warns(monkeypatch):

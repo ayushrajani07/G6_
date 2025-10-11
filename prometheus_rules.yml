@@ -298,6 +298,67 @@ groups:
           summary: "Full snapshot p95 latency >750ms"
           description: |-
             Large full snapshot latency sustained. Validate snapshot size growth or serialization overhead.
+  - name: g6_pipeline_parity.alerts
+    interval: 30s
+    rules:
+      - record: g6:pipeline_fatal_ratio_15m
+        expr: |
+          clamp_max(
+            sum(increase(pipeline_index_fatal_total[15m]))
+              /
+            clamp_min(sum(increase(pipeline_index_fatal_total[15m])) + sum(increase(pipeline_expiry_recoverable_total[15m])) + 1, 1), 1)
+        labels:
+          job: g6_platform
+      - alert: G6PipelineFatalSpike
+        expr: g6:pipeline_fatal_ratio_15m > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Pipeline fatal ratio >5% (15m window)"
+          description: |-
+            Fatal index-level pipeline failures exceeded 5% of (fatal+recoverable) events in the last 15m. Investigate provider stability, expiry map, or recent deploy.
+      - alert: G6PipelineFatalSustained
+        expr: g6:pipeline_fatal_ratio_15m > 0.10
+        for: 5m
+        labels:
+          severity: critical
+          team: g6
+        annotations:
+          summary: "Pipeline fatal ratio >10% sustained"
+          description: |-
+            Sustained critical level of fatal failures (>10% /15m). Initiate rollback drill and parity snapshot capture immediately.
+      - alert: G6PipelineParityDegraded
+        expr: g6_pipeline_parity_rolling_avg < 0.985
+        for: 15m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Rolling parity average <0.985"
+          description: |-
+            Rolling parity score below 0.985 for 15m. Examine alert parity diff, strike coverage alignment, and recent changes.
+      - alert: G6PipelineParityCritical
+        expr: g6_pipeline_parity_rolling_avg < 0.975
+        for: 10m
+        labels:
+          severity: critical
+          team: g6
+        annotations:
+          summary: "Rolling parity average <0.975"
+          description: |-
+            Critical parity degradation. Consider halting promotion or triggering rollback.
+      - alert: G6PipelineParityFatalCombo
+        expr: (g6_pipeline_parity_rolling_avg < 0.985) and (g6:pipeline_fatal_ratio_15m > 0.05)
+        for: 5m
+        labels:
+          severity: critical
+          team: g6
+        annotations:
+          summary: "Parity + Fatal spike combination"
+          description: |-
+            Simultaneous parity dip and elevated fatal ratio. High risk of systemic divergence; escalate rollback procedure.
       # Overall (merged types) p95 regression to capture broad impact
       - alert: G6PanelEventOverallLatencyElevated
         expr: g6_market_session_open_flag == 1 and g6:panel_event_latency_overall_p95_seconds > 0.4
@@ -565,3 +626,18 @@ groups:
           summary: "Bus queue >97% full"
           description: |-
             Buffer nearly full for >5m—overflow/drops imminent. Immediate mitigation: throttle publishers, scale consumers, or expand capacity temporarily.
+  - name: g6_benchmark.alerts
+    interval: 30s
+    rules:
+      # P95 regression alert: pipeline collector p95 latency delta vs legacy baseline exceeded configured threshold.
+      # Emits when delta (% difference) above threshold AND threshold non-negative (disabled if <0) for sustained window.
+      - alert: BenchP95RegressionHigh
+        expr: (g6_bench_delta_p95_pct > g6_bench_p95_regression_threshold_pct) and (g6_bench_p95_regression_threshold_pct >= 0)
+        for: 5m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "Pipeline p95 regression above threshold"
+          description: |-
+            P95 pipeline vs legacy regression exceeded configured threshold (delta={{ $value | printf "%.1f" }}%). Investigate recent collector changes or performance hotspots.

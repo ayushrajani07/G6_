@@ -17,6 +17,23 @@ from __future__ import annotations
 import importlib
 import logging
 import os
+try:
+    from src.collectors.env_adapter import get_str as _env_get_str, get_bool as _env_get_bool  # type: ignore
+except Exception:  # pragma: no cover
+    def _env_get_str(name: str, default: str = "") -> str:
+        try:
+            v = os.getenv(name)
+            return default if v is None else v
+        except Exception:
+            return default
+    def _env_get_bool(name: str, default: bool = False) -> bool:
+        try:
+            v = os.getenv(name)
+            if v is None:
+                return default
+            return str(v).strip().lower() in {"1","true","yes","on","y"}
+        except Exception:
+            return default
 from typing import Any, Callable, Iterable, Optional, Sequence, Type
 
 from tenacity import (
@@ -63,8 +80,8 @@ def _parse_exception_list(csv: str | None) -> list[Type[BaseException]]:
 
 
 def build_retry_predicate() -> Callable[[BaseException], bool]:
-    wl = _parse_exception_list(os.environ.get('G6_RETRY_WHITELIST'))
-    bl = _parse_exception_list(os.environ.get('G6_RETRY_BLACKLIST'))
+    wl = _parse_exception_list(_env_get_str('G6_RETRY_WHITELIST', '') or None)
+    bl = _parse_exception_list(_env_get_str('G6_RETRY_BLACKLIST', '') or None)
     def _predicate(e: BaseException) -> bool:
         # If blacklisted, do not retry
         if any(isinstance(e, t) for t in bl):
@@ -79,12 +96,12 @@ def build_retry_predicate() -> Callable[[BaseException], bool]:
 
 
 def build_wait_strategy() -> Any:
-    base = float(os.environ.get('G6_RETRY_BACKOFF', '0.2') or '0.2')
     try:
-        from src.utils.env_flags import is_truthy_env  # type: ignore
-        jitter = is_truthy_env('G6_RETRY_JITTER') or 'G6_RETRY_JITTER' not in os.environ
+        base = float(_env_get_str('G6_RETRY_BACKOFF', '0.2') or '0.2')
     except Exception:
-        jitter = True
+        base = 0.2
+    # Default jitter to True if env missing (legacy behavior)
+    jitter = _env_get_bool('G6_RETRY_JITTER', True)
     exp = wait_exponential(multiplier=base, min=base, max=2.5)
     if jitter:
         return exp + wait_random(0, base)
@@ -92,8 +109,14 @@ def build_wait_strategy() -> Any:
 
 
 def build_stop_strategy() -> Any:
-    attempts = int(os.environ.get('G6_RETRY_MAX_ATTEMPTS', '3') or '3')
-    max_seconds = float(os.environ.get('G6_RETRY_MAX_SECONDS', '8') or '8')
+    try:
+        attempts = int(_env_get_str('G6_RETRY_MAX_ATTEMPTS', '3') or '3')
+    except Exception:
+        attempts = 3
+    try:
+        max_seconds = float(_env_get_str('G6_RETRY_MAX_SECONDS', '8') or '8')
+    except Exception:
+        max_seconds = 8.0
     # Use both limits: whichever comes first
     return stop_after_attempt(attempts) | stop_after_delay(max_seconds)
 

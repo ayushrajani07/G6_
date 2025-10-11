@@ -44,6 +44,23 @@ VS Code Tasks (recommended):
 * `Smoke: Summary (panels mode)` → interactive summary
 * `G6: Init Menu` → interactive configuration & launch helper
 
+### Testing (two-phase recommended)
+Default pytest is configured for parallel runs excluding serial-marked tests. For best UX and stability, use the two-phase flow:
+
+```powershell
+# Phase 1: parallel (exclude serial)
+pytest -q
+
+# Phase 2: serial-only follow-up
+pytest -q -m serial -n 0
+```
+
+Or run the VS Code task “pytest: two-phase (parallel -> serial)” to chain both.
+
+Notes:
+- Some tests are marked optional/slow/integration and may be skipped unless explicitly enabled.
+- If a local port is blocked by your OS/firewall, tests will use ephemeral ports or non-network code paths.
+
 ## 3. Architecture Snapshot
 | Layer | Path(s) | Responsibilities |
 |-------|---------|------------------|
@@ -77,7 +94,7 @@ Legend: [C] Completed & stable  |  [P] Planned / design accepted  |  [IP] In Pro
 | Panel Integrity | `panels/validate.py`, `panels/integrity_monitor.py` | Hash manifest, integrity verification loop | [C] | Consider checksum streaming API (P) |
 | Metrics Facade | `metrics/__init__.py`, `metrics/metrics.py` | Registry acquisition, grouped registration, placeholders | [IP] | Continued modular extraction (Phase 3.x) |
 | Metrics Group Registry | `metrics/group_registry.py`, `metrics/placeholders.py` | Controlled families, always-on safety sets | [C] | Monitor for alias deprecation removals (D: `perf_cache` soon) |
-| Resilience Utilities | `utils/resilience.py`, `utils/circuit_breaker.py` | Retry/backoff, circuit breaking | [C] | Jitter parameterization exposure (P) |
+| Resilience Utilities | `utils/resilience.py`, `utils/circuit_breaker.py` | Retry/backoff, circuit breaking | [C] | Jitter parameterization exposure (P); design policy details in Pipeline Design §4.6 |
 | Rate Limiter & Batching | `utils/rate_limiter.py`, `collectors/helpers/` | Token bucket, micro-batching, quote cache | [C] | Telemetry tuning if provider limits shift |
 | Health Checks | `health/health_checker.py` | Component readiness & liveness registry | [C] | Expand with latency percentiles (P) |
 | Data Quality Filters | `utils/data_quality.py` | Sanitize abnormal quotes / OI | [C] | Add statistical anomaly detection (P) |
@@ -499,6 +516,150 @@ Strict Metrics Mode:
 in placeholders, spec minimum assurance, or `_maybe_register` to be re-raised instead of silently logged.
 Use this in CI or during refactors to surface latent issues earlier. Production default should remain non-strict for
 resilience (transient client library edge cases or partial registry duplication will be tolerated and logged).
+
+### 7.6.3 CI Gate: Parity & Fatal Guard (W4-20)
+Lightweight quality gate ensuring collection health (parity maintained, fatal errors bounded) before merging or deploying.
+
+Weight Calibration Note (W4-18): Default parity component weights are currently equal. For adopting empirically tuned weights, run `scripts/parity_weight_study.py` and see Pipeline Design Section 4.7 (Parity Weight Tuning Study) for methodology, schema, and adoption workflow.
+
+Metrics Enforced:
+* Rolling Parity: `g6_pipeline_parity_rolling_avg` (must be >= min parity)
+* Fatal Ratio: `g6:pipeline_fatal_ratio_15m` (must be <= max fatal ratio)
+
+Script: `scripts/ci_gate.py`
+
+Usage Examples:
+```powershell
+# Scrape live metrics endpoint with defaults (min parity 0.985, max fatal ratio 0.05)
+python scripts/ci_gate.py --metrics-url http://127.0.0.1:9108/metrics --json
+
+# Offline evaluation of captured snapshot with custom thresholds
+python scripts/ci_gate.py --metrics-file metrics_snapshot.txt --min-parity 0.990 --max-fatal-ratio 0.03 --json
+
+# Allow missing metrics (soft exit 2) during early warm-up
+python scripts/ci_gate.py --metrics-url http://127.0.0.1:9108/metrics --allow-missing --json
+```
+
+Exit Codes:
+| Code | Meaning |
+|------|---------|
+| 0 | Pass (thresholds satisfied) |
+| 1 | Failure (threshold breach or fetch/parse error under strict mode) |
+| 2 | Soft-missing (metrics absent with `--allow-missing`) |
+
+Key Flags:
+| Flag | Purpose |
+|------|---------|
+| `--min-parity FLOAT` | Minimum rolling parity (default 0.985) |
+| `--max-fatal-ratio FLOAT` | Maximum fatal ratio (default 0.05) |
+| `--metrics-url URL` | Prometheus exporter endpoint |
+| `--metrics-file PATH` | Local metrics text file |
+| `--allow-missing` | Downgrade missing metrics to soft exit (2) |
+| `--json` | Emit JSON report |
+| `--parity-metric NAME` | Override parity metric name |
+| `--fatal-metric NAME` | Override fatal ratio metric name |
+| `--strict` | Treat fetch/parse errors as hard failure (default behavior) |
+
+Sample JSON Output (failure):
+```json
+{
+  "status": "fail",
+  "parity": 0.9621,
+  "fatal_ratio": 0.081,
+  "min_parity": 0.985,
+  "max_fatal_ratio": 0.05,
+  "reasons": [
+    "parity_below_threshold(0.9621 < 0.985)",
+    "fatal_ratio_above_threshold(0.081 > 0.05)"
+  ]
+}
+```
+
+GitHub Actions Snippet:
+```yaml
+  - name: Start collector (background)
+    run: |
+      python scripts/run_orchestrator_loop.py --interval 30 --cycles 6 &
+      echo $! > collector.pid
+  - name: Warm-up
+    run: powershell -Command "Start-Sleep -Seconds 120"
+  - name: CI Gate (Parity & Fatal)
+    run: python scripts/ci_gate.py --metrics-url http://127.0.0.1:9108/metrics --min-parity 0.987 --max-fatal-ratio 0.04 --json
+```
+
+#### 7.6.3.1 Fatal Ratio Alert Rules (W4-02)
+Operational alerting complements the CI gate with three Prometheus alerts backed by the recording rule `g6:pipeline_fatal_ratio_15m`:
+* Spike: `G6PipelineFatalSpike` fires when fatal ratio > 0.05 for 10m
+* Sustained: `G6PipelineFatalSustained` fires when fatal ratio > 0.10 for 5m
+* Parity Combo: `G6PipelineParityFatalCombo` fires when parity < 0.985 AND fatal ratio > 0.05 for 5m
+
+Test coverage: `tests/test_fatal_ratio_alert_rule.py` asserts expression thresholds, `for:` durations, and recording rule presence to prevent silent drift.
+
+Operational Guidance:
+1. Run after a few cycles so rolling parity stabilizes.
+2. Tune thresholds conservatively; tighten once variance bounds understood.
+3. Pair with benchmark & readiness gates for holistic regression detection.
+4. Capture metrics snapshot on failure for post-mortem: `curl http://127.0.0.1:9108/metrics > failed_metrics.txt`.
+5. To disable temporarily, skip the step (avoid trivially permissive thresholds long term).
+
+### 7.6.3.2 Parity Snapshot CLI (W4-14)
+Generates a JSON snapshot summarizing parity components, rolling window simulation, and alert category deltas.
+
+Script: `scripts/parity_snapshot_cli.py`
+
+Flags:
+| Flag | Purpose |
+|------|---------|
+| `--legacy FILE` | Legacy baseline JSON (optional) |
+| `--pipeline FILE` | Pipeline JSON (optional) |
+| `--weights comp:weight,...` | Override component weights |
+| `--extended` / `--shape` / `--cov-var` | Enable extended parity components (env shims) |
+| `--rolling-window N` | Simulate rolling window size (>=2) |
+| `--version-only` | Emit only version & score fields |
+| `--pretty` | Pretty-print JSON |
+| `--output FILE` | Write snapshot to file instead of stdout |
+
+Example:
+```powershell
+python scripts/parity_snapshot_cli.py --legacy legacy.json --pipeline pipe.json --rolling-window 10 --extended --pretty > parity_snapshot.json
+```
+
+Sample Output (abridged):
+```json
+{
+  "generated_at": "2025-10-08T12:34:56.789012+00:00",
+  "parity": {"version": 3, "score": 0.9825, "components": {"index_count": 1.0, "option_count": 0.97, "alerts": 0.98}},
+  "rolling": {"window": 10, "avg": 0.9812, "count": 1},
+  "alerts": {"categories": {"critical": {"legacy": 2, "pipeline": 3, "delta": 1}}, "sym_diff": [], "sym_diff_count": 0, "union_count": 5}
+}
+```
+
+Test: `tests/test_parity_snapshot_cli.py` ensures schema stability and prevents silent drift in required fields.
+
+### 7.6.3.3 Alert Parity Anomaly Event (W4-15)
+Emits structured event `pipeline.alert_parity.anomaly` when the weighted alert parity difference crosses an operator-defined threshold.
+
+Environment:
+| Var | Default | Purpose |
+|-----|---------|---------|
+| `G6_PARITY_ALERT_ANOMALY_THRESHOLD` | -1 | Enable & set threshold (0..1). -1 disables. |
+| `G6_PARITY_ALERT_ANOMALY_MIN_TOTAL` | 3 | Minimum alert category union size to consider emission |
+
+Payload (logged as JSON via logger extra structured_event):
+```
+{
+  "event": "pipeline.alert_parity.anomaly",
+  "ts": 1700000000.123,
+  "score": 0.9721,
+  "weighted_diff_norm": 0.41,
+  "threshold": 0.30,
+  "parity_version": 3,
+  "components": {"index_count":1.0, "option_count":0.98, "alerts":0.92},
+  "categories": { "critical": {"legacy":2, "pipeline":4, "diff_norm":1.0, "weight":1.0 }, ... }
+}
+```
+
+Test: `tests/test_parity_anomaly_event.py` ensures correct emission gating (enabled, below threshold, disabled).
 
 ### 7.1 Panels & Integrity
 Panel writer emits JSON panels + `manifest.json` with SHA‑256 hashes (data section only). Integrity monitor (opt‑in) periodically verifies hashes.
@@ -1073,32 +1234,72 @@ Troubleshooting gating:
 
 Design intent: gating should be transparent (no hidden always‑on surprises) while still allowing the neutral environment to expose a representative sample for metadata validation and documentation generation.
 
-### Panels Runtime Schema Validation (2025-10)
-Panels emitted by `PanelsWriter` follow a wrapped schema:
+### Panels Runtime Schema & Envelope (2025-10)
+Panels emitted by `PanelsWriter` now use a finalized envelope schema (Wave 4 – W4-13). Each panel JSON file has this structure:
 ```
 {
-  "panel": "<name>",
-  "updated_at": "<ISO8601 Z>",
-  "data": { ... }   # or array/null depending on panel type
+  "panel": "<name>",                # Stable logical panel identifier
+  "version": 1,                      # Envelope schema version (increment on breaking change)
+  "generated_at": "<ISO8601 Z>",    # File generation timestamp (UTC)
+  "updated_at": "<ISO8601 Z>",      # Logical data freshness timestamp (may equal generated_at)
+  "data": { ... },                   # Panel payload (object / array / primitive / null)
+  "meta": {
+    "source": "summary",           # Emission source/subsystem
+    "schema": "panel-envelope-v1", # Human-readable schema tag
+    "hash": "<sha256-12>"          # First 12 hex chars of sha256 over canonical JSON of `data`
+  }
 }
 ```
-Validation Modes (env `G6_PANELS_VALIDATE`):
+Key Field Semantics:
+* `hash`: Deterministic hash over only the `data` member (sorted keys, compact separators) – excludes timestamps to stabilize across refresh cycles.
+* `generated_at` vs `updated_at`: Distinguishes write time from data logical update. They may diverge if a write retries without new data.
+* `version`: Governs compatibility. Additive, backward-compatible fields do not require a bump; removals or semantic shifts do.
+* `meta.schema`: Descriptive label; tooling should primarily rely on `version`.
+
+#### Legacy Plain Format & Compatibility
+Earlier plain files (`<panel>.json`) either exposed raw fields or an early wrapper `{panel, updated_at, data}` without `version/meta`. Legacy emission is disabled by default; to temporarily dual-write for rollback safety:
+```
+G6_PANELS_LEGACY_COMPAT=1
+```
+This writes both `<panel>.json` (legacy) and `<panel>_enveloped.json`. The flag will be removed after the deprecation window; consumers must migrate to the enveloped form immediately.
+
+#### Validation Modes (env `G6_PANELS_VALIDATE`)
 | Value  | Behavior | Notes |
 |--------|----------|-------|
 | off    | Skip runtime JSON Schema validation | Fastest path (no protection) |
 | warn   | Validate each panel; log warning if invalid | Default when unspecified / unknown value |
-| strict | Validate; raise `ValueError` on the first invalid panel | Causes summary loop / writer to fail fast |
+| strict | Validate; raise `ValueError` on the first invalid panel | Fails summary loop early |
 
-Implementation details:
+Envelope Schema Fields (panel-envelope-v1):
+| Field        | Type      | Req | Description |
+|--------------|-----------|-----|-------------|
+| panel        | string    | yes | Stable panel identifier |
+| version      | integer   | yes | Envelope version (1) |
+| generated_at | string    | yes | File generation timestamp (UTC ISO8601) |
+| updated_at   | string    | yes | Logical data update timestamp (UTC ISO8601) |
+| data         | any JSON  | yes | Panel payload |
+| meta         | object    | yes | Metadata container |
+| meta.source  | string    | yes | Emission source tag |
+| meta.schema  | string    | yes | Schema tag (`panel-envelope-v1`) |
+| meta.hash    | string    | yes | 12-hex sha256 prefix of canonical data |
 
-Operational Guidance:
-
-Example:
+Operational Examples:
 ```
 G6_PANELS_VALIDATE=strict python -m scripts.summary.app --refresh 1
+G6_PANELS_LEGACY_COMPAT=1 python -m scripts.summary.app --refresh 1   # temporary dual write
 ```
 
+Operational Guidance:
+* Prefer enveloped files exclusively; do not rely on implicit fallback to legacy names.
+* Use `meta.hash` (or manifest) for change detection instead of full diff.
+* Tests can assert parity between legacy and enveloped payloads under the compat flag (see `tests/test_panels_enveloped_only.py`).
+
 Future Enhancements (candidates):
+* Optional compression (`meta.encoding`, `data_b64`).
+* Digital signatures / provenance chain.
+* Incremental delta emission referencing prior `hash` lineage.
+
+Implementation details from earlier wrapper design remain (manifest integrity hashing); only new fields (`version`, `generated_at`, `meta.*`) were added.
 
 # Panels Manifest Hash Integrity (2025-10)
 Each panel file now has its canonical content hash embedded in `manifest.json` under a top-level `hashes` object:
@@ -1143,6 +1344,55 @@ CLI / Manual:
 ```
 python -c "from src.panels.validate import verify_manifest_hashes; import json; print(json.dumps(verify_manifest_hashes('data/panels'), indent=2))"
 ```
+
+## Runtime Benchmark & P95 Regression Alert (Wave 4 – W4-09 / W4-10)
+Continuous micro-benchmarks (legacy vs pipeline collectors) can be enabled to emit latency delta gauges:
+```
+G6_BENCH_CYCLE=1 G6_BENCH_CYCLE_INTERVAL_SECONDS=300 python -m scripts.summary.app --refresh 1
+```
+Key Gauges: `g6_bench_delta_p50_pct`, `g6_bench_delta_p95_pct`, `g6_bench_delta_mean_pct` plus absolute legacy/pipeline p50/p95.
+
+Configure a p95 regression alert threshold (percentage):
+```
+G6_BENCH_P95_ALERT_THRESHOLD=25
+```
+This emits gauge `g6_bench_p95_regression_threshold_pct` consumed by Prometheus alert `BenchP95RegressionHigh`:
+```
+(g6_bench_delta_p95_pct > g6_bench_p95_regression_threshold_pct) and (g6_bench_p95_regression_threshold_pct >= 0)
+```
+Fires (warning) after 5m sustained breach. See `OPERATOR_MANUAL.md` (section 13.7) and `PIPELINE_DESIGN.md` (8.3.2) for deeper guidance.
+
+Alert Validation: `tests/test_bench_p95_regression_alert_rule.py` enforces presence, expression tokens, and `for: 5m` duration to prevent drift.
+
+Testing References:
+* `tests/test_bench_cycle_integration.py` – periodic benchmark emission.
+* `tests/test_bench_threshold_gauge.py` – threshold gauge & delta comparison.
+* `tests/test_bench_alert_rule_present.py` – alert rule YAML presence & expression.
+
+## Panel Read Performance Benchmark (Wave 4 – W4-19)
+Lightweight benchmark measuring JSON read+parse latency for all `*_enveloped.json` panels.
+
+Usage:
+```
+python scripts/bench_panels.py --panels-dir data/panels --iterations 50 --json
+```
+Output (saved to `panels_bench.json` by default) schema:
+```
+{
+  "panels_dir": ".../data/panels",
+  "iterations": 50,
+  "generated_at": "<ISO8601>",
+  "missing_read_errors": 0,
+  "panels": {
+    "indices_panel_enveloped.json": {"count": 50, "mean_s": 0.00012, "p95_s": 0.00021, "min_s": 0.00010, "max_s": 0.00025},
+    "alerts_enveloped.json": { ... }
+  },
+  "aggregate": {"samples": 250, "mean_s": 0.00014, ... }
+}
+```
+Intended for regression detection after envelope/schema or payload size changes. Integrate into CI by asserting `aggregate.p95_s` below a guardrail.
+
+Test Reference: `tests/test_panels_perf_benchmark.py` (schema invariants).
 
 Failure Policy Suggestions:
 * Development / CI: treat any non-empty result as failure.

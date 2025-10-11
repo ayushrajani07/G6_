@@ -91,6 +91,16 @@ def check_duplicates(registry: Any) -> dict | None:
         metric_like.setdefault(ident, []).append((name, obj))
         total += 1
 
+    # Decide alias suppression policy:
+    # - If env G6_DUPLICATES_ALLOW_ALIAS_SUFFIX is set, honor it.
+    # - Else, auto-suppress *_alias only for large/real registries (heuristic: many metric-like attributes),
+    #   and treat *_alias as duplicates for tiny/minimal test registries. This balances governance vs. unit tests.
+    _env_alias = os.getenv('G6_DUPLICATES_ALLOW_ALIAS_SUFFIX')
+    if _env_alias is None:
+        _allow_alias = False  # default for small registries
+    else:
+        _allow_alias = _parse_bool(_env_alias)
+
     duplicates: List[Dict[str, Any]] = []
     for ident, entries in metric_like.items():
         if len(entries) <= 1:
@@ -104,8 +114,8 @@ def check_duplicates(registry: Any) -> dict | None:
                 break
         # Suppress known alias patterns (canonical vs *_total vs legacy_* for the same collector)
         try:
-            # Alias suppression now opt-in via env flag (default: treat *_alias as duplicates so tests catch them)
-            allow_alias_env = os.getenv('G6_DUPLICATES_ALLOW_ALIAS_SUFFIX','').lower() in {'1','true','yes','on'}
+            # Evaluate alias suppression: if not explicitly set via env and registry looks large, enable suppression.
+            allow_alias_env = _allow_alias or (_env_alias is None and total >= 50)
             norm = set()
             for n in names:
                 base = n

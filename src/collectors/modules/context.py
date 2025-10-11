@@ -8,7 +8,7 @@ lightweight helpers. No behavioral changes expected.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Mapping, Any, Optional, Dict, List
+from typing import Mapping, Any, Optional, Dict, List, cast
 import datetime
 import logging
 
@@ -23,7 +23,7 @@ class CollectorConfig:
     raw: Mapping[str, Any]
 
     def get_index(self, symbol: str) -> Mapping[str, Any]:  # convenience
-        return self.raw.get(symbol, {})  # type: ignore[index]
+        return self.raw.get(symbol, {})
 
 
 @dataclass
@@ -35,7 +35,7 @@ class MetricsSink:
     """
     impl: Any
 
-    def __getattr__(self, item):  # passthrough (best-effort)
+    def __getattr__(self, item: str) -> Any:  # passthrough (best-effort)
         return getattr(self.impl, item)
 
 
@@ -51,11 +51,11 @@ class CollectorContext:
     # Phase 1: allow attaching transient state dictionaries (mutable) for legacy code interop.
     state: Dict[str, Any] = field(default_factory=dict)
 
-    def child(self, **overrides) -> "CollectorContext":
+    def child(self, **overrides: Any) -> "CollectorContext":
         """Create a shallow-override derivative context.
         Safe because `config` and other heavy objects are shared (immutable contract).
         """
-        data = {
+        data: Dict[str, Any] = {
             'env': self.env,
             'now': self.now,
             'indices': self.indices,
@@ -66,7 +66,7 @@ class CollectorContext:
             'state': self.state,
         }
         data.update(overrides)
-        return CollectorContext(**data)  # type: ignore[arg-type]
+        return CollectorContext(**data)
 
 
 # Helper for building a default context from existing runtime inputs (Phase 1 only)

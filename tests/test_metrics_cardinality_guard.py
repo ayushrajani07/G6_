@@ -3,11 +3,18 @@ import importlib, os, json, tempfile, sys
 
 
 def fresh_metrics():
-    # Force re-import & new singleton
-    if 'src.metrics.metrics' in sys.modules:
-        importlib.reload(sys.modules['src.metrics.metrics'])
+    """Force a fresh facade import and singleton without deep-importing metrics module.
+
+    We avoid importing or reloading src.metrics.metrics directly to prevent
+    triggering the deprecation warning. Instead, purge the facade package and
+    re-import it so its internal logic recreates the singleton lazily.
+    """
+    # Remove facade and its cached attributes
     if 'src.metrics' in sys.modules:
-        importlib.reload(sys.modules['src.metrics'])
+        del sys.modules['src.metrics']
+    # Also drop implementation module from cache if present so facade can reinit
+    if 'src.metrics.metrics' in sys.modules:
+        del sys.modules['src.metrics.metrics']
     m = importlib.import_module('src.metrics')
     return m.get_metrics_singleton()
 

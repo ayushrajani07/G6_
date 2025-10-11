@@ -1,4 +1,7 @@
 import os, json, pathlib, importlib
+import pytest
+
+pytestmark = pytest.mark.serial
 
 def test_pipeline_basic(monkeypatch, tmp_path):
     """Enable pipeline flag and ensure run_cycle executes without raising.

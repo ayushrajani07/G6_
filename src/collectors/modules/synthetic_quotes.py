@@ -9,8 +9,8 @@ from typing import Any, Dict, List
 
 __all__ = ["build_synthetic_quotes", "record_synthetic_metrics"]
 
-def build_synthetic_quotes(instruments: List[Dict[str, Any]]):  # pragma: no cover - stub
+def build_synthetic_quotes(instruments: List[Dict[str, Any]]) -> Dict[str, Any]:  # pragma: no cover - stub
     return {}
 
-def record_synthetic_metrics(ctx: Any, index_symbol: str, expiry_date) -> None:  # pragma: no cover - stub
+def record_synthetic_metrics(ctx: Any, index_symbol: str, expiry_date: Any) -> None:  # pragma: no cover - stub
     return None

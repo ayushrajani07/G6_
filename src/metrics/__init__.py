@@ -18,7 +18,12 @@ partitioned into smaller focused modules.
 from __future__ import annotations
 
 import logging as _logging, os as _os, warnings as _warnings, atexit as _atexit, time as _time
-from src.utils.env_flags import is_truthy_env as _is_truthy_env  # type: ignore
+try:
+	from src.utils.env_flags import is_truthy_env as _is_truthy_env
+except Exception:  # pragma: no cover
+	def _is_truthy_env(name: str) -> bool:
+		val = _os.getenv(name, '')
+		return val.lower() in ('1','true','yes','on')
 
 _TRACE = _is_truthy_env('G6_METRICS_IMPORT_TRACE')
 def _imp(msg: str):  # lightweight tracer
@@ -31,6 +36,8 @@ def _imp(msg: str):  # lightweight tracer
 
 _imp('start metrics/__init__')
 
+# Local fallback registry for dynamically created counters when global registry not yet initialized
+_LOCAL_FACADE_COUNTERS: dict[str, object] = {}
 # Ensure LogRecord instances have a .message attribute even if formatting hasn't run yet.
 def _install_logrecord_message_factory():  # pragma: no cover - simple wiring
 	if getattr(_logging, '_g6_message_factory_installed', False):
@@ -43,10 +50,10 @@ def _install_logrecord_message_factory():  # pragma: no cover - simple wiring
 		record = orig_factory(*args, **kwargs)
 		if not hasattr(record, 'message'):
 			try:
-				record.message = record.getMessage()  # type: ignore[attr-defined]
+				record.message = record.getMessage()
 			except Exception:
 				try:
-					record.message = str(getattr(record, 'msg', ''))  # type: ignore[attr-defined]
+					record.message = str(getattr(record, 'msg', ''))
 				except Exception:
 					pass
 		return record
@@ -74,11 +81,12 @@ def _install_deprecation_consolidation():  # pragma: no cover - side-effect inst
 	suppress_dupes = _is_truthy_env('G6_DEPRECATION_SUPPRESS_DUPES') if 'G6_DEPRECATION_SUPPRESS_DUPES' in _os.environ else True
 	silence_all = _is_truthy_env('G6_DEPRECATION_SILENCE')
 	if silence_all and not summary:
-		# Easiest path: ignore everything
 		_warnings.filterwarnings('ignore', category=DeprecationWarning)
-		_warnings._g6_depr_consolidation_installed = True  # type: ignore[attr-defined]
+		try:
+			_warnings._g6_depr_consolidation_installed = True  # type: ignore[attr-defined]
+		except Exception:
+			pass
 		return
-	# Track counts keyed by (message, module, lineno) for precision without over-granularity
 	_seen: dict[tuple[str,str,int], int] = {}
 	_orig_showwarning = _warnings.showwarning
 	def _showwarning(message, category, filename, lineno, file=None, line=None):  # noqa: ANN001
@@ -87,20 +95,20 @@ def _install_deprecation_consolidation():  # pragma: no cover - side-effect inst
 			cnt = _seen.get(key, 0) + 1
 			_seen[key] = cnt
 			if suppress_dupes and cnt > 1:
-				return  # swallow duplicate
+				return
 		return _orig_showwarning(message, category, filename, lineno, file=file, line=line)
-	_warnings.showwarning = _showwarning  # type: ignore[assignment]
-	def _emit_summary():  # pragma: no cover - exit hook
-		if not summary:
-			return
-		if not _seen:
+	try:
+		_warnings.showwarning = _showwarning  # type: ignore[assignment]
+	except Exception:
+		pass
+	def _emit_summary():  # pragma: no cover
+		if not summary or not _seen:
 			return
 		try:
 			lines = []
 			total = 0
 			for (msg, filename, lineno), count in sorted(_seen.items(), key=lambda x: (-x[1], x[0][0])):
 				total += count
-				# Only include filename tail for brevity
 				short = filename.replace('\\','/').split('/')[-1]
 				lines.append(f"{count}x {short}:{lineno} :: {msg}")
 			_logging.getLogger(__name__).info("deprecations.summary total=%d unique=%d\n%s", total, len(_seen), "\n".join(lines))
@@ -156,11 +164,15 @@ except Exception:
 _imp('import metrics module symbols (metrics.py)')
 # Mark facade import so metrics.py can suppress its own deep-import deprecation warning
 try:
-    import builtins as _bi  # type: ignore
-    setattr(_bi, '_G6_METRICS_FACADE_IMPORT', True)
+	import builtins as _bi
+	setattr(_bi, '_G6_METRICS_FACADE_IMPORT', True)
 except Exception:
-    pass
-from .metrics import (
+	pass
+import os as __os  # type: ignore  # dedicated alias for context guard
+_prev_ctx = __os.getenv('G6_METRICS_IMPORT_CONTEXT')
+try:
+	__os.environ['G6_METRICS_IMPORT_CONTEXT'] = 'facade'
+	from .metrics import (
 	MetricsRegistry,
 	setup_metrics_server,
 	get_metrics_metadata,    # legacy metadata accessor
@@ -170,12 +182,90 @@ from .metrics import (
 	prune_metrics_groups,
 	preview_prune_metrics_groups,
 	set_provider_mode,  # new facade re-export (was only in metrics module)
-)
+	)
+finally:
+	if _prev_ctx is None:
+		try:
+			del __os.environ['G6_METRICS_IMPORT_CONTEXT']
+		except Exception:
+			pass
+	else:
+		__os.environ['G6_METRICS_IMPORT_CONTEXT'] = _prev_ctx
+
+# Lightweight facade wrapper added Wave 3: dump current registry samples for tests expecting 'dump_metrics'
+def dump_metrics():
+	"""Return lightweight list of metric names (facade + global registry)."""
+	try:
+		m = get_metrics_singleton()
+	except Exception:
+		m = None
+	names: list[str] = []
+	try:
+		from prometheus_client import REGISTRY as _GLOBAL_REG, generate_latest
+	except Exception:
+		_GLOBAL_REG = None
+		generate_latest = None
+	# Facade registry
+	try:
+		reg = getattr(m, '_registry', None)
+		if reg is not None:
+			items = getattr(reg, '_registry', None)
+			coll_map = getattr(items, '_collector_to_names', None) if items is not None else None
+			if coll_map is not None:
+				for collector, c_names in list(coll_map.items()):
+					for nm in c_names:
+						if nm not in names:
+							names.append(nm)
+	except Exception:
+		pass
+	# Global registry
+	try:
+		if _GLOBAL_REG is not None:
+			coll_map2 = getattr(_GLOBAL_REG, '_collector_to_names', None)
+			if coll_map2 is not None:
+				for collector, c_names in list(coll_map2.items()):
+					for nm in c_names:
+						if nm not in names:
+							names.append(nm)
+	except Exception:
+		pass
+	# Local fallback counters
+	if not names and _LOCAL_FACADE_COUNTERS:
+		names = list(_LOCAL_FACADE_COUNTERS.keys())
+	return {'metric_names': names, 'count': len(names)}
+
+def get_counter(name: str, documentation: str, labels: list[str] | None):
+	"""Facade helper mirroring legacy metrics.get_counter contract (minimal).
+
+	Returns prometheus_client.Counter instance registered in current registry.
+	"""
+	try:
+		reg = get_metrics_singleton()
+		from prometheus_client import Counter
+		# Reuse existing if already present by walking collector names
+		prom_reg = getattr(reg, '_registry', None)
+		if prom_reg is not None:
+			try:
+				coll_map = getattr(prom_reg, '_collector_to_names', None)
+				if coll_map is not None:
+					for collector, names in list(coll_map.items()):
+						if name in names:
+							return collector
+			except Exception:
+				pass
+		# Register new counter
+		c = Counter(name, documentation, labels or [])
+		return c
+	except Exception:
+		class _Null:
+			def inc(self, *a, **k):
+				return 0
+		return _Null()
 
 # Dynamic facade wrappers (import metrics module at call time to survive reloads in tests)
-def get_metrics_singleton():  # type: ignore
+def get_metrics_singleton():
 	# Importing metrics module lazily; identity anchored by metrics._METRICS_SINGLETON
-	from . import _singleton as _anchor  # type: ignore
+	from . import _singleton as _anchor
 	import os as __os
 	# Allow tests to force a brand new registry instance
 	if __os.getenv('G6_FORCE_NEW_REGISTRY'):
@@ -190,8 +280,11 @@ def get_metrics_singleton():  # type: ignore
 			if (getattr(existing, '_metrics_introspection', None) is None and (
 				_is_truthy_env('G6_METRICS_EAGER_INTROSPECTION') or __os.getenv('G6_METRICS_INTROSPECTION_DUMP','')
 			)):
-				from .introspection import build_introspection_inventory as _bii  # type: ignore
-				existing._metrics_introspection = _bii(existing)  # type: ignore[attr-defined]
+				from .introspection import build_introspection_inventory as _bii
+				try:
+					existing._metrics_introspection = _bii(existing)  # type: ignore[attr-defined]
+				except Exception:
+					pass
 		except Exception:
 			pass
 		# (Dedup) Previously this emitted on EVERY facade access causing log spam.
@@ -213,7 +306,7 @@ def get_metrics_singleton():  # type: ignore
 			if _snap:
 				_need = (not __os.path.exists(_snap)) or (__os.path.getsize(_snap) == 0)
 				if _need:
-					from .cardinality_guard import check_cardinality as _cc  # type: ignore
+					from .cardinality_guard import check_cardinality as _cc
 					try:
 						summary = _cc(existing)
 						if summary is not None:
@@ -251,7 +344,7 @@ def get_metrics_singleton():  # type: ignore
 		except Exception:
 			pass
 		return existing
-	from . import metrics as _m  # type: ignore  # late import to avoid circular
+	from . import metrics as _m  # late import to avoid circular
 	reg = _m.get_metrics_singleton()
 	# Eager introspection rebuild if flag now set and cache still None (reload scenario in tests)
 	try:
@@ -259,10 +352,13 @@ def get_metrics_singleton():  # type: ignore
 		if getattr(reg, '_metrics_introspection', None) is None:
 			if _is_truthy_env('G6_METRICS_EAGER_INTROSPECTION') or __os.getenv('G6_METRICS_INTROSPECTION_DUMP',''):
 				try:
-					from .introspection import build_introspection_inventory as _bii  # type: ignore
+					from .introspection import build_introspection_inventory as _bii
 					reg._metrics_introspection = _bii(reg)  # type: ignore[attr-defined]
 				except Exception:
-					reg._metrics_introspection = []  # type: ignore[attr-defined]
+					try:
+						reg._metrics_introspection = []  # type: ignore[attr-defined]
+					except Exception:
+						pass
 	except Exception:
 		pass
 	# Fallback structured gating log emission if tests reload facade after gating earlier
@@ -272,8 +368,10 @@ def get_metrics_singleton():  # type: ignore
 		# Only emit if not already seen in recent logs: sentinel attribute on registry
 		if not getattr(reg, '_group_filters_log_emitted', False):
 			_logger.info('metrics.group_filters.loaded')
-			try: reg._group_filters_log_emitted = True  # type: ignore[attr-defined]
-			except Exception: pass
+			try:
+				reg._group_filters_log_emitted = True  # type: ignore[attr-defined]
+			except Exception:
+				pass
 	except Exception:
 		pass
 	# Defensive: if anchor still empty, publish (covers legacy path constructing first instance)
@@ -295,7 +393,7 @@ from .introspection_dump import run_post_init_dumps  # optional utility (not in 
 _imp('post symbols imported')
 
 _imp('begin eager singleton exposure')
-from . import _singleton as _sing  # type: ignore
+from . import _singleton as _sing
 _disable_eager = _is_truthy_env('G6_METRICS_EAGER_DISABLE')
 _force_facade_registry = (
 	_is_truthy_env('G6_METRICS_FORCE_FACADE_REGISTRY')
@@ -332,7 +430,7 @@ else:
 			registry = _existing  # type: ignore
 		else:
 			_imp('create new singleton via get_metrics_singleton')
-			registry = get_metrics_singleton()  # type: ignore
+			registry = get_metrics_singleton()
 			_imp('singleton created')
 	except Exception as _e:  # pragma: no cover - defensive
 		try:

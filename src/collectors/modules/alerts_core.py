@@ -36,10 +36,11 @@ Future Enhancements:
 """
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Set, Mapping
+import json
 import os
 
-__all__ = ["aggregate_alerts", "AlertSummary"]
+__all__ = ["aggregate_alerts", "AlertSummary", "derive_severity_map"]
 
 
 @dataclass
@@ -47,13 +48,54 @@ class AlertSummary:
     total: int
     categories: Dict[str, int]
     index_triggers: Dict[str, List[str]]
+    severities: Dict[str, str]
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             'alerts_total': self.total,
             'alerts': dict(self.categories),
             'alerts_index_triggers': {k: v[:] for k, v in self.index_triggers.items()},
+            'alerts_severity': dict(self.severities),
         }
+
+
+def derive_severity_map(categories: Mapping[str, int]) -> Dict[str, str]:
+    """Return a mapping category -> severity (info|warning|critical).
+
+    Default heuristic (W4-03):
+      * index_failure, index_empty => critical
+      * expiry_empty, low_both_coverage, stale_quote, wide_spread => warning
+      * low_strike_coverage, low_field_coverage => warning (strike) / info (field)
+      * liquidity_low => info
+      * synthetic_quotes_used (legacy) => info
+
+    Override via env G6_ALERT_SEVERITY_MAP supplying JSON object {category: severity}.
+    Unknown severities ignored (must be one of info|warning|critical).
+    """
+    default: Dict[str, str] = {}
+    for cat in categories.keys():
+        if cat in ('index_failure', 'index_empty'):
+            default[cat] = 'critical'
+        elif cat in ('expiry_empty', 'low_both_coverage', 'stale_quote', 'wide_spread'):
+            default[cat] = 'warning'
+        elif cat in ('low_strike_coverage',):
+            default[cat] = 'warning'
+        elif cat in ('low_field_coverage', 'liquidity_low', 'synthetic_quotes_used'):
+            default[cat] = 'info'
+        else:
+            # extended / future categories default to warning as a conservative middle
+            default[cat] = 'warning'
+    raw = os.environ.get('G6_ALERT_SEVERITY_MAP')
+    if raw:
+        try:
+            override = json.loads(raw)
+            if isinstance(override, dict):
+                for k, v in override.items():
+                    if k in default and isinstance(v, str) and v.lower() in ('info','warning','critical'):
+                        default[k] = v.lower()
+        except Exception:
+            pass
+    return default
 
 
 def _env_float(name: str, default: float) -> float:
@@ -157,4 +199,5 @@ def aggregate_alerts(indices_struct: List[Dict[str, Any]], *, strike_cov_min: fl
                     pass
 
     total = sum(counts.values())
-    return AlertSummary(total=total, categories=counts, index_triggers={k: sorted(v) for k, v in triggers.items() if v})
+    severities = derive_severity_map(counts)
+    return AlertSummary(total=total, categories=counts, index_triggers={k: sorted(v) for k, v in triggers.items() if v}, severities=severities)

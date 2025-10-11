@@ -18,7 +18,7 @@ def test_unified_loop_parity_basic(tmp_path, monkeypatch):
 
     Scope:
       - Run 3 cycles with PanelsWriter in expanded mode (default) writing into tmp_path.
-      - Assert required panel files created (indices_panel, alerts, system, performance, manifest).
+    - Assert required enveloped panel files created (indices_panel_enveloped, alerts_enveloped, system_enveloped, performance_enveloped, manifest).
       - Verify manifest enumerates those files and reference cycle matches unified_snapshot.json.
       - Basic sanity of indices_panel.json structure (items array) and system.json keys.
       - Confirm errors list in unified_snapshot.json is empty (or present list type).
@@ -53,10 +53,10 @@ def test_unified_loop_parity_basic(tmp_path, monkeypatch):
     # Required files
     required = [
         "unified_snapshot.json",
-        "indices_panel.json",
-        "alerts.json",
-        "system.json",
-        "performance.json",
+        "indices_panel_enveloped.json",
+        "alerts_enveloped.json",
+        "system_enveloped.json",
+        "performance_enveloped.json",
         "manifest.json",
     ]
     for fname in required:
@@ -77,12 +77,13 @@ def test_unified_loop_parity_basic(tmp_path, monkeypatch):
     for expected in [f for f in required if f not in {"unified_snapshot.json", "manifest.json"}]:
         assert expected in files_list, f"manifest missing {expected}"
     # Structural checks
-    indices_panel = json.loads((tmp_path / "indices_panel.json").read_text(encoding="utf-8"))
+    indices_panel = json.loads((tmp_path / "indices_panel_enveloped.json").read_text(encoding="utf-8"))
     # Wrapped schema: root keys panel, updated_at, data
-    assert indices_panel.get("panel") == "indices_panel"
+    # Enveloped panel reports logical name 'indices_panel_enveloped' (file base without .json)
+    assert indices_panel.get("panel") in ("indices_panel","indices_panel_enveloped")
     assert isinstance(indices_panel.get("data"), dict)
     assert "items" in indices_panel["data"] and isinstance(indices_panel["data"]["items"], list)
-    system_panel = json.loads((tmp_path / "system.json").read_text(encoding="utf-8"))
+    system_panel = json.loads((tmp_path / "system_enveloped.json").read_text(encoding="utf-8"))
     assert system_panel.get("panel") == "system"
     assert isinstance(system_panel.get("data"), dict)
     for key in ("memory_rss_mb", "cycle", "interval"):
@@ -93,7 +94,7 @@ def test_unified_loop_parity_basic(tmp_path, monkeypatch):
     if isinstance(snap.get("indices_count"), int):
         assert snap["indices_count"] == indices_panel.get("data", {}).get("count")
     # alerts_total matches alerts length
-    alerts_panel = json.loads((tmp_path / "alerts.json").read_text(encoding="utf-8"))
+    alerts_panel = json.loads((tmp_path / "alerts_enveloped.json").read_text(encoding="utf-8"))
     if isinstance(snap.get("alerts_total"), int) and isinstance(alerts_panel, list):
         # Some builders may count multiple alert categories internally; ensure at least the displayed alerts length.
         assert snap["alerts_total"] >= len(alerts_panel)

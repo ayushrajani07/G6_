@@ -40,6 +40,10 @@ ALWAYS_ON = {
 from dataclasses import dataclass
 from typing import Optional, Set
 import os
+try:
+    from src.collectors.env_adapter import get_str as _env_str  # type: ignore
+except Exception:  # pragma: no cover - fallback
+    _env_str = lambda k, d="": (os.getenv(k, d) or "")
 
 @dataclass
 class GroupFilters:
@@ -58,8 +62,8 @@ class GroupFilters:
 
 def load_group_filters() -> GroupFilters:
     """Load group filters from environment."""
-    enabled_raw = os.getenv("G6_ENABLE_METRIC_GROUPS", "")
-    disabled_raw = os.getenv("G6_DISABLE_METRIC_GROUPS", "")
+    enabled_raw = _env_str("G6_ENABLE_METRIC_GROUPS", "")
+    disabled_raw = _env_str("G6_DISABLE_METRIC_GROUPS", "")
     enabled = {g.strip() for g in enabled_raw.split(',') if g.strip()} if enabled_raw else None
     disabled = {g.strip() for g in disabled_raw.split(',') if g.strip()}
     return GroupFilters(enabled_raw, disabled_raw, enabled, disabled)

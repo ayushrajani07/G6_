@@ -11,8 +11,8 @@
   "storage": {
     "csv_dir": "data/g6_data",
     "influx": {
-      "enabled": false,
-      "url": "http://localhost:8086",
+      "enabled": true,
+      "url": "http://127.0.0.1:8086",
       "org": "g6",
       "bucket": "g6_data"
     }

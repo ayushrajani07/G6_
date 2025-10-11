@@ -12,11 +12,12 @@ Refactored to use:
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, cast
 
 # Add this before launching the subprocess
 import sys  # noqa: F401
 import os  # noqa: F401
+from src.collectors.env_adapter import get_bool as _env_bool, get_int as _env_int, get_float as _env_float
 
 from .influx_buffer_manager import InfluxBufferManager
 from .influx_circuit_breaker import InfluxCircuitBreaker
@@ -92,15 +93,16 @@ class InfluxSink:
         self.org = org
         self.bucket = bucket
         self.client = None
+        self.write_api = None  # type: Optional[Any]
         self.enable_symbol_tag = enable_symbol_tag
         self.max_retries = max_retries
         self.backoff_base = backoff_base
         self.metrics = None  # attach externally like CsvSink
-        self._buffer: Optional[InfluxBufferManager] = None
+        self._buffer = None  # type: Optional[InfluxBufferManager]
         self._breaker = InfluxCircuitBreaker(failure_threshold=breaker_fail_threshold, reset_timeout=breaker_reset_timeout)
-        self._pool: Optional[InfluxConnectionPool] = None
+        self._pool = None  # type: Optional[InfluxConnectionPool]
         try:
-            self._health_enabled = os.environ.get('G6_HEALTH_COMPONENTS', '').lower() in ('1','true','yes','on')
+            self._health_enabled = _env_bool('G6_HEALTH_COMPONENTS', False)
         except Exception:
             self._health_enabled = False
         
@@ -113,15 +115,15 @@ class InfluxSink:
             try:
                 self._pool = InfluxConnectionPool(
                     factory=lambda: InfluxDBClient(url=url, token=token, org=org),
-                    min_size=int(os.environ.get('G6_INFLUX_POOL_MIN_SIZE', pool_min_size)),
-                    max_size=int(os.environ.get('G6_INFLUX_POOL_MAX_SIZE', pool_max_size)),
+                    min_size=_env_int('G6_INFLUX_POOL_MIN_SIZE', pool_min_size),
+                    max_size=_env_int('G6_INFLUX_POOL_MAX_SIZE', pool_max_size),
                 )
             except Exception:
                 self._pool = None
             # Buffer manager configured from env overrides when not provided
-            eff_batch = int(os.environ.get('G6_INFLUX_BATCH_SIZE', batch_size or 500))
-            eff_flush = float(os.environ.get('G6_INFLUX_FLUSH_INTERVAL', flush_interval or 1.0))
-            eff_queue = int(os.environ.get('G6_INFLUX_MAX_QUEUE_SIZE', max_queue_size or 10000))
+            eff_batch = _env_int('G6_INFLUX_BATCH_SIZE', batch_size or 500)
+            eff_flush = _env_float('G6_INFLUX_FLUSH_INTERVAL', float(flush_interval) if flush_interval is not None else 1.0)
+            eff_queue = _env_int('G6_INFLUX_MAX_QUEUE_SIZE', max_queue_size or 10000)
 
             def _write_points(points: List[Any]) -> None:
                 # write using main write_api (single client). Could round-robin via pool if desired.
@@ -191,13 +193,13 @@ class InfluxSink:
             )
         # Optionally protect write paths with adaptive circuit breakers (env opt-in)
         try:
-            if os.environ.get('G6_ADAPTIVE_CB_INFLUX', '').lower() in ('1','true','yes','on'):
+            if _env_bool('G6_ADAPTIVE_CB_INFLUX', False):
                 if hasattr(self, 'write_options_data'):
-                    self.write_options_data = circuit_protected('influx.write_options_data')(self.write_options_data)  # type: ignore[assignment]
+                    setattr(self, 'write_options_data', cast(Any, circuit_protected('influx.write_options_data')(getattr(self, 'write_options_data'))))
                 if hasattr(self, 'write_overview_snapshot'):
-                    self.write_overview_snapshot = circuit_protected('influx.write_overview_snapshot')(self.write_overview_snapshot)  # type: ignore[assignment]
+                    setattr(self, 'write_overview_snapshot', cast(Any, circuit_protected('influx.write_overview_snapshot')(getattr(self, 'write_overview_snapshot'))))
                 if hasattr(self, 'write_cycle_stats'):
-                    self.write_cycle_stats = circuit_protected('influx.write_cycle_stats')(self.write_cycle_stats)  # type: ignore[assignment]
+                    setattr(self, 'write_cycle_stats', cast(Any, circuit_protected('influx.write_cycle_stats')(getattr(self, 'write_cycle_stats'))))
         except Exception as e:
             get_error_handler().handle_error(
                 e,
@@ -300,11 +302,13 @@ class InfluxSink:
         
         try:
             # Validation integration: mirror csv_sink behavior (drop invalid rows, clamp negatives, etc.)
-            try:  # local import to avoid hard dependency if validation package absent
-                from src.validation import run_validators  # type: ignore
-            except Exception:  # pragma: no cover
-                run_validators = None  # type: ignore
-            if options_data and run_validators:
+            # local import to avoid hard dependency if validation package absent
+            try:
+                from src import validation as _validation
+                run_validators = getattr(_validation, 'run_validators', None)
+            except Exception:
+                run_validators = None
+            if options_data and callable(run_validators):
                 raw_rows = []
                 for sym, data in list(options_data.items()):
                     if isinstance(data, dict):
@@ -313,7 +317,13 @@ class InfluxSink:
                         raw_rows.append(r)
                 ctx = {'index': index_symbol, 'expiry': expiry_date, 'stage': 'influx-pre-write'}
                 try:
-                    cleaned, reports = run_validators(ctx, raw_rows)  # type: ignore[misc]
+                    rv: Any = run_validators(ctx, raw_rows)
+                    cleaned: Any
+                    reports: Any
+                    if isinstance(rv, tuple) and len(rv) >= 2:
+                        cleaned, reports = rv[0], rv[1]
+                    else:
+                        cleaned, reports = rv, []
                     rebuilt = {}
                     for r in cleaned:
                         sym = r.pop('__symbol', None)
@@ -332,9 +342,9 @@ class InfluxSink:
 
             # Import Point from canonical path; fall back to tiny stand-in in test contexts
             try:
-                from influxdb_client.client.write.point import Point
+                from influxdb_client.client.write.point import Point as _Point
             except Exception:  # pragma: no cover - env without influxdb_client
-                Point = _TinyPoint  # type: ignore
+                _Point = _TinyPoint
 
             points: List[Any] = []
             for symbol, data in options_data.items():
@@ -350,7 +360,7 @@ class InfluxSink:
                 vega = data.get('vega')
                 rho = data.get('rho')
 
-                point = Point("option_data") \
+                point = _Point("option_data") \
                     .tag("index", index_symbol) \
                     .tag("expiry", expiry_str) \
                     .tag("type", opt_type) \
@@ -377,8 +387,9 @@ class InfluxSink:
 
             # Use circuit breaker to guard enqueue when backend failing hard
             if getattr(self, "_breaker", None) is None or self._breaker.allow():
-                if getattr(self, "_buffer", None):
-                    self._buffer.add_many(points)  # type: ignore[union-attr]
+                buf = self._buffer
+                if buf is not None:
+                    buf.add_many(points)
                 else:
                     # Back-compat path for tests that stub write_api only
                     try:
@@ -429,9 +440,9 @@ class InfluxSink:
             return
         try:
             try:
-                from influxdb_client.client.write.point import Point
+                from influxdb_client.client.write.point import Point as _Point
             except Exception:
-                Point = _TinyPoint  # type: ignore
+                _Point = _TinyPoint
             expiry_bit_map = {'this_week':1,'next_week':2,'this_month':4,'next_month':8}
             collected_mask = 0
             for k in pcr_snapshot.keys():
@@ -446,7 +457,7 @@ class InfluxSink:
             expiries_collected = len(pcr_snapshot)
             expiries_expected = len(expected_expiries) if expected_expiries else expiries_collected
 
-            point = Point("options_overview") \
+            point = _Point("options_overview") \
                 .tag("index", index_symbol) \
                 .field("pcr_this_week", float(pcr_snapshot.get('this_week', 0))) \
                 .field("pcr_next_week", float(pcr_snapshot.get('next_week', 0))) \
@@ -460,8 +471,9 @@ class InfluxSink:
                 .field("missing_mask", missing_mask) \
                 .time(timestamp)
             if getattr(self, "_breaker", None) is None or self._breaker.allow():
-                if getattr(self, "_buffer", None):
-                    self._buffer.add(point)  # type: ignore[union-attr]
+                buf = getattr(self, '_buffer', None)
+                if buf is not None:
+                    buf.add(point)
                 else:
                     try:
                         self.write_api.write(bucket=self.bucket, record=point)
@@ -505,18 +517,18 @@ class InfluxSink:
             return
         try:
             try:
-                from influxdb_client.client.write.point import Point
+                from influxdb_client.client.write.point import Point as _Point
             except Exception:
-                Point = _TinyPoint  # type: ignore
+                _Point = _TinyPoint
             if timestamp is None:
                 try:
-                    from src.utils.timeutils import ensure_utc_helpers  # type: ignore
+                    from src.utils.timeutils import ensure_utc_helpers
                     utc_now, _iso = ensure_utc_helpers()
                 except Exception:
-                    def utc_now():  # type: ignore
+                    def utc_now() -> datetime:
                         return datetime.now(timezone.utc)
                 timestamp = utc_now()
-            point = Point("g6_cycle") \
+            point = _Point("g6_cycle") \
                 .field("cycle", int(cycle)) \
                 .field("elapsed_seconds", float(elapsed))
             if success_rate is not None:
@@ -531,8 +543,10 @@ class InfluxSink:
                         pass
             point = point.time(timestamp)
             if getattr(self, "_breaker", None) is None or self._breaker.allow():
-                if getattr(self, "_buffer", None):
-                    self._buffer.add(point)  # type: ignore[union-attr]
+                # Be tolerant of instances created via __new__ in tests where _buffer may not exist
+                buf = getattr(self, "_buffer", None)
+                if buf is not None:
+                    buf.add(point)
                 else:
                     try:
                         self.write_api.write(bucket=self.bucket, record=point)

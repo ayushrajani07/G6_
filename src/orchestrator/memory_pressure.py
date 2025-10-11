@@ -18,9 +18,9 @@ import os
 from typing import Optional
 
 try:  # psutil optional
-    import psutil  # type: ignore
+    import psutil
 except Exception:  # pragma: no cover
-    psutil = None  # type: ignore
+    psutil = None
 
 
 def evaluate_memory_tier(ctx) -> None:

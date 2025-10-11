@@ -121,7 +121,30 @@ def run_orchestrator(args: argparse.Namespace) -> int:
     if not runner.exists():
         logger.error("orchestrator runner missing: %s", runner)
         return 5
-    cmd = [sys.executable, str(runner), "--config", args.config, "--interval", str(args.interval)]
+    # Resolve config path robustly so it works from any CWD and common shorthand
+    cfg_arg = args.config
+    cfg_path = Path(cfg_arg)
+    candidates: list[Path] = []
+    if cfg_path.is_absolute():
+        candidates.append(cfg_path)
+    else:
+        # Provided a relative path: try project root join first
+        candidates.append(_PROJECT_ROOT / cfg_path)
+        # If user passed just a filename like 'g6_config.json', also try under 'config/'
+        if cfg_path.name == cfg_arg:  # indicates no subdirectories in arg
+            candidates.append(_PROJECT_ROOT / 'config' / cfg_path.name)
+    cfg_final: Path | None = None
+    for p in candidates:
+        if p.exists():
+            cfg_final = p
+            break
+    if cfg_final is None:
+        logger.error("Config file not found. Tried: %s", ", ".join(str(p) for p in candidates))
+        # Fall back to first candidate so downstream error carries a concrete path
+        cfg_final = candidates[0]
+    else:
+        logger.info("Resolved config path: %s", cfg_final)
+    cmd = [sys.executable, str(runner), "--config", str(cfg_final), "--interval", str(args.interval)]
     if args.cycles:
         cmd.extend(["--cycles", str(args.cycles)])
     if args.parallel:
@@ -129,7 +152,11 @@ def run_orchestrator(args: argparse.Namespace) -> int:
     if args.auto_snapshots:
         cmd.append("--auto-snapshots")
     logger.info("Launching orchestrator: %s", ' '.join(cmd))
-    return subprocess.call(cmd)
+    try:
+        return subprocess.call(cmd)
+    except KeyboardInterrupt:
+        logger.info("KeyboardInterrupt received; exiting launcher gracefully.")
+        return 0
 
 
 def main(argv: list[str]) -> int:
@@ -155,6 +182,17 @@ def main(argv: list[str]) -> int:
                     return False
                 return True
         logging.getLogger().addFilter(_NoTraceFilter())
+
+    # Auto-resolve Observability Stack (runs first; uses scripts/auto_stack.ps1 under Windows)
+    try:
+        from scripts.auto_resolve_stack import ensure_stack, print_summary  # type: ignore
+        stack = ensure_stack(auto_start=True)
+        print_summary(stack)
+        if not stack.influx.ok:
+            logger.error("[launcher] InfluxDB is mandatory and not reachable. Exiting.")
+            return 3
+    except Exception:
+        logger.exception("[launcher] Auto-resolve stack phase failed unexpectedly (continuing)")
 
     planned = []
     if not args.no_auth and not args.summary and not args.panels:

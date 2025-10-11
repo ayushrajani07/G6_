@@ -21,7 +21,8 @@ import logging
 import os
 from src.utils.env_flags import is_truthy_env  # type: ignore
 import time
-from typing import Callable, Tuple, Optional
+from typing import Callable, Tuple, Optional, Any
+from .gating_types import ProviderLike, ProviderProbeResult
 
 try:
     from src.utils.market_hours import is_market_open, get_next_market_open, sleep_until_market_open, is_premarket_window  # type: ignore
@@ -63,7 +64,7 @@ def wait_for_market_open(market_type: str = "equity", session_type: str = "regul
     )
 
 
-def provider_readiness_probe(providers, symbol: str = "NIFTY", error_handler: Optional[Callable] = None) -> Tuple[bool, str]:
+def provider_readiness_probe(providers: ProviderLike | Any, symbol: str = "NIFTY", error_handler: Optional[Callable[..., Any]] = None) -> Tuple[bool, str]:
     """Perform a lightweight provider readiness probe using get_ltp.
 
     Parameters

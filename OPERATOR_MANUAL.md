@@ -158,13 +158,15 @@ Expect future additions that might change observability patterns:
 Prepare dashboards to adapt to metric name additions (prefix stable: `g6_`).
 
 ---
-## 13. Pipeline Mode Wave 2 Enhancements (2025-10-08)
+## 13. Pipeline Mode Wave 2 / 3 Enhancements (2025-10-08)
 
-### 13.1 Parity Score Logging
+### 13.1 Parity Score Logging & Rolling Window
 Enable via env `G6_PIPELINE_PARITY_LOG=1` and pass a legacy baseline snapshot into the pipeline orchestrator wrapper. Log record emitted:
 - Logger: `src.collectors.pipeline`
 - Message: `pipeline_parity_score`
-- Extras: `score`, `components`, `missing`
+- Extras: `score`, `components`, `missing`, plus when configured: `rolling_avg`, `rolling_count`, `rolling_window`, and `alerts_detail` (Wave 3).
+
+Rolling parity average: set `G6_PARITY_ROLLING_WINDOW=<N>` (>1) to compute rolling average (gauge `g6_pipeline_parity_rolling_avg`). Target N=200 for promotion readiness.
 
 Usage hint (pseudo-code):
 ```
@@ -172,11 +174,21 @@ legacy = collect_legacy_snapshot()
 pipeline = run_pipeline(index_params, providers, csv_sink, influx_sink, legacy_baseline=legacy)
 ```
 
-### 13.2 Phase Duration Metrics
+### 13.2 Extended Parity (Version 2)
+Set `G6_PARITY_EXTENDED=1` to enable additional `strike_coverage` component and bump parity `version` to 2. Without flag remains version 1.
+
+### 13.3 Alert Parity Weighting
+Structured alerts block in snapshot is leveraged for category-aware parity. Optional weighting via `G6_PARITY_ALERT_WEIGHTS` format:
+```
+G6_PARITY_ALERT_WEIGHTS=low_strike_coverage:1.5,index_failure:3,low_field_coverage:1
+```
+If unset, all categories weight=1.0. Fallback to symmetric difference scoring when structured categories or weights absent. Gauge `g6_pipeline_alert_parity_diff` reports weighted normalized mismatch (0 perfect).
+
+### 13.4 Phase Duration Metrics
 Set `G6_PIPELINE_PHASE_METRICS=1` to emit histogram observations:
 `pipeline_phase_duration_seconds{phase="<phase>"}`
 
-### 13.3 Error Taxonomy Semantics
+### 13.5 Error Taxonomy Semantics
 | Type | Typical Cause | Operator Action |
 |------|---------------|-----------------|
 | Recoverable (`PhaseRecoverableError`) | Expiry finalize anomaly, partial metadata | Monitor rate; if localized ignore or file issue |
@@ -184,7 +196,7 @@ Set `G6_PIPELINE_PHASE_METRICS=1` to emit histogram observations:
 
 Trigger rollback drill if fatal rate >2% over 20 consecutive cycles or parity score <0.98 for 10 cycles.
 
-### 13.4 Rollback Drill Script
+### 13.6 Rollback Drill Script (Enhanced Wave 3)
 `python scripts/rollback_drill.py` (dry-run) or add `--execute` to simulate live rollback path.
 
 Steps performed (current skeleton):
@@ -192,9 +204,34 @@ Steps performed (current skeleton):
 2. Disable pipeline flag (in-memory)
 3. Legacy warm run placeholder
 
-Planned (Wave 3): Artifact persistence, metrics counter `pipeline_rollback_total`, actual legacy invocation.
+Wave 3 additions:
+- Artifact persistence (`--artifact-dir`) capturing parity snapshot + anomaly summary.
+- Metrics counter increment `g6_pipeline_rollback_drill_total`.
+- Parity snapshot attempt pre-disable.
 
-### 13.5 Rapid Investigation Playbook
+### 13.7 Benchmark Delta Automation
+Use `python scripts/bench_delta.py` to run legacy vs pipeline micro-benchmark and enforce delta thresholds (p50/p95/mean). Environment `G6_BENCH_METRICS=1` enables metrics emission (counters/gauges TBD). Fails with non-zero exit if regression crosses threshold (for CI gating).
+
+Runtime Continuous Benchmarking (Wave 4 W4-09/W4-10):
+- Enable periodic in-process benchmark cycles: `G6_BENCH_CYCLE=1` (default interval 300s; override `G6_BENCH_CYCLE_INTERVAL_SECONDS`).
+- Optional tuning: `G6_BENCH_CYCLE_INDICES`, `G6_BENCH_CYCLE_CYCLES`, `G6_BENCH_CYCLE_WARMUP`.
+- Emit delta gauges: `g6_bench_delta_p50_pct`, `g6_bench_delta_p95_pct`, `g6_bench_delta_mean_pct` plus absolute p50/p95 gauges (legacy & pipeline).
+- Configure alert threshold: `G6_BENCH_P95_ALERT_THRESHOLD` (percentage). When set, gauge `g6_bench_p95_regression_threshold_pct` emitted.
+
+Alert: `BenchP95RegressionHigh`
+Expression:
+```
+(g6_bench_delta_p95_pct > g6_bench_p95_regression_threshold_pct) and (g6_bench_p95_regression_threshold_pct >= 0)
+```
+Fires (warning) if sustained 5m. Action: Inspect recent deployments, provider latency, resource pressure (memory / CPU). If systemic, consider rollback or temporary strike depth reduction.
+
+### 13.8 Taxonomy Counters
+Operational counters exposed via metrics facade:
+- `pipeline_expiry_recoverable_total`
+- `pipeline_index_fatal_total`
+Use `dump_metrics()` (test / debugging) or scrape Prometheus endpoint to confirm presence.
+
+### 13.9 Rapid Investigation Playbook
 ```
 export G6_PIPELINE_PARITY_LOG=1
 export G6_PIPELINE_PHASE_METRICS=1
@@ -207,7 +244,7 @@ python scripts/rollback_drill.py --execute
 Validate legacy cycle completes and alerts present.
 
 ---
-## 13. Minimal Incident Playbook
+## 14. Minimal Incident Playbook
 | Incident | Quick Actions |
 |----------|---------------|
 | No cycles for >5 min | Check `g6_last_success_cycle_unixtime`; restart process; verify provider status page |
@@ -217,14 +254,14 @@ Validate legacy cycle completes and alerts present.
 | Metrics endpoint down | Check process alive; port conflict; restart or change port |
 
 ---
-## 14. Contact & Handoff Notes
+## 15. Contact & Handoff Notes
 Maintain a short Handoff Log (outside repo) capturing:
 - Last restart time & reason
 - Outstanding anomalies (e.g., persistent IV failure on BANKNIFTY next_week)
 - Temporary mitigations applied (e.g., Greeks disabled)
 
 ---
-## 15. Quick Commands Cheat Sheet (PowerShell)
+## 16. Quick Commands Cheat Sheet (PowerShell)
 ```
 # Run continuously
 python scripts/run_orchestrator_loop.py --config config\g6_config.json --interval 60

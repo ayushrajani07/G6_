@@ -5,7 +5,7 @@ Functions keep the same names (without leading underscore externally) and are
 re-exported via __all__ so legacy wrappers in unified_collectors can delegate.
 """
 from __future__ import annotations
-from typing import Any, List
+from typing import Any, List, Sequence, Iterable
 import os, time, datetime, logging
 
 from src.collectors.cycle_context import CycleContext
@@ -17,19 +17,19 @@ logger = logging.getLogger(__name__)
 
 _EXPIRY_SERVICE_SINGLETON = None  # cached instance or None (mirrors original)
 
-def _get_expiry_service():  # lazy import + build to avoid overhead
+def _get_expiry_service() -> Any:  # lazy import + build to avoid overhead
     global _EXPIRY_SERVICE_SINGLETON
     if _EXPIRY_SERVICE_SINGLETON is not None:
         return _EXPIRY_SERVICE_SINGLETON
     try:
-        from src.utils.expiry_service import build_expiry_service  # type: ignore
+        from src.utils.expiry_service import build_expiry_service  # optional
         _EXPIRY_SERVICE_SINGLETON = build_expiry_service()
     except Exception:  # pragma: no cover
         _EXPIRY_SERVICE_SINGLETON = None
     return _EXPIRY_SERVICE_SINGLETON
 
 
-def fetch_option_instruments(index_symbol, expiry_rule, expiry_date, strikes, providers, metrics):
+def fetch_option_instruments(index_symbol: str, expiry_rule: str, expiry_date: Any, strikes: Sequence[float], providers: Any, metrics: Any) -> List[dict]:
     _t_api = time.time(); instruments = []; primary_err: Exception | None = None
     try:
         logger.debug(
@@ -48,7 +48,7 @@ def fetch_option_instruments(index_symbol, expiry_rule, expiry_date, strikes, pr
     except (NoInstrumentsError,) as inst_err:
         primary_err = inst_err
         try:
-            from src.collectors.modules.error_bridge import report_instrument_fetch_error  # type: ignore
+            from src.collectors.modules.error_bridge import report_instrument_fetch_error  # optional
             report_instrument_fetch_error(inst_err, index_symbol, expiry_rule, expiry_date, len(strikes))
         except Exception:
             handle_collector_error(inst_err, component="collectors.expiry_helpers", index_name=index_symbol,
@@ -108,14 +108,14 @@ def fetch_option_instruments(index_symbol, expiry_rule, expiry_date, strikes, pr
         metrics.mark_api_call(success=bool(instruments), latency_ms=(time.time()-_t_api)*1000.0)
     return instruments
 
-def enrich_quotes(index_symbol, expiry_rule, expiry_date, instruments, providers, metrics):
+def enrich_quotes(index_symbol: str, expiry_rule: str, expiry_date: Any, instruments: Sequence[dict], providers: Any, metrics: Any) -> List[dict] | dict:
     """Enrich instruments with live quotes; tolerant of partial failures."""
     _t_enrich = time.time()
     try:
-        enriched_data = providers.enrich_with_quotes(instruments)
+        enriched_data: List[dict] | dict = providers.enrich_with_quotes(instruments)
     except (NoQuotesError,) as enrich_err:  # expected domain error
         try:
-            from src.collectors.modules.error_bridge import report_quote_enrich_error  # type: ignore
+            from src.collectors.modules.error_bridge import report_quote_enrich_error  # optional
             report_quote_enrich_error(enrich_err, index_symbol, expiry_rule, expiry_date, len(instruments))
         except Exception:
             handle_collector_error(enrich_err, component="collectors.expiry_helpers", index_name=index_symbol,
@@ -129,7 +129,7 @@ def enrich_quotes(index_symbol, expiry_rule, expiry_date, instruments, providers
     return enriched_data
 
 
-def resolve_expiry(index_symbol, expiry_rule, providers, metrics, concise_mode):  # noqa: ARG001 (concise_mode retained for signature stability)
+def resolve_expiry(index_symbol: str, expiry_rule: str, providers: Any, metrics: Any, concise_mode: bool) -> Any:  # noqa: ARG001 (concise_mode retained for signature stability)
     """Single-source expiry resolution (provider list only).
 
     Algorithm:
@@ -163,7 +163,7 @@ def resolve_expiry(index_symbol, expiry_rule, providers, metrics, concise_mode):
             continue
     candidates = sorted(set(candidates))
 
-    def mark_metrics(success: bool):
+    def mark_metrics(success: bool) -> None:
         if metrics and hasattr(metrics, 'mark_api_call'):
             try:
                 metrics.mark_api_call(success=success, latency_ms=(_time.time()-start)*1000.0)
@@ -249,7 +249,7 @@ def resolve_expiry(index_symbol, expiry_rule, providers, metrics, concise_mode):
  # Removed calendar fallback: provider list is authoritative.
 
 # Synthetic metrics helper stub used by tests expecting presence even when synthetic logic unused.
-def synthetic_metric_pop(ctx, index_symbol, expiry_date):  # pragma: no cover - simple no-op
+def synthetic_metric_pop(ctx: Any, index_symbol: str, expiry_date: Any) -> None:  # pragma: no cover - simple no-op
     try:
         # If metrics adapter exposes counter, increment gracefully
         m = getattr(ctx, 'metrics', None)
@@ -260,3 +260,10 @@ def synthetic_metric_pop(ctx, index_symbol, expiry_date):  # pragma: no cover - 
                 pass
     except Exception:
         pass
+
+__all__ = [
+    'fetch_option_instruments',
+    'enrich_quotes',
+    'resolve_expiry',
+    'synthetic_metric_pop',
+]

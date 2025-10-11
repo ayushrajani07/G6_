@@ -8,9 +8,9 @@ import time
 from typing import Optional, Dict, Any
 
 try:
-    import psutil  # type: ignore
+    import psutil
 except Exception:  # pragma: no cover
-    psutil = None  # type: ignore
+    psutil = None
 
 class PerformanceMonitor:
     def __init__(self, interval: int = 5):

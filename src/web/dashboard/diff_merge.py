@@ -74,9 +74,11 @@ def merge_panel_diff(existing_panels: Mapping[str, Any] | None, event: Mapping[s
     # diff op: data must be a mapping
     if not isinstance(data, Mapping):
         raise ValueError("diff op requires mapping payload in data")
-    current_payload = {}
-    if isinstance(existing_panels, Mapping) and isinstance(existing_panels.get(panel), Mapping):
-        current_payload = existing_panels[panel]  # type: ignore[assignment]
+    current_payload: Dict[str, Any] = {}
+    if isinstance(existing_panels, Mapping):
+        cur = existing_panels.get(panel)
+        if isinstance(cur, Mapping):
+            current_payload = dict(cur)
     merged = _merge_dict(current_payload, data)
     new_panels = dict(existing_panels) if isinstance(existing_panels, Mapping) else {}
     new_panels[panel] = merged

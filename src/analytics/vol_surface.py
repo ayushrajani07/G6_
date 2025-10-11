@@ -36,7 +36,8 @@ from __future__ import annotations
 import os
 import time
 from statistics import mean
-from typing import Any, Dict, Optional, Iterable, List, Tuple
+from typing import Any, Dict, Optional, Iterable, List, Tuple, Protocol, Callable, Union
+from collections.abc import Iterable as _IterableABC
 import json
 import gzip
 
@@ -58,7 +59,7 @@ def _parse_buckets() -> list[float]:
     return sorted(set(edges))
 
 
-def _iter_options(snapshot_source) -> Iterable[Dict[str, Any]]:
+def _iter_options(snapshot_source: Any) -> Iterable[Dict[str, Any]]:
     # Direct iterable
     if isinstance(snapshot_source, list):
         for row in snapshot_source:
@@ -70,9 +71,10 @@ def _iter_options(snapshot_source) -> Iterable[Dict[str, Any]]:
     if callable(getter):
         try:
             it = getter()
-            for row in it or []:  # type: ignore
-                if isinstance(row, dict):
-                    yield row
+            if isinstance(it, _IterableABC):
+                for row in it:
+                    if isinstance(row, dict):
+                        yield row
         except Exception:
             return
 
@@ -149,7 +151,20 @@ def _interpolate_missing(rows: List[Dict[str, Any]], buckets: List[float]) -> Li
     return augmented
 
 
-def build_surface(snapshot_source) -> Optional[Dict[str, Any]]:
+class _MetricLabel(Protocol):  # minimal subset of prometheus-like label objects
+    def set(self, value: Union[int,float]) -> Any: ...
+    def inc(self, value: Union[int,float]=1) -> Any: ...
+    def observe(self, value: Union[int,float]) -> Any: ...
+
+def _safe_label(obj: Any) -> Optional[_MetricLabel]:
+    if obj is None:
+        return None
+    # duck-typing: ensure at least one expected attribute
+    if any(hasattr(obj, attr) for attr in ('set','inc','observe')):
+        return obj  # type: ignore[return-value]
+    return None
+
+def build_surface(snapshot_source: Any) -> Optional[Dict[str, Any]]:
     if os.environ.get('G6_VOL_SURFACE','').lower() not in ('1','true','yes','on'):
         return None
     start = time.time()
@@ -235,40 +250,51 @@ def build_surface(snapshot_source) -> Optional[Dict[str, Any]]:
     # Metrics hooks (consolidated)
     elapsed = max(_last_build_ts - start, 0.0)
 
-    def _emit(metrics_obj):  # type: ignore
+    def _emit(metrics_obj: Any) -> None:
         if not metrics_obj:
             return
         try:
             if hasattr(metrics_obj, 'vol_surface_last_build_unixtime'):
-                metrics_obj.vol_surface_last_build_unixtime.labels(index='global').set(_last_build_ts)  # type: ignore[attr-defined]
+                lbl = metrics_obj.vol_surface_last_build_unixtime.labels(index='global')
+                ts_val = float(_last_build_ts) if _last_build_ts is not None else time.time()
+                _l = _safe_label(lbl);  _l.set(ts_val) if _l else None
             if hasattr(metrics_obj, 'vol_surface_builds'):
-                metrics_obj.vol_surface_builds.labels(index='global').inc()  # type: ignore[attr-defined]
+                lbl = metrics_obj.vol_surface_builds.labels(index='global')
+                _l = _safe_label(lbl);  _l.inc() if _l else None
             if hasattr(metrics_obj, 'vol_surface_build_seconds'):
-                metrics_obj.vol_surface_build_seconds.observe(elapsed)  # type: ignore[attr-defined]
+                _l = _safe_label(getattr(metrics_obj, 'vol_surface_build_seconds'))
+                if _l: _l.observe(elapsed)
             if hasattr(metrics_obj, 'vol_surface_rows'):
                 raw_count = sum(1 for r in rows if r.get('source') == 'raw')
                 interp_count = sum(1 for r in rows if r.get('source') == 'interp')
                 try:
-                    metrics_obj.vol_surface_rows.labels(index='global', source='raw').set(raw_count)  # type: ignore[attr-defined]
-                    metrics_obj.vol_surface_rows.labels(index='global', source='interp').set(interp_count)  # type: ignore[attr-defined]
+                    lbl_r = metrics_obj.vol_surface_rows.labels(index='global', source='raw')
+                    lbl_i = metrics_obj.vol_surface_rows.labels(index='global', source='interp')
+                    _lr = _safe_label(lbl_r); _li = _safe_label(lbl_i)
+                    _lr.set(raw_count) if _lr else None
+                    _li.set(interp_count) if _li else None
                 except Exception:
                     pass
                 if hasattr(metrics_obj, 'vol_surface_interpolated_fraction'):
                     total_rows = raw_count + interp_count
                     frac = (interp_count / total_rows) if total_rows else 0.0
                     try:
-                        metrics_obj.vol_surface_interpolated_fraction.labels(index='global').set(frac)  # type: ignore[attr-defined]
+                        lbl_f = metrics_obj.vol_surface_interpolated_fraction.labels(index='global')
+                        _lf = _safe_label(lbl_f); _lf.set(frac) if _lf else None
                     except Exception:
                         pass
                     # Follow-up guards feed (interpolation fraction)
                     try:
-                        from src.adaptive import followups  # type: ignore
-                        followups.feed('global', interpolated_fraction=frac)
+                        from src.adaptive import followups
+                        try:
+                            followups.feed('global', interpolated_fraction=frac)  # type: ignore[attr-defined]
+                        except Exception:
+                            pass
                     except Exception:
                         pass
                     # Interpolation guard alert (record streak & potential alert)
                     try:
-                        from src.adaptive.alerts import record_interpolation_fraction  # type: ignore
+                        from src.adaptive.alerts import record_interpolation_fraction
                         alert = record_interpolation_fraction('global', frac)
                         if alert is not None:
                             # Attach to snapshot_source (if it exposes list) for later status writer consumption
@@ -289,42 +315,49 @@ def build_surface(snapshot_source) -> Optional[Dict[str, Any]]:
                         coverage = raw_count / (raw_count + interp_count) if (raw_count + interp_count) else 0.0
                         # Simple score: coverage * (1 - frac). Range 0-1.
                         quality = coverage * (1 - (interp_count / (raw_count + interp_count) if (raw_count + interp_count) else 0))
-                        metrics_obj.vol_surface_quality_score.labels(index='global').set(quality)
+                        lbl_q = metrics_obj.vol_surface_quality_score.labels(index='global')
+                        _lq = _safe_label(lbl_q); _lq.set(quality) if _lq else None
                     except Exception:
                         pass
                 if hasattr(metrics_obj, 'vol_surface_interp_seconds') and interp_elapsed:
                     try:
-                        metrics_obj.vol_surface_interp_seconds.observe(interp_elapsed)
+                        _li2 = _safe_label(getattr(metrics_obj, 'vol_surface_interp_seconds'))
+                        if _li2: _li2.observe(interp_elapsed)
                     except Exception:
                         pass
                 if hasattr(metrics_obj, 'vol_surface_model_build_seconds') and model_elapsed:
                     try:
-                        metrics_obj.vol_surface_model_build_seconds.observe(model_elapsed)
+                        _lm = _safe_label(getattr(metrics_obj, 'vol_surface_model_build_seconds'))
+                        if _lm: _lm.observe(model_elapsed)
                     except Exception:
                         pass
                 # Per-expiry (optional)
                 if os.getenv('G6_VOL_SURFACE_PER_EXPIRY') == '1':
-                    if not hasattr(metrics_obj, 'vol_surface_rows_expiry') and hasattr(metrics_obj, '_register'):
+                    if not hasattr(metrics_obj, 'vol_surface_rows_expiry') and hasattr(metrics_obj, '_maybe_register'):
                         try:
-                            metrics_obj.vol_surface_rows_expiry = metrics_obj._register(  # type: ignore[attr-defined]
-                                type(getattr(metrics_obj, 'vol_surface_rows')),
-                                'g6_vol_surface_rows_expiry',
-                                'Vol surface per-expiry row count by source',
-                                labelnames=['index','expiry','source']
-                            )
-                            metrics_obj.vol_surface_interpolated_fraction_expiry = metrics_obj._register(  # type: ignore[attr-defined]
-                                type(getattr(metrics_obj, 'vol_surface_interpolated_fraction')),
-                                'g6_vol_surface_interpolated_fraction_expiry',
-                                'Fraction interpolated per expiry',
-                                labelnames=['index','expiry']
-                            )
+                            from prometheus_client import Gauge as _Gauge  # type: ignore
+                        except Exception:  # pragma: no cover - defensive
+                            _Gauge = None  # type: ignore
+                        if _Gauge is not None:
                             try:
-                                metrics_obj._metric_groups['vol_surface_rows_expiry'] = 'analytics_vol_surface'  # type: ignore[attr-defined]
-                                metrics_obj._metric_groups['vol_surface_interpolated_fraction_expiry'] = 'analytics_vol_surface'  # type: ignore[attr-defined]
+                                metrics_obj._maybe_register(  # type: ignore[attr-defined]
+                                    'analytics_vol_surface',
+                                    'vol_surface_rows_expiry',
+                                    _Gauge,
+                                    'g6_vol_surface_rows_expiry',
+                                    'Vol surface per-expiry row count by source',
+                                    ['index','expiry','source']
+                                )
+                                metrics_obj._maybe_register(  # type: ignore[attr-defined]
+                                    'analytics_vol_surface',
+                                    'vol_surface_interpolated_fraction_expiry',
+                                    _Gauge,
+                                    'g6_vol_surface_interpolated_fraction_expiry',
+                                    'Fraction interpolated per expiry',
+                                    ['index','expiry']
+                                )
                             except Exception:
                                 pass
-                        except Exception:
-                            pass
                     if hasattr(metrics_obj, 'vol_surface_rows_expiry'):
                         try:
                             per_expiry: Dict[str, Dict[str, int]] = {}
@@ -337,12 +370,16 @@ def build_surface(snapshot_source) -> Optional[Dict[str, Any]]:
                                 per_expiry[exp][src] += 1
                             for exp, counts in per_expiry.items():
                                 try:
-                                    metrics_obj.vol_surface_rows_expiry.labels(index='global', expiry=exp, source='raw').set(counts.get('raw', 0))  # type: ignore[attr-defined]
-                                    metrics_obj.vol_surface_rows_expiry.labels(index='global', expiry=exp, source='interp').set(counts.get('interp', 0))  # type: ignore[attr-defined]
+                                    lbl_er = metrics_obj.vol_surface_rows_expiry.labels(index='global', expiry=exp, source='raw')
+                                    lbl_ei = metrics_obj.vol_surface_rows_expiry.labels(index='global', expiry=exp, source='interp')
+                                    _ler = _safe_label(lbl_er); _lei = _safe_label(lbl_ei)
+                                    _ler.set(counts.get('raw', 0)) if _ler else None
+                                    _lei.set(counts.get('interp', 0)) if _lei else None
                                     if hasattr(metrics_obj, 'vol_surface_interpolated_fraction_expiry'):
                                         total_e = counts.get('raw', 0) + counts.get('interp', 0)
                                         frac_e = (counts.get('interp', 0) / total_e) if total_e else 0.0
-                                        metrics_obj.vol_surface_interpolated_fraction_expiry.labels(index='global', expiry=exp).set(frac_e)  # type: ignore[attr-defined]
+                                        lbl_fe = metrics_obj.vol_surface_interpolated_fraction_expiry.labels(index='global', expiry=exp)
+                                        _lfe = _safe_label(lbl_fe); _lfe.set(frac_e) if _lfe else None
                                 except Exception:
                                     continue
                         except Exception:

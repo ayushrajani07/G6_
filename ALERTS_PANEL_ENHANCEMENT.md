@@ -47,6 +47,66 @@ centralized_alerts = handler.get_errors_for_alerts_panel(count=50)  # Was: count
 3. **Enhanced User Experience**: Fuller utilization of available screen real estate
 4. **Better Context**: More comprehensive view of system health trends
 
+## 2025-10-08 (Wave 4 – W4-03) Alert Severity Labels
+
+Implemented category severity mapping surfaced via `alerts.severity` in the pipeline snapshot summary:
+
+Default mapping (can be overridden by env `G6_ALERT_SEVERITY_MAP` with JSON):
+
+| Category | Default Severity |
+|----------|------------------|
+| index_failure | critical |
+| index_empty | critical |
+| expiry_empty | warning |
+| low_both_coverage | warning |
+| low_strike_coverage | warning |
+| low_field_coverage | info |
+| liquidity_low | info |
+| stale_quote | warning |
+| wide_spread | warning |
+| synthetic_quotes_used | info (legacy placeholder) |
+
+Environment override example:
+```
+G6_ALERT_SEVERITY_MAP={"index_failure":"warning","low_field_coverage":"critical"}
+```
+
+Snapshot snippet:
+```jsonc
+"alerts": {
+	"total": 7,
+	"categories": {"index_failure":1, "low_field_coverage":2, ...},
+	"index_triggers": {"index_failure":["NIFTY"]},
+	"severity": {"index_failure":"critical","low_field_coverage":"info", ...}
+}
+```
+
+Panels and parity diff logic can now classify and group alerts by severity without additional per-cycle computation.
+
+## 2025-10-08 (Wave 4 – W4-04) Panel Severity Grouping
+
+Added optional grouping of alert categories by severity in the alerts panel footer.
+
+Environment flags:
+- `G6_ALERTS_SEVERITY_GROUPING` (default: `1` / enabled) – toggle grouping footer lines.
+- `G6_ALERTS_SEVERITY_TOP_CAP` (default: `3`) – max top categories displayed per severity bucket.
+
+Footer additions when enabled:
+```
+Active: 3 Critical | 5 Warning | 2 Info
+Categories: 5 crit(cat) 4 warn(cat) 2 info(cat)
+Top: SYSTEM_FAILURE:5 SLOW_PHASE:4 DATA_DELAY:3 ...
+```
+
+Behavior notes:
+- Gracefully degrades (no grouping lines) if snapshot lacks `alerts.categories` or `alerts.severity`.
+- Capped total displayed top categories (panel logic hard-caps to 6 overall after per-severity cap).
+- Resilient to errors: exceptions in grouping logic are captured and logged via `handle_ui_error` but do not break panel rendering.
+
+Implementation reference: `scripts/summary/panels/alerts.py` (section marked `Severity Grouping (W4-04)`).
+
+Testing: `tests/test_alerts_panel_severity_grouping.py` validates enabled/disabled modes and presence of grouping lines.
+
 ## Visual Result
 The alerts panel now displays a comprehensive rolling log that fills the available panel space, showing:
 - Timestamps with time formatting

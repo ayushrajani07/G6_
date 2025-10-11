@@ -25,7 +25,7 @@ Exit Codes:
   0 success, non-zero for failure in any execution step (execute mode only).
 """
 from __future__ import annotations
-import os, sys, argparse, datetime, json, logging
+import os, sys, argparse, datetime, json, logging, pathlib
 from typing import Any, Dict
 
 logger = logging.getLogger("scripts.rollback_drill")
@@ -33,12 +33,36 @@ logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s %(na
 
 
 def capture_health_snapshot() -> Dict[str, Any]:
-    # Placeholder: integrate with parity scoring + metrics facade in Wave 3
+  """Capture parity score (if baseline + indices snapshot available) and timestamp.
+
+  Looks for a JSON snapshot file path via env G6_PARITY_BASELINE (optional) to treat
+  as legacy baseline and a pipeline snapshot via G6_PARITY_PIPELINE. If both load and
+  contain 'indices', compute parity score.
+  """
+  ts = datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')
+  legacy_path = os.getenv('G6_PARITY_BASELINE')
+  pipeline_path = os.getenv('G6_PARITY_PIPELINE')
+  parity_obj = None
+  try:
+    if legacy_path and pipeline_path and pathlib.Path(legacy_path).is_file() and pathlib.Path(pipeline_path).is_file():
+      with open(legacy_path,'r',encoding='utf-8') as fh:
+        legacy = json.load(fh)
+      with open(pipeline_path,'r',encoding='utf-8') as fh:
+        pipe = json.load(fh)
+      if isinstance(legacy, dict) and isinstance(pipe, dict):
+        try:
+          from src.collectors.pipeline.parity import compute_parity_score  # type: ignore
+          parity_obj = compute_parity_score(legacy, pipe)
+        except Exception:
+          parity_obj = None
+  except Exception:
+    parity_obj = None
   return {
-    'ts': datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z'),
-        'parity_score': None,
-        'notes': 'health snapshot placeholder'
-    }
+    'ts': ts,
+    'parity': parity_obj,
+    'legacy_source': legacy_path,
+    'pipeline_source': pipeline_path,
+  }
 
 def perform_disable_pipeline_flag(execute: bool) -> Dict[str, Any]:
     # Strategy: rely on environment variable toggling; in execute mode set an env file or instruct operator.
@@ -53,34 +77,61 @@ def legacy_warm_run(execute: bool) -> Dict[str, Any]:
     return {'invoked': execute, 'status': 'skipped' if not execute else 'ok'}
 
 
-def drill_steps(execute: bool) -> Dict[str, Any]:
-    result: Dict[str, Any] = {'execute': execute, 'steps': []}
-    snap = capture_health_snapshot()
-    result['steps'].append({'step': 'health_snapshot', 'data': snap})
-    flag = perform_disable_pipeline_flag(execute)
-    result['steps'].append({'step': 'disable_pipeline', 'data': flag})
-    warm = legacy_warm_run(execute)
-    result['steps'].append({'step': 'legacy_warm_run', 'data': warm})
-    result['status'] = 'ok'
-    return result
+def _persist_artifact(data: Dict[str, Any], path: str) -> Dict[str, Any]:
+  try:
+    pathlib.Path(path).parent.mkdir(parents=True, exist_ok=True)
+    with open(path,'w',encoding='utf-8') as fh:
+      json.dump(data, fh, indent=2, sort_keys=True)
+    return {'written': True, 'path': path}
+  except Exception as e:
+    return {'written': False, 'path': path, 'error': str(e)}
+
+def drill_steps(execute: bool, artifact_dir: str | None, metrics_enabled: bool) -> Dict[str, Any]:
+  result: Dict[str, Any] = {'execute': execute, 'steps': [], 'artifact_dir': artifact_dir}
+  snap = capture_health_snapshot()
+  result['steps'].append({'step': 'health_snapshot', 'data': snap})
+  flag = perform_disable_pipeline_flag(execute)
+  result['steps'].append({'step': 'disable_pipeline', 'data': flag})
+  warm = legacy_warm_run(execute)
+  result['steps'].append({'step': 'legacy_warm_run', 'data': warm})
+  # Persist artifact if directory requested
+  if artifact_dir:
+    ts_short = snap.get('ts','').replace(':','').replace('-','')
+    fname = f"rollback_artifact_{ts_short or 'now'}.json"
+    artifact_path = str(pathlib.Path(artifact_dir)/fname)
+    persist = _persist_artifact({'snapshot': snap, 'steps': result['steps']}, artifact_path)
+    result['steps'].append({'step': 'persist_artifact', 'data': persist})
+  # Metrics counter increment
+  if metrics_enabled:
+    try:
+      from prometheus_client import Counter  # type: ignore
+      _c = Counter('g6_pipeline_rollback_drill_total','Count of rollback drills executed')
+      _c.inc()
+      result['steps'].append({'step': 'metrics_increment', 'data': {'ok': True}})
+    except Exception as e:
+      result['steps'].append({'step': 'metrics_increment', 'data': {'ok': False, 'error': str(e)}})
+  result['status'] = 'ok'
+  return result
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description='Pipeline rollback drill')
-    ap.add_argument('--execute', action='store_true', help='Perform rollback actions instead of dry-run')
-    ap.add_argument('--json', action='store_true', help='Emit JSON result only')
-    args = ap.parse_args(argv)
-    exec_mode = bool(args.execute)
-    outcome = drill_steps(exec_mode)
-    if args.json:
-        print(json.dumps(outcome, indent=2))
-    else:
-        print('# Rollback Drill Report')
-        print(f"Mode: {'EXECUTE' if exec_mode else 'DRY-RUN'}")
-        for step in outcome['steps']:
-            print(f"- {step['step']}: {step['data']}")
-    logger.info('rollback_drill_complete', extra={'execute': exec_mode})
-    return 0
+  ap = argparse.ArgumentParser(description='Pipeline rollback drill')
+  ap.add_argument('--execute', action='store_true', help='Perform rollback actions instead of dry-run')
+  ap.add_argument('--json', action='store_true', help='Emit JSON result only')
+  ap.add_argument('--artifact-dir', help='Directory to persist rollback artifact (JSON)')
+  ap.add_argument('--metrics', action='store_true', help='Emit metrics counter increment')
+  args = ap.parse_args(argv)
+  exec_mode = bool(args.execute)
+  outcome = drill_steps(exec_mode, args.artifact_dir, args.metrics)
+  if args.json:
+    print(json.dumps(outcome, indent=2))
+  else:
+    print('# Rollback Drill Report')
+    print(f"Mode: {'EXECUTE' if exec_mode else 'DRY-RUN'}")
+    for step in outcome['steps']:
+      print(f"- {step['step']}: {step['data']}")
+  logger.info('rollback_drill_complete', extra={'execute': exec_mode})
+  return 0
 
 if __name__ == '__main__':  # pragma: no cover
     sys.exit(main())

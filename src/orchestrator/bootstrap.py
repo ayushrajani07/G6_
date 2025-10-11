@@ -31,16 +31,16 @@ logger = logging.getLogger(__name__)
 try:  # pragma: no cover - optional path if metrics not yet refactored
     from src.metrics import setup_metrics_server  # facade import
 except Exception:  # pragma: no cover
-    setup_metrics_server = None  # type: ignore
+    setup_metrics_server = None
 
 # Use canonical config loader (ConfigWrapper) to avoid depending on legacy unified_main.
 try:
-    from src.config.loader import load_config  # type: ignore
+    from src.config.loader import load_config
 except Exception:  # pragma: no cover
     try:  # fallback to legacy if new path unavailable
-        from src.unified_main import load_config  # type: ignore
+        from src.unified_main import load_config
     except Exception:
-        load_config = None  # type: ignore
+        load_config = None
 
 
 def run_env_deprecation_scan(*, strict_mode_override: bool | None = None) -> None:
@@ -52,8 +52,8 @@ def run_env_deprecation_scan(*, strict_mode_override: bool | None = None) -> Non
         Force strict mode on/off (bypasses env flag) when not None.
     """
     try:
-        from src.config.env_lifecycle import ENV_LIFECYCLE_REGISTRY  # type: ignore
-        from src.utils.env_flags import is_truthy_env  # type: ignore
+        from src.config.env_lifecycle import ENV_LIFECYCLE_REGISTRY
+        from src.utils.env_flags import is_truthy_env
         if strict_mode_override is None:
             strict_mode = is_truthy_env('G6_ENV_DEPRECATION_STRICT')
         else:
@@ -133,7 +133,7 @@ def bootstrap_runtime(config_path: str,
     # Component initialization (now default ON). Set G6_DISABLE_COMPONENTS=1 to skip.
     if os.environ.get('G6_DISABLE_COMPONENTS','').lower() not in ('1','true','yes','on'):
         try:
-            from src.orchestrator.components import init_providers, init_storage, init_health, apply_circuit_breakers  # type: ignore
+            from src.orchestrator.components import init_providers, init_storage, init_health, apply_circuit_breakers
             providers = init_providers(raw_cfg)
             csv_sink, influx_sink = init_storage(raw_cfg)
             apply_circuit_breakers(raw_cfg, providers)
@@ -146,7 +146,7 @@ def bootstrap_runtime(config_path: str,
             logger.exception("Component bootstrap (providers/storage/health) failed; proceeding with partial context")
             # If failure likely due to missing credentials and we are in premarket init window, emit guidance.
             try:
-                from src.utils.market_hours import is_premarket_window, get_next_market_open  # type: ignore
+                from src.utils.market_hours import is_premarket_window, get_next_market_open
                 if is_premarket_window():
                     nxt = get_next_market_open()
                     logger.warning(
@@ -156,10 +156,10 @@ def bootstrap_runtime(config_path: str,
             except Exception:  # pragma: no cover
                 pass
     # Start catalog HTTP server if enabled
-    from src.utils.env_flags import is_truthy_env as _is_truthy_env  # type: ignore
+    from src.utils.env_flags import is_truthy_env as _is_truthy_env
     if _is_truthy_env('G6_CATALOG_HTTP'):
         try:
-            from src.orchestrator.catalog_http import start_http_server_in_thread  # type: ignore
+            from src.orchestrator.catalog_http import start_http_server_in_thread
             start_http_server_in_thread()
         except Exception:
             logger.exception("Catalog HTTP server failed to start")
@@ -179,7 +179,7 @@ def bootstrap_runtime(config_path: str,
             try:
                 raw_indices = None
                 if hasattr(raw_cfg, 'raw'):
-                    rc = raw_cfg.raw  # type: ignore[attr-defined]
+                    rc = raw_cfg.raw
                     raw_indices = rc.get('indices') or rc.get('symbols') or rc.get('index_list')
                 if isinstance(raw_indices, (list, tuple)):
                     indices_count = len(raw_indices)
@@ -225,7 +225,7 @@ def bootstrap_runtime(config_path: str,
             # Build info gauge presence heuristic
             build_info_registered = 0
             try:
-                from prometheus_client import REGISTRY as _R  # type: ignore
+                from prometheus_client import REGISTRY as _R
                 for fam in _R.collect():  # pragma: no cover (iter small)
                     if getattr(fam, 'name', '') == 'g6_build_info':
                         build_info_registered = 1
@@ -235,7 +235,7 @@ def bootstrap_runtime(config_path: str,
             # Overrides count from settings snapshot if already loaded
             overrides_count = 0
             try:
-                from src.collector.settings import get_collector_settings  # type: ignore
+                from src.collector.settings import get_collector_settings
                 _s = get_collector_settings()
                 overrides_count = len(getattr(_s, 'log_level_overrides', {}) or {})
                 pipeline_v2 = int(bool(getattr(_s, 'pipeline_v2_flag', False))) or pipeline_v2
@@ -247,13 +247,13 @@ def bootstrap_runtime(config_path: str,
             start_ts = int(getattr(ctx, 'start_time', time.time()))
             # Human-readable block first (if requested) so tests capturing single call see both
             try:
-                from src.utils.env_flags import is_truthy_env  # type: ignore
+                from src.utils.env_flags import is_truthy_env
                 human_flag = is_truthy_env('G6_ORCH_SUMMARY_HUMAN')
             except Exception:
                 human_flag = _is_truthy_env('G6_ORCH_SUMMARY_HUMAN')
             if human_flag:
                 try:  # pragma: no cover
-                    from src.utils.human_log import emit_human_summary  # type: ignore
+                    from src.utils.human_log import emit_human_summary
                     emit_human_summary(
                         'Orchestrator Summary',
                         [
@@ -283,15 +283,15 @@ def bootstrap_runtime(config_path: str,
                 domain_models, has_provider_client, metrics_http, build_info_registered, overrides_count, egress_frozen, start_ts
             )
             try:
-                from src.observability.startup_summaries import register_or_note_summary  # type: ignore
+                from src.observability.startup_summaries import register_or_note_summary
                 register_or_note_summary('orchestrator', emitted=True)
             except Exception:
                 pass
             # JSON variant
             try:
-                from src.utils.env_flags import is_truthy_env as _orch_truthy  # type: ignore
+                from src.utils.env_flags import is_truthy_env as _orch_truthy
                 if _orch_truthy('G6_ORCH_SUMMARY_JSON'):
-                    from src.utils.summary_json import emit_summary_json  # type: ignore
+                    from src.utils.summary_json import emit_summary_json
                     emit_summary_json(
                         'orchestrator',
                         [
@@ -318,7 +318,7 @@ def bootstrap_runtime(config_path: str,
         pass
     # Force collector settings hydration early so its one-shot summary is emitted under captured logger
     try:
-        from src.collector.settings import get_collector_settings  # type: ignore
+        from src.collector.settings import get_collector_settings
         # If sentinel was cleared by a previous test, re-hydration will emit structured + optional JSON/human summaries
         get_collector_settings(force_reload=True)
     except Exception:
@@ -327,11 +327,11 @@ def bootstrap_runtime(config_path: str,
 
 # Emit deprecated env vars presence summary (JSON optional) via dispatcher convenience
 try:  # registration happens at import time (idempotent)
-    from src.observability.startup_summaries import register_summary  # type: ignore
-    from src.utils.env_flags import is_truthy_env  # type: ignore
+    from src.observability.startup_summaries import register_summary
+    from src.utils.env_flags import is_truthy_env
     def _emit_deprecated_env_summary() -> bool:
         try:
-            from src.config.env_lifecycle import ENV_LIFECYCLE_REGISTRY  # type: ignore
+            from src.config.env_lifecycle import ENV_LIFECYCLE_REGISTRY
         except Exception:
             return False
         present = []
@@ -346,7 +346,7 @@ try:  # registration happens at import time (idempotent)
             logging.getLogger(__name__).info("env.deprecations.summary count=0")
             if is_truthy_env('G6_ENV_DEPRECATIONS_SUMMARY_JSON'):
                 try:
-                    from src.utils.summary_json import emit_summary_json  # type: ignore
+                    from src.utils.summary_json import emit_summary_json
                     emit_summary_json('env.deprecations', [('count', 0)], logger_override=logging.getLogger(__name__))
                 except Exception:
                     pass
@@ -355,12 +355,12 @@ try:  # registration happens at import time (idempotent)
         log.info("env.deprecations.summary count=%s names=%s", len(present), ','.join(present))
         if is_truthy_env('G6_ENV_DEPRECATIONS_SUMMARY_JSON'):
             try:
-                from src.utils.summary_json import emit_summary_json  # type: ignore
+                from src.utils.summary_json import emit_summary_json
                 emit_summary_json('env.deprecations', [('count', len(present)), ('names', present)], logger_override=log)
             except Exception:
                 pass
         return True
-    from src.observability.startup_summaries import register_or_note_summary, register_summary  # type: ignore
+    from src.observability.startup_summaries import register_or_note_summary, register_summary
     # Ensure callable registered for dispatcher emission + mark not yet emitted
     register_summary('env.deprecations', _emit_deprecated_env_summary)
     register_or_note_summary('env.deprecations', emitted=False)

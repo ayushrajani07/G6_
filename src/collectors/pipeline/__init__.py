@@ -7,11 +7,18 @@ The factory + dataclass currently live in the flat module
 `src.collectors.pipeline` (transitional location). Re-export here for a
 stable package-style import path.
 """
-from .state import ExpiryState  # noqa: F401
-from .core import build_default_pipeline, ExpiryWorkItem  # noqa: F401
+from src.collectors.pipeline_root import (
+	build_default_pipeline,
+	ExpiryWorkItem,
+	EnrichedExpiry,
+	PersistOutcome,
+	CollectorPipeline,
+)
 
 __all__ = [
-	'ExpiryState',
 	'build_default_pipeline',
 	'ExpiryWorkItem',
+	'EnrichedExpiry',
+	'PersistOutcome',
+	'CollectorPipeline',
 ]

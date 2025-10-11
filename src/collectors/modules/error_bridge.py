@@ -9,12 +9,18 @@ error path. Logging behavior mirrors prior inline usage.
 """
 from __future__ import annotations
 from typing import Any, Dict
+import importlib
 import logging
 
-try:  # direct import (preferred)
-    from src.error_handling import handle_collector_error  # type: ignore
+try:  # direct import if available
+    from src.error_handling import handle_collector_error
 except Exception:  # pragma: no cover
-    handle_collector_error = None  # type: ignore
+    # Fallback: dynamic import or None
+    try:
+        _m = importlib.import_module('src.error_handling')
+        handle_collector_error = getattr(_m, 'handle_collector_error', None)
+    except Exception:
+        handle_collector_error = None
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +52,10 @@ def report_quote_enrich_error(exc: Exception, index: str, rule: str, expiry: Any
     _safe_handle(exc, {"stage": "enrich_with_quotes", "rule": rule, "expiry": str(expiry), "instrument_count": instrument_count, "index": index})
 
 
-def report_no_instruments(index: str, rule: str, expiry: Any, strikes: Any, exc_type) -> None:
+from typing import Type
+
+
+def report_no_instruments(index: str, rule: str, expiry: Any, strikes: Any, exc_type: Type[Exception]) -> None:
     try:
         exc = exc_type(f"No instruments for {index} expiry {expiry} (rule: {rule}) with strikes={strikes}")
     except Exception:  # pragma: no cover

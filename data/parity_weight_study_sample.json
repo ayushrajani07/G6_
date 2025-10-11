@@ -1,0 +1,112 @@
+{
+  "components": {
+    "alerts": {
+      "count": 39,
+      "max": 0.999863,
+      "mean": 0.985934,
+      "mean_miss": 0.22,
+      "min": 0.971081,
+      "p50": 0.985877,
+      "p90": 0.998575,
+      "p95": 0.999078,
+      "signal_strength": 0.009369,
+      "std": 0.009369,
+      "weight_recommendation": 0.176522
+    },
+    "index_count": {
+      "count": 45,
+      "max": 0.999291,
+      "mean": 0.985812,
+      "mean_miss": 0.1,
+      "min": 0.970734,
+      "p50": 0.983675,
+      "p90": 0.9977,
+      "p95": 0.998413,
+      "signal_strength": 0.009136,
+      "std": 0.009136,
+      "weight_recommendation": 0.172135
+    },
+    "option_count": {
+      "count": 41,
+      "max": 0.998671,
+      "mean": 0.985557,
+      "mean_miss": 0.18,
+      "min": 0.970023,
+      "p50": 0.985439,
+      "p90": 0.995986,
+      "p95": 0.99776,
+      "signal_strength": 0.008483,
+      "std": 0.008483,
+      "weight_recommendation": 0.159831
+    },
+    "strike_cov_variance": {
+      "count": 49,
+      "max": 0.999749,
+      "mean": 0.985867,
+      "mean_miss": 0.02,
+      "min": 0.9719,
+      "p50": 0.986264,
+      "p90": 0.994855,
+      "p95": 0.997433,
+      "signal_strength": 0.007632,
+      "std": 0.007632,
+      "weight_recommendation": 0.143803
+    },
+    "strike_coverage": {
+      "count": 43,
+      "max": 0.998088,
+      "mean": 0.984824,
+      "mean_miss": 0.14,
+      "min": 0.970115,
+      "p50": 0.983605,
+      "p90": 0.997131,
+      "p95": 0.997911,
+      "signal_strength": 0.009445,
+      "std": 0.009445,
+      "weight_recommendation": 0.177962
+    },
+    "strike_shape": {
+      "count": 48,
+      "max": 0.999397,
+      "mean": 0.984085,
+      "mean_miss": 0.04,
+      "min": 0.970553,
+      "p50": 0.984287,
+      "p90": 0.997053,
+      "p95": 0.998376,
+      "signal_strength": 0.009009,
+      "std": 0.009009,
+      "weight_recommendation": 0.169747
+    }
+  },
+  "generated_at": "2025-10-08T11:04:55Z",
+  "parameters": {
+    "synthetic_missing_prob": 0.1,
+    "synthetic_noise": 0.03
+  },
+  "source": {
+    "count": 50,
+    "mode": "synthetic"
+  },
+  "version": 1,
+  "weight_plan": {
+    "method": "signal_scaled",
+    "normalized": {
+      "alerts": 0.176522,
+      "index_count": 0.172135,
+      "option_count": 0.159831,
+      "strike_cov_variance": 0.143803,
+      "strike_coverage": 0.177962,
+      "strike_shape": 0.169747
+    },
+    "notes": "Weights derived from component dispersion; higher variability => more discriminative signal.",
+    "raw": {
+      "alerts": 0.009369,
+      "index_count": 0.009136,
+      "option_count": 0.008483,
+      "strike_cov_variance": 0.007632,
+      "strike_coverage": 0.009445,
+      "strike_shape": 0.009009
+    }
+  }
+}

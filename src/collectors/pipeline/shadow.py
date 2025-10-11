@@ -1,8 +1,9 @@
 from __future__ import annotations
-from typing import Any, Dict, Mapping
+from typing import Any, Dict, Mapping, Iterable
 import hashlib, json
 import logging
 from .state import ExpiryState
+from .struct_events import emit_struct_event
 from . import phases
 from .executor import execute_phases
 from . import gating  # Phase 4 gating controller (dry-run)
@@ -55,7 +56,15 @@ def _compute_parity_hash(shadow_snap: Mapping[str, Any], meta: Mapping[str, Any]
         return 'na'
 
 
-def run_shadow_pipeline(ctx, settings, *, index: str, rule: str, precomputed_strikes, legacy_snapshot: Dict[str, Any]):
+def run_shadow_pipeline(
+    ctx: Any,
+    settings: Any,
+    *,
+    index: str,
+    rule: str,
+    precomputed_strikes: Iterable[float] | Any,
+    legacy_snapshot: Dict[str, Any],
+) -> ExpiryState | None:
     state = ExpiryState(index=index, rule=rule, settings=settings)
     try:
         # Core taxonomy-managed phases (ordering preserved)
@@ -147,11 +156,27 @@ def run_shadow_pipeline(ctx, settings, *, index: str, rule: str, precomputed_str
             logger.debug('shadow.gate.decision index=%s rule=%s %s', index, rule, json.dumps(log_payload, separators=(',',':'), sort_keys=True))
     except Exception:  # pragma: no cover
         logger.debug('shadow.gate.decision_emit_failed index=%s rule=%s', index, rule, exc_info=True)
+    # Emit structured snapshot/parity event
+    try:
+        emit_struct_event(
+            'expiry.snapshot.event',
+            {
+                'index': index,
+                'rule': rule,
+                'parity_hash_v2': parity_hash,
+                'diff_count': int(state.meta.get('parity_diff_count') or 0),
+                'gating_mode': (decision or {}).get('mode') if isinstance(decision, dict) else None,
+                'gating_promote': (decision or {}).get('promote') if isinstance(decision, dict) else None,
+            },
+            state=state,
+        )
+    except Exception:
+        pass
     # Emit shadow parity metrics (best-effort) via MetricsAdapter if metrics registry present on ctx
     try:  # pragma: no cover - metrics side effects
         metrics_reg = getattr(ctx, 'metrics', None)
         if metrics_reg is not None:
-            from src.metrics.adapter import MetricsAdapter  # type: ignore
+            from src.metrics.adapter import MetricsAdapter  # optional metrics adapter
             adapter = MetricsAdapter(metrics_reg)
             diff_count = int(state.meta.get('parity_diff_count') or 0)
             adapter.record_shadow_parity(index, rule, diff_count=diff_count, decision=decision)

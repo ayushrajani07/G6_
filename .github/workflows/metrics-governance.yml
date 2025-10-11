@@ -41,6 +41,10 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Enforce no deep metrics imports (non-tests)
+        run: |
+          python scripts/check_no_deep_metrics_imports.py
+
       - name: Verify dashboards (semantic drift) and write
         run: |
           python scripts/gen_dashboards_modular.py --verify

@@ -32,11 +32,11 @@ def test_runtime_validation_warn_mode(tmp_path, monkeypatch):
     pw = PanelsWriter(panels_dir=str(panels_dir))
     pw.setup({})
     pw.process(_snapshot())
-    # Should create manifest & at least indices_panel.json
+    # Should create manifest & at least indices_panel_enveloped.json (legacy name removed by default)
     manifest = panels_dir / "manifest.json"
     assert manifest.exists()
     data = json.loads(manifest.read_text())
-    assert any(f.endswith("indices_panel.json") for f in data.get("files", []))
+    assert any(f.endswith("indices_panel_enveloped.json") for f in data.get("files", []))
 
 
 def test_runtime_validation_strict_failure(tmp_path, monkeypatch):
@@ -49,8 +49,10 @@ def test_runtime_validation_strict_failure(tmp_path, monkeypatch):
     assert orig_validate is not None, "Expected validation function to be present"
 
     def corrupt_then_validate(payload):  # noqa: ANN001
-        if isinstance(payload, dict) and payload.get("panel") == "indices_panel":
-            payload.pop("updated_at", None)
+        if isinstance(payload, dict):
+            # In enveloped path updated_at may exist at top-level OR inside wrapper depending on migration stage
+            if (payload.get("panel") or "").startswith("indices_panel"):
+                payload.pop("updated_at", None)
         return orig_validate(payload)
 
     pw._validate_fn = corrupt_then_validate  # type: ignore

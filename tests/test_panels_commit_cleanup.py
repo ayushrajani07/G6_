@@ -1,5 +1,8 @@
 from __future__ import annotations
-import os, json, time
+import os, json, time, socket
+import pytest
+
+pytestmark = []  # parallel-safe when using tmp_path and dynamic ports
 
 def test_panels_transaction_commit_cleans_staging(tmp_path):
     base = tmp_path / 'panels'
@@ -39,7 +42,16 @@ def test_summary_diff_counter_seed_after_reset(monkeypatch):
     assert any(lbls and any(l[1]=='b' for l in lbls) for (_n,lbls),_v in m['counter'].items()), 'expected counter label for panel b'
 
 
-def test_sse_ip_window_cleared(monkeypatch):
+@pytest.fixture()
+def sse_port(monkeypatch) -> int:
+    s = socket.socket(); s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    monkeypatch.setenv('G6_SSE_HTTP_PORT', str(port))
+    return port
+
+
+def test_sse_ip_window_cleared(monkeypatch, sse_port: int):
     # First test artificially populate window then ensure fixture reset clears before second connection test logic
     monkeypatch.setenv('G6_SSE_HTTP','1')
     monkeypatch.setenv('G6_SSE_IP_CONNECT_RATE','1/60')  # only one allowed
@@ -49,10 +61,22 @@ def test_sse_ip_window_cleared(monkeypatch):
     loop = UnifiedLoop([pub], panels_dir='data/panels', refresh=0.05)
     import threading, time as _t, http.client
     t = threading.Thread(target=lambda: loop.run(cycles=10), daemon=True)
-    t.start(); _t.sleep(0.25)
+    t.start()
+    # Readiness for SSE port
+    deadline = _t.time() + 2.0
+    while _t.time() < deadline:
+        s = socket.socket(); s.settimeout(0.05)
+        try:
+            s.connect(("127.0.0.1", sse_port))
+            s.close()
+            break
+        except Exception:
+            try: s.close()
+            except Exception: pass
+            _t.sleep(0.025)
     # First connection (allowed)
     headers={'User-Agent':'TestClient/1'}
-    c1 = http.client.HTTPConnection('127.0.0.1', 9320, timeout=2)
+    c1 = http.client.HTTPConnection('127.0.0.1', sse_port, timeout=2)
     c1.request('GET','/summary/events', headers=headers)
     r1 = c1.getresponse(); assert r1.status == 200
     c1.close()
@@ -63,7 +87,7 @@ def test_sse_ip_window_cleared(monkeypatch):
     if hasattr(sseh, '_ip_conn_window'):
         sseh._ip_conn_window.clear()
     # Second connection should succeed again after manual reset
-    c2 = http.client.HTTPConnection('127.0.0.1', 9320, timeout=2)
+    c2 = http.client.HTTPConnection('127.0.0.1', sse_port, timeout=2)
     c2.request('GET','/summary/events', headers=headers)
     r2 = c2.getresponse(); assert r2.status == 200
     c2.close()

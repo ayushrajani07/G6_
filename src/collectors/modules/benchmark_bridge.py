@@ -104,7 +104,7 @@ def _make_payload(indices_struct: List[Dict[str, Any]], total_elapsed: float, ct
     # Caller will compute partial_reason_totals like legacy; we leave placeholder for parity
     return payload
 
-def _annotate_anomalies(payload: Dict[str, Any], dump_root: pathlib.Path, detect_fn: Callable[[List[float], float], tuple[List[bool], List[float]]], logger) -> None:
+def _annotate_anomalies(payload: Dict[str, Any], dump_root: pathlib.Path, detect_fn: Callable[[List[float], float], tuple[List[bool], List[float]]], logger: Any) -> None:
     if not _bool_env('G6_BENCHMARK_ANNOTATE_OUTLIERS'):
         return
     # History window (legacy default 60)
@@ -234,22 +234,22 @@ def write_benchmark_artifact(indices_struct: List[Dict[str, Any]], total_elapsed
         # Metrics (best-effort)
         if metrics is not None:
             try:
-                from prometheus_client import Gauge as _G, Summary as _S, Counter as _C  # type: ignore
+                from prometheus_client import Gauge as _G, Summary as _S, Counter as _C
                 # Last options total gauge
                 if not hasattr(metrics, 'benchmark_last_options_total'):
-                    try: metrics.benchmark_last_options_total = _G('g6_benchmark_last_options_total','Last cycle aggregate options_total')  # type: ignore[attr-defined]
+                    try: metrics.benchmark_last_options_total = _G('g6_benchmark_last_options_total','Last cycle aggregate options_total')
                     except Exception: pass
                 # Cycle duration summary
                 if not hasattr(metrics, 'benchmark_cycle_duration_seconds'):
-                    try: metrics.benchmark_cycle_duration_seconds = _S('g6_benchmark_cycle_duration_seconds','Benchmark cycle duration seconds summary')  # type: ignore[attr-defined]
+                    try: metrics.benchmark_cycle_duration_seconds = _S('g6_benchmark_cycle_duration_seconds','Benchmark cycle duration seconds summary')
                     except Exception: pass
                 # Anomaly metrics (if anomalies present)
                 if 'anomalies' in payload:
                     if not hasattr(metrics, 'benchmark_anomalies_total'):
-                        try: metrics.benchmark_anomalies_total = _C('g6_benchmark_anomalies_total','Count of benchmark cycles with at least one anomaly detected')  # type: ignore[attr-defined]
+                        try: metrics.benchmark_anomalies_total = _C('g6_benchmark_anomalies_total','Count of benchmark cycles with at least one anomaly detected')
                         except Exception: pass
                     if not hasattr(metrics, 'benchmark_last_anomaly_severity'):
-                        try: metrics.benchmark_last_anomaly_severity = _G('g6_benchmark_last_anomaly_severity','Max anomaly severity (abs robust z-score) for latest cycle')  # type: ignore[attr-defined]
+                        try: metrics.benchmark_last_anomaly_severity = _G('g6_benchmark_last_anomaly_severity','Max anomaly severity (abs robust z-score) for latest cycle')
                         except Exception: pass
                 g_last = getattr(metrics, 'benchmark_last_options_total', None)
                 s_dur = getattr(metrics, 'benchmark_cycle_duration_seconds', None)
@@ -282,9 +282,9 @@ def write_benchmark_artifact(indices_struct: List[Dict[str, Any]], total_elapsed
                         except Exception: pass
                 if metrics is not None:
                     try:
-                        from prometheus_client import Gauge as _G  # type: ignore
+                        from prometheus_client import Gauge as _G
                         if not hasattr(metrics, 'benchmark_artifacts_retained'):
-                            try: metrics.benchmark_artifacts_retained = _G('g6_benchmark_artifacts_retained','Count of benchmark artifacts retained after pruning')  # type: ignore[attr-defined]
+                            try: metrics.benchmark_artifacts_retained = _G('g6_benchmark_artifacts_retained','Count of benchmark artifacts retained after pruning')
                             except Exception: pass
                         g_art = getattr(metrics, 'benchmark_artifacts_retained', None)
                         if g_art:

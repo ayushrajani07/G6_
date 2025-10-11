@@ -15,8 +15,29 @@ except Exception:  # pragma: no cover
     def _detect_root(s: str) -> Optional[str]:  # type: ignore
         return None
 
-_DISABLE = os.environ.get('G6_DISABLE_ROOT_CACHE','0').lower() in ('1','true','yes','on')
-_MAX = int(os.environ.get('G6_ROOT_CACHE_MAX','4096'))
+# Use centralized env adapter with safe fallbacks to avoid import cycles during early init
+try:
+    from src.collectors.env_adapter import get_str as _env_get_str  # type: ignore
+except Exception:  # pragma: no cover
+    def _env_get_str(name: str, default: str = "") -> str:
+        try:
+            v = os.getenv(name)
+            return default if v is None else v
+        except Exception:
+            return default
+
+def _as_bool(val: str) -> bool:
+    v = (val or "").strip().lower()
+    return v in ("1", "true", "yes", "on")
+
+def _as_int(val: str, default: int) -> int:
+    try:
+        return int(val)
+    except Exception:
+        return default
+
+_DISABLE = _as_bool(_env_get_str('G6_DISABLE_ROOT_CACHE', '0'))
+_MAX = _as_int(_env_get_str('G6_ROOT_CACHE_MAX', '4096'), 4096)
 
 _CACHE: Dict[str,str] = {}
 _HITS = 0

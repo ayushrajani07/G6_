@@ -6,7 +6,7 @@
         "provider",
         "provider_mode"
       ],
-      "panel_count": 25,
+      "panel_count": 0,
       "slug": "provider_ingestion",
       "uid": "g6-provider_ingestion"
     },
@@ -15,7 +15,7 @@
         "bus",
         "stream"
       ],
-      "panel_count": 18,
+      "panel_count": 0,
       "slug": "bus_stream",
       "uid": "g6-bus_stream"
     },
@@ -23,7 +23,7 @@
       "families": [
         "emission"
       ],
-      "panel_count": 10,
+      "panel_count": 0,
       "slug": "emission_pipeline",
       "uid": "g6-emission_pipeline"
     },
@@ -32,7 +32,7 @@
         "panels",
         "stream"
       ],
-      "panel_count": 12,
+      "panel_count": 0,
       "slug": "panels_summary",
       "uid": "g6-panels_summary"
     },
@@ -40,7 +40,7 @@
       "families": [
         "stale"
       ],
-      "panel_count": 9,
+      "panel_count": 0,
       "slug": "data_quality",
       "uid": "g6-data_quality"
     },
@@ -48,7 +48,7 @@
       "families": [
         "column_store"
       ],
-      "panel_count": 26,
+      "panel_count": 0,
       "slug": "column_store",
       "uid": "g6-column_store"
     },
@@ -56,7 +56,7 @@
       "families": [
         "governance"
       ],
-      "panel_count": 14,
+      "panel_count": 0,
       "slug": "governance",
       "uid": "g6-governance"
     },
@@ -64,7 +64,7 @@
       "families": [
         "option_chain"
       ],
-      "panel_count": 20,
+      "panel_count": 0,
       "slug": "option_chain",
       "uid": "g6-option_chain"
     },
@@ -72,7 +72,7 @@
       "families": [
         "system"
       ],
-      "panel_count": 2,
+      "panel_count": 0,
       "slug": "system_overview",
       "uid": "g6-system_overview"
     },
@@ -80,7 +80,7 @@
       "families": [
         "panels"
       ],
-      "panel_count": 18,
+      "panel_count": 0,
       "slug": "panels_efficiency",
       "uid": "g6-panels_efficiency"
     },
@@ -89,7 +89,7 @@
         "column_store",
         "emission"
       ],
-      "panel_count": 36,
+      "panel_count": 0,
       "slug": "lifecycle_storage",
       "uid": "g6-lifecycle_storage"
     },
@@ -99,7 +99,7 @@
         "bus",
         "governance"
       ],
-      "panel_count": 25,
+      "panel_count": 0,
       "slug": "health_core",
       "uid": "g6-health_core"
     },
@@ -107,7 +107,7 @@
       "families": [
         "bus"
       ],
-      "panel_count": 12,
+      "panel_count": 0,
       "slug": "bus_health",
       "uid": "g6-bus_health"
     },
@@ -115,7 +115,7 @@
       "families": [
         "sse"
       ],
-      "panel_count": 4,
+      "panel_count": 0,
       "slug": "sse_latency",
       "uid": "g6-sse_latency"
     },
@@ -123,7 +123,7 @@
       "families": [
         "system"
       ],
-      "panel_count": 2,
+      "panel_count": 0,
       "slug": "system_overview_minimal",
       "uid": "g6-system_overview_minimal"
     },
@@ -139,7 +139,7 @@
       "families": [
         "system"
       ],
-      "panel_count": 6,
+      "panel_count": 0,
       "slug": "multi_pane_explorer_compact",
       "uid": "g6-multi_pane_explorer_compact"
     },
@@ -147,11 +147,11 @@
       "families": [
         "system"
       ],
-      "panel_count": 4,
+      "panel_count": 0,
       "slug": "multi_pane_explorer_ultra",
       "uid": "g6-multi_pane_explorer_ultra"
     }
   ],
-  "generated_at_unix": 1760004885,
+  "generated_at_unix": 1760161027,
   "spec_hash": "0533405d11f9f66e"
 }

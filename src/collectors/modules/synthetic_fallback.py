@@ -16,7 +16,7 @@ def ensure_synthetic_quotes(
     *,
     index_symbol: str,
     expiry_rule: str,
-    expiry_date,
+    expiry_date: Any,
     trace: Callable[..., Any],
     generate_synthetic_quotes: Callable[[List[Dict[str, Any]]], Dict[str, Any]],
     expiry_rec: Dict[str, Any],

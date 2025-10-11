@@ -1,4 +1,7 @@
 import importlib, types, sys
+import pytest
+
+pytestmark = pytest.mark.serial
 
 class DummyProviders: ...
 class DummyCtx:

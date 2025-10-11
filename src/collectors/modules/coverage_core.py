@@ -25,7 +25,7 @@ populate via coverage_eval earlier in the pipeline. This module focuses on
 normalization + aggregation only.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Iterable, Mapping
 import math
 import logging
 
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 Rollup = Dict[str, Any]
 
 
-def _safe_float(v) -> Optional[float]:
+def _safe_float(v: Any) -> Optional[float]:
     try:
         if v is None:
             return None
@@ -46,14 +46,31 @@ def _safe_float(v) -> Optional[float]:
         return None
 
 
-def compute_index_coverage(index_symbol: str, expiries: List[Dict[str, Any]]) -> Rollup:
+def compute_index_coverage(index_symbol: str, expiries: Iterable[Mapping[str, Any] | Dict[str, Any]]) -> Rollup:
+    """Aggregate per-expiry coverage metrics into an index-level rollup.
+
+    Parameters
+    ----------
+    index_symbol: str
+        Symbol of the index (e.g., NIFTY)
+    expiries: Iterable[Mapping[str, Any]]
+        Sequence of expiry dict-like objects possibly containing keys:
+        'rule'|'expiry_rule', 'options', 'strike_coverage', 'field_coverage'.
+
+    Returns
+    -------
+    Rollup dict with keys:
+      index, expiries_evaluated, expiries_with_options, options_total,
+      strike_coverage_avg, field_coverage_avg, per_expiry (list[dict]), status.
+    """
     per_expiry: List[Dict[str, Any]] = []
     options_total = 0
     strike_values: List[float] = []
     field_values: List[float] = []
     expiries_with_options = 0
 
-    for ex in expiries or []:
+    expiries_list = list(expiries or [])
+    for ex in expiries_list:
         rule = ex.get('rule') or ex.get('expiry_rule') or 'unknown'
         opts = ex.get('options')
         try:
@@ -83,7 +100,7 @@ def compute_index_coverage(index_symbol: str, expiries: List[Dict[str, Any]]) ->
 
     rollup: Rollup = {
         'index': index_symbol,
-        'expiries_evaluated': len(expiries or []),
+        'expiries_evaluated': len(expiries_list),
         'expiries_with_options': expiries_with_options,
         'options_total': options_total,
         'strike_coverage_avg': _avg(strike_values),

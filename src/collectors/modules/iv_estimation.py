@@ -17,32 +17,72 @@ Behavior:
 - Silently logs debug on failure (never raises to main loop).
 """
 from __future__ import annotations
-from typing import Any
+from typing import Any, Dict, MutableMapping, Mapping, Protocol
 import logging
+import importlib
 
 logger = logging.getLogger(__name__)
 
 try:  # pragma: no cover
-    from src.collectors.helpers.iv_greeks import iv_estimation_block as _iv_estimation_block  # type: ignore
+    from src.collectors.helpers.iv_greeks import iv_estimation_block as _iv_estimation_block
 except Exception:  # pragma: no cover
-    def _iv_estimation_block(*a, **k):  # type: ignore
+    def _iv_estimation_block(*a: Any, **k: Any) -> None:
         return None
 
-__all__ = ["run_iv_estimation"]
+OptionRecord = MutableMapping[str, Any]
+EnrichedData = Mapping[str, OptionRecord]
+
+class GreeksCalculatorLike(Protocol):
+    ...  # pragma: no cover
+
+__all__ = ["run_iv_estimation", "EnrichedData", "OptionRecord", "GreeksCalculatorLike"]
 
 
-def run_iv_estimation(ctx, enriched_data: dict, index_symbol: str, expiry_rule: str, expiry_date: Any, index_price: float | None,
-                      greeks_calculator, estimate_iv_enabled: bool, risk_free_rate: float | None,
-                      iv_max_iterations: int | None, iv_min: float | None, iv_max: float | None, iv_precision: float | None):
+def run_iv_estimation(
+    ctx: Any,
+    enriched_data: EnrichedData,
+    index_symbol: str,
+    expiry_rule: str,
+    expiry_date: Any,
+    index_price: float | None,
+    greeks_calculator: GreeksCalculatorLike | Any | None,
+    estimate_iv_enabled: bool,
+    risk_free_rate: float | None,
+    iv_max_iterations: int | None,
+    iv_min: float | None,
+    iv_max: float | None,
+    iv_precision: float | None,
+) -> None:
+    """Optionally estimate implied volatility for enriched options in-place.
+
+    Executes only when both estimation flag and a greeks_calculator are present.
+    Mutates ``enriched_data``; never raises (logs debug on failure).
+    """
     if not (estimate_iv_enabled and greeks_calculator):
-        return
+        return None
     try:
-        _iv_estimation_block(ctx, enriched_data, index_symbol, expiry_rule, expiry_date, index_price, greeks_calculator,
-                             estimate_iv_enabled, risk_free_rate, iv_max_iterations, iv_min, iv_max, iv_precision)
+        _iv_estimation_block(
+            ctx,
+            enriched_data,
+            index_symbol,
+            expiry_rule,
+            expiry_date,
+            index_price,
+            greeks_calculator,
+            estimate_iv_enabled,
+            risk_free_rate,
+            iv_max_iterations,
+            iv_min,
+            iv_max,
+            iv_precision,
+        )
         try:
-            from src.broker.kite.tracing import trace  # type: ignore
-            trace("iv_estimation_done", index=index_symbol, rule=expiry_rule)
+            mod = importlib.import_module("src.broker.kite.tracing")
+            trace = getattr(mod, "trace", None)
+            if callable(trace):
+                trace("iv_estimation_done", index=index_symbol, rule=expiry_rule)
         except Exception:
             pass
     except Exception:
         logger.debug("iv_estimation_failed", exc_info=True)
+    return None

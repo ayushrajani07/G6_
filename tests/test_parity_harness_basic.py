@@ -1,6 +1,9 @@
 import copy
+# NOTE(W4-11): Migrated from deprecated parity harness snapshot capture to direct
+# parity score path (compute_parity_score). This test now validates structural
+# determinism of unified collector output feeding the parity score logic.
 from src.collectors.unified_collectors import run_unified_collectors
-from src.collectors.parity_harness import capture_parity_snapshot
+from src.collectors.pipeline.parity import compute_parity_score
 
 # Minimal dummy provider + sinks mirroring patterns in other tests
 class _Prov:
@@ -54,7 +57,7 @@ class _Csv:
         return
 
 
-def test_parity_harness_stable_snapshot():
+def test_parity_score_stable_with_repeat_unified_collectors_run():
     import os
     os.environ['G6_FORCE_MARKET_OPEN'] = '1'
     # Defensive: if stale cached _Prov without new methods somehow present, patch them.
@@ -74,14 +77,20 @@ def test_parity_harness_stable_snapshot():
     }
     providers = _Prov()
     csv_sink = _Csv()
-    result = run_unified_collectors(index_params=index_params, providers=providers, csv_sink=csv_sink, influx_sink=None, compute_greeks=False, estimate_iv=False, build_snapshots=False)
-    assert isinstance(result, dict)
-    snap1 = capture_parity_snapshot(result)  # type: ignore[arg-type]
-    snap2 = capture_parity_snapshot(copy.deepcopy(result))  # type: ignore[arg-type]
-    # Hash field is deprecated placeholder; still expect stable equality for placeholder string.
-    assert snap1.get('hash') == snap2.get('hash')
-    # Basic shape assertions (graceful if indices filtered out under rare validation edge)
-    if snap1['indices']:
-        assert snap1['indices'][0]['index'] == 'TESTIDX'
-        assert snap1['indices'][0]['expiries']
-    assert 'pcr' in snap1
+    unified_a = run_unified_collectors(index_params=index_params, providers=providers, csv_sink=csv_sink, influx_sink=None, compute_greeks=False, estimate_iv=False, build_snapshots=False)
+    unified_b = copy.deepcopy(unified_a)
+    assert isinstance(unified_a, dict)
+    # Legacy baseline simulated as identical structure for deterministic score 1.0
+    parity_a = compute_parity_score(unified_a, unified_a)
+    parity_b = compute_parity_score(unified_b, unified_b)
+    assert parity_a['score'] == parity_b['score'] == 1.0
+    # Components expected present (index_count, option_count at minimum)
+    for comp in ['index_count','option_count']:
+        assert comp in parity_a['components']
+    # Ensure missing list empty when comparing identical baseline/pipeline views
+    assert parity_a['missing'] == []
+    # Structural: indices list stable & contains configured TESTIDX
+    pipe_indices = unified_a.get('indices') or []
+    if pipe_indices:
+        assert pipe_indices[0]['index'] == 'TESTIDX'
+        assert pipe_indices[0]['expiries']

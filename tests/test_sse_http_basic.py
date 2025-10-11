@@ -1,11 +1,21 @@
 from __future__ import annotations
-import os, time, http.client, json
+import os, time, http.client, json, socket
+import pytest
 
 # This test exercises the minimal SSE HTTP endpoint by starting a unified loop with
 # SSE enabled and verifying that at least hello + full_snapshot events arrive.
 
 
-def test_sse_http_stream_minimal(monkeypatch):
+@pytest.fixture()
+def sse_port(monkeypatch) -> int:
+    s = socket.socket(); s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    monkeypatch.setenv('G6_SSE_HTTP_PORT', str(port))
+    return port
+
+
+def test_sse_http_stream_minimal(monkeypatch, sse_port: int):
     # Enable SSE HTTP endpoint (publisher now always active when instantiated)
     monkeypatch.setenv('G6_SSE_HTTP', '1')
     monkeypatch.setenv('G6_SSE_HEARTBEAT_CYCLES', '2')
@@ -22,10 +32,21 @@ def test_sse_http_stream_minimal(monkeypatch):
     # Run more cycles to ensure server still active when client connects
     t = threading.Thread(target=lambda: loop.run(cycles=25), daemon=True)
     t.start()
-    time.sleep(0.5)
+    # Readiness probe for SSE port to avoid race
+    deadline = time.time() + 2.0
+    while time.time() < deadline:
+        s = socket.socket(); s.settimeout(0.05)
+        try:
+            s.connect(("127.0.0.1", sse_port))
+            s.close()
+            break
+        except Exception:
+            try: s.close()
+            except Exception: pass
+            time.sleep(0.025)
 
     # Connect to SSE endpoint
-    conn = http.client.HTTPConnection('127.0.0.1', 9320, timeout=2)
+    conn = http.client.HTTPConnection('127.0.0.1', sse_port, timeout=2)
     conn.request('GET', '/summary/events')
     resp = conn.getresponse()
     assert resp.status == 200

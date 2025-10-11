@@ -1,11 +1,18 @@
 {
-  "updated_at": "2025-10-08T04:26:48.590652+00:00",
+  "updated_at": "2025-10-10T06:31:31.850997+00:00",
   "alerts": [
     {
       "time": "2025-09-27T10:00:00Z",
       "level": "INFO",
       "component": "A",
       "message": "m"
+    },
+    {
+      "time": "2025-10-10T06:09:27.239471+00:00",
+      "level": "ERROR",
+      "component": "Data Quality",
+      "message": "Low data quality: FINNIFTY:77.0%",
+      "source": "synthetic"
     }
   ]
 }

@@ -1,10 +1,10 @@
-"""Shared schema version constant for summary snapshot & streaming payloads.
-
-Central place so HTTP resync, SSE publisher, tests, and builders stay in sync.
-Increment cautiously; bump only with backward-incompatible structural changes.
-"""
 from __future__ import annotations
+"""Schema constants for Summary/Unified HTTP.
 
-SCHEMA_VERSION = "v1"
+Kept intentionally minimal for test usage.
+"""
+
+# Increment when response shapes make backward-incompatible changes.
+SCHEMA_VERSION: int = 1
 
 __all__ = ["SCHEMA_VERSION"]

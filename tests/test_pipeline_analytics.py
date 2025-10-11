@@ -1,4 +1,7 @@
 import os
+import pytest
+
+pytestmark = pytest.mark.serial
 
 def test_pipeline_analytics_iv_greeks(monkeypatch, tmp_path):
     os.environ['G6_PIPELINE_COLLECTOR'] = '1'

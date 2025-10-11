@@ -3,7 +3,7 @@ import os
 from src.collectors.pipeline.executor import execute_phases
 from src.collectors.pipeline.state import ExpiryState
 from src.collectors.errors import PhaseAbortError
-from src.metrics.metrics import MetricsRegistry
+from src.metrics import MetricsRegistry  # updated to facade (W4-12)
 
 class Ctx: providers=None
 
@@ -18,12 +18,15 @@ def test_cycle_success_and_counters(monkeypatch):
     execute_phases(Ctx(), st, [a,b])
     reg = MetricsRegistry()
     # success gauge should be 1 and counters at least 1
-    if getattr(reg,'pipeline_cycle_success',None):
-        assert reg.pipeline_cycle_success._value.get() == 1
-    if getattr(reg,'pipeline_cycles_total',None):
-        assert reg.pipeline_cycles_total._value.get() >= 1
-    if getattr(reg,'pipeline_cycles_success_total',None):
-        assert reg.pipeline_cycles_success_total._value.get() >= 1
+    pcs = getattr(reg,'pipeline_cycle_success',None)
+    if pcs is not None:
+        assert pcs._value.get() == 1
+    pct = getattr(reg,'pipeline_cycles_total',None)
+    if pct is not None:
+        assert pct._value.get() >= 1
+    pcst = getattr(reg,'pipeline_cycles_success_total',None)
+    if pcst is not None:
+        assert pcst._value.get() >= 1
 
 
 def test_cycle_error_ratio_and_window(monkeypatch):
@@ -38,15 +41,18 @@ def test_cycle_error_ratio_and_window(monkeypatch):
     execute_phases(Ctx(), _mk(), [lambda _c,s: s])
     reg = MetricsRegistry()
     # Window now has 3 entries: success, error, success => success rate 2/3
-    if getattr(reg,'pipeline_cycle_success_rate_window',None):
-        rate = reg.pipeline_cycle_success_rate_window._value.get()
+    srw = getattr(reg,'pipeline_cycle_success_rate_window',None)
+    if srw is not None:
+        rate = srw._value.get()
         assert 0.60 < rate < 0.70
-    if getattr(reg,'pipeline_cycle_error_rate_window',None):
-        er = reg.pipeline_cycle_error_rate_window._value.get()
+    erw = getattr(reg,'pipeline_cycle_error_rate_window',None)
+    if erw is not None:
+        er = erw._value.get()
         assert 0.30 < er < 0.40
     # Error ratio on last cycle (success) should be 0
-    if getattr(reg,'pipeline_cycle_error_ratio',None):
-        assert reg.pipeline_cycle_error_ratio._value.get() == 0.0
+    cer = getattr(reg,'pipeline_cycle_error_ratio',None)
+    if cer is not None:
+        assert cer._value.get() == 0.0
 
 
 def test_phase_duration_histogram(monkeypatch):
@@ -55,10 +61,10 @@ def test_phase_duration_histogram(monkeypatch):
     execute_phases(Ctx(), _mk(), [lambda _c,s: s])
     reg = MetricsRegistry()
     # Access histogram internal samples; ensure at least one bucket count incremented
-    if getattr(reg,'pipeline_phase_duration_seconds',None):
-        fam = reg.pipeline_phase_duration_seconds
+    hdur = getattr(reg,'pipeline_phase_duration_seconds',None)
+    if hdur is not None:
         try:
-            samples = fam._samples() if hasattr(fam,'_samples') else []
+            samples = hdur._samples() if hasattr(hdur,'_samples') else []
             count_total = sum(v for n, lbl, v in samples if n.endswith('_count'))
             assert count_total > 0, f"expected histogram count_total>0 samples={samples}"
         except Exception:

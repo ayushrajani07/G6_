@@ -61,26 +61,6 @@
       ]
     },
     {
-      "path": "debug_catalog_http.py",
-      "size": 1369,
-      "hash": "02902e2cbf2b60df",
-      "tags": [
-        "temp-debug",
-        "candidate-remove"
-      ],
-      "import_inbound": 0
-    },
-    {
-      "path": "debug_catalog_http_9321.py",
-      "size": 1279,
-      "hash": "4e75461b69af18ec",
-      "tags": [
-        "temp-debug",
-        "candidate-remove"
-      ],
-      "import_inbound": 0
-    },
-    {
       "path": "DEFERRED_ENHANCEMENTS.md",
       "size": 2688,
       "hash": "e37560a0c30f2638",
@@ -150,15 +130,7 @@
         "docs-active"
       ]
     },
-    {
-      "path": "final_error_routing_verification.py",
-      "size": 6139,
-      "hash": "7c392c79fa728818",
-      "tags": [
-        "candidate-remove"
-      ],
-      "import_inbound": 0
-    },
+    
     {
       "path": "FOOTER_INTEGRATION_ENHANCEMENT.md",
       "size": 3795,
@@ -175,24 +147,7 @@
         "docs-active"
       ]
     },
-    {
-      "path": "gen_parity_snapshot.py",
-      "size": 988,
-      "hash": "c475de222dd1997b",
-      "tags": [
-        "candidate-remove"
-      ],
-      "import_inbound": 0
-    },
-    {
-      "path": "gen_populated_parity_snapshot.py",
-      "size": 1941,
-      "hash": "87939d6a93c07a23",
-      "tags": [
-        "candidate-remove"
-      ],
-      "import_inbound": 0
-    },
+    
     {
       "path": "grafna.md",
       "size": 8332,
@@ -201,15 +156,7 @@
         "docs-active"
       ]
     },
-    {
-      "path": "inspect_indent.py",
-      "size": 335,
-      "hash": "6313d8783baefc8a",
-      "tags": [
-        "candidate-remove"
-      ],
-      "import_inbound": 0
-    },
+    
     {
       "path": "ISSUE_REMOVE_LEGACY_PANELS_BRIDGE.md",
       "size": 2810,
@@ -218,26 +165,7 @@
         "docs-active"
       ]
     },
-    {
-      "path": "list_lines.py",
-      "size": 237,
-      "hash": "03200ee113195e11",
-      "tags": [
-        "temp-debug",
-        "candidate-remove"
-      ],
-      "import_inbound": 0
-    },
-    {
-      "path": "list_lines2.py",
-      "size": 237,
-      "hash": "bcc7f401616ed5d6",
-      "tags": [
-        "temp-debug",
-        "candidate-remove"
-      ],
-      "import_inbound": 0
-    },
+    
     {
       "path": "LONG_TERM_TODO.md",
       "size": 2212,
@@ -456,15 +384,7 @@
         "infra"
       ]
     },
-    {
-      "path": "run_doc_check.py",
-      "size": 227,
-      "hash": "487c71a9c71ff7e5",
-      "tags": [
-        "candidate-remove"
-      ],
-      "import_inbound": 0
-    },
+    
     {
       "path": "start_live_dashboard.bat",
       "size": 730,
@@ -622,15 +542,7 @@
       ],
       "import_inbound": 0
     },
-    {
-      "path": "tmp_import_test.py",
-      "size": 702,
-      "hash": "d3bcc335d62916b9",
-      "tags": [
-        "candidate-remove"
-      ],
-      "import_inbound": 0
-    },
+    
     {
       "path": "VERIFICATION_GUIDE.md",
       "size": 7351,
@@ -639,15 +551,7 @@
         "docs-active"
       ]
     },
-    {
-      "path": "walk1.py",
-      "size": 403,
-      "hash": "624af7f60a2ca6ce",
-      "tags": [
-        "candidate-remove"
-      ],
-      "import_inbound": 0
-    },
+    
     {
       "path": "WAVE4_TRACKING.md",
       "size": 7243,
@@ -2027,30 +1931,7 @@
       ],
       "import_inbound": 0
     },
-    {
-      "path": "scripts/start_all.ps1",
-      "size": 22209,
-      "hash": "c055fe0b5d63fa14",
-      "tags": []
-    },
-    {
-      "path": "scripts/start_all_enhanced.ps1",
-      "size": 10543,
-      "hash": "64a961810a7defb8",
-      "tags": []
-    },
-    {
-      "path": "scripts/start_all_enhanced_.ps1",
-      "size": 17518,
-      "hash": "b9654a1571ab7a33",
-      "tags": []
-    },
-    {
-      "path": "scripts/start_grafana.ps1",
-      "size": 7053,
-      "hash": "12f661448f12cef4",
-      "tags": []
-    },
+    
     {
       "path": "scripts/start_live_dashboard.ps1",
       "size": 1411,
@@ -2093,12 +1974,7 @@
       ],
       "import_inbound": 0
     },
-    {
-      "path": "scripts/stop_grafana.ps1",
-      "size": 536,
-      "hash": "579e7b121633f642",
-      "tags": []
-    },
+    
     {
       "path": "scripts/summary_view.py",
       "size": 22986,

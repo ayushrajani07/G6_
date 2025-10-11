@@ -52,8 +52,8 @@ def build_reduced(snapshot: Mapping[str, Any] | None) -> Dict[str, Any]:
                 for ex in expiries:
                     if isinstance(ex, dict):
                         raw_opts = ex.get("options")
-                        if _is_number(raw_opts):  # type: ignore[arg-type]
-                            opts_f = float(raw_opts)  # type: ignore[arg-type]
+                        if isinstance(raw_opts, (int, float)) and not isinstance(raw_opts, bool):
+                            opts_f: float = float(raw_opts)
                             if opts_f > 0:
                                 count += 1
                 entry["expiry_count"] = count
@@ -65,8 +65,8 @@ def build_reduced(snapshot: Mapping[str, Any] | None) -> Dict[str, Any]:
     alerts = snapshot.get("alerts")
     if isinstance(alerts, dict):  # some snapshots nest counts
         total = alerts.get("total")
-        if _is_number(total):  # type: ignore[arg-type]
-            reduced["alerts_total"] = int(total)  # type: ignore[arg-type]
+        if isinstance(total, (int, float)) and not isinstance(total, bool):
+            reduced["alerts_total"] = int(total)
     elif isinstance(alerts, list):
         reduced["alerts_total"] = len(alerts)
     bench = snapshot.get("benchmark")
@@ -78,8 +78,8 @@ def build_reduced(snapshot: Mapping[str, Any] | None) -> Dict[str, Any]:
     mem = snapshot.get("memory")
     if isinstance(mem, dict):
         rss_candidate = mem.get("rss_mb") if _is_number(mem.get("rss_mb")) else mem.get("rss")
-        if _is_number(rss_candidate):
-            reduced["memory_rss_mb"] = float(rss_candidate)  # type: ignore[arg-type]
+        if isinstance(rss_candidate, (int, float)) and not isinstance(rss_candidate, bool):
+            reduced["memory_rss_mb"] = float(rss_candidate)
     # Phase 8: snapshot_summary (additive)
     snap_summary = snapshot.get("snapshot_summary") if isinstance(snapshot, Mapping) else None
     if isinstance(snap_summary, Mapping):
@@ -110,8 +110,8 @@ def build_reduced(snapshot: Mapping[str, Any] | None) -> Dict[str, Any]:
                 ginfo = pr_groups.get(gk)
                 if isinstance(ginfo, Mapping):
                     total_val = ginfo.get("total")
-                    if _is_number(total_val):  # type: ignore[arg-type]
-                        reduced[f"summary_group_{gk}_total"] = int(total_val)  # type: ignore[arg-type]
+                    if isinstance(total_val, (int, float)) and not isinstance(total_val, bool):
+                        reduced[f"summary_group_{gk}_total"] = int(total_val)
     return reduced
 
 
@@ -151,7 +151,10 @@ def diff_reduced(a: Dict[str, Any], b: Dict[str, Any], *, rtol: float = DEFAULT_
             diffs.append({"category": "structural_mismatch", "field": k, "a_type": type(va).__name__, "b_type": type(vb).__name__})
             continue
         if isinstance(va, list):
-            if len(va) != len(vb):  # type: ignore[arg-type]
+            if not isinstance(vb, list):
+                diffs.append({"category": "structural_mismatch", "field": k, "a_type": type(va).__name__, "b_type": type(vb).__name__})
+                continue
+            if len(va) != len(vb):
                 diffs.append({"category": "set_size_mismatch", "field": k, "a_size": len(va), "b_size": len(vb)})
             else:
                 # For indices list compare per-position dict fields

@@ -389,28 +389,28 @@ class PanelsWriter(OutputPlugin):  # placeholder + minimal JSON artifact writer
         except AttributeError:  # pragma: no cover - fallback for older runtimes
             now_iso = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00','Z')
         for name, payload in panels.items():
-            # Derive panel logical name (strip .json suffix)
-            base_name = name[:-5] if name.endswith('.json') else name
-            wrapped = {
-                "panel": base_name,
-                "updated_at": now_iso,
-                "data": payload if payload is not None else None,
-            }
-            # Runtime schema validation (env controlled)
+            # If payload already appears to be an envelope (meta + version keys), write as-is.
+            if isinstance(payload, dict) and 'meta' in payload and 'version' in payload and 'data' in payload:
+                # Optionally validate existing envelope wrapper
+                wrapped = payload
+            else:
+                base_name = name[:-5] if name.endswith('.json') else name
+                wrapped = {
+                    "panel": base_name,
+                    "updated_at": now_iso,
+                    "data": payload if payload is not None else None,
+                }
             if self._validate_fn:
-                # Pre-validation strict check: if strict mode active and updated_at removed by a test hook, raise
                 try:
                     mode = os.getenv("G6_PANELS_VALIDATE", "warn").lower()
                 except Exception:
                     mode = "warn"
                 if mode == "strict" and "updated_at" not in wrapped:
-                    # Mirror runtime_validate_panel semantics but catch earlier (test mutates before validator)
                     raise ValueError("runtime panel validation failed: missing 'updated_at'")
                 try:
-                    self._validate_fn(wrapped)  # may raise ValueError in strict mode
+                    self._validate_fn(wrapped)
                 except Exception:
                     raise
-                # Post validator double-check (accounts for custom wrapper that removed updated_at after pre-check)
                 if mode == "strict" and "updated_at" not in wrapped:
                     raise ValueError("runtime panel validation failed: missing 'updated_at'")
             self._write_json(name, wrapped)
@@ -467,7 +467,8 @@ class PanelsWriter(OutputPlugin):  # placeholder + minimal JSON artifact writer
                     if isinstance(snap.derived.get("indices_count"), int)
                     else (
                         # Final fallback: infer from indices_panel payload if present
-                        (panels.get("indices_panel.json", {}) or {}).get("count")
+                        # Envelope-only mode primary; fallback legacy key for transitional compat
+                        (panels.get("indices_panel_enveloped.json", {}).get("data", {}) or {}).get("count")
                     )
                 )
             ),
@@ -479,7 +480,7 @@ class PanelsWriter(OutputPlugin):  # placeholder + minimal JSON artifact writer
                     if isinstance(snap.derived.get("alerts_total"), int)
                     else (
                         # Fallback: derive from alerts panel length
-                        (len(panels.get("alerts.json", [])) if isinstance(panels.get("alerts.json"), list) else None)
+                        (len(panels.get("alerts_enveloped.json", {}).get("data", [])) if isinstance(panels.get("alerts_enveloped.json"), dict) else None)
                     )
                 )
             ),
@@ -527,6 +528,27 @@ class PanelsWriter(OutputPlugin):  # placeholder + minimal JSON artifact writer
         to building panels from the richer internal frame instead of raw status.
         """
         panels: Dict[str, Any] = {}
+        legacy_compat = os.getenv('G6_PANELS_LEGACY_COMPAT','0').lower() in ('1','true','yes','on')
+
+        def _envelope(name: str, data: Any, source: str = 'summary') -> Dict[str, Any]:
+            """Build envelope structure for panel output."""
+            import time, json, hashlib, datetime as _dt
+            # Data should be JSON-serializable; hash only data portion for cache busting
+            try:
+                raw = json.dumps(data, sort_keys=True, separators=(',',':')) if data is not None else '{}'
+            except Exception:
+                raw = '{}'
+            h = hashlib.sha256(raw.encode('utf-8')).hexdigest()[:12]
+            # Use timezone-aware clock only (avoid utcnow per style guidelines)
+            updated = _dt.datetime.now(_dt.UTC).replace(microsecond=0).isoformat().replace('+00:00','Z')
+            return {
+                'panel': name,
+                'version': 1,
+                'generated_at': int(time.time()),
+                'updated_at': updated,
+                'data': data,
+                'meta': { 'source': source, 'schema': 'v1', 'hash': h }
+            }
         # indices panel
         try:
             indices_detail = status.get("indices_detail") if isinstance(status.get("indices_detail"), Mapping) else {}
@@ -544,7 +566,10 @@ class PanelsWriter(OutputPlugin):  # placeholder + minimal JSON artifact writer
                     "dq_score": dq,
                     "age": data.get("age") or data.get("age_sec"),
                 })
-            panels["indices_panel.json"] = {"items": items, "count": len(items)}
+            data_obj = {"items": items, "count": len(items)}
+            panels["indices_panel_enveloped.json"] = _envelope('indices_panel', data_obj)
+            if legacy_compat:
+                panels["indices_panel.json"] = data_obj
             # Phase 4: StreamGater always active; baseline indices_stream.json emission permanently delegated.
             # If retired flags are set, log a one-time warning.
             # (Phase 4) Note: Retired flag warnings centralized in StreamGaterPlugin; no emission here to avoid duplicates.
@@ -557,7 +582,9 @@ class PanelsWriter(OutputPlugin):  # placeholder + minimal JSON artifact writer
                 val = status.get(key)
                 if isinstance(val, list):
                     raw_alerts.extend([a for a in val if isinstance(a, Mapping)])
-            panels["alerts.json"] = raw_alerts
+            panels["alerts_enveloped.json"] = _envelope('alerts', raw_alerts)
+            if legacy_compat:
+                panels["alerts.json"] = raw_alerts
         except Exception:
             pass
         # memory / system panel (simplified)
@@ -566,34 +593,46 @@ class PanelsWriter(OutputPlugin):  # placeholder + minimal JSON artifact writer
             mem = mem_obj if isinstance(mem_obj, Mapping) else {}
             loop_obj = status.get("loop")
             loop = loop_obj if isinstance(loop_obj, Mapping) else {}
-            panels["system.json"] = {
+            sys_obj = {
                 "memory_rss_mb": mem.get("rss_mb") or mem.get("rss"),
                 "cycle": loop.get("cycle"),
                 "last_duration": loop.get("last_duration"),
                 "interval": status.get("interval") or loop.get("target_interval"),
             }
+            panels["system_enveloped.json"] = _envelope('system', sys_obj)
+            if legacy_compat:
+                panels["system.json"] = sys_obj
         except Exception:
             pass
         # performance / metrics panel (placeholder extraction)
         try:
             perf = status.get("performance") if isinstance(status.get("performance"), Mapping) else {}
-            panels["performance.json"] = {k: v for k, v in perf.items()} if perf else {}
+            perf_obj = {k: v for k, v in perf.items()} if perf else {}
+            panels["performance_enveloped.json"] = _envelope('performance', perf_obj)
+            if legacy_compat:
+                panels["performance.json"] = perf_obj
         except Exception:
             pass
         # analytics panel (very shallow placeholder based on hypothetical aggregations)
         try:
             analytics = status.get("analytics") if isinstance(status.get("analytics"), Mapping) else {}
-            panels["analytics.json"] = {k: v for k, v in analytics.items()} if analytics else {}
+            analytics_obj = {k: v for k, v in analytics.items()} if analytics else {}
+            panels["analytics_enveloped.json"] = _envelope('analytics', analytics_obj)
+            if legacy_compat:
+                panels["analytics.json"] = analytics_obj
         except Exception:
             pass
         # links panel (static best-effort)
         try:
             app = status.get("app") if isinstance(status.get("app"), Mapping) else {}
             version = app.get("version") if isinstance(app, Mapping) else None
-            panels["links.json"] = {
+            links_obj = {
                 "metrics_url": os.getenv("G6_METRICS_URL") or None,
                 "version": version,
             }
+            panels["links_enveloped.json"] = _envelope('links', links_obj)
+            if legacy_compat:
+                panels["links.json"] = links_obj
         except Exception:
             pass
         return panels

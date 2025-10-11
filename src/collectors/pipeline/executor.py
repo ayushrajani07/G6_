@@ -5,19 +5,21 @@ captures timing and classifies exceptions using collectors.errors taxonomy.
 """
 from __future__ import annotations
 
-from typing import List, Callable, Protocol, Any
+from typing import List, Callable, Protocol, Any, Optional, Deque, cast
 import time, logging, os, random
+from src.collectors.env_adapter import get_bool as _env_bool, get_int as _env_int, get_str as _env_str
 from .state import ExpiryState
+from .struct_events import emit_struct_event
 from .error_helpers import add_phase_error
 from src.collectors.errors import PhaseRecoverableError, PhaseAbortError, PhaseFatalError, classify_exception
 
 logger = logging.getLogger(__name__)
 
 class Phase(Protocol):  # minimal structural contract
-    def __call__(self, ctx, state: ExpiryState, *extra) -> ExpiryState: ...
+    def __call__(self, ctx: Any, state: ExpiryState, *extra: Any) -> ExpiryState: ...
 
 
-def execute_phases(ctx, state: ExpiryState, phases: List[Callable[..., ExpiryState]]) -> ExpiryState:
+def execute_phases(ctx: Any, state: ExpiryState, phases: List[Callable[..., ExpiryState]]) -> ExpiryState:
     """Execute ordered phases with taxonomy-based control flow.
 
     Behavior:
@@ -27,19 +29,19 @@ def execute_phases(ctx, state: ExpiryState, phases: List[Callable[..., ExpirySta
       - Other exceptions: treated as fatal for now (could map to recoverable via rule later).
     """
     # Retry configuration (env-driven; defaults preserve previous single-attempt semantics)
-    retry_enabled = _truthy(os.getenv('G6_PIPELINE_RETRY_ENABLED','0'))
+    retry_enabled = _env_bool('G6_PIPELINE_RETRY_ENABLED', False)
     try:
-        max_attempts = int(os.getenv('G6_PIPELINE_RETRY_MAX_ATTEMPTS','3') or 3)
+        max_attempts = _env_int('G6_PIPELINE_RETRY_MAX_ATTEMPTS', 3)
         if max_attempts < 1:
             max_attempts = 1
     except Exception:
         max_attempts = 3
-    base_ms = _safe_int(os.getenv('G6_PIPELINE_RETRY_BASE_MS','50'), 50)
-    jitter_ms = _safe_int(os.getenv('G6_PIPELINE_RETRY_JITTER_MS','0'), 0)
+    base_ms = _safe_int(_env_str('G6_PIPELINE_RETRY_BASE_MS','50'), 50)
+    jitter_ms = _safe_int(_env_str('G6_PIPELINE_RETRY_JITTER_MS','0'), 0)
 
     # Optional config snapshot (captures active pipeline-related flags)
     try:
-        if _truthy(os.getenv('G6_PIPELINE_CONFIG_SNAPSHOT','0')):
+        if _env_bool('G6_PIPELINE_CONFIG_SNAPSHOT', False):
             import json as _json_cfg, time as _t_cfg, hashlib as _h_cfg
             snapshot = {
                 'version': 1,
@@ -49,31 +51,31 @@ def execute_phases(ctx, state: ExpiryState, phases: List[Callable[..., ExpirySta
                     'G6_PIPELINE_RETRY_MAX_ATTEMPTS': max_attempts,
                     'G6_PIPELINE_RETRY_BASE_MS': base_ms,
                     'G6_PIPELINE_RETRY_JITTER_MS': jitter_ms,
-                    'G6_PIPELINE_STRUCT_ERROR_EXPORT': _truthy(os.getenv('G6_PIPELINE_STRUCT_ERROR_EXPORT','0')),
-                    'G6_PIPELINE_STRUCT_ERROR_METRIC': _truthy(os.getenv('G6_PIPELINE_STRUCT_ERROR_METRIC','0')),
-                    'G6_PIPELINE_STRUCT_ERROR_EXPORT_STDOUT': _truthy(os.getenv('G6_PIPELINE_STRUCT_ERROR_EXPORT_STDOUT','0')),
-                    'G6_PIPELINE_STRUCT_ERROR_ENRICH': _truthy(os.getenv('G6_PIPELINE_STRUCT_ERROR_ENRICH','0')),
-                    'G6_PIPELINE_CYCLE_SUMMARY': _truthy(os.getenv('G6_PIPELINE_CYCLE_SUMMARY','1')),
-                    'G6_PIPELINE_CYCLE_SUMMARY_STDOUT': _truthy(os.getenv('G6_PIPELINE_CYCLE_SUMMARY_STDOUT','0')),
-                    'G6_PIPELINE_PANEL_EXPORT': _truthy(os.getenv('G6_PIPELINE_PANEL_EXPORT','0')),
-                    'G6_PIPELINE_PANEL_EXPORT_HISTORY': _truthy(os.getenv('G6_PIPELINE_PANEL_EXPORT_HISTORY','0')),
-                    'G6_PIPELINE_PANEL_EXPORT_HISTORY_LIMIT': os.getenv('G6_PIPELINE_PANEL_EXPORT_HISTORY_LIMIT','20'),
-                    'G6_PIPELINE_PANEL_EXPORT_HASH': _truthy(os.getenv('G6_PIPELINE_PANEL_EXPORT_HASH','1')),
+                    'G6_PIPELINE_STRUCT_ERROR_EXPORT': _env_bool('G6_PIPELINE_STRUCT_ERROR_EXPORT', False),
+                    'G6_PIPELINE_STRUCT_ERROR_METRIC': _env_bool('G6_PIPELINE_STRUCT_ERROR_METRIC', False),
+                    'G6_PIPELINE_STRUCT_ERROR_EXPORT_STDOUT': _env_bool('G6_PIPELINE_STRUCT_ERROR_EXPORT_STDOUT', False),
+                    'G6_PIPELINE_STRUCT_ERROR_ENRICH': _env_bool('G6_PIPELINE_STRUCT_ERROR_ENRICH', False),
+                    'G6_PIPELINE_CYCLE_SUMMARY': _env_bool('G6_PIPELINE_CYCLE_SUMMARY', True),
+                    'G6_PIPELINE_CYCLE_SUMMARY_STDOUT': _env_bool('G6_PIPELINE_CYCLE_SUMMARY_STDOUT', False),
+                    'G6_PIPELINE_PANEL_EXPORT': _env_bool('G6_PIPELINE_PANEL_EXPORT', False),
+                    'G6_PIPELINE_PANEL_EXPORT_HISTORY': _env_bool('G6_PIPELINE_PANEL_EXPORT_HISTORY', False),
+                    'G6_PIPELINE_PANEL_EXPORT_HISTORY_LIMIT': _env_str('G6_PIPELINE_PANEL_EXPORT_HISTORY_LIMIT','20'),
+                    'G6_PIPELINE_PANEL_EXPORT_HASH': _env_bool('G6_PIPELINE_PANEL_EXPORT_HASH', True),
                 },
             }
             try:
-                stable = _json_cfg.dumps(snapshot['flags'], sort_keys=True).encode()
-                snapshot['content_hash'] = _h_cfg.sha256(stable).hexdigest()[:16]
+                flags_stable_bytes = _json_cfg.dumps(snapshot['flags'], sort_keys=True).encode()
+                snapshot['content_hash'] = _h_cfg.sha256(flags_stable_bytes).hexdigest()[:16]
             except Exception:
                 pass
-            panels_dir = os.getenv('G6_PANELS_DIR') or 'data/panels'
+            panels_dir = _env_str('G6_PANELS_DIR','') or 'data/panels'
             try:
                 os.makedirs(panels_dir, exist_ok=True)
                 with open(os.path.join(panels_dir, 'pipeline_config_snapshot.json'), 'w', encoding='utf-8') as fh:
                     _json_cfg.dump(snapshot, fh, separators=(',',':'))
             except Exception:
                 pass
-            if _truthy(os.getenv('G6_PIPELINE_CONFIG_SNAPSHOT_STDOUT','0')):
+            if _env_bool('G6_PIPELINE_CONFIG_SNAPSHOT_STDOUT', False):
                 try:
                     print('pipeline.config_snapshot', _json_cfg.dumps(snapshot, separators=(',',':')))
                 except Exception:
@@ -82,6 +84,11 @@ def execute_phases(ctx, state: ExpiryState, phases: List[Callable[..., ExpirySta
         pass
 
     phase_runs: list[dict[str, Any]] = []
+    # Metrics gating (Wave 4 W4-05)
+    _retry_metrics_enabled = _env_bool('G6_PIPELINE_RETRY_METRICS', True)
+    # Lazy metric holders (attached once to avoid repeated registry lookups)
+    _metrics_cache = {'backoff_hist': None, 'last_attempts_gauge': None}
+
     for fn in phases:
         phase_name = getattr(fn, '__name__', 'phase')
         attempts = 0
@@ -92,33 +99,97 @@ def execute_phases(ctx, state: ExpiryState, phases: List[Callable[..., ExpirySta
             attempts += 1
             attempt_start = time.perf_counter()
             try:
-                result = fn(ctx, state)  # type: ignore[arg-type]
+                result = fn(ctx, state)
                 if result is not None:
                     state = result
             except PhaseAbortError as e:
                 add_phase_error(state, phase_name, 'abort', str(e), attempt=attempts, token=f"abort:{phase_name}:{e}")
                 final_outcome = 'abort'
                 _log_phase(phase_name, attempt_start, state, outcome='abort')
+                try:
+                    emit_struct_event(
+                        'expiry.phase.event',
+                        {
+                            'phase': phase_name,
+                            'outcome': 'abort',
+                            'attempt': attempts,
+                            'index': getattr(state,'index','?'),
+                            'rule': getattr(state,'rule','?'),
+                            'errors': len(getattr(state,'errors',[]) or []),
+                            'enriched': len(getattr(state,'enriched',{}) or {}),
+                        },
+                        state=state,
+                    )
+                except Exception:
+                    pass
                 break
             except PhaseRecoverableError as e:
                 add_phase_error(state, phase_name, 'recoverable', str(e), attempt=attempts, token=f"recoverable:{phase_name}:{e}")
                 _log_phase(phase_name, attempt_start, state, outcome='recoverable')
+                try:
+                    emit_struct_event(
+                        'expiry.phase.event',
+                        {
+                            'phase': phase_name,
+                            'outcome': 'recoverable',
+                            'attempt': attempts,
+                            'index': getattr(state,'index','?'),
+                            'rule': getattr(state,'rule','?'),
+                            'errors': len(getattr(state,'errors',[]) or []),
+                            'enriched': len(getattr(state,'enriched',{}) or {}),
+                        },
+                        state=state,
+                    )
+                except Exception:
+                    pass
                 if not retry_enabled or attempts >= max_attempts:
                     final_outcome = 'recoverable_exhausted' if retry_enabled and attempts >= max_attempts else 'recoverable'
                     break
-                _sleep_backoff(base_ms, jitter_ms, attempts)
+                _sleep_backoff(base_ms, jitter_ms, attempts, phase_name if _retry_metrics_enabled else None, _metrics_cache if _retry_metrics_enabled else None)
                 continue
             except PhaseFatalError as e:
                 add_phase_error(state, phase_name, 'fatal', str(e), attempt=attempts, token=f"fatal:{phase_name}:{e}")
                 final_outcome = 'fatal'
                 _log_phase(phase_name, attempt_start, state, outcome='fatal')
+                try:
+                    emit_struct_event(
+                        'expiry.phase.event',
+                        {
+                            'phase': phase_name,
+                            'outcome': 'fatal',
+                            'attempt': attempts,
+                            'index': getattr(state,'index','?'),
+                            'rule': getattr(state,'rule','?'),
+                            'errors': len(getattr(state,'errors',[]) or []),
+                            'enriched': len(getattr(state,'enriched',{}) or {}),
+                        },
+                        state=state,
+                    )
+                except Exception:
+                    pass
                 break
             except Exception as e:
                 cls = classify_exception(e)
                 add_phase_error(state, phase_name, cls, str(e), attempt=attempts, token=f"{cls}:{phase_name}:{e}")
                 _log_phase(phase_name, attempt_start, state, outcome=cls)
+                try:
+                    emit_struct_event(
+                        'expiry.phase.event',
+                        {
+                            'phase': phase_name,
+                            'outcome': cls,
+                            'attempt': attempts,
+                            'index': getattr(state,'index','?'),
+                            'rule': getattr(state,'rule','?'),
+                            'errors': len(getattr(state,'errors',[]) or []),
+                            'enriched': len(getattr(state,'enriched',{}) or {}),
+                        },
+                        state=state,
+                    )
+                except Exception:
+                    pass
                 if cls == 'recoverable' and retry_enabled and attempts < max_attempts:
-                    _sleep_backoff(base_ms, jitter_ms, attempts)
+                    _sleep_backoff(base_ms, jitter_ms, attempts, phase_name if _retry_metrics_enabled else None, _metrics_cache if _retry_metrics_enabled else None)
                     continue
                 # Map unknown recoverable exhaustion
                 if cls == 'recoverable' and retry_enabled and attempts >= max_attempts:
@@ -129,12 +200,56 @@ def execute_phases(ctx, state: ExpiryState, phases: List[Callable[..., ExpirySta
             else:
                 final_outcome = 'ok'
                 _log_phase(phase_name, attempt_start, state, outcome='ok')
+                try:
+                    emit_struct_event(
+                        'expiry.phase.event',
+                        {
+                            'phase': phase_name,
+                            'outcome': 'ok',
+                            'attempt': attempts,
+                            'index': getattr(state,'index','?'),
+                            'rule': getattr(state,'rule','?'),
+                            'errors': len(getattr(state,'errors',[]) or []),
+                            'enriched': len(getattr(state,'enriched',{}) or {}),
+                        },
+                        state=state,
+                    )
+                except Exception:
+                    pass
                 break
             finally:
                 total_duration_ms = (time.perf_counter() - phase_started) * 1000.0
                 _record_attempt_metrics(phase_name, attempts, final_outcome if final_outcome!='unknown' else None)
         # Final aggregated metrics (only once per phase sequence)
         _record_final_metrics(phase_name, total_duration_ms, final_outcome)
+        # Final per-phase event (aggregate)
+        try:
+            emit_struct_event(
+                'expiry.phase.final',
+                {
+                    'phase': phase_name,
+                    'final_outcome': final_outcome,
+                    'attempts': attempts,
+                    'duration_ms': round(total_duration_ms, 3),
+                    'index': getattr(state,'index','?'),
+                    'rule': getattr(state,'rule','?'),
+                },
+                state=state,
+            )
+        except Exception:
+            pass
+        # Phase last attempts gauge
+        if _retry_metrics_enabled:
+            try:
+                _ensure_retry_metrics(_metrics_cache)
+                g = _metrics_cache.get('last_attempts_gauge')
+                if g is not None:
+                    try:
+                        g.labels(phase=phase_name).set(attempts)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
         try:
             phase_runs.append({
                 'phase': phase_name,
@@ -149,7 +264,7 @@ def execute_phases(ctx, state: ExpiryState, phases: List[Callable[..., ExpirySta
             break
     # Optional JSON export of structured errors (snapshot) when enabled
     try:
-        if _truthy(os.getenv('G6_PIPELINE_STRUCT_ERROR_EXPORT','0')) and state.error_records:
+        if _env_bool('G6_PIPELINE_STRUCT_ERROR_EXPORT', False) and state.error_records:
             import json, hashlib, time as _t
             # Stable lightweight projection
             records = [
@@ -167,16 +282,16 @@ def execute_phases(ctx, state: ExpiryState, phases: List[Callable[..., ExpirySta
                 'exported_at': int(_t.time()),
             }
             # Hash for diff-friendly logs
-            h = hashlib.sha256(json.dumps(records, sort_keys=True).encode()).hexdigest()[:16]
-            payload['hash'] = h
+            _hash_val = hashlib.sha256(json.dumps(records, sort_keys=True).encode()).hexdigest()[:16]
+            payload['hash'] = _hash_val
             state.meta['structured_errors'] = payload  # embed into state meta for downstream access
-            if _truthy(os.getenv('G6_PIPELINE_STRUCT_ERROR_EXPORT_STDOUT','0')):
+            if _env_bool('G6_PIPELINE_STRUCT_ERROR_EXPORT_STDOUT', False):
                 try:
                     print('pipeline.structured_errors', json.dumps(payload, separators=(',',':')))
                 except Exception:
                     pass
         # Attach cycle summary optionally after structured errors projection
-        if _truthy(os.getenv('G6_PIPELINE_CYCLE_SUMMARY','1')):  # default on
+        if _env_bool('G6_PIPELINE_CYCLE_SUMMARY', True):  # default on
             try:
                 ok_count = sum(1 for r in phase_runs if r['final_outcome']=='ok')
                 errored = [r for r in phase_runs if r['final_outcome']!='ok']
@@ -195,36 +310,37 @@ def execute_phases(ctx, state: ExpiryState, phases: List[Callable[..., ExpirySta
                 state.meta['pipeline_summary'] = summary
                 # Cycle level metrics (success gauge + counters + ratios + rolling window + trends ingestion)
                 try:  # pragma: no cover - metric emissions are straightforward
-                    from src.metrics.metrics import get_metrics  # type: ignore
+                    from src.metrics import get_metrics  # optional metrics facade
                     _m = get_metrics()
                     is_success = 1 if summary.get('phases_error', 0) == 0 else 0
-                    if hasattr(_m, 'pipeline_cycle_success'):
-                        try:
-                            _m.pipeline_cycle_success.set(is_success)
-                        except Exception:
-                            pass
-                    if hasattr(_m, 'pipeline_cycles_total'):
-                        try:
-                            _m.pipeline_cycles_total.inc()
-                        except Exception:
-                            pass
-                    if is_success and hasattr(_m, 'pipeline_cycles_success_total'):
-                        try:
-                            _m.pipeline_cycles_success_total.inc()
-                        except Exception:
-                            pass
+                    _pcs = getattr(_m, 'pipeline_cycle_success', None)
+                    if _pcs is not None:
+                        try: _pcs.set(is_success)
+                        except Exception: pass
+                    _pct = getattr(_m, 'pipeline_cycles_total', None)
+                    if _pct is not None:
+                        try: _pct.inc()
+                        except Exception: pass
+                    if is_success:
+                        _pcst = getattr(_m, 'pipeline_cycles_success_total', None)
+                        if _pcst is not None:
+                            try: _pcst.inc()
+                            except Exception: pass
                     # Error ratio gauge
-                    if hasattr(_m, 'pipeline_cycle_error_ratio'):
+                    _pcer = getattr(_m, 'pipeline_cycle_error_ratio', None)
+                    if _pcer is not None:
                         try:
-                            pt = summary.get('phases_total', 0) or 0
-                            pe = summary.get('phases_error', 0) or 0
-                            ratio = (pe / pt) if pt else 0.0
-                            _m.pipeline_cycle_error_ratio.set(ratio)
+                            raw_pt = summary.get('phases_total', 0) or 0
+                            raw_pe = summary.get('phases_error', 0) or 0
+                            pt_val = int(raw_pt) if isinstance(raw_pt, (int, float)) else 0
+                            pe_val = int(raw_pe) if isinstance(raw_pe, (int, float)) else 0
+                            ratio = (float(pe_val) / float(pt_val)) if pt_val else 0.0
+                            _pcer.set(ratio)
                         except Exception:
                             pass
                     # Rolling window success/error rate gauges
                     try:
-                        _rw_size_env = int(os.getenv('G6_PIPELINE_ROLLING_WINDOW','0') or 0)
+                        _rw_size_env = _env_int('G6_PIPELINE_ROLLING_WINDOW', 0)
                     except Exception:
                         _rw_size_env = 0
                     if _rw_size_env > 0:
@@ -232,25 +348,24 @@ def execute_phases(ctx, state: ExpiryState, phases: List[Callable[..., ExpirySta
                             from collections import deque as _deque
                             # Module-level cache (attribute on function object to avoid global) 
                             if not hasattr(execute_phases, '_rolling_window'):
-                                execute_phases._rolling_window = _deque(maxlen=_rw_size_env)  # type: ignore
-                            window = execute_phases._rolling_window  # type: ignore
+                                # attach deque lazily; use cast for type checker since attribute added dynamically
+                                setattr(execute_phases, '_rolling_window', _deque(maxlen=_rw_size_env))
+                            window = cast(Deque[int], getattr(execute_phases, '_rolling_window'))
                             window.append(1 if is_success else 0)
-                            if hasattr(_m, 'pipeline_cycle_success_rate_window'):
-                                try:
-                                    _m.pipeline_cycle_success_rate_window.set(sum(window)/len(window))
-                                except Exception:
-                                    pass
-                            if hasattr(_m, 'pipeline_cycle_error_rate_window'):
-                                try:
-                                    _m.pipeline_cycle_error_rate_window.set(1 - (sum(window)/len(window)))
-                                except Exception:
-                                    pass
+                            _pcsrw = getattr(_m, 'pipeline_cycle_success_rate_window', None)
+                            if _pcsrw is not None:
+                                try: _pcsrw.set(sum(window)/len(window))
+                                except Exception: pass
+                            _pcerw = getattr(_m, 'pipeline_cycle_error_rate_window', None)
+                            if _pcerw is not None:
+                                try: _pcerw.set(1 - (sum(window)/len(window)))
+                                except Exception: pass
                         except Exception:
                             pass
                     # Trends file ingestion (long horizon gauges) gated by env flag
-                    if os.getenv('G6_PIPELINE_TRENDS_METRICS','0') in ('1','true','yes','on'):  # lightweight file read
+                    if _env_bool('G6_PIPELINE_TRENDS_METRICS', False):  # lightweight file read
                         try:
-                            panels_dir = os.getenv('G6_PANELS_DIR') or 'data/panels'
+                            panels_dir = _env_str('G6_PANELS_DIR', 'data/panels') or 'data/panels'
                             trend_path = os.path.join(panels_dir, 'pipeline_errors_trends.json')
                             import json as _json_trm
                             with open(trend_path, 'r', encoding='utf-8') as _tfm:
@@ -258,11 +373,13 @@ def execute_phases(ctx, state: ExpiryState, phases: List[Callable[..., ExpirySta
                             agg = (_trend_doc.get('aggregate') or {}) if isinstance(_trend_doc, dict) else {}
                             cycles = agg.get('cycles') or 0
                             success_rate = agg.get('success_rate') or 0.0
-                            if hasattr(_m, 'pipeline_trends_cycles'):
-                                try: _m.pipeline_trends_cycles.set(cycles)
+                            _ptc = getattr(_m, 'pipeline_trends_cycles', None)
+                            if _ptc is not None:
+                                try: _ptc.set(cycles)
                                 except Exception: pass
-                            if hasattr(_m, 'pipeline_trends_success_rate'):
-                                try: _m.pipeline_trends_success_rate.set(success_rate)
+                            _ptsr = getattr(_m, 'pipeline_trends_success_rate', None)
+                            if _ptsr is not None:
+                                try: _ptsr.set(success_rate)
                                 except Exception: pass
                         except Exception:
                             pass
@@ -270,36 +387,36 @@ def execute_phases(ctx, state: ExpiryState, phases: List[Callable[..., ExpirySta
                     pass
                 # Optional legacy cycle_tables integration
                 try:
-                    if _truthy(os.getenv('G6_CYCLE_TABLES_PIPELINE_INTEGRATION','0')):
+                    if _env_bool('G6_CYCLE_TABLES_PIPELINE_INTEGRATION', False):
                         try:
-                            from src.collectors.helpers.cycle_tables import record_pipeline_summary  # type: ignore
+                            from src.collectors.helpers.cycle_tables import record_pipeline_summary  # optional dependency
                             record_pipeline_summary(summary)
                         except Exception:
                             pass
                 except Exception:
                     pass
-                if _truthy(os.getenv('G6_PIPELINE_CYCLE_SUMMARY_STDOUT','0')):
+                if _env_bool('G6_PIPELINE_CYCLE_SUMMARY_STDOUT', False):
                     import json as _json
                     try:
                         print('pipeline.summary', _json.dumps(summary, separators=(',',':')))
                     except Exception:
                         pass
                 # Panel export (errors + summary) if enabled
-                if _truthy(os.getenv('G6_PIPELINE_PANEL_EXPORT','0')):
+                if _env_bool('G6_PIPELINE_PANEL_EXPORT', False):
                     try:
-                        panels_dir = os.getenv('G6_PANELS_DIR') or 'data/panels'
+                        panels_dir = _env_str('G6_PANELS_DIR', 'data/panels') or 'data/panels'
                         os.makedirs(panels_dir, exist_ok=True)
-                        history_enabled = _truthy(os.getenv('G6_PIPELINE_PANEL_EXPORT_HISTORY','0'))
-                        hash_enabled = _truthy(os.getenv('G6_PIPELINE_PANEL_EXPORT_HASH','1'))
+                        history_enabled = _env_bool('G6_PIPELINE_PANEL_EXPORT_HISTORY', False)
+                        hash_enabled = _env_bool('G6_PIPELINE_PANEL_EXPORT_HASH', True)
                         try:
-                            history_limit = int(os.getenv('G6_PIPELINE_PANEL_EXPORT_HISTORY_LIMIT','20') or 20)
+                            history_limit = _env_int('G6_PIPELINE_PANEL_EXPORT_HISTORY_LIMIT', 20)
                         except Exception:
                             history_limit = 20
                         if history_limit < 1:
                             history_limit = 1
                         # Defensive redaction (messages already redacted at record creation; re-apply patterns if any changed mid-run)
-                        _redact_patterns = os.getenv('G6_PIPELINE_REDACT_PATTERNS','')
-                        _redact_repl = os.getenv('G6_PIPELINE_REDACT_REPLACEMENT','***')
+                        _redact_patterns = _env_str('G6_PIPELINE_REDACT_PATTERNS', '')
+                        _redact_repl = _env_str('G6_PIPELINE_REDACT_REPLACEMENT', '***') or '***'
                         def _apply_redact(msg: str) -> str:
                             if not _redact_patterns:
                                 return msg
@@ -328,17 +445,17 @@ def execute_phases(ctx, state: ExpiryState, phases: List[Callable[..., ExpirySta
                         if hash_enabled:
                             try:
                                 # Hash stable projection (summary + errors without exported_at or version ordering differences)
-                                stable = {
+                                content_projection = {
                                     'summary': export['summary'],
                                     'errors': export['errors'],
                                     'error_count': export['error_count'],
                                     'version': export['version'],
                                 }
-                                export['content_hash'] = _hashlib.sha256(_json2.dumps(stable, sort_keys=True).encode()).hexdigest()[:16]
+                                export['content_hash'] = _hashlib.sha256(_json2.dumps(content_projection, sort_keys=True).encode()).hexdigest()[:16]
                             except Exception:
                                 pass
-                        base_path = os.path.join(panels_dir, 'pipeline_errors_summary.json')
-                        with open(base_path, 'w', encoding='utf-8') as fh:
+                        export_path = os.path.join(panels_dir, 'pipeline_errors_summary.json')
+                        with open(export_path, 'w', encoding='utf-8') as fh:
                             _json2.dump(export, fh, separators=(',',':'))
                         # Optional rolling history: write timestamped file and prune, plus index
                         if history_enabled:
@@ -383,13 +500,13 @@ def execute_phases(ctx, state: ExpiryState, phases: List[Callable[..., ExpirySta
                                 index_entries = []
                                 if hash_enabled:
                                     # Build mapping filename->hash by opening each (bounded by history_limit)
-                                    for fn in all_hist:
+                                    for fname in all_hist:
                                         try:
-                                            with open(os.path.join(panels_dir, fn), 'r', encoding='utf-8') as _rf:
+                                            with open(os.path.join(panels_dir, fname), 'r', encoding='utf-8') as _rf:
                                                 _d = _json2.load(_rf)
-                                            index_entries.append({'file': fn, 'hash': _d.get('content_hash'), 'ts': _d.get('exported_at')})
+                                            index_entries.append({'file': fname, 'hash': _d.get('content_hash'), 'ts': _d.get('exported_at')})
                                         except Exception:
-                                            index_entries.append({'file': fn})
+                                            index_entries.append({'file': fname})
                                 index_payload = {
                                     'version': 1,
                                     'count': len(all_hist),
@@ -401,9 +518,9 @@ def execute_phases(ctx, state: ExpiryState, phases: List[Callable[..., ExpirySta
                             except Exception:
                                 pass
                         # Trend Aggregation
-                        if _truthy(os.getenv('G6_PIPELINE_TRENDS_ENABLED','0')):
+                        if _env_bool('G6_PIPELINE_TRENDS_ENABLED', False):
                             try:
-                                trend_limit = int(os.getenv('G6_PIPELINE_TRENDS_LIMIT','200') or 200)
+                                trend_limit = _env_int('G6_PIPELINE_TRENDS_LIMIT', 200)
                             except Exception:
                                 trend_limit = 200
                             if trend_limit < 1:
@@ -456,7 +573,7 @@ def execute_phases(ctx, state: ExpiryState, phases: List[Callable[..., ExpirySta
     
 
 
-def _log_phase(name: str, started: float, state: ExpiryState, outcome: str):
+def _log_phase(name: str, started: float, state: ExpiryState, outcome: str) -> None:
     dt_ms = (time.perf_counter() - started) * 1000.0
     try:
         logger.debug(
@@ -485,50 +602,87 @@ def _safe_int(v: str, default: int) -> int:
     except Exception:
         return default
 
-def _sleep_backoff(base_ms: int, jitter_ms: int, attempt: int):  # pragma: no cover (timing side effect)
+def _sleep_backoff(base_ms: int, jitter_ms: int, attempt: int, phase: str | None = None, metrics_cache: dict | None = None) -> None:  # pragma: no cover (timing side effect)
     delay_ms = base_ms * (2 ** (attempt-1))
     if jitter_ms > 0:
         delay_ms += random.randint(0, jitter_ms)
-    # Cap to a reasonable ceiling (5s) to avoid runaway
-    delay_ms = min(delay_ms, 5000)
+    delay_ms = min(delay_ms, 5000)  # ceiling
+    if phase and metrics_cache is not None:
+        try:
+            _ensure_retry_metrics(metrics_cache)
+            h = metrics_cache.get('backoff_hist')
+            if h:
+                try: h.labels(phase=phase).observe(delay_ms / 1000.0)
+                except Exception: pass
+        except Exception:
+            pass
     time.sleep(delay_ms / 1000.0)
 
-def _record_attempt_metrics(phase: str, attempts: int, final_if_known: str | None):
+def _ensure_retry_metrics(cache: dict) -> None:
+    if cache.get('initialized'):
+        return
+    try:
+        from src.metrics import MetricsRegistry  # optional metrics registry
+        reg = MetricsRegistry()
+        h = getattr(reg, 'pipeline_phase_retry_backoff_seconds', None)
+        if h is not None:
+            cache['backoff_hist'] = h
+        g = getattr(reg, 'pipeline_phase_last_attempts', None)
+        if g is not None:
+            cache['last_attempts_gauge'] = g
+    except Exception:
+        pass
+    cache['initialized'] = True
+
+def _record_attempt_metrics(phase: str, attempts: int, final_if_known: str | None) -> None:
     """Increment attempt / retry counters. final_if_known ignored until finalization for outcome counters."""
     try:  # lazy registry import pattern consistent with existing code
-        from src.metrics.metrics import MetricsRegistry  # type: ignore
+        from src.metrics import MetricsRegistry  # optional metrics registry
         reg = MetricsRegistry()
-        if getattr(reg, 'pipeline_phase_attempts', None):
-            reg.pipeline_phase_attempts.labels(phase=phase).inc()
-        if attempts > 1 and getattr(reg, 'pipeline_phase_retries', None):
-            reg.pipeline_phase_retries.labels(phase=phase).inc()
+        _ppa = getattr(reg, 'pipeline_phase_attempts', None)
+        if _ppa is not None:
+            try: _ppa.labels(phase=phase).inc()
+            except Exception: pass
+        if attempts > 1:
+            _ppr = getattr(reg, 'pipeline_phase_retries', None)
+            if _ppr is not None:
+                try: _ppr.labels(phase=phase).inc()
+                except Exception: pass
     except Exception:
         pass
 
-def _record_final_metrics(phase: str, duration_ms: float, final_outcome: str):
+def _record_final_metrics(phase: str, duration_ms: float, final_outcome: str) -> None:
     try:
-        from src.metrics.metrics import MetricsRegistry  # type: ignore
+        from src.metrics import MetricsRegistry  # optional metrics registry
         reg = MetricsRegistry()
-        if getattr(reg, 'pipeline_phase_outcomes', None):
-            reg.pipeline_phase_outcomes.labels(phase=phase, final_outcome=final_outcome).inc()
-        if getattr(reg, 'pipeline_phase_duration_ms', None):
-            reg.pipeline_phase_duration_ms.labels(phase=phase, final_outcome=final_outcome).inc(duration_ms)
-        if getattr(reg, 'pipeline_phase_runs', None):
-            reg.pipeline_phase_runs.labels(phase=phase, final_outcome=final_outcome).inc()
+        _ppo = getattr(reg, 'pipeline_phase_outcomes', None)
+        if _ppo is not None:
+            try: _ppo.labels(phase=phase, final_outcome=final_outcome).inc()
+            except Exception: pass
+        _ppd = getattr(reg, 'pipeline_phase_duration_ms', None)
+        if _ppd is not None:
+            try: _ppd.labels(phase=phase, final_outcome=final_outcome).inc(duration_ms)
+            except Exception: pass
+        _ppruns = getattr(reg, 'pipeline_phase_runs', None)
+        if _ppruns is not None:
+            try: _ppruns.labels(phase=phase, final_outcome=final_outcome).inc()
+            except Exception: pass
         # Histogram observation (seconds) with lazy env bucket override (set once)
-        if getattr(reg, 'pipeline_phase_duration_seconds', None):  # histogram
+        _ppds = getattr(reg, 'pipeline_phase_duration_seconds', None)
+        if _ppds is not None:  # histogram
             try:
-                hist = reg.pipeline_phase_duration_seconds
-                # Optional one-time dynamic bucket override via env (if provided and not yet applied)
+                hist = _ppds
                 if not hasattr(hist, '_g6_buckets_overridden'):
-                    b_env = os.getenv('G6_PIPELINE_PHASE_DURATION_BUCKETS','')
+                    try:
+                        from src.collectors.env_adapter import get_str as _env_str
+                    except Exception:
+                        _env_str = lambda k, d=None: (os.getenv(k, d) if d is not None else (os.getenv(k) or '')).strip()
+                    b_env = _env_str('G6_PIPELINE_PHASE_DURATION_BUCKETS','')
                     if b_env:
                         try:
                             arr = [float(x.strip()) for x in b_env.split(',') if x.strip()]
                             if arr:
-                                # Rebuild internal buckets: Prometheus client histograms don't support runtime mutation;
-                                # We skip dynamic override if already created. Documented limitation.
-                                pass  # placeholder: no-op; doc notes explain limitation.
+                                pass  # Documented limitation; cannot mutate buckets at runtime.
                         except Exception:
                             pass
                     setattr(hist, '_g6_buckets_overridden', True)

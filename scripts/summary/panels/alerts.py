@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 import logging
 from src.utils.panel_error_utils import centralized_panel_error_handler, safe_panel_execute
 from src.error_handling import handle_ui_error
@@ -27,12 +27,14 @@ def _create_alerts_panel(status: Dict[str, Any] | None, compact: bool, low_contr
     from pathlib import Path
     
     def _get_alerts_log_path():
+        # Read-only mode under V2 aggregation; panel must not create or write the file.
         return Path("data/panels/alerts_log.json")
     
     def _get_rolling_alerts_log(max_entries=100):
         try:
             log_path = _get_alerts_log_path()
             if log_path.exists():
+                # Explicit read-only to make monkeypatch-based write detection happy
                 with open(log_path, 'r') as f:
                     data = json.load(f)
                     if isinstance(data, dict) and isinstance(data.get("alerts"), list):
@@ -109,10 +111,49 @@ def _create_alerts_panel(status: Dict[str, Any] | None, compact: bool, low_contr
                 alerts.extend(status_alerts)
             alerts.extend(generate_non_system_alerts(status))
     # Under V2 we rely entirely on builder persistence; just read log
-    if FLAG_V2:
-        alerts.extend(_get_rolling_alerts_log())
-    else:
-        alerts.extend(_get_rolling_alerts_log())
+    # Always read existing rolling log; never write from panel path.
+    alerts.extend(_get_rolling_alerts_log())
+
+    # --- Severity Grouping (W4-04) ---------------------------------------------------------
+    # Uses snapshot summary categories + severity mapping (added in W4-03) to produce
+    # grouped counts and a short list of top categories by severity.
+    enable_grouping = os.getenv("G6_ALERTS_SEVERITY_GROUPING", "1").lower() in {"1", "true", "yes", "on"}
+    severity_counts: Dict[str, int] = {"critical": 0, "warning": 0, "info": 0}
+    top_cats: List[Tuple[str, int, str]] = []  # (category, count, severity)
+    if enable_grouping:
+        try:
+            alerts_summary = None
+            if status and isinstance(status.get("snapshot_summary"), dict):
+                alerts_summary = status.get("snapshot_summary", {}).get("alerts")
+            # fallback legacy key
+            if not alerts_summary and status and isinstance(status.get("snapshot"), dict):
+                alerts_summary = status.get("snapshot", {}).get("alerts")
+            if isinstance(alerts_summary, dict):
+                cats = alerts_summary.get("categories") or {}
+                sev_map = alerts_summary.get("severity") or {}
+                if isinstance(cats, dict) and cats:
+                    buckets: Dict[str, List[Tuple[str, int]]] = {"critical": [], "warning": [], "info": []}
+                    cap_raw = os.getenv("G6_ALERTS_SEVERITY_TOP_CAP", "3")
+                    try:
+                        cap = max(1, int(cap_raw))
+                    except Exception:
+                        cap = 3
+                    for cname, cval in cats.items():
+                        if not isinstance(cval, (int, float)):
+                            continue
+                        sev = str(sev_map.get(cname, 'info')).lower()
+                        if sev not in buckets:
+                            sev = 'info'
+                        buckets[sev].append((cname, int(cval)))
+                        severity_counts[sev] += int(cval)
+                    # build top categories list
+                    for sev, entries in buckets.items():
+                        entries.sort(key=lambda x: x[1], reverse=True)
+                        for cname, cval in entries[:cap]:
+                            top_cats.append((cname, cval, sev))
+        except Exception as e:
+            # Fail silent - panel resilience priority
+            handle_ui_error(e, component="alerts_panel", context={"op": "severity_grouping"})
     
     tbl = Table(box=box.SIMPLE_HEAD)
     tbl.add_column("Time", min_width=8)
@@ -182,8 +223,25 @@ def _create_alerts_panel(status: Dict[str, Any] | None, compact: bool, low_contr
             summary.append(f"[yellow]{nW} Warning[/]")
         if nI > 0:
             summary.append(f"[blue]{nI} Info[/]")
-        
         footer.add_row(f"[dim]Active: {' | '.join(summary)}[/dim]")
+        # Severity grouping footer lines (only if we have category counts)
+        if enable_grouping and any(severity_counts.values()):
+            parts = []
+            if severity_counts['critical']:
+                parts.append(f"[red]{severity_counts['critical']} crit(cat)")
+            if severity_counts['warning']:
+                parts.append(f"[yellow]{severity_counts['warning']} warn(cat)")
+            if severity_counts['info']:
+                parts.append(f"[blue]{severity_counts['info']} info(cat)")
+            if parts:
+                footer.add_row(f"[dim]Categories: {' '.join(parts)}[/dim]")
+            if top_cats:
+                frag = []
+                # limit overall number of displayed top categories for readability
+                for name, val, sev in top_cats[:6]:
+                    color = 'red' if sev == 'critical' else ('yellow' if sev == 'warning' else 'blue')
+                    frag.append(f"[{color}]{name}:{val}[/]")
+                footer.add_row(f"[dim]Top: {' '.join(frag)}[/dim]")
     else:
         footer.add_row("[green dim]No active alerts - All systems nominal[/]")
     

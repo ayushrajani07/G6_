@@ -68,7 +68,7 @@ class WindowStore:
     Tracks boolean parity_ok samples plus lightweight consecutive ok/fail counters
     (not derived each time to keep O(1) updates even for large windows).
     """
-    def __init__(self):
+    def __init__(self) -> None:
         self._data: Dict[Tuple[str,str], Deque[bool]] = defaultdict(lambda: deque(maxlen=200))
         self._ok_streak: Dict[Tuple[str,str], int] = defaultdict(int)
         self._fail_streak: Dict[Tuple[str,str], int] = defaultdict(int)
@@ -76,7 +76,7 @@ class WindowStore:
         self._hashes: Dict[Tuple[str,str], Deque[str]] = defaultdict(lambda: deque(maxlen=200))
         self._hashes_churn: Dict[Tuple[str,str], Deque[str]] = defaultdict(lambda: deque(maxlen=200))
 
-    def update(self, index: str, rule: str, ok: bool, window: int, *, protected: bool, parity_hash: str | None, churn_window: int | None = None):
+    def update(self, index: str, rule: str, ok: bool, window: int, *, protected: bool, parity_hash: str | None, churn_window: int | None = None) -> None:
         key = (index, rule)
         dq = self._data[key]
         if dq.maxlen != window:  # resize preserving history
@@ -103,7 +103,7 @@ class WindowStore:
             self._fail_streak[key] += 1
             self._ok_streak[key] = 0
 
-    def stats(self, index: str, rule: str):
+    def stats(self, index: str, rule: str) -> tuple[int, float]:
         dq = self._data.get((index, rule))
         if not dq:
             return 0, 0.0
@@ -113,17 +113,17 @@ class WindowStore:
         ok_ratio = sum(1 for v in dq if v) / total
         return total, ok_ratio
 
-    def streaks(self, index: str, rule: str):
+    def streaks(self, index: str, rule: str) -> tuple[int, int]:
         key = (index, rule)
         return self._ok_streak.get(key, 0), self._fail_streak.get(key, 0)
 
-    def protected_counts(self, index: str, rule: str):
+    def protected_counts(self, index: str, rule: str) -> int:
         dq = self._protected.get((index, rule))
         if not dq:
             return 0
         return sum(1 for v in dq if v)
 
-    def hash_churn(self, index: str, rule: str):
+    def hash_churn(self, index: str, rule: str) -> tuple[int, int, float]:
         dq = self._hashes.get((index, rule))
         if not dq:
             return 0, 0, 0.0
@@ -135,7 +135,7 @@ class WindowStore:
         churn_ratio = distinct_count / total if total else 0.0
         return total, distinct_count, churn_ratio
 
-    def hash_churn_windowed(self, index: str, rule: str):
+    def hash_churn_windowed(self, index: str, rule: str) -> tuple[int, int, float]:
         dq = self._hashes_churn.get((index, rule))
         if not dq:
             return 0,0,0.0
@@ -233,7 +233,7 @@ def decide(index: str, rule: str, meta: Mapping[str, Any], *, config: GatingConf
         hash_distinct = c_distinct
         hash_churn_ratio = c_ratio
         churn_window_size = c_tot
-    decision = {
+    decision: Dict[str, Any] = {
         'mode': mode,
         'promote': False,
         'canary': False,
@@ -273,10 +273,11 @@ def decide(index: str, rule: str, meta: Mapping[str, Any], *, config: GatingConf
         decision['reason'] = 'insufficient_samples'
         return decision
     # Churn rollback guard (before canary evaluation). Enabled when threshold <=1.
+    hash_churn_val: float = float(decision['hash_churn_ratio']) if isinstance(decision['hash_churn_ratio'], (int,float)) else 0.0
     if (mode in ('canary','promote','dryrun') and window_size >= config.min_samples
         and (decision['hash_churn_ratio'] is not None)
         and config.rollback_churn_ratio <= 1.0
-        and decision['hash_churn_ratio'] >= config.rollback_churn_ratio):
+        and hash_churn_val >= config.rollback_churn_ratio):
         decision['reason'] = 'rollback_churn'
         decision['canary'] = False
         decision['promote'] = False

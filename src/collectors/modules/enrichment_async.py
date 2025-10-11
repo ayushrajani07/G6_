@@ -47,7 +47,7 @@ Non-goals (Phase 9 scope):
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple, Iterable
+from typing import Any, Dict, List, Tuple, Iterable, Callable
 import time
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed, Future
@@ -56,9 +56,9 @@ from math import inf
 
 # Deliberately avoid binding sync enrichment at import time so tests that monkeypatch
 # src.collectors.modules.enrichment.enrich_quotes are reflected. We resolve lazily.
-def _sync_enrich_func():  # pragma: no cover - trivial indirection
+def _sync_enrich_func() -> Callable[[str, str, Any, List[Dict[str, Any]], Any, Any], Dict[str, Any]] | None:  # pragma: no cover - trivial indirection
     try:
-        from src.collectors.modules.enrichment import enrich_quotes  # type: ignore
+        from src.collectors.modules.enrichment import enrich_quotes
         return enrich_quotes
     except Exception:
         return None
@@ -99,10 +99,10 @@ class EnrichmentExecutor:
                     cls._shared = EnrichmentExecutor(max_workers=max(1, workers))
         return cls._shared
 
-    def submit(self, fn, *a, **k) -> Future:
+    def submit(self, fn: Callable[..., Any], *a: Any, **k: Any) -> Future:
         return self._executor.submit(fn, *a, **k)
 
-    def shutdown(self, wait: bool = False):  # optional external cleanup
+    def shutdown(self, wait: bool = False) -> None:  # optional external cleanup
         self._executor.shutdown(wait=wait)
 
 
@@ -114,7 +114,7 @@ def _chunk(seq: List[Any], size: int) -> Iterable[List[Any]]:
         yield seq[i:i+size]
 
 
-def _call_provider(providers, instruments: List[Dict[str, Any]]):
+def _call_provider(providers: Any, instruments: List[Dict[str, Any]]) -> Any:
     return providers.enrich_with_quotes(instruments)  # may raise
 
 
@@ -130,7 +130,7 @@ def get_enrichment_mode() -> str:
 def enrich_quotes_async(
     index_symbol: str,
     expiry_rule: str,
-    expiry_date,
+    expiry_date: Any,
     instruments: List[Dict[str, Any]],
     providers: Any,
     metrics: Any,
@@ -156,7 +156,7 @@ def enrich_quotes_async(
     if not _async_enabled() or not instruments:
         # Direct sync path (delegate identical to legacy enrichment)
         _sync = _sync_enrich_func()
-        result = _sync(index_symbol, expiry_rule, expiry_date, instruments, providers, metrics) if _sync else {}
+        result: Dict[str, Any] = _sync(index_symbol, expiry_rule, expiry_date, instruments, providers, metrics) if _sync else {}
         if return_meta:
             meta = {
                 'mode': 'sync-direct',
@@ -204,7 +204,7 @@ def enrich_quotes_async(
         per_future_timeout = (timeout_ms / 1000.0) if timeout_ms else None
         for fut in as_completed(futures, timeout=(timeout_ms/1000.0) if timeout_ms else None):
             try:
-                part = fut.result(timeout=per_future_timeout)
+                part: Dict[str, Any] = fut.result(timeout=per_future_timeout)
                 if part:
                     for sym, row in part.items():
                         if sym not in merged:
