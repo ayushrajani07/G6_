@@ -17,72 +17,118 @@ Exit codes:
 """
 from __future__ import annotations
 
-import argparse, json, sys, datetime
+import argparse
+import datetime
+import json
+import sys
 from pathlib import Path
-from typing import Dict, Any, Tuple
+from typing import Any, NotRequired, TypedDict
 
-def load_manifest(path: Path) -> Dict[str, Any]:
+
+class ManifestFileRec(TypedDict):
+  file: str
+  title: NotRequired[str]
+  uid: NotRequired[str]
+  sha256: NotRequired[str]
+
+
+class Manifest(TypedDict):
+  files: list[ManifestFileRec]
+
+
+class _ChangedEntryReq(TypedDict):
+  file: str
+
+
+class ChangedEntry(_ChangedEntryReq, total=False):
+  title_change: tuple[Any, Any]
+  uid_change: tuple[Any, Any]
+  sha256_changed: bool
+
+
+class DiffResult(TypedDict):
+  added: list[ManifestFileRec]
+  removed: list[ManifestFileRec]
+  changed: list[ChangedEntry]
+
+
+def load_manifest(path: Path) -> Manifest:
   try:
-    return json.loads(path.read_text(encoding='utf-8'))
-  except Exception as e:
-    raise SystemExit(f"Failed reading manifest {path}: {e}")
+    data = json.loads(path.read_text(encoding='utf-8'))
+  except Exception as e:  # noqa: BLE001 - broad to surface file+json errors uniformly
+    raise SystemExit(f"Failed reading manifest {path}: {e}") from e
+  files_any = data.get('files', [])
+  files: list[ManifestFileRec] = []
+  if isinstance(files_any, list):
+    for rec in files_any:
+      if isinstance(rec, dict):
+        f = rec.get('file')
+        if isinstance(f, str) and f:
+          mf: ManifestFileRec = {'file': f}
+          t = rec.get('title')
+          if isinstance(t, str):
+            mf['title'] = t
+          u = rec.get('uid')
+          if isinstance(u, str):
+            mf['uid'] = u
+          s = rec.get('sha256')
+          if isinstance(s, str):
+            mf['sha256'] = s
+          files.append(mf)
+  return {'files': files}
 
-def index_files(manifest: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
-  out: Dict[str, Dict[str, Any]] = {}
-  for rec in manifest.get('files', []):
-    out[rec.get('file')] = rec
+def index_files(manifest: Manifest) -> dict[str, ManifestFileRec]:
+  out: dict[str, ManifestFileRec] = {}
+  for rec in manifest['files']:
+    out[rec['file']] = rec
   return out
 
-def compute_diff(prev: Dict[str, Any], curr: Dict[str, Any]) -> Dict[str, Any]:
+def compute_diff(prev: Manifest, curr: Manifest) -> DiffResult:
   pmap = index_files(prev)
   cmap = index_files(curr)
-  added = []
-  removed = []
-  changed = []
+  added: list[ManifestFileRec] = []
+  removed: list[ManifestFileRec] = []
+  changed: list[ChangedEntry] = []
   for f, rec in cmap.items():
     if f not in pmap:
       added.append(rec)
     else:
       prec = pmap[f]
-      chg = {}
-      if (prec.get('sha256') != rec.get('sha256')):
+      chg: ChangedEntry = {'file': f}
+      if prec.get('sha256') != rec.get('sha256'):
         chg['sha256_changed'] = True
       if prec.get('title') != rec.get('title'):
         chg['title_change'] = (prec.get('title'), rec.get('title'))
       if prec.get('uid') != rec.get('uid'):
         chg['uid_change'] = (prec.get('uid'), rec.get('uid'))
-      if chg:
-        entry = {'file': f, **chg}
-        changed.append(entry)
-  for f in pmap:
-    if f not in cmap:
-      removed.append(pmap[f])
+      # keep only if any change aside from 'file'
+      if any(k in chg for k in ('sha256_changed', 'title_change', 'uid_change')):
+        changed.append(chg)
+  removed.extend(pmap[f] for f in pmap if f not in cmap)
   return {'added': added, 'removed': removed, 'changed': changed}
 
-def render_changelog_section(version: str, diff: Dict[str, Any]) -> str:
-  ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
-  lines = [f"## {version} - {ts}"]
+def render_changelog_section(version: str, diff: DiffResult) -> str:
+  ts = datetime.datetime.now(datetime.UTC).isoformat()
+  lines: list[str] = [f"## {version} - {ts}"]
   if diff['added']:
     lines.append('Added:')
-    for rec in diff['added']:
-      lines.append(f"- {rec.get('file')} ({rec.get('title')})")
+    lines.extend(f"- {rec_add.get('file')} ({rec_add.get('title')})" for rec_add in diff['added'])
   if diff['removed']:
     lines.append('Removed:')
-    for rec in diff['removed']:
-      lines.append(f"- {rec.get('file')} ({rec.get('title')})")
+    lines.extend(f"- {rec_rem.get('file')} ({rec_rem.get('title')})" for rec_rem in diff['removed'])
   if diff['changed']:
     lines.append('Changed:')
-    for rec in diff['changed']:
-      parts = []
-      if rec.get('title_change'):
-        old, new = rec['title_change']
+    for ch in diff['changed']:
+      parts: list[str] = []
+      if 'title_change' in ch:
+        old, new = ch['title_change']
         parts.append(f'title "{old}" -> "{new}"')
-      if rec.get('uid_change'):
-        old, new = rec['uid_change']
+      if 'uid_change' in ch:
+        old, new = ch['uid_change']
         parts.append(f'uid {old} -> {new}')
-      if rec.get('sha256_changed'):
+      if ch.get('sha256_changed'):
         parts.append('content updated')
-      lines.append(f"- {rec['file']}: {', '.join(parts)}")
+      lines.append(f"- {ch['file']}: {', '.join(parts)}")
   lines.append('')
   lines.append('---')
   lines.append('')
@@ -92,7 +138,8 @@ def prepend_changelog(changelog: Path, section: str) -> None:
   existing = ''
   if changelog.exists():
     existing = changelog.read_text(encoding='utf-8')
-  changelog.write_text(section + ('' if existing.startswith('# Dashboard Changelog') else '') + existing, encoding='utf-8')
+  # Preserve original behavior: prepend section verbatim.
+  changelog.write_text(section + existing, encoding='utf-8')
 
 def parse_args() -> argparse.Namespace:
   ap = argparse.ArgumentParser(description='Dashboard manifest diff tool')
@@ -113,18 +160,21 @@ def main() -> int:  # pragma: no cover
     return 2
   prev_m = load_manifest(prev_path)
   curr_m = load_manifest(curr_path)
-  diff = compute_diff(prev_m, curr_m)
-  changed_count = len(diff['added']) + len(diff['removed']) + len(diff['changed'])
+  dr = compute_diff(prev_m, curr_m)
+  changed_count = len(dr['added']) + len(dr['removed']) + len(dr['changed'])
   if args.fail_if_no_change and changed_count == 0:
     print('No dashboard changes detected')
     return 3
   if args.changelog:
-    section = render_changelog_section(args.version, diff)
+    section = render_changelog_section(args.version, dr)
     prepend_changelog(Path(args.changelog), section)
   if args.json:
-    print(json.dumps({'version': args.version, 'changes': diff, 'total_changes': changed_count}, indent=2))
+    print(json.dumps({'version': args.version, 'changes': dr, 'total_changes': changed_count}, indent=2))
   else:
-    print(f"Dashboard changes: {changed_count} (added={len(diff['added'])} removed={len(diff['removed'])} changed={len(diff['changed'])})")
+    print(
+      "Dashboard changes: "
+      f"{changed_count} (added={len(dr['added'])} removed={len(dr['removed'])} changed={len(dr['changed'])})"
+    )
   return 0
 
 if __name__ == '__main__':  # pragma: no cover
