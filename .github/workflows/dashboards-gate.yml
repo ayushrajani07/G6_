@@ -35,5 +35,8 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Dashboards CI Gate
+        env:
+          # Set to '1' to fail the workflow when inventory differences are detected
+          G6_INV_DIFF_STRICT: '0'
         run: |
           python scripts/ci_dashboards_gate.py
