@@ -8,12 +8,12 @@ Behavior:
 - Skips non-expressions (empty, comment blocks starting with /*) and de-duplicates expressions.
 
 Exit codes:
-  0  -> OK (either lint passed or promtool not found and not required)
-  12 -> Lint failed or promtool required but not found
+    0  -> OK (either lint passed or promtool not found and not required)
+    12 -> Lint failed or promtool required but not found
 
 Options:
-  --require-promtool  Fail if promtool is not installed or not found in PATH
-  --dash-dir PATH     Override dashboards directory (default: grafana/dashboards/generated)
+    --require-promtool  Fail if promtool is not installed or not found in PATH
+    --dash-dir PATH     Override dashboards directory (default: grafana/dashboards/generated)
 """
 from __future__ import annotations
 
@@ -25,7 +25,6 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
-from typing import List, Set
 
 ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_DASH_DIR = ROOT / "grafana" / "dashboards" / "generated"
@@ -72,13 +71,17 @@ def _sanitize_templated_expr(expr: str) -> str:
     return s
 
 
-def collect_promql_exprs(dash_dir: Path, include_templated: bool = False, sanitize_templated: bool = False) -> List[str]:
-    exprs: List[str] = []
+def collect_promql_exprs(
+    dash_dir: Path,
+    include_templated: bool = False,
+    sanitize_templated: bool = False,
+) -> list[str]:
+    exprs: list[str] = []
     if not dash_dir.exists():
         return exprs
     for fp in sorted(dash_dir.glob("*.json")):
         try:
-            data = json.loads(fp.read_text())
+            data = json.loads(fp.read_text(encoding="utf-8", errors="ignore"))
         except Exception:
             continue
         for panel in data.get("panels", []) or []:
@@ -103,8 +106,8 @@ def collect_promql_exprs(dash_dir: Path, include_templated: bool = False, saniti
                     else:
                         exprs.append(raw)
     # De-duplicate while preserving order
-    seen: Set[str] = set()
-    out: List[str] = []
+    seen: set[str] = set()
+    out: list[str] = []
     for e in exprs:
         if e not in seen:
             seen.add(e)
@@ -112,9 +115,9 @@ def collect_promql_exprs(dash_dir: Path, include_templated: bool = False, saniti
     return out
 
 
-def write_temp_rules(exprs: List[str]) -> Path:
+def write_temp_rules(exprs: list[str]) -> Path:
     # Build a minimal recording rules YAML content
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append("groups:")
     lines.append("- name: g6_dashboard_exprs")
     lines.append("  interval: 5m")
@@ -125,8 +128,7 @@ def write_temp_rules(exprs: List[str]) -> Path:
         lines.append(f"  - record: {record}")
         # Use literal block style to avoid quoting issues
         lines.append("    expr: |-")
-        for line in e.splitlines():
-            lines.append(f"      {line}")
+        lines.extend([f"      {line}" for line in e.splitlines()])
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".yml", prefix="g6_dash_promql_")
     tmp.write("\n".join(lines).encode("utf-8"))
     tmp.flush()
@@ -141,13 +143,36 @@ def run_promtool_check(rules_file: Path, promtool: str) -> int:
     return proc.returncode
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="Lint Grafana dashboard PromQL with promtool")
-    ap.add_argument("--require-promtool", action="store_true", help="Fail if promtool is not found")
-    ap.add_argument("--dash-dir", type=str, default=str(DEFAULT_DASH_DIR), help="Dashboards dir (default: grafana/dashboards/generated)")
-    ap.add_argument("--promtool", type=str, help="Path to promtool executable (overrides PATH lookup)")
-    ap.add_argument("--include-templated", action="store_true", help="Include Grafana-templated expressions (may fail promtool parsing)")
-    ap.add_argument("--sanitize-templated", action="store_true", help="Include templated expressions after sanitizing variables to fixed placeholders")
+    ap.add_argument(
+        "--require-promtool",
+        action="store_true",
+        help="Fail if promtool is not found",
+    )
+    ap.add_argument(
+        "--dash-dir",
+        type=str,
+        default=str(DEFAULT_DASH_DIR),
+        help="Dashboards dir (default: grafana/dashboards/generated)",
+    )
+    ap.add_argument(
+        "--promtool",
+        type=str,
+        help="Path to promtool executable (overrides PATH lookup)",
+    )
+    ap.add_argument(
+        "--include-templated",
+        action="store_true",
+        help="Include Grafana-templated expressions (may fail promtool parsing)",
+    )
+    ap.add_argument(
+        "--sanitize-templated",
+        action="store_true",
+        help=(
+            "Include templated expressions after sanitizing variables to fixed placeholders"
+        ),
+    )
     args = ap.parse_args(argv)
 
     promtool_path = args.promtool or shutil.which("promtool")
@@ -161,7 +186,11 @@ def main(argv: List[str]) -> int:
             return 0
 
     dash_dir = Path(args.dash_dir)
-    exprs = collect_promql_exprs(dash_dir, include_templated=args.include_templated or args.sanitize_templated, sanitize_templated=args.sanitize_templated)
+    exprs = collect_promql_exprs(
+        dash_dir,
+        include_templated=args.include_templated or args.sanitize_templated,
+        sanitize_templated=args.sanitize_templated,
+    )
     if not exprs:
         print("No dashboard PromQL expressions found; nothing to lint")
         return 0
