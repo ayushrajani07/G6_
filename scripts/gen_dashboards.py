@@ -5,7 +5,8 @@ Current scope:
 - Option Chain Aggregated Metrics dashboard (if option_chain family exists)
 - Governance / Cardinality dashboard (hash & guard metrics)
 
-This intentionally keeps logic lightweight (no external deps beyond PyYAML if available; falls back to stdlib parsing error if missing).
+This intentionally keeps logic lightweight (no external deps beyond PyYAML if
+available; falls back to stdlib parsing error if missing).
 
 Future enhancements:
 - Auto layout panel grid packing
@@ -13,12 +14,16 @@ Future enhancements:
 - Merge with alert/rule catalog for linking runbooks
 """
 from __future__ import annotations
-import json, os, sys, textwrap
+
+import json
+import sys
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any, cast
 
 try:
     import yaml  # type: ignore
-except Exception as e:  # pragma: no cover
+except Exception:  # pragma: no cover
     print("ERROR: PyYAML required (pip install pyyaml)", file=sys.stderr)
     sys.exit(1)
 
@@ -28,20 +33,21 @@ OUT_DIR = ROOT / 'grafana' / 'dashboards'
 OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # Simple id generator
-def _id_gen(start=1):
+def _id_gen(start: int = 1) -> Iterator[int]:
     i = start
     while True:
         yield i
         i += 1
 
 
-def build_option_chain_dashboard(spec: dict) -> dict | None:
-    fam = spec.get('families', {}).get('option_chain')
+def build_option_chain_dashboard(spec: dict[str, Any]) -> dict[str, Any] | None:
+    fam = cast(dict[str, Any], (spec.get('families') or {})).get('option_chain')
     if not fam:
         return None
-    metrics = {m['name']: m for m in fam.get('metrics', [])}
+    # Metrics map (reserved for future; not currently used)
+    _metrics = {m['name']: m for m in (fam.get('metrics') or []) if isinstance(m, dict) and 'name' in m}
     g = _id_gen()
-    panels = []
+    panels: list[dict[str, Any]] = []
     # Stat singles
     for title, expr in [
         ("Total Open Interest", "sum(g6_option_open_interest)"),
@@ -54,7 +60,7 @@ def build_option_chain_dashboard(spec: dict) -> dict | None:
         })
     base_y = 3
     # Helper to pack rows of two wide timeseries/heatmap
-    def add(expr, title, kind, row, col, heat=False):
+    def add(expr: str, title: str, _kind: str, row: int, col: int, heat: bool = False) -> None:
         panels.append({
             "type": "heatmap" if heat else "timeseries",
             "title": title,
@@ -70,13 +76,48 @@ def build_option_chain_dashboard(spec: dict) -> dict | None:
     add("sum by (dte) (g6_option_volume_24h)", "Volume by DTE", 'vol_dte', 2, 1)
     add("sum by (mny) (g6_option_iv_mean) / count by (mny) (g6_option_iv_mean)", "Mean IV by Moneyness", 'iv_mny', 3, 0)
     add("sum by (dte) (g6_option_iv_mean) / count by (dte) (g6_option_iv_mean)", "Mean IV by DTE", 'iv_dte', 3, 1)
-    add("sum by (mny,dte) (g6_option_iv_mean) / clamp_min(sum by (mny,dte) (count_values(\"v\", g6_option_iv_mean)),1)", "Mean IV Heatmap", 'iv_heatmap', 4, 0, heat=True)
-    add("sum by (mny) (g6_option_spread_bps_mean) / count by (mny) (g6_option_spread_bps_mean)", "Mean Spread bps by Mny", 'spread_mny', 4, 1)
-    add("sum by (dte) (g6_option_spread_bps_mean) / count by (dte) (g6_option_spread_bps_mean)", "Mean Spread bps by DTE", 'spread_dte', 5, 0)
-    add("sum by (mny,dte) (g6_option_spread_bps_mean) / clamp_min(sum by (mny,dte) (count_values(\"v\", g6_option_spread_bps_mean)),1)", "Spread bps Heatmap", 'spread_heatmap', 5, 1, heat=True)
+    add(
+        "sum by (mny,dte) (g6_option_iv_mean) / clamp_min(sum by (mny,dte) (count_values(\"v\", g6_option_iv_mean)),1)",
+        "Mean IV Heatmap",
+        'iv_heatmap',
+        4,
+        0,
+        heat=True,
+    )
+    add(
+        "sum by (mny) (g6_option_spread_bps_mean) / count by (mny) (g6_option_spread_bps_mean)",
+        "Mean Spread bps by Mny",
+        'spread_mny',
+        4,
+        1,
+    )
+    add(
+        "sum by (dte) (g6_option_spread_bps_mean) / count by (dte) (g6_option_spread_bps_mean)",
+        "Mean Spread bps by DTE",
+        'spread_dte',
+        5,
+        0,
+    )
+    add(
+        (
+            "sum by (mny,dte) (g6_option_spread_bps_mean) / clamp_min("
+            "sum by (mny,dte) (count_values(\"v\", g6_option_spread_bps_mean)),1)"
+        ),
+        "Spread bps Heatmap",
+        'spread_heatmap',
+        5,
+        1,
+        heat=True,
+    )
     add("sum(rate(g6_option_contracts_new_total[5m]))", "New Listings Rate (5m)", 'new_contracts_rate', 6, 0)
-    add("sum by (dte) (rate(g6_option_contracts_new_total[5m]))", "New Listings Rate by DTE (5m)", 'new_contracts_dte_rate', 6, 1)
-    dash = {
+    add(
+        "sum by (dte) (rate(g6_option_contracts_new_total[5m]))",
+        "New Listings Rate by DTE (5m)",
+        'new_contracts_dte_rate',
+        6,
+        1,
+    )
+    dash: dict[str, Any] = {
         "uid": "g6-opt-chain-agg",
         "title": "G6 Option Chain Aggregated",
         "description": "Aggregated option chain bucket metrics (moneyness x DTE).",
@@ -90,15 +131,11 @@ def build_option_chain_dashboard(spec: dict) -> dict | None:
     return dash
 
 
-def build_governance_dashboard(spec: dict) -> dict:
+def build_governance_dashboard(spec: dict[str, Any]) -> dict[str, Any]:
     """Dashboard for governance, hash, duplicate, cardinality guard, emission failures."""
-    metrics_interest = [
-        'g6_metrics_spec_hash_info', 'g6_build_config_hash_info', 'g6_metric_duplicates_total',
-        'g6_cardinality_guard_offenders_total', 'g6_cardinality_guard_growth_percent',
-        'g6_emission_failures_total', 'g6_emission_failure_once_total'
-    ]
+    # metrics_interest reserved for future enrichment (kept for reference)
     g = _id_gen()
-    panels = []
+    panels: list[dict[str, Any]] = []
     y = 0
     # Small stats row
     for m in ['g6_cardinality_guard_offenders_total', 'g6_metric_duplicates_total', 'g6_emission_failure_once_total']:
@@ -135,10 +172,13 @@ def build_governance_dashboard(spec: dict) -> dict:
         "gridPos": {"h":8,"w":12,"x":0,"y":y},
         "targets": [{"expr": "sum(rate(g6_metric_duplicates_total[5m]))"}]
     })
-    dash = {
+    dash: dict[str, Any] = {
         "uid": "g6-governance",
         "title": "G6 Metrics Governance",
-        "description": "Governance & observability health: spec/build hashes, duplicates, cardinality growth, emission failures.",
+        "description": (
+            "Governance & observability health: spec/build hashes, duplicates, "
+            "cardinality growth, emission failures."
+        ),
         "tags": ["g6","governance"],
         "schemaVersion": 39,
         "version": 1,
@@ -149,17 +189,21 @@ def build_governance_dashboard(spec: dict) -> dict:
     return dash
 
 
-def main():
-    data = yaml.safe_load(SPEC.read_text())
-    wrote = []
+def main() -> None:
+    raw = yaml.safe_load(SPEC.read_text(encoding='utf-8'))
+    if not isinstance(raw, dict):
+        print("ERROR: spec is not a mapping", file=sys.stderr)
+        sys.exit(2)
+    data = cast(dict[str, Any], raw)
+    wrote: list[str] = []
     opt = build_option_chain_dashboard(data)
     if opt:
         path = OUT_DIR / 'g6_option_chain_agg.json'
-        path.write_text(json.dumps(opt, indent=2))
+        path.write_text(json.dumps(opt, indent=2), encoding='utf-8')
         wrote.append(path.name)
     gov = build_governance_dashboard(data)
     gp = OUT_DIR / 'g6_metrics_governance.json'
-    gp.write_text(json.dumps(gov, indent=2))
+    gp.write_text(json.dumps(gov, indent=2), encoding='utf-8')
     wrote.append(gp.name)
     print("Generated dashboards:", ", ".join(wrote))
 
