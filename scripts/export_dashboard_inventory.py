@@ -15,36 +15,49 @@ Exit codes:
  3 no dashboards found
 """
 from __future__ import annotations
-import argparse, json, sys, csv
+
+import argparse
+import csv
+import json
+import sys
+from collections.abc import Iterator
 from pathlib import Path
-from typing import List, Dict
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 DASH_DIR = ROOT / "grafana" / "dashboards" / "generated"
 
 FIELDS = ["slug", "title", "metric", "source", "panel_uuid"]
 
-def parse_args(argv: List[str]) -> argparse.Namespace:
+def parse_args(argv: list[str]) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Export dashboard panel inventory")
     p.add_argument("--dir", type=Path, default=DASH_DIR, help="Directory containing generated dashboards")
     p.add_argument("--out", type=Path, help="Output file (omit for stdout)")
     p.add_argument("--format", choices=["csv", "jsonl"], default="csv", help="Output format")
-    p.add_argument("--filter-source", type=str, help="Comma separated list of source values to include (others skipped)")
+    p.add_argument(
+        "--filter-source",
+        type=str,
+        help="Comma separated list of source values to include (others skipped)",
+    )
     return p.parse_args(argv)
 
-def iter_dashboards(path: Path):
+def iter_dashboards(path: Path) -> Iterator[dict[str, Any]]:
     for fp in sorted(path.glob("*.json")):
         if fp.name == "manifest.json":
             continue
         try:
-            data = json.loads(fp.read_text())
+            data = json.loads(fp.read_text(encoding="utf-8", errors="ignore"))
         except Exception:
             continue
         slug = fp.stem
         panels = data.get("panels", []) or []
         for p in panels:
+            if not isinstance(p, dict):
+                continue
             meta = p.get("g6_meta") or {}
-            row = {
+            if not isinstance(meta, dict):
+                meta = {}
+            row: dict[str, Any] = {
                 "slug": slug,
                 "title": p.get("title"),
                 "metric": meta.get("metric"),
@@ -53,7 +66,7 @@ def iter_dashboards(path: Path):
             }
             yield row
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     args = parse_args(argv)
     if not args.dir.exists():
         print(f"ERROR: dashboard directory missing: {args.dir}", file=sys.stderr)
@@ -62,7 +75,7 @@ def main(argv: List[str]) -> int:
     if not rows:
         print("ERROR: no panels found", file=sys.stderr)
         return 3
-    allowed_sources = None
+    allowed_sources: set[str] | None = None
     if args.filter_source:
         allowed_sources = {s.strip() for s in args.filter_source.split(',') if s.strip()}
         rows = [r for r in rows if r.get('source') in allowed_sources]
