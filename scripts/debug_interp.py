@@ -1,6 +1,7 @@
 import os
-from src.metrics import get_metrics
+
 from src.adaptive.alerts import record_interpolation_fraction
+from src.metrics import get_metrics
 
 os.environ['G6_INTERP_FRACTION_ALERT_THRESHOLD']='0.5'
 os.environ['G6_INTERP_FRACTION_ALERT_STREAK']='3'

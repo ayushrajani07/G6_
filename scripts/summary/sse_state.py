@@ -10,18 +10,18 @@ Design goals:
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Tuple, List
-import threading
 import copy
 import logging
+import threading
 import time
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 try:  # optional import for merge helper
     from src.web.dashboard.diff_merge import merge_panel_diff  # type: ignore
 except Exception:  # pragma: no cover
-    def merge_panel_diff(base: Dict[str, Any], delta: Dict[str, Any]) -> Dict[str, Any]:  # type: ignore
+    def merge_panel_diff(base: dict[str, Any], delta: dict[str, Any]) -> dict[str, Any]:  # type: ignore
         # Fallback simplistic recursive merge (no remove sentinel handling)
         out = dict(base or {})
         for k, v in (delta or {}).items():
@@ -43,27 +43,38 @@ class PanelStateStore:
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._status: Optional[Dict[str, Any]] = None
-        self._server_generation: Optional[int] = None  # generation from server events
+        self._status: dict[str, Any] | None = None
+        self._server_generation: int | None = None  # generation from server events
         self._ui_generation: int = 0  # local increment each successful apply
         self._need_full: bool = True
-        self._need_full_reasons: List[str] = []
-        self._counters: Dict[str, int] = {
+        self._need_full_reasons: list[str] = []
+        self._counters: dict[str, int] = {
             'panel_full': 0,
             'panel_diff_applied': 0,
             'panel_diff_dropped': 0,
         }
         # Severity & follow-up state (populated by plugin)
-        self._severity_counts: Dict[str, int] = {}
-        self._severity_state: Dict[str, Dict[str, Any]] = {}
-        self._followup_alerts: List[Dict[str, Any]] = []  # newest first
+        self._severity_counts: dict[str, int] = {}
+        self._severity_state: dict[str, dict[str, Any]] = {}
+        self._followup_alerts: list[dict[str, Any]] = []  # newest first
         # Heartbeat / timing
-        self._last_event_ts: Optional[float] = None
-        self._last_panel_full_ts: Optional[float] = None
-        self._last_panel_diff_ts: Optional[float] = None
+        self._last_event_ts: float | None = None
+        self._last_panel_full_ts: float | None = None
+        self._last_panel_diff_ts: float | None = None
 
     # -------------------- properties --------------------
-    def snapshot(self) -> Tuple[Optional[Dict[str, Any]], Optional[int], int, bool, Dict[str, int], Dict[str, int], Dict[str, Dict[str, Any]], List[Dict[str, Any]]]:
+    def snapshot(
+        self,
+    ) -> tuple[
+        dict[str, Any] | None,
+        int | None,
+        int,
+        bool,
+        dict[str, int],
+        dict[str, int],
+        dict[str, dict[str, Any]],
+        list[dict[str, Any]],
+    ]:
         """Return a copy of core state for safe external use.
 
         Returns:
@@ -84,7 +95,7 @@ class PanelStateStore:
             )
 
     # -------------------- mutation methods --------------------
-    def apply_panel_full(self, status_obj: Dict[str, Any], server_generation: Optional[int]) -> None:
+    def apply_panel_full(self, status_obj: dict[str, Any], server_generation: int | None) -> None:
         with self._lock:
             self._status = copy.deepcopy(status_obj) if isinstance(status_obj, dict) else {}
             self._server_generation = server_generation if isinstance(server_generation, int) else (
@@ -97,7 +108,7 @@ class PanelStateStore:
             self._last_event_ts = now
             self._last_panel_full_ts = now
 
-    def apply_panel_diff(self, diff_obj: Dict[str, Any], server_generation: Optional[int]) -> bool:
+    def apply_panel_diff(self, diff_obj: dict[str, Any], server_generation: int | None) -> bool:
         """Attempt to merge a diff; returns True if applied, False if dropped."""
         with self._lock:
             if self._status is None:
@@ -113,7 +124,7 @@ class PanelStateStore:
             # Determine merge strategy: if diff_obj looks like a panel event (panel/op keys)
             # delegate to merge_panel_diff; else perform a shallow recursive key merge treating
             # diff_obj as a root-level status patch (legacy summary diff semantics).
-            merged: Dict[str, Any]
+            merged: dict[str, Any]
             if isinstance(diff_obj, dict) and {'panel','op','data'} <= set(diff_obj.keys()):
                 try:
                     merged = merge_panel_diff(self._status, diff_obj)
@@ -123,7 +134,7 @@ class PanelStateStore:
                     return False
             else:
                 # Fallback root-level recursive merge mirroring earlier inline logic:
-                def _recur(base: Dict[str, Any], delta: Dict[str, Any]) -> Dict[str, Any]:
+                def _recur(base: dict[str, Any], delta: dict[str, Any]) -> dict[str, Any]:
                     out = dict(base)
                     for k, v in delta.items():
                         if v is None:
@@ -155,7 +166,14 @@ class PanelStateStore:
             self._need_full = True
 
     # -------------------- external request full --------------------
-    def request_full(self, reason: str | None = None, *, append: bool = True, dedupe: bool = True, limit: int = 10) -> None:
+    def request_full(
+        self,
+        reason: str | None = None,
+        *,
+        append: bool = True,
+        dedupe: bool = True,
+        limit: int = 10,
+    ) -> None:
         """Public API to signal that a baseline full snapshot is required.
 
         Args:
@@ -176,19 +194,19 @@ class PanelStateStore:
                     if len(self._need_full_reasons) > limit:
                         self._need_full_reasons = self._need_full_reasons[-limit:]
 
-    def pop_need_full_reasons(self) -> List[str]:
+    def pop_need_full_reasons(self) -> list[str]:
         """Return current reasons list (copy) without clearing (UI may clear separately)."""
         with self._lock:
             return list(self._need_full_reasons)
 
     # -------------------- severity / followups --------------------
-    def update_severity_counts(self, counts: Dict[str, Any]) -> None:
+    def update_severity_counts(self, counts: dict[str, Any]) -> None:
         with self._lock:
             try:
                 self._severity_counts = {k: int(counts.get(k, 0)) for k in ('info','warn','critical')}
             except Exception:
                 # fallback: retain only numeric keys cast to int
-                tmp: Dict[str, int] = {}
+                tmp: dict[str, int] = {}
                 for k, v in counts.items():
                     if isinstance(v, (int, float)):
                         tmp[k] = int(v)
@@ -196,22 +214,26 @@ class PanelStateStore:
             self._ui_generation += 1
             self._last_event_ts = time.time()
 
-    def update_severity_state(self, alert_type: str, payload: Dict[str, Any]) -> None:
+    def update_severity_state(self, alert_type: str, payload: dict[str, Any]) -> None:
         with self._lock:
-            state_entry: Dict[str, Any] = {
+            state_entry: dict[str, Any] = {
                 'active': payload.get('active'),
                 'previous_active': payload.get('previous_active'),
                 'last_change_cycle': payload.get('last_change_cycle'),
                 'resolved': payload.get('resolved'),
                 'resolved_count': payload.get('resolved_count'),
                 'reasons': list(payload.get('reasons') or []),
-                'alert': copy.deepcopy(payload.get('alert')) if isinstance(payload.get('alert'), dict) else payload.get('alert'),
+                'alert': (
+                    copy.deepcopy(payload.get('alert'))
+                    if isinstance(payload.get('alert'), dict)
+                    else payload.get('alert')
+                ),
             }
             self._severity_state[alert_type] = state_entry
             self._ui_generation += 1
             self._last_event_ts = time.time()
 
-    def add_followup_alert(self, entry: Dict[str, Any], maxlen: int = 50) -> None:
+    def add_followup_alert(self, entry: dict[str, Any], maxlen: int = 50) -> None:
         with self._lock:
             self._followup_alerts.insert(0, entry)
             if len(self._followup_alerts) > maxlen:
@@ -220,7 +242,7 @@ class PanelStateStore:
             self._last_event_ts = time.time()
 
     # -------------------- heartbeat helpers --------------------
-    def heartbeat(self, warn_after: float = 10.0, stale_after: float = 30.0) -> Dict[str, Any]:
+    def heartbeat(self, warn_after: float = 10.0, stale_after: float = 30.0) -> dict[str, Any]:
         """Return heartbeat / freshness metadata.
 
         Args:
@@ -230,7 +252,7 @@ class PanelStateStore:
         with self._lock:
             now = time.time()
             last_evt = self._last_event_ts
-            stale_seconds: Optional[float]
+            stale_seconds: float | None
             if last_evt is None:
                 stale_seconds = None
                 health = 'init'

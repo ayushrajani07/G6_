@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional, Protocol
+from typing import Protocol
 
 
 class TokenProvider(Protocol):  # pragma: no cover - interface
@@ -18,6 +18,6 @@ class TokenProvider(Protocol):  # pragma: no cover - interface
         api_secret: str,
         headless: bool = False,
         interactive: bool = True,
-    ) -> Optional[str]:  # noqa: D401
+    ) -> str | None:  # noqa: D401
         """Attempt to obtain a new token. Return token or None."""
         raise NotImplementedError

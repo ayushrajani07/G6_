@@ -23,9 +23,18 @@ Notes:
   - Spec parsing is shallow (only names); regenerate code first for consistency.
 """
 from __future__ import annotations
-import argparse, os, sys, re, urllib.request, urllib.error, yaml, io
-from typing import Set, Optional
+
+import argparse  # type: ignore[import-untyped]
 import hashlib
+import os
+import re
+import sys
+import urllib.error
+import urllib.request
+from re import Match
+from typing import Any
+
+import yaml
 
 INTERNAL_PREFIXES = (
     'python_gc_', 'process_', 'python_info', 'promhttp_', 'node_', '__', 'platform_',
@@ -34,17 +43,17 @@ INTERNAL_PREFIXES = (
 METRIC_NAME_RE = re.compile(r'^(?P<name>[a-zA-Z_:][a-zA-Z0-9_:]*)({.*})?\s')
 
 
-def load_spec(path: str):
-    with open(path, 'r', encoding='utf-8') as f:
-        spec = yaml.safe_load(f)
-    return spec
+def load_spec(path: str) -> dict[str, Any]:
+    with open(path, encoding='utf-8') as f:
+        spec: Any = yaml.safe_load(f)
+    return spec if isinstance(spec, dict) else {}
 
 
-def load_spec_names(path: str) -> Set[str]:
-    with open(path, 'r', encoding='utf-8') as f:
+def load_spec_names(path: str) -> set[str]:
+    with open(path, encoding='utf-8') as f:
         spec = yaml.safe_load(f)
     families = spec.get('families', {}) if isinstance(spec, dict) else {}
-    names: Set[str] = set()
+    names: set[str] = set()
     for fam in families.values():
         if not isinstance(fam, dict):
             continue
@@ -57,11 +66,13 @@ def load_spec_names(path: str) -> Set[str]:
 def fetch_metrics(endpoint: str) -> str:
     req = urllib.request.Request(endpoint, headers={'Accept': 'text/plain'})
     with urllib.request.urlopen(req, timeout=5) as resp:  # nosec - internal trusted
-        return resp.read().decode('utf-8', 'replace')
+        body_bytes = resp.read()
+    body_text: str = body_bytes.decode('utf-8', 'replace')
+    return body_text
 
 
-def parse_metric_names(text: str, include_internals: bool) -> Set[str]:
-    out: Set[str] = set()
+def parse_metric_names(text: str, include_internals: bool) -> set[str]:
+    out: set[str] = set()
     for line in text.splitlines():
         if not line or line.startswith('#'):
             continue
@@ -78,7 +89,7 @@ def parse_metric_names(text: str, include_internals: bool) -> Set[str]:
     return out
 
 
-def main():
+def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument('--endpoint', help='Metrics endpoint URL (default env G6_METRICS_ENDPOINT or http://localhost:9108/metrics)')
     ap.add_argument('--spec', default='metrics/spec/base.yml')
@@ -113,10 +124,12 @@ def main():
         print(f'Spec metrics: {len(spec_names)} Runtime metrics: {len(runtime_names)}')
     if missing:
         print('[drift] Missing metrics (in spec, not in runtime):')
-        for m in missing: print('  -', m)
+        for name in missing:
+            print('  -', name)
     if extra and strict:
         print('[drift] Extra runtime metrics (not declared in spec):')
-        for m in extra: print('  +', m)
+        for name in extra:
+            print('  +', name)
 
     hash_mismatch = False
     if args.check_hash:
@@ -125,11 +138,11 @@ def main():
             raw_local = open(args.spec, 'rb').read()
             local_hash = hashlib.sha256(raw_local).hexdigest()[:16]
             # Extract runtime hash label from metric sample line like: g6_metrics_spec_hash_info{hash="abcd"} 1
-            runtime_hash = None
+            runtime_hash: str | None = None
             for line in raw.splitlines():
                 if line.startswith('g6_metrics_spec_hash_info{'):
-                    m = re.search(r'hash="([0-9a-f]+)"', line)
-                    if m:
+                    m: Match[str] | None = re.search(r'hash="([0-9a-f]+)"', line)
+                    if m is not None:
                         runtime_hash = m.group(1)
                         break
             if runtime_hash is None:

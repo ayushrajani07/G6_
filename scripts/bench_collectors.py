@@ -21,12 +21,17 @@ Future Enhancements:
   - Statistical stability check (variance)
 """
 from __future__ import annotations
-import argparse, json, time, os, statistics
-from typing import Dict, Any
+
+import argparse
+import json
+import statistics
+import time
+from typing import Any
+
+from src.collectors.modules.pipeline import run_pipeline  # type: ignore
 
 # Import legacy & pipeline facades
 from src.orchestrator.facade import run_collect_cycle  # type: ignore
-from src.collectors.modules.pipeline import run_pipeline  # type: ignore
 
 DEFAULT_INDEX_CFG = {
     'strikes_itm': 1,
@@ -50,7 +55,7 @@ class _DummyProviders:
         return chain
 
 
-def _build_index_params(specs: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+def _build_index_params(specs: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {k: {**DEFAULT_INDEX_CFG, **v} for k,v in specs.items()}
 
 
@@ -82,7 +87,7 @@ def main():  # noqa: D401
     ap.add_argument('--json', action='store_true', help='Force JSON (default)')
     args = ap.parse_args()
 
-    specs: Dict[str, Dict[str, Any]] = {}
+    specs: dict[str, dict[str, Any]] = {}
     for token in args.indices.split(','):
         if not token:
             continue

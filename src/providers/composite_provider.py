@@ -15,9 +15,8 @@ Events (best effort):
 """
 from __future__ import annotations
 
-from typing import List, Any, Tuple
 import logging
-import os
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +28,7 @@ except Exception:  # pragma: no cover
 
 
 class CompositeProvider:
-    def __init__(self, providers: List[Any], metrics: Any | None = None, name: str | None = None):
+    def __init__(self, providers: list[Any], metrics: Any | None = None, name: str | None = None):
         self.providers = [p for p in providers if p is not None]
         self.metrics = metrics
         self.name = name or "composite"

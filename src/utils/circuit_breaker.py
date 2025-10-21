@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Circuit breaker pattern implementation for G6 Platform.
 """
 
-import time
 import logging
 import threading
+import time
+from collections.abc import Callable
 from enum import Enum
-from typing import Callable, Any, Dict, Optional
 from functools import wraps
+from typing import Any
 
 logger = logging.getLogger(__name__)
 try:
     # Late import to avoid heavy deps and circulars in early boot
-    from src.error_handling import get_error_handler, ErrorCategory, ErrorSeverity  # type: ignore
+    from src.error_handling import ErrorCategory, ErrorSeverity, get_error_handler  # type: ignore
 except Exception:  # pragma: no cover - fallback when error system unavailable
     get_error_handler = None  # type: ignore
     ErrorCategory = None  # type: ignore
@@ -34,7 +34,7 @@ class CircuitBreaker:
     Prevents repeated calls to failing services and allows
     time for recovery.
     """
-    
+
     def __init__(
         self,
         name: str,
@@ -55,15 +55,15 @@ class CircuitBreaker:
         self.failure_threshold = failure_threshold
         self.reset_timeout = reset_timeout
         self.half_open_limit = half_open_limit
-        
+
         self.state = CircuitState.CLOSED
         self.failure_count = 0
         self.last_failure_time = 0
         self.half_open_calls = 0
-        
+
         self._lock = threading.RLock()
         self.logger = logging.getLogger(__name__)
-        
+
     def __call__(self, func):
         """
         Decorate a function with circuit breaker protection.
@@ -78,7 +78,7 @@ class CircuitBreaker:
         def wrapper(*args, **kwargs):
             return self.call(func, *args, **kwargs)
         return wrapper
-        
+
     def call(self, func: Callable, *args, **kwargs) -> Any:
         """
         Call a function with circuit breaker protection.
@@ -102,16 +102,16 @@ class CircuitBreaker:
                     self.half_open_calls = 0
                 else:
                     raise CircuitOpenError(f"Circuit {self.name} is open")
-                    
+
             if self.state == CircuitState.HALF_OPEN and self.half_open_calls >= self.half_open_limit:
                 raise CircuitOpenError(f"Circuit {self.name} is half-open and at call limit")
-                
+
             if self.state == CircuitState.HALF_OPEN:
                 self.half_open_calls += 1
-        
+
         try:
             result = func(*args, **kwargs)
-            
+
             # Call succeeded, close circuit if it was half-open
             with self._lock:
                 if self.state == CircuitState.HALF_OPEN:
@@ -122,13 +122,13 @@ class CircuitBreaker:
                 elif self.state == CircuitState.CLOSED and self.failure_count > 0:
                     # Reduce failure count on success in closed state
                     self.failure_count = max(0, self.failure_count - 1)
-                    
+
             return result
-            
+
         except Exception as e:
             with self._lock:
                 self.last_failure_time = time.time()
-                
+
                 if self.state == CircuitState.HALF_OPEN:
                     self.logger.warning(f"Circuit {self.name} reopening after failed half-open call: {e}")
                     try:
@@ -167,9 +167,9 @@ class CircuitBreaker:
                         except Exception:
                             pass
                         self.state = CircuitState.OPEN
-                        
+
             raise
-            
+
 
 class CircuitOpenError(Exception):
     """Exception raised when circuit is open."""
@@ -180,17 +180,17 @@ class CircuitOpenError(Exception):
 if __name__ == "__main__":
     # Configure logging
     logging.basicConfig(level=logging.INFO)
-    
+
     # Create a circuit breaker
     breaker = CircuitBreaker("example", failure_threshold=3, reset_timeout=5)
-    
+
     # Example function to protect
     @breaker
     def api_call(should_fail=False):
         if should_fail:
             raise ValueError("API call failed")
         return "API call succeeded"
-    
+
     # Test circuit breaker
     try:
         for i in range(5):
@@ -199,15 +199,15 @@ if __name__ == "__main__":
                 print(f"Call {i}: {result}")
             except Exception as e:
                 print(f"Call {i} failed: {e}")
-                
+
         print("Waiting for circuit to half-open...")
         time.sleep(6)
-        
+
         try:
             result = api_call(should_fail=False)
             print(f"After wait: {result}")
         except Exception as e:
             print(f"After wait failed: {e}")
-            
+
     except KeyboardInterrupt:
         pass

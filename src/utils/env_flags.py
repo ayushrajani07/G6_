@@ -11,11 +11,12 @@ Usage examples:
 Includes small convenience helpers for negative gating and cached lookups.
 """
 from __future__ import annotations
-import os
-from functools import lru_cache
-from typing import Iterable, Set
 
-TRUTHY_SET: Set[str] = {"1","true","yes","on"}
+import os
+from collections.abc import Iterable
+from functools import lru_cache
+
+TRUTHY_SET: set[str] = {"1","true","yes","on"}
 
 @lru_cache(maxsize=256)
 def _normalized(name: str) -> str:

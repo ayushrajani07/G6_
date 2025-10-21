@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Lightweight Memory Manager for per-cycle hygiene and emergency cleanup.
 
@@ -14,10 +13,11 @@ Non-invasive: safe no-ops if psutil unavailable or nothing registered.
 from __future__ import annotations
 
 import gc
-import time
 import logging
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable, Dict, Optional, List, Any
+from typing import Any
 
 try:
     import psutil
@@ -35,8 +35,8 @@ except Exception:  # pragma: no cover
 @dataclass
 class RegisteredCache:
     name: str
-    purge_fn: Optional[Callable[[], Any]] = None
-    size_fn: Optional[Callable[[], int]] = None
+    purge_fn: Callable[[], Any] | None = None
+    size_fn: Callable[[], int] | None = None
     # future: prune_fn with target size
 
 
@@ -49,11 +49,12 @@ class MemoryManager:
         self._last_gc_duration_ms: float | None = None
         self._gc_collections_total: int = 0
         self._peak_rss_mb: float | None = None
-        self._registered: Dict[str, RegisteredCache] = {}
+        self._registered: dict[str, RegisteredCache] = {}
         # cadence knobs
         import os
         try:
-            from src.collectors.env_adapter import get_float as _env_get_float, get_bool as _env_get_bool  # type: ignore
+            from src.collectors.env_adapter import get_bool as _env_get_bool
+            from src.collectors.env_adapter import get_float as _env_get_float  # type: ignore
         except Exception:  # pragma: no cover
             def _env_get_float(name: str, default: float) -> float:
                 try:
@@ -76,7 +77,7 @@ class MemoryManager:
         self._minor_gc_each_cycle = _env_get_bool('G6_MEMORY_MINOR_GC_EACH_CYCLE', True)
 
     # -------- Registration ---------
-    def register_cache(self, name: str, purge_fn: Optional[Callable[[], Any]] = None, size_fn: Optional[Callable[[], int]] = None) -> None:
+    def register_cache(self, name: str, purge_fn: Callable[[], Any] | None = None, size_fn: Callable[[], int] | None = None) -> None:
         """Register a cache/buffer with an optional purge callback and size getter."""
         self._registered[name] = RegisteredCache(name=name, purge_fn=purge_fn, size_fn=size_fn)
 
@@ -193,7 +194,7 @@ class MemoryManager:
         return attempted
 
     # -------- Introspection --------
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Return a dict of lightweight memory stats suitable for dashboards."""
         rss_mb = None
         if self._proc is not None:

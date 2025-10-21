@@ -2,18 +2,22 @@
 Reads runtime status JSON and tails log file.
 """
 from __future__ import annotations
-import json, time, threading, os, queue, re, pathlib, sys
+
+import json
+import os
+import re
+import threading
+import time
 from dataclasses import dataclass, field
-from typing import Optional, List, Dict, Any
+from typing import Any
 
 try:
     from rich.console import Console
-    from rich.table import Table
-    from rich.panel import Panel
     from rich.layout import Layout
     from rich.live import Live
+    from rich.panel import Panel
+    from rich.table import Table
     from rich.text import Text
-    from rich.rule import Rule
     RICH_AVAILABLE = True
 except Exception:  # pragma: no cover
     RICH_AVAILABLE = False
@@ -24,13 +28,13 @@ class TerminalConfig:
     log_file: str = "logs/g6_platform.log"
     refresh_hz: int = 4
     log_tail_lines: int = 200
-    patterns: List[Dict[str,str]] = field(default_factory=list)
+    patterns: list[dict[str,str]] = field(default_factory=list)
 
 
 def load_terminal_config(path: str = "config/g6_terminal.json") -> TerminalConfig:
     cfg = TerminalConfig()
     try:
-        with open(path,'r',encoding='utf-8') as f:
+        with open(path,encoding='utf-8') as f:
             raw = json.load(f)
         cfg.refresh_hz = int(raw.get('refresh_hz', cfg.refresh_hz))
         cfg.log_tail_lines = int(raw.get('log_tail_lines', cfg.log_tail_lines))
@@ -47,8 +51,8 @@ class TerminalUI:
         self.console = Console() if RICH_AVAILABLE else None
         self._stop = threading.Event()
         self._log_pos = 0
-        self.log_entries: List[str] = []
-        self.status_snapshot: Dict[str, Any] = {}
+        self.log_entries: list[str] = []
+        self.status_snapshot: dict[str, Any] = {}
         self.pattern_compiled = []
         for p in self.cfg.patterns:
             try:
@@ -64,7 +68,7 @@ class TerminalUI:
         if not path or not os.path.exists(path):
             return
         try:
-            with open(path,'r',encoding='utf-8') as f:
+            with open(path,encoding='utf-8') as f:
                 self.status_snapshot = json.load(f)
         except Exception:
             pass
@@ -72,7 +76,7 @@ class TerminalUI:
     def _tail_log(self):
         lf = self.cfg.log_file
         try:
-            with open(lf,'r',encoding='utf-8',errors='ignore') as f:
+            with open(lf,encoding='utf-8',errors='ignore') as f:
                 f.seek(self._log_pos)
                 new = f.readlines()
                 self._log_pos = f.tell()

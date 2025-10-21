@@ -35,7 +35,6 @@ import argparse
 import os
 import subprocess
 import sys
-from typing import Optional
 
 # ---------------- Helpers ---------------- #
 
@@ -214,7 +213,7 @@ def main(argv: list[str]) -> int:
         print(f"Auto-commit attempt with message: {args.message}")
         auto_commit(args.message)
 
-    option: Optional[int] = args.option
+    option: int | None = args.option
     if option is None:
         print_menu()
         raw = input("Select option (default 1): ").strip()

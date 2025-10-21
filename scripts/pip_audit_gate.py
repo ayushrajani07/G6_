@@ -13,8 +13,13 @@ Test Strategy:
   Provide a captured pip-audit JSON via --input for offline test (skips invoking pip-audit).
 """
 from __future__ import annotations
-import argparse, json, os, subprocess, sys
-from typing import List, Dict, Any
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+from typing import Any
 
 _SEV_ORDER = ['LOW','MEDIUM','HIGH','CRITICAL']
 
@@ -22,13 +27,17 @@ def _severity_rank(s: str) -> int:
     s = (s or '').upper()
     return _SEV_ORDER.index(s) if s in _SEV_ORDER else -1
 
-def run_pip_audit_json() -> Dict[str, Any] | None:
+def run_pip_audit_json() -> list[dict[str, Any]] | None:
     try:
         proc = subprocess.run(['pip-audit','-f','json'], capture_output=True, text=True, check=False)
         if proc.returncode not in (0,1):  # pip-audit returns 1 when vulns found
             print(f"pip-audit unexpected rc={proc.returncode}", file=sys.stderr)
         txt = proc.stdout.strip() or '[]'
-        return json.loads(txt)
+        data = json.loads(txt)
+        # pip-audit returns a list of packages with 'vulns' field
+        if isinstance(data, list):
+            return data
+        return []
     except FileNotFoundError:
         print("pip-audit not installed; skipping gate (treat as pass)")
         return None
@@ -36,7 +45,7 @@ def run_pip_audit_json() -> Dict[str, Any] | None:
         print(f"pip-audit execution failed: {e}", file=sys.stderr)
         return None
 
-def main(argv=None) -> int:
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser()
     p.add_argument('--input', help='Existing pip-audit JSON (bypass subprocess)')
     p.add_argument('--max-severity', help='Override max severity (else env)')
@@ -51,7 +60,7 @@ def main(argv=None) -> int:
 
     if args.input:
         try:
-            data = json.loads(open(args.input,'r',encoding='utf-8').read())
+            data = json.loads(open(args.input,encoding='utf-8').read())
         except Exception as e:
             print(f"Failed to read input file: {e}", file=sys.stderr)
             return 2
@@ -60,7 +69,7 @@ def main(argv=None) -> int:
         if data is None:
             return 0
 
-    advisories = []
+    advisories: list[dict[str, Any]] = []
     # pip-audit JSON can be list of packages each with vulns
     if isinstance(data, list):
         for pkg in data:

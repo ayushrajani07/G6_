@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Resilience utilities for G6 Platform.
 """
 
-import time
-import random
-import logging
 import functools
-from typing import Callable, Any, Optional, List, Dict, Union, Tuple, Type
+import logging
+import random
+import time
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +16,7 @@ def retry(
     delay: float = 1.0,
     backoff_factor: float = 2.0,
     jitter: bool = True,
-    exceptions: Union[Tuple[Type[BaseException], ...], Type[BaseException]] = (Exception,)
+    exceptions: tuple[type[BaseException], ...] | type[BaseException] = (Exception,)
 ):
     """
     Retry decorator for handling transient errors.
@@ -37,42 +36,42 @@ def retry(
         def wrapper(*args, **kwargs):
             last_exception = None
             current_delay = delay
-            
+
             for attempt in range(max_attempts):
                 try:
                     return func(*args, **kwargs)
                 except exceptions as e:  # type: ignore[misc]
                     last_exception = e
-                    
+
                     if attempt < max_attempts - 1:
                         # Calculate delay with optional jitter
                         if jitter:
                             sleep_time = current_delay * (0.5 + random.random())
                         else:
                             sleep_time = current_delay
-                            
+
                         logger.warning(
                             f"Retry {attempt+1}/{max_attempts} for {func.__name__} "
                             f"in {sleep_time:.2f}s: {str(e)}"
                         )
-                        
+
                         time.sleep(sleep_time)
                         current_delay *= backoff_factor
                     else:
                         logger.error(
                             f"Failed after {max_attempts} attempts for {func.__name__}: {str(e)}"
                         )
-            
+
             # Re-raise the last exception after all retries failed
             if last_exception:
                 raise last_exception
             raise RuntimeError("retry: exhausted attempts but no exception captured")
-            
+
         return wrapper
     return decorator
 
 
-def fallback(default_value: Any, exceptions: Union[Tuple[Type[BaseException], ...], Type[BaseException]] = (Exception,)):
+def fallback(default_value: Any, exceptions: tuple[type[BaseException], ...] | type[BaseException] = (Exception,)):
     """
     Fallback decorator to provide default values on failure.
     
@@ -90,13 +89,13 @@ def fallback(default_value: Any, exceptions: Union[Tuple[Type[BaseException], ..
                 return func(*args, **kwargs)
             except exceptions as e:  # type: ignore[misc]
                 logger.warning(f"Fallback triggered for {func.__name__}: {str(e)}")
-                
+
                 # If default_value is callable, call it with the exception
                 if callable(default_value):
                     return default_value(e)
-                    
+
                 return default_value
-                
+
         return wrapper
     return decorator
 
@@ -117,11 +116,11 @@ def timeout(seconds: float):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             import threading
-            
+
             result = None
             exception = None
             finished = False
-            
+
             def target():
                 nonlocal result, exception, finished
                 try:
@@ -130,26 +129,26 @@ def timeout(seconds: float):
                     exception = e
                 finally:
                     finished = True
-                    
+
             timer = threading.Timer(seconds, lambda: None)
             thread = threading.Thread(target=target)
-            
+
             try:
                 timer.start()
                 thread.start()
                 thread.join(seconds + 0.1)  # Small buffer
-                
+
                 if not finished:
                     raise TimeoutError(f"Function {func.__name__} timed out after {seconds} seconds")
-                
+
                 if exception:
                     raise exception
-                    
+
                 return result
-                
+
             finally:
                 timer.cancel()
-                
+
         return wrapper
     return decorator
 
@@ -179,29 +178,29 @@ class HealthCheck:
         """
         args = args or []
         kwargs = kwargs or {}
-        
+
         try:
             if not hasattr(provider, method_name):
                 return {
                     'status': 'unhealthy',
                     'message': f"Provider missing method {method_name}"
                 }
-                
+
             method = getattr(provider, method_name)
-            
+
             # Apply timeout to the call
             @timeout(timeout_seconds)
             def call_method():
                 return method(*args, **kwargs)
-                
+
             result = call_method()
-            
+
             return {
                 'status': 'healthy',
                 'message': 'Provider responsive',
                 'data': {'result': result}
             }
-            
+
         except TimeoutError:
             return {
                 'status': 'unhealthy',
@@ -212,7 +211,7 @@ class HealthCheck:
                 'status': 'unhealthy',
                 'message': f"Provider health check failed: {str(e)}"
             }
-    
+
     @staticmethod
     def check_storage(storage, method_name='check_health', timeout_seconds=5):
         """
@@ -232,7 +231,7 @@ class HealthCheck:
                 @timeout(timeout_seconds)
                 def call_method():
                     return getattr(storage, method_name)()
-                    
+
                 result = call_method()
                 if isinstance(result, dict):
                     return result
@@ -240,25 +239,25 @@ class HealthCheck:
                     'status': 'healthy' if result else 'unhealthy',
                     'message': 'Storage check succeeded' if result else 'Storage check failed'
                 }
-            
+
             # Try basic read/write operation
             test_data = {'test': 'data', 'timestamp': time.time()}
-            
+
             if hasattr(storage, 'write') and hasattr(storage, 'read'):
                 storage.write('healthcheck', test_data)
                 read_data = storage.read('healthcheck')
-                
+
                 if read_data and 'test' in read_data and read_data['test'] == 'data':
                     return {
                         'status': 'healthy',
                         'message': 'Storage read/write succeeded'
                     }
-            
+
             return {
                 'status': 'unknown',
                 'message': 'No suitable health check method found for storage'
             }
-            
+
         except TimeoutError:
             return {
                 'status': 'unhealthy',

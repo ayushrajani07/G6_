@@ -1,302 +1,310 @@
 [
   {
-    "index": "FINNIFTY",
-    "status": "ok",
-    "dq_score": 91.16,
-    "time": null
-  },
-  {
-    "index": "SENSEX",
-    "status": "ok",
-    "dq_score": 90.87,
+    "index": "BANKNIFTY",
+    "status": "OK",
+    "dq_score": 88.1,
     "time": null
   },
   {
     "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 97.5,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "OK",
+    "dq_score": 88.1,
+    "time": null
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 97.5,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "OK",
+    "dq_score": 88.1,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "OK",
+    "dq_score": 88,
+    "time": "2025-10-05T10:00:05Z",
+    "time_hms": "15:30:05"
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "OK",
+    "dq_score": 88,
+    "time": "2025-10-05T10:00:05Z",
+    "time_hms": "15:30:05"
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 90,
+    "time": "2025-10-05T10:00:00Z",
+    "time_hms": "15:30:00"
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 90,
+    "time": "2025-10-05T10:00:00Z",
+    "time_hms": "15:30:00"
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 90,
+    "time": "2025-10-05T10:01:00Z",
+    "time_hms": "15:31:00"
+  },
+  {
+    "index": "NIFTY",
     "status": "ok",
-    "dq_score": 91.46,
+    "dq_score": 94.47,
     "time": null
   },
   {
     "index": "BANKNIFTY",
     "status": "ok",
-    "dq_score": 90.51,
+    "dq_score": 93.53,
     "time": null
   },
   {
     "index": "FINNIFTY",
     "status": "ok",
-    "dq_score": 87.93,
+    "dq_score": 94.19,
     "time": null
   },
   {
     "index": "SENSEX",
     "status": "ok",
-    "dq_score": 91.34,
+    "dq_score": 93.06,
+    "time": null
+  },
+  {
+    "index": "IDX0",
+    "status": "OK",
+    "dq_score": 90,
+    "time": null
+  },
+  {
+    "index": "IDX1",
+    "status": "OK",
+    "dq_score": 91,
+    "time": null
+  },
+  {
+    "index": "IDX0",
+    "status": "OK",
+    "dq_score": 95,
+    "time": null
+  },
+  {
+    "index": "IDX1",
+    "status": "OK",
+    "dq_score": 96,
+    "time": null
+  },
+  {
+    "index": "IDX0",
+    "status": "OK",
+    "dq_score": 95,
+    "time": null
+  },
+  {
+    "index": "IDX1",
+    "status": "OK",
+    "dq_score": 96,
+    "time": null
+  },
+  {
+    "index": "IDX0",
+    "status": "OK",
+    "dq_score": 95,
+    "time": null
+  },
+  {
+    "index": "IDX1",
+    "status": "OK",
+    "dq_score": 96,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "OK",
+    "dq_score": 88,
+    "time": "2025-10-05T10:00:05Z",
+    "time_hms": "15:30:05"
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 97.5,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "OK",
+    "dq_score": 88.1,
+    "time": null
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 97.5,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "OK",
+    "dq_score": 88.1,
+    "time": null
+  },
+  {
+    "index": "NIFTY",
+    "status": "OK",
+    "dq_score": 95,
     "time": null
   },
   {
     "index": "NIFTY",
     "status": "ok",
-    "dq_score": 87.84,
+    "dq_score": 94.47,
     "time": null
   },
   {
     "index": "BANKNIFTY",
     "status": "ok",
-    "dq_score": 89.72,
+    "dq_score": 93.53,
     "time": null
   },
   {
     "index": "FINNIFTY",
     "status": "ok",
-    "dq_score": 87.69,
+    "dq_score": 94.19,
     "time": null
   },
   {
     "index": "SENSEX",
     "status": "ok",
-    "dq_score": 89.91,
+    "dq_score": 93.06,
+    "time": null
+  },
+  {
+    "index": "IDX0",
+    "status": "OK",
+    "dq_score": 90,
+    "time": null
+  },
+  {
+    "index": "IDX1",
+    "status": "OK",
+    "dq_score": 91,
+    "time": null
+  },
+  {
+    "index": "IDX0",
+    "status": "OK",
+    "dq_score": 90,
+    "time": null
+  },
+  {
+    "index": "IDX1",
+    "status": "OK",
+    "dq_score": 91,
+    "time": null
+  },
+  {
+    "index": "IDX0",
+    "status": "OK",
+    "dq_score": 90,
+    "time": null
+  },
+  {
+    "index": "IDX1",
+    "status": "OK",
+    "dq_score": 91,
+    "time": null
+  },
+  {
+    "index": "IDX0",
+    "status": "OK",
+    "dq_score": 95,
+    "time": null
+  },
+  {
+    "index": "IDX1",
+    "status": "OK",
+    "dq_score": 96,
+    "time": null
+  },
+  {
+    "index": "FINNIFTY",
+    "status": "OK",
+    "dq_score": 77,
+    "time": "2025-10-05T10:00:00Z",
+    "time_hms": "15:30:00"
+  },
+  {
+    "index": "FINNIFTY",
+    "status": "OK",
+    "dq_score": 77,
+    "time": "2025-10-05T10:00:00Z",
+    "time_hms": "15:30:00"
+  },
+  {
+    "index": "NIFTY",
+    "status": "ok",
+    "dq_score": 94.47,
+    "time": null
+  },
+  {
+    "index": "BANKNIFTY",
+    "status": "ok",
+    "dq_score": 93.53,
+    "time": null
+  },
+  {
+    "index": "FINNIFTY",
+    "status": "ok",
+    "dq_score": 94.19,
+    "time": null
+  },
+  {
+    "index": "SENSEX",
+    "status": "ok",
+    "dq_score": 93.06,
     "time": null
   },
   {
     "index": "NIFTY",
     "status": "ok",
-    "dq_score": 87.71,
+    "dq_score": 94.47,
     "time": null
   },
   {
     "index": "BANKNIFTY",
     "status": "ok",
-    "dq_score": 88.64,
+    "dq_score": 93.53,
     "time": null
   },
   {
     "index": "FINNIFTY",
     "status": "ok",
-    "dq_score": 87.93,
+    "dq_score": 94.19,
     "time": null
   },
   {
     "index": "SENSEX",
     "status": "ok",
-    "dq_score": 88.37,
-    "time": null
-  },
-  {
-    "index": "NIFTY",
-    "status": "ok",
-    "dq_score": 86.78,
-    "time": null
-  },
-  {
-    "index": "BANKNIFTY",
-    "status": "ok",
-    "dq_score": 87.42,
-    "time": null
-  },
-  {
-    "index": "FINNIFTY",
-    "status": "ok",
-    "dq_score": 87.1,
-    "time": null
-  },
-  {
-    "index": "SENSEX",
-    "status": "ok",
-    "dq_score": 90.71,
-    "time": null
-  },
-  {
-    "index": "NIFTY",
-    "status": "ok",
-    "dq_score": 87.43,
-    "time": null
-  },
-  {
-    "index": "BANKNIFTY",
-    "status": "ok",
-    "dq_score": 85.98,
-    "time": null
-  },
-  {
-    "index": "FINNIFTY",
-    "status": "ok",
-    "dq_score": 83.53,
-    "time": null
-  },
-  {
-    "index": "SENSEX",
-    "status": "ok",
-    "dq_score": 88.37,
-    "time": null
-  },
-  {
-    "index": "NIFTY",
-    "status": "ok",
-    "dq_score": 83.76,
-    "time": null
-  },
-  {
-    "index": "BANKNIFTY",
-    "status": "ok",
-    "dq_score": 86.22,
-    "time": null
-  },
-  {
-    "index": "FINNIFTY",
-    "status": "ok",
-    "dq_score": 83.84,
-    "time": null
-  },
-  {
-    "index": "SENSEX",
-    "status": "ok",
-    "dq_score": 87.14,
-    "time": null
-  },
-  {
-    "index": "NIFTY",
-    "status": "ok",
-    "dq_score": 85.75,
-    "time": null
-  },
-  {
-    "index": "BANKNIFTY",
-    "status": "ok",
-    "dq_score": 83.84,
-    "time": null
-  },
-  {
-    "index": "FINNIFTY",
-    "status": "ok",
-    "dq_score": 82.8,
-    "time": null
-  },
-  {
-    "index": "SENSEX",
-    "status": "ok",
-    "dq_score": 84.47,
-    "time": null
-  },
-  {
-    "index": "NIFTY",
-    "status": "ok",
-    "dq_score": 83.79,
-    "time": null
-  },
-  {
-    "index": "BANKNIFTY",
-    "status": "ok",
-    "dq_score": 82.31,
-    "time": null
-  },
-  {
-    "index": "FINNIFTY",
-    "status": "ok",
-    "dq_score": 81.95,
-    "time": null
-  },
-  {
-    "index": "SENSEX",
-    "status": "ok",
-    "dq_score": 86.24,
-    "time": null
-  },
-  {
-    "index": "NIFTY",
-    "status": "ok",
-    "dq_score": 83.05,
-    "time": null
-  },
-  {
-    "index": "BANKNIFTY",
-    "status": "ok",
-    "dq_score": 83.83,
-    "time": null
-  },
-  {
-    "index": "FINNIFTY",
-    "status": "ok",
-    "dq_score": 82.36,
-    "time": null
-  },
-  {
-    "index": "SENSEX",
-    "status": "ok",
-    "dq_score": 85.61,
-    "time": null
-  },
-  {
-    "index": "NIFTY",
-    "status": "ok",
-    "dq_score": 82.54,
-    "time": null
-  },
-  {
-    "index": "BANKNIFTY",
-    "status": "ok",
-    "dq_score": 82.44,
-    "time": null
-  },
-  {
-    "index": "FINNIFTY",
-    "status": "ok",
-    "dq_score": 80.22,
-    "time": null
-  },
-  {
-    "index": "SENSEX",
-    "status": "ok",
-    "dq_score": 81.25,
-    "time": null
-  },
-  {
-    "index": "NIFTY",
-    "status": "ok",
-    "dq_score": 79.25,
-    "time": null
-  },
-  {
-    "index": "BANKNIFTY",
-    "status": "ok",
-    "dq_score": 80.35,
-    "time": null
-  },
-  {
-    "index": "FINNIFTY",
-    "status": "ok",
-    "dq_score": 80.17,
-    "time": null
-  },
-  {
-    "index": "SENSEX",
-    "status": "ok",
-    "dq_score": 83.24,
-    "time": null
-  },
-  {
-    "index": "NIFTY",
-    "status": "ok",
-    "dq_score": 80.15,
-    "time": null
-  },
-  {
-    "index": "BANKNIFTY",
-    "status": "ok",
-    "dq_score": 78.29,
-    "time": null
-  },
-  {
-    "index": "FINNIFTY",
-    "status": "ok",
-    "dq_score": 80.17,
-    "time": null
-  },
-  {
-    "index": "SENSEX",
-    "status": "ok",
-    "dq_score": 79.62,
+    "dq_score": 93.06,
     "time": null
   }
 ]

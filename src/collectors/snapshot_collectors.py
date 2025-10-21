@@ -30,11 +30,13 @@ purely for its side‑effects (currently none) and returns None.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
-import os, logging
+import logging
+import os
 from datetime import date
-from .providers_interface import Providers
+from typing import TYPE_CHECKING, Any
+
 from ..utils.timeutils import get_utc_now
+from .providers_interface import Providers
 
 if TYPE_CHECKING:  # circular import safe
     from src.domain.models import ExpirySnapshot, OptionQuote
@@ -42,14 +44,14 @@ if TYPE_CHECKING:  # circular import safe
 logger = logging.getLogger(__name__)
 
 def run_snapshot_collectors(
-    index_params: Dict[str, Any],
+    index_params: dict[str, Any],
     providers: Providers,
     *,
     min_volume: int = 0,
     min_oi: int = 0,
     volume_percentile: float = 0.0,
     return_snapshots: bool = False,
-) -> Optional[List['ExpirySnapshot']]:
+) -> list[ExpirySnapshot] | None:
     """Collect minimal option chain slices and optionally build snapshots.
 
     Parameters
@@ -66,7 +68,7 @@ def run_snapshot_collectors(
         Whether to materialize and return ExpirySnapshot objects.
     """
     now = get_utc_now()
-    snapshots: List['ExpirySnapshot'] = [] if return_snapshots else []
+    snapshots: list[ExpirySnapshot] = [] if return_snapshots else []
     build_domain_models = os.environ.get('G6_DOMAIN_MODELS','').lower() in ('1','true','yes','on')
     for index_symbol, params in (index_params or {}).items():
         try:
@@ -111,7 +113,7 @@ def run_snapshot_collectors(
                         cutoff = vols[int(len(vols)*volume_percentile)]
                         quotes = {k:v for k,v in quotes.items() if int(v.get('volume',0)) >= cutoff}
                     # Domain model mapping (optional)
-                    option_objs: List['OptionQuote'] = []
+                    option_objs: list[OptionQuote] = []
                     if return_snapshots:
                         try:
                             from src.domain.models import OptionQuote  # type: ignore
@@ -147,7 +149,7 @@ def _get_param(params: Any, name: str, default: Any) -> Any:
         return params.get(name, default)
     return getattr(params, name, default)
 
-def _load_instruments(providers: Providers, index_symbol: str, expiry_date: date, strikes: List[float]):
+def _load_instruments(providers: Providers, index_symbol: str, expiry_date: date, strikes: list[float]):
     try:
         if hasattr(providers, 'option_instruments'):
             return providers.option_instruments(index_symbol, expiry_date, strikes)  # type: ignore[attr-defined]
@@ -160,7 +162,7 @@ def _load_instruments(providers: Providers, index_symbol: str, expiry_date: date
         pass
     return []
 
-def _build_synthetic_instruments(index_symbol: str, expiry_date: date, strikes: List[float]):
+def _build_synthetic_instruments(index_symbol: str, expiry_date: date, strikes: list[float]):
     out = []
     for strike in strikes:
         for t in ("CE","PE"):

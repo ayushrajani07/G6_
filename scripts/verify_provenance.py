@@ -19,9 +19,12 @@ JSON Output (if --json):
 """
 from __future__ import annotations
 
-import argparse, json, hashlib
+import argparse
+import hashlib
+import json
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any
+
 
 def sha256_file(p: Path) -> str:
     h = hashlib.sha256()
@@ -30,7 +33,7 @@ def sha256_file(p: Path) -> str:
             h.update(chunk)
     return h.hexdigest()
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description='Verify provenance artifacts')
     ap.add_argument('--provenance', required=True)
     ap.add_argument('--json', action='store_true')
@@ -49,8 +52,8 @@ def main() -> int:  # pragma: no cover
         print(f"Failed to parse provenance: {e}")
         return 2
     artifacts = data.get('artifacts') or []
-    mismatches: List[Dict[str, Any]] = []
-    missing: List[Dict[str, Any]] = []
+    mismatches: list[dict[str, Any]] = []
+    missing: list[dict[str, Any]] = []
     for ent in artifacts:
         path = Path(ent.get('path',''))
         expected = ent.get('sha256')

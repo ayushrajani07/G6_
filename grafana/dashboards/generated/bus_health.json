@@ -12,16 +12,11 @@
     "list": []
   },
   "g6_meta": {
-    "alerts_count": 0,
-    "alerts_panel": false,
-    "description": "Bus publish latency & throughput health",
-    "enriched": true,
+    "description": "",
     "families": [
-      "bus"
+      "panels_integrity"
     ],
-    "generator_version": "phaseDEF-1",
-    "placeholder_panels": false,
-    "spec_hash": "0533405d11f9f66e"
+    "spec_hash": "b1fb37bf991f1a94"
   },
   "panels": [
     {
@@ -36,11 +31,11 @@
         "overrides": []
       },
       "g6_meta": {
-        "family": "bus",
+        "family": "panels_integrity",
         "kind": "counter",
-        "metric": "g6_bus_events_published_total",
-        "panel_uuid": "c179851ab7b485ae",
-        "source": "spec"
+        "metric": "g6_panels_integrity_checks_total",
+        "panel_uuid": "66af14e453e6d972",
+        "source": "auto"
       },
       "gridPos": {
         "h": 8,
@@ -48,20 +43,14 @@
         "x": 0,
         "y": 0
       },
-      "id": 3245966618,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
+      "id": 1722750180,
       "targets": [
         {
-          "expr": "sum by (bus) (rate(g6_bus_events_published_total[5m]))",
+          "expr": "sum(rate(g6_panels_integrity_checks_total[5m]))",
           "refId": "A"
         }
       ],
-      "title": "Bus Events Publish Rate (5m)",
+      "title": "g6_panels_integrity_checks_total Rate (5m auto)",
       "type": "timeseries"
     },
     {
@@ -76,11 +65,11 @@
         "overrides": []
       },
       "g6_meta": {
-        "family": "bus",
+        "family": "panels_integrity",
         "kind": "counter",
-        "metric": "g6_bus_events_dropped_total",
-        "panel_uuid": "6ee72c04954ef4a9",
-        "source": "spec"
+        "metric": "g6_panels_integrity_failures_total",
+        "panel_uuid": "fb2c61f4958316cb",
+        "source": "auto"
       },
       "gridPos": {
         "h": 8,
@@ -88,20 +77,14 @@
         "x": 12,
         "y": 0
       },
-      "id": 1860643844,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
+      "id": 4213989876,
       "targets": [
         {
-          "expr": "sum by (bus,reason) (rate(g6_bus_events_dropped_total[5m]))",
+          "expr": "sum(rate(g6_panels_integrity_failures_total[5m]))",
           "refId": "A"
         }
       ],
-      "title": "Bus Event Drops (5m)",
+      "title": "g6_panels_integrity_failures_total Rate (5m auto)",
       "type": "timeseries"
     },
     {
@@ -116,11 +99,11 @@
         "overrides": []
       },
       "g6_meta": {
-        "family": "bus",
+        "family": "panels_integrity",
         "kind": "gauge",
-        "metric": "g6_bus_queue_retained_events",
-        "panel_uuid": "9dd82a9d846fcdcd",
-        "source": "spec"
+        "metric": "g6_panels_integrity_last_elapsed_seconds",
+        "panel_uuid": "ea860bf774fd20a8",
+        "source": "auto"
       },
       "gridPos": {
         "h": 8,
@@ -128,20 +111,14 @@
         "x": 0,
         "y": 8
       },
-      "id": 2648189597,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
+      "id": 3934653431,
       "targets": [
         {
-          "expr": "g6_bus_queue_retained_events",
+          "expr": "g6_panels_integrity_last_elapsed_seconds",
           "refId": "A"
         }
       ],
-      "title": "Bus Retained Events",
+      "title": "g6_panels_integrity_last_elapsed_seconds (auto)",
       "type": "timeseries"
     },
     {
@@ -156,11 +133,11 @@
         "overrides": []
       },
       "g6_meta": {
-        "family": "bus",
+        "family": "panels_integrity",
         "kind": "gauge",
-        "metric": "g6_bus_subscriber_lag_events",
-        "panel_uuid": "e1424edaa5e54b7e",
-        "source": "spec"
+        "metric": "g6_panels_integrity_last_gap_seconds",
+        "panel_uuid": "3aa94ad7bf8775cf",
+        "source": "auto"
       },
       "gridPos": {
         "h": 8,
@@ -168,20 +145,14 @@
         "x": 12,
         "y": 8
       },
-      "id": 3779219162,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
+      "id": 984173271,
       "targets": [
         {
-          "expr": "topk(5, g6_bus_subscriber_lag_events)",
+          "expr": "g6_panels_integrity_last_gap_seconds",
           "refId": "A"
         }
       ],
-      "title": "Top Subscriber Lag",
+      "title": "g6_panels_integrity_last_gap_seconds (auto)",
       "type": "timeseries"
     },
     {
@@ -191,16 +162,16 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ms"
+          "unit": "short"
         },
         "overrides": []
       },
       "g6_meta": {
-        "family": "bus",
-        "kind": "histogram",
-        "metric": "g6_bus_publish_latency_ms",
-        "panel_uuid": "6876f79ccbcafb00",
-        "source": "spec"
+        "family": "panels_integrity",
+        "kind": "gauge",
+        "metric": "g6_panels_integrity_last_success_age_seconds",
+        "panel_uuid": "5b6c1848069a94b6",
+        "source": "auto"
       },
       "gridPos": {
         "h": 8,
@@ -208,20 +179,14 @@
         "x": 0,
         "y": 16
       },
-      "id": 1752627100,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
+      "id": 1533810760,
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum by (le,bus) (rate(g6_bus_publish_latency_ms_bucket[5m])))",
+          "expr": "g6_panels_integrity_last_success_age_seconds",
           "refId": "A"
         }
       ],
-      "title": "Bus Publish Latency p95 (5m)",
+      "title": "g6_panels_integrity_last_success_age_seconds (auto)",
       "type": "timeseries"
     },
     {
@@ -236,12 +201,11 @@
         "overrides": []
       },
       "g6_meta": {
-        "family": "bus",
+        "family": "panels_integrity",
         "kind": "counter",
-        "metric": "g6_bus_events_dropped_total",
-        "panel_uuid": "e73e67f91b007dd0",
-        "source": "auto_label_split",
-        "split_label": "bus"
+        "metric": "g6_panels_integrity_mismatches",
+        "panel_uuid": "906f285d87c8da6f",
+        "source": "auto"
       },
       "gridPos": {
         "h": 8,
@@ -249,20 +213,14 @@
         "x": 12,
         "y": 16
       },
-      "id": 3879626745,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
+      "id": 2423203933,
       "targets": [
         {
-          "expr": "sum by (bus) (rate(g6_bus_events_dropped_total[5m]))",
+          "expr": "sum(rate(g6_panels_integrity_mismatches[5m]))",
           "refId": "A"
         }
       ],
-      "title": "g6_bus_events_dropped_total Rate by bus (5m auto)",
+      "title": "g6_panels_integrity_mismatches Rate (5m auto)",
       "type": "timeseries"
     },
     {
@@ -277,12 +235,11 @@
         "overrides": []
       },
       "g6_meta": {
-        "family": "bus",
-        "kind": "counter",
-        "metric": "g6_bus_events_dropped_total",
-        "panel_uuid": "e840594607bed5a4",
-        "source": "auto_label_split",
-        "split_label": "reason"
+        "family": "panels_integrity",
+        "kind": "gauge",
+        "metric": "g6_panels_integrity_ok",
+        "panel_uuid": "727cadfc603ad900",
+        "source": "auto"
       },
       "gridPos": {
         "h": 8,
@@ -290,229 +247,22 @@
         "x": 0,
         "y": 24
       },
-      "id": 3896531270,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
+      "id": 1920773628,
       "targets": [
         {
-          "expr": "sum by (reason) (rate(g6_bus_events_dropped_total[5m]))",
+          "expr": "g6_panels_integrity_ok",
           "refId": "A"
         }
       ],
-      "title": "g6_bus_events_dropped_total Rate by reason (5m auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "bus",
-        "kind": "gauge",
-        "metric": "g6_bus_queue_retained_events",
-        "panel_uuid": "470a606721387f3d",
-        "source": "auto_label_split",
-        "split_label": "bus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 24
-      },
-      "id": 1191862375,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (bus) (g6_bus_queue_retained_events)",
-          "refId": "A"
-        }
-      ],
-      "title": "g6_bus_queue_retained_events by bus (auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "bus",
-        "kind": "gauge",
-        "metric": "g6_bus_subscriber_lag_events",
-        "panel_uuid": "7e1fc6ff9c6873d9",
-        "source": "auto_label_split",
-        "split_label": "bus"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 32
-      },
-      "id": 2116011775,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (bus) (g6_bus_subscriber_lag_events)",
-          "refId": "A"
-        }
-      ],
-      "title": "g6_bus_subscriber_lag_events by bus (auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "bus",
-        "kind": "gauge",
-        "metric": "g6_bus_subscriber_lag_events",
-        "panel_uuid": "8811c4a968eb579d",
-        "source": "auto_label_split",
-        "split_label": "subscriber"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 32
-      },
-      "id": 2282865833,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (subscriber) (g6_bus_subscriber_lag_events)",
-          "refId": "A"
-        }
-      ],
-      "title": "g6_bus_subscriber_lag_events by subscriber (auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "bus",
-        "kind": "histogram",
-        "metric": "g6_bus_publish_latency_ms",
-        "panel_uuid": "f8ffe2532e8ad03a",
-        "source": "auto_hist_quantile"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 40
-      },
-      "id": 4177519187,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "g6_bus_publish_latency_ms:p95_5m",
-          "refId": "A"
-        }
-      ],
-      "title": "g6_bus_publish_latency_ms p95 (5m auto)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ms"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "family": "bus",
-        "kind": "histogram",
-        "metric": "g6_bus_publish_latency_ms",
-        "panel_uuid": "5d1de9cdb438e4a4",
-        "source": "auto_hist_quantile"
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 40
-      },
-      "id": 1562241485,
-      "options": {
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom"
-        }
-      },
-      "targets": [
-        {
-          "expr": "g6_bus_publish_latency_ms:p99_5m",
-          "refId": "A"
-        }
-      ],
-      "title": "g6_bus_publish_latency_ms p99 (5m auto)",
+      "title": "g6_panels_integrity_ok (auto)",
       "type": "timeseries"
     }
   ],
   "refresh": "30s",
   "schemaVersion": 39,
   "tags": [
+    "ops",
+    "health",
     "g6",
     "generated"
   ],

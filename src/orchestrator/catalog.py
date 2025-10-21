@@ -22,22 +22,27 @@ Graceful Degradation:
 """
 from __future__ import annotations
 
+import datetime as dt
+import json
+import logging
+import os
+import re
 from pathlib import Path
-import json, os, datetime as dt, logging, re
+from typing import Any
+
 from src.utils.env_flags import is_truthy_env  # type: ignore
-from typing import Dict, Any, Optional, Tuple, List
 
 logger = logging.getLogger(__name__)
 
 CATALOG_PATH = Path("data/catalog.json")
 
 def _iso(ts: float) -> str:
-    return dt.datetime.fromtimestamp(ts, dt.timezone.utc).isoformat().replace('+00:00','Z')
+    return dt.datetime.fromtimestamp(ts, dt.UTC).isoformat().replace('+00:00','Z')
 
 _EPOCH_RE = re.compile(r"^\d{10}(?:\.\d+)?$")  # naive epoch seconds pattern
 _ISO_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:")
 
-def _parse_last_row_meta(path: Path) -> Tuple[Optional[int], Optional[str], Optional[str]]:
+def _parse_last_row_meta(path: Path) -> tuple[int | None, str | None, str | None]:
     """Return (option_count, last_row_raw, derived_timestamp_iso?) for CSV file.
 
     We assume header is first line. We only read file once streaming to avoid memory use.
@@ -45,8 +50,8 @@ def _parse_last_row_meta(path: Path) -> Tuple[Optional[int], Optional[str], Opti
     """
     try:
         option_count = 0
-        last_line: Optional[str] = None
-        with open(path, 'r', encoding='utf-8', errors='ignore') as fh:
+        last_line: str | None = None
+        with open(path, encoding='utf-8', errors='ignore') as fh:
             first = True
             for line in fh:
                 line = line.rstrip('\n')
@@ -58,7 +63,7 @@ def _parse_last_row_meta(path: Path) -> Tuple[Optional[int], Optional[str], Opti
                     last_line = line
         if last_line is None:
             return 0, None, None
-        derived_ts: Optional[str] = None
+        derived_ts: str | None = None
         cells = last_line.split(',') if ',' in last_line else [last_line]
         if cells:
             candidate = cells[0].strip().strip('"')
@@ -75,13 +80,13 @@ def _parse_last_row_meta(path: Path) -> Tuple[Optional[int], Optional[str], Opti
         return None, None, None
 
 
-def _gather_recent_events() -> Tuple[List[dict], Optional[int]]:
+def _gather_recent_events() -> tuple[list[dict], int | None]:
     limit = int(os.environ.get('G6_CATALOG_EVENTS_LIMIT', '20'))
     if limit <= 0:
         return [], None
     include_ctx = os.environ.get('G6_CATALOG_EVENTS_CONTEXT','1').lower() not in ('0','false','no','off')
-    events: List[dict] = []
-    last_seq: Optional[int] = None
+    events: list[dict] = []
+    last_seq: int | None = None
     # Prefer in-process event API if available (gives us recent buffer without reading disk again)
     try:
         from src.events.event_log import get_recent_events  # type: ignore
@@ -99,7 +104,7 @@ def _gather_recent_events() -> Tuple[List[dict], Optional[int]]:
             # Read file lines (bounded by limit*2 to be safe)
             lines = p.read_text(encoding='utf-8', errors='ignore').strip().splitlines()
             take = lines[-limit:]
-            parsed: List[dict] = []
+            parsed: list[dict] = []
             for ln in reversed(take):  # newest first
                 try:
                     obj = json.loads(ln)
@@ -116,18 +121,18 @@ def _gather_recent_events() -> Tuple[List[dict], Optional[int]]:
             return [], None
 
 
-def build_catalog(*, runtime_status_path: str, csv_dir: str = "data/g6_data") -> Dict[str, Any]:
+def build_catalog(*, runtime_status_path: str, csv_dir: str = "data/g6_data") -> dict[str, Any]:
     indices: list[str] = []
     try:
-        with open(runtime_status_path, 'r', encoding='utf-8') as fh:
+        with open(runtime_status_path, encoding='utf-8') as fh:
             status = json.load(fh)
         indices = status.get('indices', []) or []
     except Exception:
         logger.debug("catalog: unable to read runtime status at %s", runtime_status_path)
-    now_ts = dt.datetime.now(dt.timezone.utc).timestamp()
-    catalog: Dict[str, Any] = {"generated_at": _iso(now_ts), "indices": {}}
+    now_ts = dt.datetime.now(dt.UTC).timestamp()
+    catalog: dict[str, Any] = {"generated_at": _iso(now_ts), "indices": {}}
     # We'll accumulate per-index rollups to emit index-level summary & global summary.
-    global_latest_ts: Optional[float] = None
+    global_latest_ts: float | None = None
     global_option_count = 0
     base = Path(csv_dir)
     for idx in indices:
@@ -135,7 +140,7 @@ def build_catalog(*, runtime_status_path: str, csv_dir: str = "data/g6_data") ->
         if not idx_dir.exists():
             continue
         index_option_count = 0
-        index_latest_ts: Optional[float] = None
+        index_latest_ts: float | None = None
         expiries = {}
         try:
             for expiry_dir in idx_dir.iterdir():
@@ -153,7 +158,7 @@ def build_catalog(*, runtime_status_path: str, csv_dir: str = "data/g6_data") ->
                     pass
                 if latest_file:
                     opt_count, last_row_raw, derived_ts = _parse_last_row_meta(latest_file)
-                    entry: Dict[str, Any] = {
+                    entry: dict[str, Any] = {
                         "last_file": str(latest_file),
                         "last_file_mtime": _iso(latest_mtime)
                     }
@@ -183,7 +188,7 @@ def build_catalog(*, runtime_status_path: str, csv_dir: str = "data/g6_data") ->
         except Exception:  # pragma: no cover - defensive directory scan failure
             logger.debug("catalog: failure scanning %s", idx_dir, exc_info=True)
         if expiries:
-            idx_entry: Dict[str, Any] = {"expiries": expiries}
+            idx_entry: dict[str, Any] = {"expiries": expiries}
             # Attach per-index rollup if available
             if index_option_count:
                 idx_entry["total_option_count"] = index_option_count
@@ -196,7 +201,7 @@ def build_catalog(*, runtime_status_path: str, csv_dir: str = "data/g6_data") ->
             catalog["indices"][idx] = idx_entry
     # Add global summary if we surfaced any indices
     if catalog["indices"]:
-        summary: Dict[str, Any] = {"index_count": len(catalog["indices"]) }
+        summary: dict[str, Any] = {"index_count": len(catalog["indices"]) }
         if global_option_count:
             summary["total_option_count"] = global_option_count
         if global_latest_ts is not None:
@@ -208,7 +213,7 @@ def build_catalog(*, runtime_status_path: str, csv_dir: str = "data/g6_data") ->
         events_path = os.environ.get('G6_EVENTS_LOG_PATH', os.path.join('logs','events.log'))
         cycles: list[int] = []
         try:
-            with open(events_path,'r',encoding='utf-8') as fh:
+            with open(events_path,encoding='utf-8') as fh:
                 for i, line in enumerate(fh):
                     if i >= 200_000: break
                     line=line.strip()
@@ -229,7 +234,7 @@ def build_catalog(*, runtime_status_path: str, csv_dir: str = "data/g6_data") ->
         missing=0
         if cycles:
             cs=sorted(set(cycles))
-            for a,b in zip(cs, cs[1:]):
+            for a,b in zip(cs, cs[1:], strict=False):
                 if b>a+1:
                     missing += (b-a-1)
         catalog['integrity']={

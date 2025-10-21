@@ -17,12 +17,11 @@ The wrapper exposes Mapping interface so existing dict-like access works.
 """
 from __future__ import annotations
 
-from collections.abc import MutableMapping, Iterator
-from dataclasses import dataclass
-from typing import Any, Dict, Optional
 import copy
+from collections.abc import Iterator, MutableMapping
+from typing import Any
 
-DEFAULTS: Dict[str, Any] = {
+DEFAULTS: dict[str, Any] = {
     "metrics": {"enabled": True, "port": 9108, "host": "0.0.0.0"},
     "collection": {"interval_seconds": 60},
     "orchestration": {"run_interval_sec": 60, "prometheus_port": 9108},
@@ -71,7 +70,7 @@ DEFAULTS: Dict[str, Any] = {
 }
 
 
-def _merge(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
+def _merge(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
     out = copy.deepcopy(a)
     for k, v in b.items():
         if k in out and isinstance(out[k], dict) and isinstance(v, dict):
@@ -81,14 +80,14 @@ def _merge(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
     return out
 
 
-def _translate_indices(raw: Dict[str, Any]) -> None:
+def _translate_indices(raw: dict[str, Any]) -> None:
     # Translate legacy 'indices' to 'index_params' if index_params missing OR empty
     if "index_params" in raw and raw.get("index_params"):
         return
     indices = raw.get("indices")
     if not isinstance(indices, dict):
         return
-    translated: Dict[str, Any] = {}
+    translated: dict[str, Any] = {}
     for symbol, spec in indices.items():
         if not isinstance(spec, dict):
             continue
@@ -108,7 +107,7 @@ def _translate_indices(raw: Dict[str, Any]) -> None:
     raw["index_params"] = translated
 
 
-def _unify_influx(raw: Dict[str, Any]) -> None:
+def _unify_influx(raw: dict[str, Any]) -> None:
     storage = raw.setdefault("storage", {})
     influx_dict = storage.get("influx")
     # Flat schema variant: influx_enabled/url/org/bucket
@@ -131,7 +130,7 @@ def _unify_influx(raw: Dict[str, Any]) -> None:
     storage["influx"] = influx_dict
 
 
-def _derive_data_dir(raw: Dict[str, Any]) -> None:
+def _derive_data_dir(raw: dict[str, Any]) -> None:
     if "data_dir" in raw and raw["data_dir"]:
         return
     storage = raw.get("storage", {})
@@ -153,7 +152,7 @@ def _parse_version(ver: Any) -> tuple[int, int]:
         return (0, 0)
 
 
-def normalize(raw: Dict[str, Any]) -> Dict[str, Any]:
+def normalize(raw: dict[str, Any]) -> dict[str, Any]:
     """Return a new normalized config dictionary without mutating input."""
     work = _merge(DEFAULTS, raw)
     ver = _parse_version(work.get("schema_version"))
@@ -178,7 +177,7 @@ class ConfigWrapper(MutableMapping):
     continues to work. Original (raw) and normalized (data) retained.
     """
 
-    def __init__(self, raw: Dict[str, Any]):
+    def __init__(self, raw: dict[str, Any]):
         self.raw = copy.deepcopy(raw)
         self.data = normalize(raw)
 
@@ -211,10 +210,10 @@ class ConfigWrapper(MutableMapping):
     def influx_enabled(self) -> bool:
         return bool(self.data.get("storage", {}).get("influx", {}).get("enabled"))
 
-    def influx_config(self) -> Dict[str, Any]:
+    def influx_config(self) -> dict[str, Any]:
         return self.data.get("storage", {}).get("influx", {})
 
-    def index_params(self) -> Dict[str, Any]:
+    def index_params(self) -> dict[str, Any]:
         return self.data.get("index_params", {})
 
     def data_dir(self) -> str:
@@ -223,7 +222,7 @@ class ConfigWrapper(MutableMapping):
             return val
         return str(val) if val is not None else DEFAULTS["storage"]["csv_dir"]
 
-    def raw_dict(self) -> Dict[str, Any]:
+    def raw_dict(self) -> dict[str, Any]:
         return copy.deepcopy(self.raw)
 
 

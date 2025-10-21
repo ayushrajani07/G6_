@@ -4,7 +4,7 @@ import asyncio
 import math
 import time
 from datetime import date, timedelta
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 
 class AsyncMockProvider:
@@ -28,16 +28,16 @@ class AsyncMockProvider:
         wave = math.sin(t / 30.0) * base * 0.0015
         return round(base + wave, 2)
 
-    async def get_ltp(self, instruments: List[Tuple[str, str]]):
+    async def get_ltp(self, instruments: list[tuple[str, str]]):
         await asyncio.sleep(0)
-        out: Dict[str, Any] = {}
+        out: dict[str, Any] = {}
         for exch, sym in instruments:
             out[f"{exch}:{sym}"] = {"last_price": self._ltp_value(sym)}
         return out
 
-    async def get_quote(self, instruments: List[Tuple[str, str]]):
+    async def get_quote(self, instruments: list[tuple[str, str]]):
         await asyncio.sleep(0)
-        out: Dict[str, Any] = {}
+        out: dict[str, Any] = {}
         for exch, sym in instruments:
             # Derive a realistic option premium instead of using index LTP directly.
             # Determine index root (e.g., NIFTY, BANKNIFTY) and use that as base for LTP.
@@ -97,12 +97,12 @@ class AsyncMockProvider:
                 return d
         return today + timedelta(days=7)
 
-    async def option_instruments(self, index_symbol: str, expiry_date, strikes: List[int]):
+    async def option_instruments(self, index_symbol: str, expiry_date, strikes: list[int]):
         return await self.get_option_instruments(index_symbol, expiry_date, strikes)
 
-    async def get_option_instruments(self, index_symbol: str, expiry_date, strikes: List[int]):
+    async def get_option_instruments(self, index_symbol: str, expiry_date, strikes: list[int]):
         await asyncio.sleep(0)
-        out: List[Dict[str, Any]] = []
+        out: list[dict[str, Any]] = []
         for s in strikes:
             out.append({
                 "tradingsymbol": f"{index_symbol}{expiry_date.strftime('%d%b%y').upper()}{int(s)}CE",

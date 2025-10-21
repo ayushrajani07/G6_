@@ -5,28 +5,30 @@ external API logic. It also makes it easier to test cache invalidation and
 introspection in isolation.
 """
 from __future__ import annotations
+
 import datetime
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 
 @dataclass
 class ProviderState:
     # Instruments (raw) cache per exchange + fetch timestamp metadata
-    instruments_cache: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
-    instruments_cache_meta: Dict[str, float] = field(default_factory=dict)
+    instruments_cache: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    instruments_cache_meta: dict[str, float] = field(default_factory=dict)
 
     # Expiry date list per index
-    expiry_dates_cache: Dict[str, List[datetime.date]] = field(default_factory=dict)
+    expiry_dates_cache: dict[str, list[datetime.date]] = field(default_factory=dict)
 
     # Option instruments cache (key tuple -> instrument dict)
-    option_instrument_cache: Dict[tuple, Dict[str, Any]] = field(default_factory=dict)
+    option_instrument_cache: dict[tuple, dict[str, Any]] = field(default_factory=dict)
     option_cache_day: str = field(default_factory=lambda: datetime.date.today().isoformat())
     option_cache_hits: int = 0
     option_cache_misses: int = 0
 
     # Daily universe + loaded date
-    daily_universe: Optional[List[Dict[str, Any]]] = None
-    daily_universe_loaded_date: Optional[str] = None
+    daily_universe: list[dict[str, Any]] | None = None
+    daily_universe_loaded_date: str | None = None
 
     # Synthetic / fallback diagnostics
     synthetic_quotes_used: int = 0
@@ -47,7 +49,7 @@ class ProviderState:
     def record_option_cache_miss(self) -> None:
         self.option_cache_misses += 1
 
-    def invalidate_instruments(self, exchange: Optional[str] = None) -> None:
+    def invalidate_instruments(self, exchange: str | None = None) -> None:
         if exchange:
             self.instruments_cache.pop(exchange, None)
             self.instruments_cache_meta.pop(exchange, None)
@@ -55,7 +57,7 @@ class ProviderState:
             self.instruments_cache.clear()
             self.instruments_cache_meta.clear()
 
-    def invalidate_expiries(self, index_symbol: Optional[str] = None) -> None:
+    def invalidate_expiries(self, index_symbol: str | None = None) -> None:
         if index_symbol:
             self.expiry_dates_cache.pop(index_symbol, None)
         else:
@@ -65,7 +67,7 @@ class ProviderState:
         self.synthetic_quotes_used = 0
         self.last_quotes_synthetic = False
 
-    def summary(self) -> Dict[str, Any]:  # lightweight diagnostic snapshot
+    def summary(self) -> dict[str, Any]:  # lightweight diagnostic snapshot
         return {
             'option_cache_size': len(self.option_instrument_cache),
             'option_cache_hits': self.option_cache_hits,

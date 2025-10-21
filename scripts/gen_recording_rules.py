@@ -26,7 +26,7 @@ import argparse
 import hashlib
 import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import Any
 
 import yaml  # type: ignore
 
@@ -36,50 +36,53 @@ OUTPUT_PATH = ROOT / "prometheus_recording_rules_generated.yml"
 EXISTING_RULES = ROOT / "prometheus_rules.yml"
 
 class Metric:
-    def __init__(self, name: str, kind: str, labels: List[str], family: str):
+    def __init__(self, name: str, kind: str, labels: list[str], family: str) -> None:
         self.name = name
         self.kind = kind
         self.labels = labels
         self.family = family
 
 
-def load_spec() -> List[Metric]:
+def load_spec() -> list[Metric]:
     raw = yaml.safe_load(SPEC_PATH.read_text()) or {}
-    out: List[Metric] = []
-    for fam, data in (raw.get("families", {}) or {}).items():
-        for m in (data or {}).get("metrics", []) or []:
+    out: list[Metric] = []
+    families: dict[str, Any] = (raw.get("families", {}) or {})
+    for fam, data in families.items():
+        metrics_list = (data or {}).get("metrics", []) or []
+        for m in metrics_list:
             if not isinstance(m, dict):
                 continue
             name = m.get("name")
             kind = m.get("type")
             labels = m.get("labels") or []
             if name and kind:
-                out.append(Metric(name, kind, labels, fam))
+                out.append(Metric(str(name), str(kind), list(labels), str(fam)))
     return out
 
 
-def hash_spec_text(paths: List[Path]) -> str:
+def hash_spec_text(paths: list[Path]) -> str:
     h = hashlib.sha256()
     for p in paths:
         h.update(p.read_bytes())
     return h.hexdigest()[:16]
 
 
-def existing_record_names() -> set:
+def existing_record_names() -> set[str]:
     if not EXISTING_RULES.exists():
         return set()
     data = yaml.safe_load(EXISTING_RULES.read_text()) or {}
-    names = set()
-    for g in data.get("groups", []) or []:
+    names: set[str] = set()
+    groups = data.get("groups", []) or []
+    for g in groups:
         for r in g.get("rules", []) or []:
             rec = r.get("record")
             if rec:
-                names.add(rec)
+                names.add(str(rec))
     return names
 
 
-def synth_rules(metrics: List[Metric], existing: set) -> Dict:
-    rules: List[Dict] = []
+def synth_rules(metrics: list[Metric], existing: set[str]) -> dict[str, Any]:
+    rules: list[dict[str, Any]] = []
     for m in metrics:
         # Counters → rate
         if m.kind == "counter":
@@ -190,7 +193,7 @@ def synth_rules(metrics: List[Metric], existing: set) -> Dict:
                     # Positive burn when backlog decreasing (offset 5m – current)/300; clamp at 0
                     rules.append({
                         "record": burn_record,
-                        "expr": "max(0, (sum(g6_cs_ingest_backlog_rows offset 5m) - sum(g6_cs_ingest_backlog_rows)) / 300)",
+                        "expr": "clamp_min((sum(g6_cs_ingest_backlog_rows offset 5m) - sum(g6_cs_ingest_backlog_rows)) / 300, 0)",
                         "labels": {"job": "g6_platform"},
                     })
     if not rules:
@@ -206,7 +209,7 @@ def synth_rules(metrics: List[Metric], existing: set) -> Dict:
     }
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="Generate recording rule suggestions")
     ap.add_argument("--output", type=Path, default=OUTPUT_PATH, help="Output path for generated recording rules YAML")
     ap.add_argument("--check", action="store_true", help="Do not write; fail (exit 8) if output file content would change")

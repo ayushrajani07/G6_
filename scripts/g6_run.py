@@ -14,7 +14,10 @@ Notes:
 -- Exists only as a UX alias; can be removed if project later introduces a packaged console script.
 """
 from __future__ import annotations
-import runpy, sys, pathlib
+
+import pathlib
+import runpy
+import sys
 
 _R = pathlib.Path(__file__).resolve().parent / 'run_orchestrator_loop.py'
 if not _R.exists():  # defensive

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Kite API Token Manager for G6 Platform
 
@@ -9,15 +8,18 @@ Features:
 - Automatically runs main application after successful validation
 """
 
-import os
-import sys
-import time
+import getpass
 import logging
-import webbrowser
-from pathlib import Path
+import os
 import subprocess
+import sys
 import threading
-from typing import Any, Dict, Mapping, Iterable, Tuple, TypedDict, Optional, cast
+import time
+import webbrowser
+from collections.abc import Iterable, Mapping
+from pathlib import Path
+from typing import Any, TypedDict, cast
+
 from src.error_handling import handle_api_error, handle_critical_error
 
 # Configure logging
@@ -33,23 +35,51 @@ logger = logging.getLogger("token-manager")
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 def load_env_vars() -> bool:
-    """Load environment variables from .env file if python-dotenv is available."""
+    """Load environment variables from .env file if available.
+
+    Behavior:
+    - Prefer python-dotenv when installed.
+    - If not installed or load fails, perform a minimal fallback loader that reads
+      a .env file in the current working directory and sets KEY=VALUE pairs into os.environ.
+    Returns True if any mechanism succeeded (best-effort), else False.
+    """
+    used = False
     try:
         from dotenv import load_dotenv  # local import to avoid hard dependency
-    except Exception:
-        logger.debug("python-dotenv not installed; skipping .env load")
-        return False
-    try:
-        load_dotenv()
-        logger.info("Environment variables loaded from .env file")
-        return True
-    except Exception as e:  # pragma: no cover - defensive
         try:
-            handle_api_error(e, component="token_manager", context={"op": "load_env"})
-        except Exception:
-            pass
-        logger.warning("Error loading .env file: %s", e)
-        return False
+            load_dotenv()
+            logger.info("Environment variables loaded from .env file")
+            used = True
+        except Exception as e:  # pragma: no cover - defensive
+            try:
+                handle_api_error(e, component="token_manager", context={"op": "load_env"})
+            except Exception:
+                pass
+            logger.warning("Error loading .env via python-dotenv: %s", e)
+    except Exception:
+        logger.debug("python-dotenv not installed; attempting manual .env parse")
+    # Fallback manual loader if .env present in CWD, or overlay if required keys are still missing
+    need_overlay = (os.environ.get("KITE_API_KEY") is None or os.environ.get("KITE_API_SECRET") is None)
+    if not used or need_overlay:
+        try:
+            env_path = Path.cwd() / ".env"
+            if env_path.exists():
+                for line in env_path.read_text(encoding="utf-8").splitlines():
+                    line = line.strip()
+                    if not line or line.startswith('#'):
+                        continue
+                    if '=' in line:
+                        k, v = line.split('=', 1)
+                        k = k.strip(); v = v.strip()
+                        if k:
+                            # Do not overwrite existing explicit environment; only fill in missing
+                            if os.environ.get(k) is None:
+                                os.environ[k] = v
+                logger.info("Environment variables loaded via fallback .env parser (overlay=%s)", need_overlay)
+                used = True or used
+        except Exception as e:
+            logger.debug("Fallback .env parse failed: %s", e)
+    return used
 
 class ProfileDict(TypedDict, total=False):
     user_name: str
@@ -59,7 +89,7 @@ class SessionDict(TypedDict, total=False):
     access_token: str
 
 
-def _to_dict(obj: Any) -> Dict[str, Any]:
+def _to_dict(obj: Any) -> dict[str, Any]:
     """Best-effort conversion of arbitrary mapping-like object to dict[str, Any].
 
     Avoids broad type: ignore usage by normalizing keys to str when possible.
@@ -67,13 +97,13 @@ def _to_dict(obj: Any) -> Dict[str, Any]:
     if isinstance(obj, dict):  # fast path retains original dict
         # Ensure keys are strings; if not, coerce via comprehension
         if all(isinstance(k, str) for k in obj.keys()):
-            return cast(Dict[str, Any], obj)
+            return cast(dict[str, Any], obj)
         return {str(k): v for k, v in obj.items()}
     if isinstance(obj, Mapping):
         return {str(k): v for k, v in obj.items()}
     if isinstance(obj, Iterable):  # Treat as sequence of pair-likes
         try:
-            tentative = dict(cast(Iterable[Tuple[Any, Any]], obj))
+            tentative = dict(cast(Iterable[tuple[Any, Any]], obj))
         except Exception:
             return {}
         if not tentative:
@@ -189,33 +219,33 @@ def manual_token_entry():
     print("\n" + "=" * 80)
     print("Manual Access Token Entry")
     print("=" * 80)
-    
+
     print("\nYou can enter a Kite access token directly.")
     print("This is useful if you have a valid token from another source.")
-    
+
     access_token = input("\nEnter Kite access token: ").strip()
-    
+
     if not access_token:
         logger.warning("No token entered")
         return None
-    
+
     return access_token
 
 def update_env_file(key, value):
     """Update a value in the .env file."""
     env_file = ".env"
-    
+
     # Read existing file or create new one
     lines = []
     if os.path.isfile(env_file):
-        with open(env_file, "r") as f:
+        with open(env_file) as f:
             for line in f:
                 if not line.startswith(f"{key}="):
                     lines.append(line.rstrip("\n"))
-    
+
     # Add or update the key
     lines.append(f"{key}={value}")
-    
+
     # Write back to file
     with open(env_file, "w") as f:
         f.write("\n".join(lines) + "\n")
@@ -230,7 +260,26 @@ def update_env_file(key, value):
         pass
     logger.info(f"Updated {key} in {env_file} (in-memory env refreshed)")
 
-def run_main_application(extra_args: Optional[list[str]] = None):
+def _prompt_api_credentials_interactive() -> tuple[str | None, str | None]:
+    """Prompt the user for Kite API credentials interactively.
+
+    Returns a tuple (api_key, api_secret). Any missing field returns as None.
+    Secrets are read using getpass to avoid echoing to console.
+    """
+    print("\nKite API credentials are required. Enter them now to continue.")
+    try:
+        api_key = input("KITE_API_KEY: ").strip()
+    except Exception:
+        api_key = None
+    try:
+        api_secret = getpass.getpass("KITE_API_SECRET (hidden): ").strip()
+    except Exception:
+        api_secret = None
+    api_key = api_key or None
+    api_secret = api_secret or None
+    return api_key, api_secret
+
+def run_main_application(extra_args: list[str] | None = None):
     """Run the G6 orchestrator loop via the canonical runner script.
 
     Legacy unified_main fallback removed (2025-09-28). Any attempt to import
@@ -281,16 +330,16 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
         print("\nPlease install required packages:")
         print("pip install flask kiteconnect")
         return None
-    
+
     # Create Flask app
     app = Flask(__name__)
-    
+
     # Variable to store access token
     access_token_container = {'token': None, 'received': False}
-    
+
     # Create Kite connect instance
     kite = KiteConnect(api_key=api_key)
-    
+
     # Determine callback host/port/path from environment
     cb_host = os.environ.get("KITE_REDIRECT_HOST", "127.0.0.1")
     try:
@@ -305,13 +354,13 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
     def success_route():
         """Handle the callback at /success path."""
         return handle_callback()
-    
+
     # Also register common alternate paths
     @app.route('/callback')
     def callback_route():
         """Handle the callback at /callback path."""
         return handle_callback()
-    
+
     @app.route('/')  # Root path as fallback
     def root_route():
         """Handle the callback at root path."""
@@ -320,7 +369,7 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
     @app.route('/favicon.ico')
     def favicon_route():
         return ("", 204)
-    
+
     def handle_callback():
         """Common handler for all callback routes."""
         try:
@@ -329,10 +378,10 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
             pass
         status = request.args.get('status')
         request_token = request.args.get('request_token')
-        
+
         if status != 'success' or not request_token:
             return "Login failed or missing request token", 400
-        
+
         try:
             # Exchange request token for access token
             raw_session = kite.generate_session(request_token, api_secret=api_secret)
@@ -340,11 +389,11 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
             access_token = session_data.get('access_token')
             if not access_token:
                 raise RuntimeError('Access token missing in session response')
-            
+
             # Store token in container
             access_token_container['token'] = access_token
             access_token_container['received'] = True
-            
+
             # Return success page
             html = """
             <!DOCTYPE html>
@@ -369,7 +418,7 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
             </html>
             """
             return html
-            
+
         except Exception as e:
             try:
                 handle_api_error(e, component="token_manager", context={"op": "exchange_request_token"})
@@ -377,21 +426,21 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
                 pass
             logger.error(f"Error exchanging request token: {e}")
             return f"Error: {str(e)}", 500
-    
+
     # Start Flask server in a separate thread
     def run_flask():
         app.run(host=cb_host, port=cb_port, debug=False)
-    
+
     server_thread = threading.Thread(target=run_flask)
     server_thread.daemon = True
     server_thread.start()
-    
+
     # Allow the server to start
     time.sleep(1)
-    
+
     # Generate login URL - specify the correct redirect URI
     redirect_uri = f"http://{cb_host}:{cb_port}/{cb_path}"  # Must match registered URL in Kite console
-    
+
     # Obtain login URL (omit redirect kwarg for broad compatibility)
     try:
         login_url = kite.login_url()
@@ -402,7 +451,7 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
             pass
         logger.error(f"Unable to generate login URL: {e}")
         return None
-    
+
     print("\n" + "=" * 80)
     print("Kite API Authentication")
     print("=" * 80)
@@ -411,19 +460,19 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
     print(f"{login_url}\n")
     print("Configured redirect (must match in Kite console):")
     print(f"{redirect_uri}\n")
-    
+
     # Open browser to login URL
     try:
         webbrowser.open(login_url)
     except Exception:
         pass
-    
+
     # Wait for callback to complete
     print("Waiting for authentication to complete...\n")
-    
+
     timeout = int(os.environ.get("KITE_LOGIN_TIMEOUT", "180"))  # seconds
     start_time = time.time()
-    
+
     while not access_token_container['received'] and time.time() - start_time < timeout:
         time.sleep(0.5)
         sys.stdout.write(".")
@@ -447,9 +496,9 @@ def flask_login_server(api_key, api_secret, auto_run_app=True):
                     except Exception:
                         pass
                     logger.error(f"Error using KITE_REQUEST_TOKEN: {e}")
-    
+
     print("\n")
-    
+
     # Check if we got a token
     if access_token_container['received']:
         logger.info("Authentication completed successfully!")
@@ -481,59 +530,59 @@ def guided_token_refresh(api_key, api_secret, auto_run_app=True):
     """
     try:
         from kiteconnect import KiteConnect
-        
+
         # Initialize Kite client
         kite = KiteConnect(api_key=api_key)
-        
+
         # Get the login URL
         login_url = kite.login_url()
-        
+
         print("\n" + "=" * 80)
         print("Manual Token Refresh")
         print("=" * 80)
         print("\n1. A browser window will open for you to log in to Kite")
         print("2. After login, look at the URL in your browser")
         print("3. Copy the 'request_token' parameter from that URL\n")
-        
+
         # Open browser
         try:
             webbrowser.open(login_url)
             print("   Browser opened with Kite login page")
         except Exception:
             print(f"   Please open this URL manually: {login_url}")
-        
+
         # Wait for user to log in and get redirected
         print("\nAfter logging in, you'll be redirected to a page with an error or a blank screen.")
         print("That's expected! Look at the URL in your browser's address bar.\n")
-        
+
         # Get request token from user
         request_token = input("Enter the request token from the URL: ").strip()
-        
+
         if not request_token:
             print("\nNo request token provided!")
             return None
-        
+
         # Exchange for access token
         logger.info("Generating session with request token...")
         raw_session = kite.generate_session(request_token, api_secret=api_secret)
         session_data = cast(SessionDict, _to_dict(raw_session))
         access_token = session_data.get("access_token")
-        
+
         if not access_token:
             logger.error("Failed to get access token from response")
             return None
-        
+
         # Save to .env file
         update_env_file("KITE_ACCESS_TOKEN", access_token)
-        
-        logger.info(f"New access token generated successfully")
-        
+
+        logger.info("New access token generated successfully")
+
         # Run main application automatically if requested
         if auto_run_app:
             run_main_application()
-            
+
         return access_token
-    
+
     except Exception as e:
         try:
             handle_api_error(e, component="token_manager", context={"op": "guided_refresh"})
@@ -571,30 +620,40 @@ def main():
         logger.error("Unable to initialize provider '%s': %s", provider_name, e)
         return 1
     logger.info("Using token provider: %s", getattr(provider, 'name', provider_name))
-    
+
     # Load environment variables
     load_env_vars()
-    
+
     # Get API credentials
     api_key = os.environ.get("KITE_API_KEY")
     api_secret = os.environ.get("KITE_API_SECRET")
     access_token = os.environ.get("KITE_ACCESS_TOKEN")
-    
-    # Check if we have the required credentials
+
+    # Check if we have the required credentials; offer interactive entry outside tests/headless
     if not api_key or not api_secret:
-        logger.error("API key or secret not found in environment")
-        print("\nPlease create a .env file with the following contents:")
-        print("\nKITE_API_KEY=your_api_key_here")
-        print("KITE_API_SECRET=your_api_secret_here\n")
-        return 1
-    
+        # Avoid blocking tests/CI
+        if 'PYTEST_CURRENT_TEST' in os.environ or os.environ.get('G6_TOKEN_HEADLESS') == '1':
+            logger.error("API key or secret missing and interactive prompt disabled (tests/headless)")
+            print("\nPlease create a .env file with the following contents:")
+            print("\nKITE_API_KEY=your_api_key_here")
+            print("KITE_API_SECRET=your_api_secret_here\n")
+            return 1
+        # Interactive prompt path
+        api_key_in, api_secret_in = _prompt_api_credentials_interactive()
+        if not api_key_in or not api_secret_in:
+            logger.error("API key/secret not provided; cannot continue")
+            return 1
+        update_env_file("KITE_API_KEY", api_key_in)
+        update_env_file("KITE_API_SECRET", api_secret_in)
+        api_key, api_secret = api_key_in, api_secret_in
+
     # Check token validity
     logger.info("Checking for existing access token...")
     token_valid = False
     if access_token:
         logger.info("Found existing access token, validating via provider...")
         token_valid = provider_validate_token(provider, api_key, access_token)
-    
+
     # If token is valid and auto_run_app is True, run the main application
     if token_valid and auto_run_app:
         return run_main_application(extra_args=passthrough_args)
@@ -604,7 +663,7 @@ def main():
         logger.info("Fast-exit: valid token, autorun disabled, headless=%s provider=%s", headless, getattr(provider,'name','?'))
         print("\nToken is valid. Headless or non-kite provider selected; exiting without interactive prompt.")
         return 0
-        
+
     # If token is invalid or missing, offer options
     if not token_valid:
         # First attempt: provider-driven acquisition (non-headless for now)
@@ -643,9 +702,9 @@ def main():
         print("2. Guided manual token refresh")
         print("3. Enter access token directly")
         print("4. Exit")
-        
+
         choice = input("\nSelect an option (1-4): ")
-        
+
         if choice == "1":
             access_token = flask_login_server(api_key, api_secret, auto_run_app)
             if not access_token:
@@ -668,22 +727,22 @@ def main():
             if not access_token:
                 logger.error("No valid token provided")
                 return 1
-                
+
             # Save the manually entered token
             update_env_file("KITE_ACCESS_TOKEN", access_token)
-            
+
             # Validate the entered token
             if not provider_validate_token(provider, api_key, access_token):
                 logger.error("The entered token is invalid")
                 return 1
-                
+
             # Run main application automatically if requested
             if auto_run_app:
                 return run_main_application(extra_args=passthrough_args)
         else:
             print("\nExiting without refreshing token")
             return 0
-    
+
     # If we get here, token is valid but auto_run_app is False.
     # For headless mode or non-kite providers we should avoid any interactive prompt and just exit cleanly.
     if headless or getattr(provider, 'name', '') != 'kite':

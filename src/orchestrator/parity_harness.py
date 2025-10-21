@@ -32,12 +32,12 @@ Notes:
 """
 from __future__ import annotations
 
-from typing import Any, Dict
-import os
 import copy
 import datetime as _dt
 import glob
 import json
+import os
+from typing import Any
 
 from .context import RuntimeContext  # type: ignore
 from .cycle import run_cycle  # type: ignore
@@ -57,14 +57,14 @@ def _force_mock_env():
     os.environ.setdefault('G6_ADAPTIVE_STRIKE_SCALING', '0')
 
 
-def _collect_csv_snapshot(base_dir: str, index_keys: list[str]) -> Dict[str, Dict[str, Any]]:
+def _collect_csv_snapshot(base_dir: str, index_keys: list[str]) -> dict[str, dict[str, Any]]:
     """Scan CSV directory for option files written during a cycle and aggregate counts.
 
     We expect option files under base_dir/g6_data/<INDEX>/<EXPIRY>/options_*.csv
     (pattern derived from existing sink conventions). If structure changes,
     this function can be adapted without modifying tests.
     """
-    out: Dict[str, Dict[str, Any]] = {}
+    out: dict[str, dict[str, Any]] = {}
     g6_data_dir = os.path.join(base_dir, 'g6_data')
     for idx in index_keys:
         idx_dir = os.path.join(g6_data_dir, idx)
@@ -78,14 +78,14 @@ def _collect_csv_snapshot(base_dir: str, index_keys: list[str]) -> Dict[str, Dic
         except Exception:
             pass
         expiry_dirs.sort()
-        expiry_counts: Dict[str, int] = {}
+        expiry_counts: dict[str, int] = {}
         total = 0
         for exp in expiry_dirs:
             pattern = os.path.join(idx_dir, exp, 'options_*.csv')
             rows = 0
             for fname in glob.glob(pattern):
                 try:
-                    with open(fname, 'r', encoding='utf-8') as f:
+                    with open(fname, encoding='utf-8') as f:
                         # subtract header if present
                         lines = f.read().strip().splitlines()
                         if not lines:
@@ -107,7 +107,7 @@ def _collect_csv_snapshot(base_dir: str, index_keys: list[str]) -> Dict[str, Dic
     return out
 
 
-def run_parity_cycle(config, use_enhanced: bool = False) -> Dict[str, Any]:
+def run_parity_cycle(config, use_enhanced: bool = False) -> dict[str, Any]:
     """Execute one legacy and one new-cycle collection and return normalized snapshots.
 
     Parameters
@@ -140,7 +140,6 @@ def run_parity_cycle(config, use_enhanced: bool = False) -> Dict[str, Any]:
     legacy_snapshot = _collect_csv_snapshot(base_dir, list(legacy_params.keys()))
 
     # New cycle execution --------------------------------------------------------------
-    from .context import RuntimeContext  # local import to ensure side-effects after env patch
     ctx = RuntimeContext(
         config=config,
         providers=providers,
@@ -157,7 +156,7 @@ def run_parity_cycle(config, use_enhanced: bool = False) -> Dict[str, Any]:
     new_snapshot = _collect_csv_snapshot(base_dir, list(new_params.keys()))
 
     # Use timezone-aware UTC now to comply with repository time usage policy
-    generated_at = _dt.datetime.now(_dt.timezone.utc).isoformat()
+    generated_at = _dt.datetime.now(_dt.UTC).isoformat()
     return {'legacy': legacy_snapshot, 'new': new_snapshot, 'generated_at': generated_at}
 
 

@@ -21,16 +21,20 @@ NOTE: zero_data kept minimal to preserve legacy parsing downstream; other events
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
-import logging, json, time, os
+import json
+import logging
+import os
+import time
+from typing import Any
+
 try:
     # Aggregation hooks (best-effort; ignore if module missing for any reason)
     from .cycle_tables import (
-        record_prefilter,
-        record_option_stats,
-        record_strike_adjust,
-        record_adaptive,
         emit_cycle_tables,
+        record_adaptive,
+        record_option_stats,
+        record_prefilter,
+        record_strike_adjust,
     )  # type: ignore
 except Exception:  # pragma: no cover - optional dependency path
     # Explicit light-weight no-op fallbacks ensure safe removal of cycle_tables module.
@@ -64,7 +68,7 @@ if _STRUCT_FMT_MODE not in {'json','human','both'}:
 
 _STRUCT_COMPACT = os.environ.get('G6_STRUCT_COMPACT','').lower() in {'1','true','yes','on'}
 
-def _compact_payload(event: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+def _compact_payload(event: str, payload: dict[str, Any]) -> dict[str, Any]:
     if not _STRUCT_COMPACT:
         return payload
     try:
@@ -87,7 +91,7 @@ def _compact_payload(event: str, payload: Dict[str, Any]) -> Dict[str, Any]:
 _def_dumps = lambda obj: json.dumps(obj, default=str, ensure_ascii=False, separators=(',', ':'))
 
 
-def _human_line(event: str, payload: Dict[str, Any]) -> str:
+def _human_line(event: str, payload: dict[str, Any]) -> str:
     try:
         if event == 'cycle_status_summary':
             totals = payload.get('expiry_status_totals') or {}
@@ -112,7 +116,7 @@ def _human_line(event: str, payload: Dict[str, Any]) -> str:
     except Exception:
         return f"STRUCT_H {event}"
 
-def _emit(event: str, payload: Dict[str, Any]) -> None:  # pragma: no cover (thin wrapper)
+def _emit(event: str, payload: dict[str, Any]) -> None:  # pragma: no cover (thin wrapper)
     if _STRUCT_DISABLED:
         return
     if event in _STRUCT_SUPPRESS:
@@ -143,10 +147,10 @@ def emit_instrument_prefilter_summary(
     option_candidates: int,
     ce: int,
     pe: int,
-    rejects: Dict[str, int],
-    latency_ms: Optional[float] = None,
+    rejects: dict[str, int],
+    latency_ms: float | None = None,
     contamination: bool | None = None,
-    contamination_samples: Optional[List[str]] = None,
+    contamination_samples: list[str] | None = None,
 ) -> None:
     payload = {
         'index': index,
@@ -182,10 +186,10 @@ def emit_option_match_stats(
     legs: int,
     ce_legs: int,
     pe_legs: int,
-    strike_min: Optional[float],
-    strike_max: Optional[float],
-    step: Optional[float],
-    sample: List[float] | List[str],
+    strike_min: float | None,
+    strike_max: float | None,
+    step: float | None,
+    sample: list[float] | list[str],
     ce_per_strike: float | None,
     pe_per_strike: float | None,
     synthetic: bool,
@@ -252,7 +256,7 @@ def emit_zero_data(
     _emit('zero_data', payload)
 
 
-def _compute_reason_totals(indices: List[Dict[str, Any]]) -> Dict[str,int]:
+def _compute_reason_totals(indices: list[dict[str, Any]]) -> dict[str,int]:
     counts = {'low_strike':0,'low_field':0,'low_both':0,'unknown':0}
     for idx in indices:
         for exp in idx.get('expiries', []) or []:
@@ -268,7 +272,7 @@ def emit_cycle_status_summary(
     *,
     cycle_ts: int,
     duration_s: float,
-    indices: List[Dict[str, Any]],
+    indices: list[dict[str, Any]],
     index_count: int,
     include_reason_totals: bool = True,
 ) -> None:
@@ -285,7 +289,7 @@ def emit_cycle_status_summary(
                 empty += 1
             # SYNTH status removed (synthetic fallback feature deprecated)
     reason_totals = _compute_reason_totals(indices) if include_reason_totals else None
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         'cycle_ts': cycle_ts,
         'duration_s': round(duration_s,2),
         'index_count': index_count,

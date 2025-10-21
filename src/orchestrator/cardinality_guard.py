@@ -18,9 +18,10 @@ try/except to avoid crashes if library internals change.
 """
 from __future__ import annotations
 
+import logging
 import os
 import time
-import logging
+
 from prometheus_client import REGISTRY  # type: ignore
 
 logger = logging.getLogger(__name__)

@@ -15,12 +15,15 @@ Environment Flags:
 Public API:
   load_and_validate_config(path: str, metrics=None) -> dict
 """
-import json, os, logging
+import json
+import logging
+import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
-from .validation import validate_config_file, ConfigValidationError
 from .config_wrapper import ConfigWrapper  # canonical wrapper for normalized access
+from .validation import ConfigValidationError, validate_config_file
+
 
 class ConfigError(ConfigValidationError):  # backward compatibility alias
     pass
@@ -29,7 +32,7 @@ logger = logging.getLogger(__name__)
 
 NORMALIZED_PATH = Path("logs/normalized_config.json")
 
-def _emit_normalized(cfg: Dict[str, Any]) -> None:
+def _emit_normalized(cfg: dict[str, Any]) -> None:
     try:
         NORMALIZED_PATH.parent.mkdir(parents=True, exist_ok=True)
         with NORMALIZED_PATH.open('w', encoding='utf-8') as fh:
@@ -38,7 +41,7 @@ def _emit_normalized(cfg: Dict[str, Any]) -> None:
         logger.warning("Failed to write normalized config", exc_info=True)
 
 
-def _increment_deprecated_metrics(cfg: Dict[str, Any], metrics: Any) -> None:
+def _increment_deprecated_metrics(cfg: dict[str, Any], metrics: Any) -> None:
     if not metrics or not hasattr(metrics, 'config_deprecated_keys'):
         return
     # Re-run lightweight legacy detection inline (avoid importing validation internals)
@@ -58,7 +61,7 @@ def _increment_deprecated_metrics(cfg: Dict[str, Any], metrics: Any) -> None:
             pass
 
 
-def load_and_validate_config(path: str | os.PathLike[str], *, metrics: Any = None) -> Dict[str, Any]:
+def load_and_validate_config(path: str | os.PathLike[str], *, metrics: Any = None) -> dict[str, Any]:
     strict = os.environ.get('G6_CONFIG_STRICT','').lower() in ('1','true','yes','on')
     soft_legacy = os.environ.get('G6_CONFIG_LEGACY_SOFT','').lower() in ('1','true','yes','on')
     try:
@@ -69,7 +72,7 @@ def load_and_validate_config(path: str | os.PathLike[str], *, metrics: Any = Non
         if not strict and 'application' in msg and 'does not match' in msg:
             try:
                 # Reload raw JSON directly and attempt sanitization
-                with open(path, 'r', encoding='utf-8') as fh:
+                with open(path, encoding='utf-8') as fh:
                     raw = json.load(fh)
                 app = raw.get('application')
                 if isinstance(app, str):
@@ -93,7 +96,7 @@ def load_and_validate_config(path: str | os.PathLike[str], *, metrics: Any = Non
             # Attempt expiry token coercion fallback (rule tokens -> deterministic ISO dates)
             if not strict and 'expiries' in msg and 'does not match' in msg:
                 try:
-                    with open(path, 'r', encoding='utf-8') as fh:
+                    with open(path, encoding='utf-8') as fh:
                         raw2 = json.load(fh)
                     from datetime import date, timedelta
                     today = date.today()

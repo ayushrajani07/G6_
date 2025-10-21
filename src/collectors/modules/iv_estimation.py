@@ -17,9 +17,11 @@ Behavior:
 - Silently logs debug on failure (never raises to main loop).
 """
 from __future__ import annotations
-from typing import Any, Dict, MutableMapping, Mapping, Protocol
-import logging
+
 import importlib
+import logging
+from collections.abc import Mapping, MutableMapping
+from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 

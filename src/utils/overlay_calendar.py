@@ -9,13 +9,12 @@ The module caches loaded holidays for efficiency.
 """
 from __future__ import annotations
 
-from pathlib import Path
-from datetime import date
-from typing import Set
-import os
 import json
+import os
+from datetime import date
+from pathlib import Path
 
-_HOLIDAYS_CACHE: Set[date] | None = None
+_HOLIDAYS_CACHE: set[date] | None = None
 _HOLIDAYS_PATH_CACHE: str | None = None
 
 
@@ -24,8 +23,8 @@ def _default_holidays_path() -> Path:
     return Path('data') / 'weekday_master' / '_calendar' / 'holidays.json'
 
 
-def _load_holidays_from(path: Path) -> Set[date]:
-    holidays: Set[date] = set()
+def _load_holidays_from(path: Path) -> set[date]:
+    holidays: set[date] = set()
     if not path.exists():
         return holidays
     try:
@@ -50,7 +49,7 @@ def _load_holidays_from(path: Path) -> Set[date]:
     return holidays
 
 
-def get_holidays() -> Set[date]:
+def get_holidays() -> set[date]:
     """Return a cached set of holiday dates.
 
     Resolution order for the holidays file:

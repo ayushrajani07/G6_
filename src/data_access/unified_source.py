@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Unified data access layer for G6.
 
 Provides a single, cached facade to fetch data from metrics, panels JSON, and
@@ -9,15 +8,16 @@ Default priority: metrics > panels > runtime_status > logs (logs not implemented
 """
 from __future__ import annotations
 
+import copy
 import json
 import os
 import threading
 import time
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional, Sequence, Tuple
+from datetime import UTC, datetime
+from typing import Any
 
-from typing import TYPE_CHECKING, Callable
 try:
     import requests  # requests stubs present
 except Exception:  # pragma: no cover
@@ -26,13 +26,15 @@ except Exception:  # pragma: no cover
 
 @dataclass
 class DataSourceConfig:
-    metrics_url: Optional[str] = None
-    runtime_status_path: Optional[str] = None
-    panels_dir: Optional[str] = None
+    metrics_url: str | None = None
+    runtime_status_path: str | None = None
+    panels_dir: str | None = None
     cache_ttl_seconds: float = 2.0
     # New: lightweight file watching knobs
     watch_files: bool = True
     file_poll_interval: float = 0.5
+    # Optional: enable cache diagnostics (hits/misses/reads)
+    enable_cache_stats: bool = False
 
     def __post_init__(self):
         self.metrics_url = self.metrics_url or os.environ.get('G6_METRICS_URL', 'http://127.0.0.1:9108/metrics')
@@ -47,6 +49,9 @@ class DataSourceConfig:
         }
         self.force_source = (os.environ.get('G6_FORCE_DATA_SOURCE') or '').strip().lower()
         self.metrics_disabled = (os.environ.get('G6_DISABLE_METRICS_SOURCE') or '').strip().lower() in ('1','true','yes','on')
+        # Env toggle for cache diagnostics
+        if not self.enable_cache_stats:
+            self.enable_cache_stats = (os.environ.get('G6_UDS_CACHE_STATS') or '').strip().lower() in ('1','true','yes','on')
 
     @property
     def source_order(self) -> Sequence[str]:
@@ -62,10 +67,10 @@ class DataSourceConfig:
 class _TTLCache:
     def __init__(self, ttl: float):
         self.ttl = float(ttl)
-        self._data: Dict[str, Tuple[Any, float]] = {}
+        self._data: dict[str, tuple[Any, float]] = {}
         self._lock = threading.RLock()
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: str) -> Any | None:
         with self._lock:
             item = self._data.get(key)
             if not item:
@@ -80,7 +85,7 @@ class _TTLCache:
         with self._lock:
             self._data[key] = (value, time.time())
 
-    def invalidate(self, prefix: Optional[str] = None) -> None:
+    def invalidate(self, prefix: str | None = None) -> None:
         with self._lock:
             if prefix is None:
                 self._data.clear()
@@ -91,7 +96,7 @@ class _TTLCache:
 
 
 class UnifiedDataSource:
-    _singleton: Optional['UnifiedDataSource'] = None
+    _singleton: UnifiedDataSource | None = None
     _lock = threading.RLock()
 
     def __new__(cls):
@@ -107,12 +112,19 @@ class UnifiedDataSource:
         self.config = DataSourceConfig()
         self.cache = _TTLCache(self.config.cache_ttl_seconds)
         # Track last seen mtimes to avoid redundant reads
-        self._mtimes: Dict[str, float] = {}
+        self._mtimes: dict[str, float] = {}
         self._last_stat_check: float = 0.0
         self._initialized = True
+        # Cache diagnostics (optional)
+        self._stats: dict[str, dict[str, int]] = {
+            'status': {'hits': 0, 'misses': 0, 'reads': 0},
+            'panel': {'hits': 0, 'misses': 0, 'reads': 0},
+            'panel_raw': {'hits': 0, 'misses': 0, 'reads': 0},
+            'metrics': {'hits': 0, 'misses': 0, 'reads': 0},
+        }
         # Optional: event bus for change notifications
         try:
-            from src.utils.file_watch_events import FileWatchEventBus, STATUS_FILE_CHANGED, PANEL_FILE_CHANGED
+            from src.utils.file_watch_events import PANEL_FILE_CHANGED, STATUS_FILE_CHANGED, FileWatchEventBus
             self._event_bus = FileWatchEventBus.instance()
             self._EV_STATUS = STATUS_FILE_CHANGED
             self._EV_PANEL = PANEL_FILE_CHANGED
@@ -127,6 +139,13 @@ class UnifiedDataSource:
             now = time.time()
             if not self.config.watch_files:
                 return False
+            # If polling interval is zero or negative, always allow stat
+            try:
+                if float(self.config.file_poll_interval) <= 0.0:
+                    self._last_stat_check = now
+                    return True
+            except Exception:
+                pass
             if now - self._last_stat_check >= float(self.config.file_poll_interval):
                 self._last_stat_check = now
                 return True
@@ -135,17 +154,25 @@ class UnifiedDataSource:
             # Be conservative: allow stat on errors
             return True
 
-    def _has_file_changed(self, path: Optional[str]) -> bool:
+    def _has_file_changed(self, path: str | None) -> bool:
         if not path:
             return False
         try:
-            if not self._should_stat_now():
+            # Force a stat on first encounter of this path to seed the mtime
+            force_stat = path not in self._mtimes
+            if not force_stat and not self._should_stat_now():
                 return False
             if not os.path.exists(path):
                 # If previously existed, consider changed; else no-op
                 prev = self._mtimes.pop(path, None)
                 return prev is not None
-            m = os.path.getmtime(path)
+            try:
+                st = os.stat(path)
+                m = getattr(st, 'st_mtime_ns', None)
+                if m is None:
+                    m = st.st_mtime  # fall back to seconds resolution
+            except Exception:
+                m = os.path.getmtime(path)
             prev = self._mtimes.get(path)
             if prev is None or m != prev:
                 self._mtimes[path] = m
@@ -154,33 +181,87 @@ class UnifiedDataSource:
         except Exception:
             # On errors, assume changed to be safe
             return True
-    def _read_status(self) -> Dict[str, Any]:
+
+    # --------------- Stats helpers ---------------
+    def _stat_inc(self, section: str, key: str, delta: int = 1) -> None:
+        if not getattr(self.config, 'enable_cache_stats', False):
+            return
         try:
-            path = self.config.runtime_status_path
-            if path and os.path.exists(path):
-                with open(path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+            self._stats.setdefault(section, {})
+            self._stats[section][key] = int(self._stats[section].get(key, 0)) + int(delta)
         except Exception:
             pass
-        return {}
 
-    def _read_panel(self, name: str) -> Dict[str, Any]:
+    def get_cache_stats(self, reset: bool = False) -> dict[str, dict[str, int]]:
+        """Return a snapshot of cache diagnostics counters.
+
+        Keys: 'status', 'panel', 'panel_raw', 'metrics' each with {'hits','misses','reads'}.
+        If reset=True, counters are zeroed after snapshot is taken.
+        """
+        snap = copy.deepcopy(self._stats)
+        if reset:
+            try:
+                for sec in self._stats.values():
+                    for k in list(sec.keys()):
+                        sec[k] = 0
+            except Exception:
+                pass
+        return snap
+    def _read_status(self) -> dict[str, Any]:
+        # Use centralized json mtime cache to minimize disk I/O on frequent polls
         try:
-            base = self.config.panels_dir
-            if not base:
+            from pathlib import Path as _Path
+
+            from src.utils.csv_cache import read_json_cached as _read_json_cached  # lightweight cached reader
+        except Exception:
+            _read_json_cached = None  # type: ignore
+            _Path = None  # type: ignore
+
+        try:
+            path = self.config.runtime_status_path
+            if not path:
                 return {}
-            path = os.path.join(base, f"{name}.json")
+            if _read_json_cached is not None and _Path is not None:
+                data = _read_json_cached(_Path(path))
+                return data if isinstance(data, dict) else ({})
+            # Fallback direct read
             if os.path.exists(path):
-                with open(path, 'r', encoding='utf-8') as f:
+                with open(path, encoding='utf-8') as f:
                     obj = json.load(f)
-                if isinstance(obj, dict) and 'data' in obj:
-                    return obj.get('data') or {}
                 return obj if isinstance(obj, dict) else {}
         except Exception:
             pass
         return {}
 
-    def _read_panel_raw(self, name: str) -> Dict[str, Any]:
+    def _read_panel(self, name: str, *, force: bool = False) -> dict[str, Any]:
+        try:
+            base = self.config.panels_dir
+            if not base:
+                return {}
+            path = os.path.join(base, f"{name}.json")
+            # Cached path when helper available
+            try:
+                from pathlib import Path as _Path
+
+                from src.utils.csv_cache import read_json_cached as _read_json_cached
+            except Exception:
+                _read_json_cached = None  # type: ignore
+                _Path = None  # type: ignore
+            if (not force) and (_read_json_cached is not None) and (_Path is not None):
+                obj = _read_json_cached(_Path(path))
+            else:
+                if not os.path.exists(path):
+                    return {}
+                with open(path, encoding='utf-8') as f:
+                    obj = json.load(f)
+            if isinstance(obj, dict) and 'data' in obj:
+                return obj.get('data') or {}
+            return obj if isinstance(obj, dict) else {}
+        except Exception:
+            pass
+        return {}
+
+    def _read_panel_raw(self, name: str, *, force: bool = False) -> dict[str, Any]:
         """Read raw panel JSON without extracting the 'data' field.
 
         Returns the top-level dict from panels/<name>.json or empty dict on error.
@@ -190,15 +271,25 @@ class UnifiedDataSource:
             if not base:
                 return {}
             path = os.path.join(base, f"{name}.json")
+            try:
+                from pathlib import Path as _Path
+
+                from src.utils.csv_cache import read_json_cached as _read_json_cached
+            except Exception:
+                _read_json_cached = None  # type: ignore
+                _Path = None  # type: ignore
+            if (not force) and (_read_json_cached is not None) and (_Path is not None):
+                obj = _read_json_cached(_Path(path))
+                return obj if isinstance(obj, dict) else {}
             if os.path.exists(path):
-                with open(path, 'r', encoding='utf-8') as f:
+                with open(path, encoding='utf-8') as f:
                     obj = json.load(f)
                 return obj if isinstance(obj, dict) else {}
         except Exception:
             pass
         return {}
 
-    def _read_metrics(self) -> Dict[str, Any]:
+    def _read_metrics(self) -> dict[str, Any]:
         """Read metrics using the centralized MetricsAdapter when available.
 
         Falls back to the legacy HTTP JSON endpoint (<metrics_url>/json) if the adapter
@@ -210,11 +301,11 @@ class UnifiedDataSource:
         """
         if self.config.metrics_disabled:
             return {}
-        
+
         # Preferred path: MetricsAdapter (centralized, cached, fault-tolerant)
         try:
             from src.utils.metrics_adapter import get_metrics_adapter as _gma
-            get_metrics_adapter: Optional[Callable[..., Any]] = _gma
+            get_metrics_adapter: Callable[..., Any] | None = _gma
         except Exception:
             get_metrics_adapter = None
 
@@ -224,7 +315,7 @@ class UnifiedDataSource:
                 pm = adapter.get_platform_metrics()
                 if pm is not None:
                     # Build a compact, backward-compatible dict
-                    out: Dict[str, Any] = {}
+                    out: dict[str, Any] = {}
                     # Resources
                     try:
                         perf = getattr(pm, 'performance', None)
@@ -249,7 +340,7 @@ class UnifiedDataSource:
                     try:
                         inds = getattr(pm, 'indices', None)
                         if isinstance(inds, dict):
-                            norm: Dict[str, Any] = {}
+                            norm: dict[str, Any] = {}
                             for k, v in inds.items():
                                 try:
                                     # Convert dataclass-like to dict via getattr fallbacks
@@ -291,16 +382,20 @@ class UnifiedDataSource:
         return {}
 
     # ----------------- Public API -----------------
-    def get_runtime_status(self) -> Dict[str, Any]:
+    def get_runtime_status(self) -> dict[str, Any]:
         # If watching is enabled and file hasn't changed, return cached value when present
         path = self.config.runtime_status_path
         changed = self._has_file_changed(path)
         if not changed:
             v = self.cache.get('status')
             if v is not None:
+                self._stat_inc('status', 'hits')
                 return v
         # Read fresh and update cache
+        # Count miss when file changed or cache empty
+        self._stat_inc('status', 'misses')
         v = self._read_status()
+        self._stat_inc('status', 'reads')
         self.cache.set('status', v)
         # Publish change event if applicable
         try:
@@ -310,7 +405,7 @@ class UnifiedDataSource:
             pass
         return v
 
-    def get_panel_data(self, name: str) -> Dict[str, Any]:
+    def get_panel_data(self, name: str) -> dict[str, Any]:
         key = f'p:{name}'
         # Invalidate cache if the underlying file changed
         changed = False
@@ -320,12 +415,33 @@ class UnifiedDataSource:
             if self._has_file_changed(path):
                 changed = True
                 self.cache.invalidate(key)
+                # Cross-invalidate corresponding raw cache so subsequent get_panel_raw sees the change
+                try:
+                    self.cache.invalidate(f'pr:{name}')
+                except Exception:
+                    pass
         except Exception:
             pass
         v = self.cache.get(key)
+        if not changed and v is not None:
+            self._stat_inc('panel', 'hits')
         if v is None:
-            v = self._read_panel(name)
-            self.cache.set(key, v)
+            self._stat_inc('panel', 'misses')
+            v = self._read_panel(name, force=changed)
+            self._stat_inc('panel', 'reads')
+        # Normalize in case a raw dict with top-level 'data' slipped through cache paths
+        try:
+            if isinstance(v, dict) and 'data' in v and isinstance(v.get('data'), dict):
+                v_norm = v.get('data') or {}
+                v = v_norm
+        except Exception:
+            pass
+        # Ensure cache stores the normalized shape to avoid stale raw entries on future hits
+        try:
+            if isinstance(v, dict):
+                self.cache.set(key, v)
+        except Exception:
+            pass
         # Publish change notification for panels
         try:
             if changed and self._event_bus and self._EV_PANEL:
@@ -334,7 +450,7 @@ class UnifiedDataSource:
             pass
         return v
 
-    def get_panel_raw(self, name: str) -> Dict[str, Any]:
+    def get_panel_raw(self, name: str) -> dict[str, Any]:
         """Get raw panel JSON including metadata like updated_at/kind.
 
         Cached separately from get_panel_data to avoid mixing shapes.
@@ -348,11 +464,20 @@ class UnifiedDataSource:
             if self._has_file_changed(path):
                 changed = True
                 self.cache.invalidate(key)
+                # Cross-invalidate corresponding normalized cache so subsequent get_panel_data sees the change
+                try:
+                    self.cache.invalidate(f'p:{name}')
+                except Exception:
+                    pass
         except Exception:
             pass
         v = self.cache.get(key)
-        if v is None:
-            v = self._read_panel_raw(name)
+        if not changed and v is not None:
+            self._stat_inc('panel_raw', 'hits')
+        if v is None or changed:
+            self._stat_inc('panel_raw', 'misses')
+            v = self._read_panel_raw(name, force=True)
+            self._stat_inc('panel_raw', 'reads')
             self.cache.set(key, v)
         # Publish change notification for panels
         try:
@@ -362,14 +487,19 @@ class UnifiedDataSource:
             pass
         return v
 
-    def get_metrics_data(self) -> Dict[str, Any]:
+    def get_metrics_data(self) -> dict[str, Any]:
         v = self.cache.get('metrics')
-        if v is None:
+        if v is not None:
+            self._stat_inc('metrics', 'hits')
+            return v
+        else:
+            self._stat_inc('metrics', 'misses')
             v = self._read_metrics()
+            self._stat_inc('metrics', 'reads')
             self.cache.set('metrics', v)
         return v
 
-    def get_indices_data(self) -> Dict[str, Any]:
+    def get_indices_data(self) -> dict[str, Any]:
         for src in self.config.source_order:
             if src == 'panels':
                 d = self.get_panel_data('indices')
@@ -388,7 +518,7 @@ class UnifiedDataSource:
                 if isinstance(inds, dict):
                     return inds
                 if isinstance(inds, list):
-                    out: Dict[str, Any] = {}
+                    out: dict[str, Any] = {}
                     for item in inds:
                         if isinstance(item, dict):
                             key = str(item.get('index') or item.get('idx') or '')
@@ -398,7 +528,7 @@ class UnifiedDataSource:
                         return out
         return {}
 
-    def get_cycle_data(self) -> Dict[str, Any]:
+    def get_cycle_data(self) -> dict[str, Any]:
         for src in self.config.source_order:
             if src == 'panels':
                 d = self.get_panel_data('loop')
@@ -414,12 +544,12 @@ class UnifiedDataSource:
                     return m['cycle']
         return {
             'cycle': None,
-            'timestamp': datetime.now(timezone.utc).isoformat(),
+            'timestamp': datetime.now(UTC).isoformat(),
             'elapsed': None,
             'interval': None,
         }
 
-    def get_provider_data(self) -> Dict[str, Any]:
+    def get_provider_data(self) -> dict[str, Any]:
         for src in self.config.source_order:
             if src == 'panels':
                 d = self.get_panel_data('provider')
@@ -431,7 +561,7 @@ class UnifiedDataSource:
                     return s['provider']
         return {'name': None, 'auth': {'valid': None}, 'latency_ms': None}
 
-    def get_resources_data(self) -> Dict[str, Any]:
+    def get_resources_data(self) -> dict[str, Any]:
         for src in self.config.source_order:
             if src == 'panels':
                 d = self.get_panel_data('resources')
@@ -447,7 +577,7 @@ class UnifiedDataSource:
                     return m['resources']
         return {'cpu': None, 'memory_mb': None}
 
-    def get_health_data(self) -> Dict[str, Any]:
+    def get_health_data(self) -> dict[str, Any]:
         for src in self.config.source_order:
             if src == 'panels':
                 d = self.get_panel_data('health')
@@ -475,7 +605,7 @@ class UnifiedDataSource:
             out.update(m['indices'].keys())
         return sorted(out)
 
-    def get_source_status(self) -> Dict[str, bool]:
+    def get_source_status(self) -> dict[str, bool]:
         st = {'runtime_status': False, 'panels': False, 'metrics': False}
         try:
             path = self.config.runtime_status_path
@@ -498,8 +628,10 @@ class UnifiedDataSource:
             self.cache = _TTLCache(cfg.cache_ttl_seconds)
             # Reset mtime tracking when reconfiguring paths
             self._mtimes = {}
+            # Reset stats when reconfiguring
+            self.get_cache_stats(reset=True)
 
-    def invalidate_cache(self, source: Optional[str] = None) -> None:
+    def invalidate_cache(self, source: str | None = None) -> None:
         if source is None:
             self.cache.invalidate()
             return

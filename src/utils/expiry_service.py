@@ -52,12 +52,17 @@ Future Extensions (not implemented now):
 
 from __future__ import annotations
 
+import json
+import logging
+import os
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date as _date
-from typing import Callable, Iterable, List, Sequence, Dict, Set
-import os, json, logging
+
 try:
-    from src.collectors.env_adapter import get_bool as _env_get_bool, get_str as _env_get_str, get_int as _env_get_int  # type: ignore
+    from src.collectors.env_adapter import get_bool as _env_get_bool  # type: ignore
+    from src.collectors.env_adapter import get_int as _env_get_int
+    from src.collectors.env_adapter import get_str as _env_get_str
 except Exception:  # pragma: no cover
     # Safe fallbacks if adapter not available
     def _env_get_bool(name: str, default: bool = False) -> bool:
@@ -137,7 +142,7 @@ class ExpiryService:
             raise ValueError(f"unsupported expiry rule: {rule}")
 
         today = self.today or _date.today()
-        uniq: List[_date] = sorted({d for d in candidates if isinstance(d, _date)})
+        uniq: list[_date] = sorted({d for d in candidates if isinstance(d, _date)})
         # Remove holidays first
         if self.holiday_fn:
             uniq = [d for d in uniq if not self.holiday_fn(d)]
@@ -178,7 +183,7 @@ class ExpiryService:
         raise AssertionError("unreachable rule branch")
 
     # ---- Classification -------------------------------------------------
-    def classify(self, expiry: _date) -> Dict[str, bool]:
+    def classify(self, expiry: _date) -> dict[str, bool]:
         """Return classification flags for an expiry."""
         return {
             "is_weekly": is_weekly_expiry(expiry, weekly_dow=self.weekly_dow),
@@ -209,9 +214,9 @@ def is_monthly_expiry(expiry: _date, *, monthly_dow: int = 3) -> bool:
 
 
 # Convenience for bulk selection (could be used later by collectors)
-def select_expiries(service: ExpiryService, rules: Sequence[str], candidates: Iterable[_date]) -> Dict[str, _date]:
+def select_expiries(service: ExpiryService, rules: Sequence[str], candidates: Iterable[_date]) -> dict[str, _date]:
     """Return mapping of rule -> selected date using a shared candidate list."""
-    out: Dict[str, _date] = {}
+    out: dict[str, _date] = {}
     for r in rules:
         try:
             out[r] = service.select(r, candidates)
@@ -221,7 +226,7 @@ def select_expiries(service: ExpiryService, rules: Sequence[str], candidates: It
 
 
 # ---- Holiday Calendar Loader & Service Builder ---------------------------
-def load_holiday_calendar(path: str | None) -> Set[_date]:
+def load_holiday_calendar(path: str | None) -> set[_date]:
     """Load a JSON file containing a list of YYYY-MM-DD strings.
 
     Returns empty set if path is None, file missing, or parse error occurs. Logs warnings.
@@ -229,9 +234,9 @@ def load_holiday_calendar(path: str | None) -> Set[_date]:
     if not path:
         return set()
     try:
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, encoding='utf-8') as f:
             raw = json.load(f)
-        out: Set[_date] = set()
+        out: set[_date] = set()
         for item in raw or []:
             if isinstance(item, str) and len(item) == 10:
                 try:

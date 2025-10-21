@@ -1,4 +1,246 @@
 groups:
+  - name: g6_option_greeks.rules
+    interval: 30s
+    rules:
+      # Focus ATM (delta~0.5) CE/PE by selecting strike with max(open interest) near spot implicitly via min without explicit join.
+      # Simplify by restricting to strikes where |delta| between 0.40 and 0.60 as ATM proxy (reduces label churn vs dynamic strike math).
+      - record: g6:atm_option_delta_ce
+        expr: max by (index, expiry) ((g6_option_delta{type="CE"} > 0.40) * (g6_option_delta{type="CE"} < 0.60) * g6_option_delta{type="CE"})
+      - record: g6:atm_option_delta_pe
+        expr: min by (index, expiry) ((g6_option_delta{type="PE"} < -0.40) * (g6_option_delta{type="PE"} > -0.60) * g6_option_delta{type="PE"})
+      # ATM IV representative (average CE+PE ATM IV)
+      - record: g6:atm_option_iv
+        expr: |
+          (
+            avg by (index, expiry) ((g6_option_delta{type="CE"} > 0.40) * (g6_option_delta{type="CE"} < 0.60) * g6_option_iv{type="CE"})
+            +
+            avg by (index, expiry) ((g6_option_delta{type="PE"} < -0.40) * (g6_option_delta{type="PE"} > -0.60) * g6_option_iv{type="PE"})
+          ) / 2
+      # Intraday baseline: 30m rolling mean & stddev for atm iv (requires ~30m warmup)
+      - record: g6:atm_option_iv_mean_30m
+        expr: avg_over_time(g6:atm_option_iv[30m])
+      - record: g6:atm_option_iv_stddev_30m
+        expr: stddev_over_time(g6:atm_option_iv[30m])
+      # IV z-score (cap stddev min to avoid explosion when flat early)
+      - record: g6:atm_option_iv_zscore_30m
+        expr: (g6:atm_option_iv - g6:atm_option_iv_mean_30m) / clamp_min(g6:atm_option_iv_stddev_30m, 1e-6)
+      # Gamma & Vega spikes (use p95 10m vs 30m mean as relative spike ratio)
+      - record: g6:atm_option_gamma_ce
+        expr: max by (index, expiry) ((g6_option_delta{type="CE"} > 0.40) * (g6_option_delta{type="CE"} < 0.60) * g6_option_gamma{type="CE"})
+      - record: g6:atm_option_gamma_pe
+        expr: max by (index, expiry) ((g6_option_delta{type="PE"} < -0.40) * (g6_option_delta{type="PE"} > -0.60) * g6_option_gamma{type="PE"})
+      - record: g6:atm_option_vega_ce
+        expr: max by (index, expiry) ((g6_option_delta{type="CE"} > 0.40) * (g6_option_delta{type="CE"} < 0.60) * g6_option_vega{type="CE"})
+      - record: g6:atm_option_vega_pe
+        expr: max by (index, expiry) ((g6_option_delta{type="PE"} < -0.40) * (g6_option_delta{type="PE"} > -0.60) * g6_option_vega{type="PE"})
+      - record: g6:atm_option_gamma_ratio_10m_vs_30m
+        expr: |
+          (
+            avg_over_time(((g6:atm_option_gamma_ce + g6:atm_option_gamma_pe)/2)[10m:])
+            /
+            clamp_min(avg_over_time(((g6:atm_option_gamma_ce + g6:atm_option_gamma_pe)/2)[30m:]), 1e-9)
+          )
+      - record: g6:atm_option_vega_ratio_10m_vs_30m
+        expr: |
+          (
+            avg_over_time(((g6:atm_option_vega_ce + g6:atm_option_vega_pe)/2)[10m:])
+            /
+            clamp_min(avg_over_time(((g6:atm_option_vega_ce + g6:atm_option_vega_pe)/2)[30m:]), 1e-9)
+          )
+      # Theta drift detection (CE+PE mean absolute change over 15m vs 30m mean magnitude)
+      - record: g6:atm_option_theta_ce
+        expr: max by (index, expiry) ((g6_option_delta{type="CE"} > 0.40) * (g6_option_delta{type="CE"} < 0.60) * g6_option_theta{type="CE"})
+      - record: g6:atm_option_theta_pe
+        expr: max by (index, expiry) ((g6_option_delta{type="PE"} < -0.40) * (g6_option_delta{type="PE"} > -0.60) * g6_option_theta{type="PE"})
+      - record: g6:atm_option_theta_drift_ratio_15m
+        expr: |
+          (
+            abs(
+              (g6:atm_option_theta_ce + g6:atm_option_theta_pe)/2
+              -
+              ((g6:atm_option_theta_ce offset 15m + g6:atm_option_theta_pe offset 15m)/2)
+            )
+            /
+            clamp_min(avg_over_time(abs(((g6:atm_option_theta_ce + g6:atm_option_theta_pe)/2))[30m:]), 1e-9)
+          )
+      # Data gap detector: no update in 5m for ATM IV
+      - record: g6:atm_option_iv_stale_5m
+        expr: (time() - max_over_time(g6:atm_option_iv[5m])) > 300
+  
+  - name: g6_option_volume_ratios.rules
+    interval: 30s
+    rules:
+      # Aggregate per-index option volume (sum across expiry/strikes) split by type to compute ratios.
+      - record: g6:option_call_volume_5m
+        expr: sum by (index) (increase(g6_option_volume{type="CE"}[5m]))
+      - record: g6:option_put_volume_5m
+        expr: sum by (index) (increase(g6_option_volume{type="PE"}[5m]))
+      - record: g6:option_volume_ratio_call_put_5m
+        expr: g6:option_call_volume_5m / clamp_min(g6:option_put_volume_5m, 1)
+      - record: g6:option_volume_ratio_put_call_5m
+        expr: g6:option_put_volume_5m / clamp_min(g6:option_call_volume_5m, 1)
+      # Smooth (30m) versions for trend context.
+      - record: g6:option_call_volume_30m
+        expr: sum by (index) (increase(g6_option_volume{type="CE"}[30m]))
+      - record: g6:option_put_volume_30m
+        expr: sum by (index) (increase(g6_option_volume{type="PE"}[30m]))
+      - record: g6:option_volume_ratio_call_put_30m
+        expr: g6:option_call_volume_30m / clamp_min(g6:option_put_volume_30m, 1)
+      - record: g6:option_volume_ratio_put_call_30m
+        expr: g6:option_put_volume_30m / clamp_min(g6:option_call_volume_30m, 1)
+  
+  - name: g6_external_vix.rules
+    interval: 30s
+    rules:
+      # Rolling 30m statistics for external VIX (fraction) per source.
+      - record: g6:external_vix_mean_30m
+        expr: avg_over_time(g6_external_vix[30m])
+      - record: g6:external_vix_stddev_30m
+        expr: stddev_over_time(g6_external_vix[30m])
+      - record: g6:external_vix_zscore_30m
+        expr: (g6_external_vix - g6:external_vix_mean_30m) / clamp_min(g6:external_vix_stddev_30m, 1e-6)
+      # Align ATM IV series with VIX (need index dimension; assume primary index variable mapping). Keep only if both present.
+      - record: g6:vix_iv_cov_30m
+        expr: |
+          avg_over_time(((g6_external_vix - g6:external_vix_mean_30m)
+            * (g6:atm_option_iv - g6:atm_option_iv_mean_30m))[30m:])
+      - record: g6:atm_option_iv_stddev_30m  # mirror for join without recompute (already defined earlier but ensure label compatibility)
+        expr: g6:atm_option_iv_stddev_30m
+      - record: g6:vix_iv_corr_30m
+        expr: |
+          g6:vix_iv_cov_30m / (clamp_min(g6:external_vix_stddev_30m,1e-9) * clamp_min(g6:atm_option_iv_stddev_30m,1e-9))
+      # Regime shift detector: large absolute correlation drop from prior 30m window.
+      - record: g6:vix_iv_corr_change_30m
+        expr: abs(g6:vix_iv_corr_30m - (g6:vix_iv_corr_30m offset 30m))
+  - name: g6_external_vix.alerts
+    interval: 30s
+    rules:
+      - alert: G6VixZScoreElevated
+        expr: g6_market_session_open_flag == 1 and g6:external_vix_zscore_30m > 2.5 and g6:external_vix_stddev_30m > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "External VIX z-score >2.5"
+          description: |-
+            VIX spike vs 30m baseline (z={{ $value | printf "%.2f" }}). Potential volatility event.
+      - alert: G6VixZScoreCritical
+        expr: g6_market_session_open_flag == 1 and g6:external_vix_zscore_30m > 4 and g6:external_vix_stddev_30m > 0
+        for: 5m
+        labels:
+          severity: critical
+          team: g6
+        annotations:
+          summary: "External VIX z-score >4"
+          description: |-
+            Severe volatility expansion; review hedging posture.
+      - alert: G6VixIvHighCorrelation
+        expr: g6_market_session_open_flag == 1 and abs(g6:vix_iv_corr_30m) > 0.75
+        for: 15m
+        labels:
+          severity: info
+          team: g6
+        annotations:
+          summary: "High VIX/ATM IV correlation (|corr|>0.75)"
+          description: |-
+            Sustained strong coupling between external VIX and ATM IV (corr={{ $value | printf "%.2f" }}). Indicates broad market volatility driver.
+      - alert: G6VixIvCorrelationShift
+        expr: g6_market_session_open_flag == 1 and g6:vix_iv_corr_change_30m > 0.4
+        for: 15m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "VIX/ATM IV correlation regime shift"
+          description: |-
+            Correlation changed by >0.4 over 30m. Possible transition in volatility regime or data anomaly.
+  - name: g6_option_volume_ratios.alerts
+    interval: 30s
+    rules:
+      - alert: G6OptionVolumeCallSkewHigh
+        expr: g6_market_session_open_flag == 1 and g6:option_volume_ratio_call_put_5m > 2 and g6:option_volume_ratio_call_put_30m > 1.5
+        for: 10m
+        labels:
+          severity: info
+          team: g6
+        annotations:
+          summary: "Call volume skew high"
+          description: |-
+            5m call/put volume ratio {{ $value | printf "%.2f" }} (>2) with 30m ratio elevated (>1.5). Persistent bullish flow.
+      - alert: G6OptionVolumePutSkewHigh
+        expr: g6_market_session_open_flag == 1 and g6:option_volume_ratio_put_call_5m > 2 and g6:option_volume_ratio_put_call_30m > 1.5
+        for: 10m
+        labels:
+          severity: info
+          team: g6
+        annotations:
+          summary: "Put volume skew high"
+          description: |-
+            5m put/call volume ratio {{ $value | printf "%.2f" }} (>2) with 30m ratio elevated (>1.5). Persistent defensive flow.
+  - name: g6_option_greeks.alerts
+    interval: 30s
+    rules:
+      - alert: G6AtmIvZScoreElevated
+        expr: g6_market_session_open_flag == 1 and g6:atm_option_iv_zscore_30m > 2.5 and g6:atm_option_iv_stddev_30m > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "ATM IV z-score >2.5"
+          description: |-
+            ATM implied volatility elevated (z-score {{ $value | printf "%.2f" }} >2.5 vs 30m mean). Potential volatility expansion.
+      - alert: G6AtmIvZScoreCritical
+        expr: g6_market_session_open_flag == 1 and g6:atm_option_iv_zscore_30m > 4 and g6:atm_option_iv_stddev_30m > 0
+        for: 5m
+        labels:
+          severity: critical
+          team: g6
+        annotations:
+          summary: "ATM IV z-score >4"
+          description: |-
+            Severe IV spike (z-score {{ $value | printf "%.2f" }} >4). Likely macro/news event; widen risk limits.
+      - alert: G6AtmGammaSpike
+        expr: g6_market_session_open_flag == 1 and g6:atm_option_gamma_ratio_10m_vs_30m > 1.6
+        for: 10m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "ATM gamma 10m/30m >1.6"
+          description: |-
+            ATM gamma elevated vs recent baseline (ratio {{ $value | printf "%.2f" }}). Risk of rapid delta changes.
+      - alert: G6AtmVegaSpike
+        expr: g6_market_session_open_flag == 1 and g6:atm_option_vega_ratio_10m_vs_30m > 1.5
+        for: 10m
+        labels:
+          severity: info
+          team: g6
+        annotations:
+          summary: "ATM vega 10m/30m >1.5"
+          description: |-
+            ATM vega uplift (ratio {{ $value | printf "%.2f" }}) indicating sensitivity increase to IV changes.
+      - alert: G6AtmThetaDriftHigh
+        expr: g6_market_session_open_flag == 1 and g6:atm_option_theta_drift_ratio_15m > 2
+        for: 10m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "ATM theta drift ratio >2"
+          description: |-
+            Theta changed >2x typical 30m magnitude over last 15m. Possible decay regime shift or data inconsistency.
+      - alert: G6AtmIvStale
+        expr: g6_market_session_open_flag == 1 and g6:atm_option_iv_stale_5m == 1
+        for: 2m
+        labels:
+          severity: warning
+          team: g6
+        annotations:
+          summary: "ATM IV series stale >5m"
+          description: |-
+            No ATM IV updates for >5m. Check option feed / collector health and strike filtering logic.
   - name: g6_health_score.rules
     interval: 30s
     rules:

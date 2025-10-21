@@ -19,15 +19,17 @@ Public API:
 Context object may include index symbol, expiry rule/date, env flags, metrics.
 """
 from __future__ import annotations
-from typing import Callable, List, Tuple, Dict, Any
+
 import logging
+from collections.abc import Callable
+from typing import Any, Dict, List, Tuple
 
 logger = logging.getLogger(__name__)
 
-ValidatorFn = Callable[[Dict[str, Any], Dict[str, Any]], Tuple[Dict[str, Any] | None, Dict[str, Any] | None]]
+ValidatorFn = Callable[[dict[str, Any], dict[str, Any]], tuple[dict[str, Any] | None, dict[str, Any] | None]]
 # signature: (row, ctx) -> (maybe_row, per_row_report)
 
-_VALIDATORS: List[tuple[int, str, ValidatorFn]] = []  # (order, name, fn)
+_VALIDATORS: list[tuple[int, str, ValidatorFn]] = []  # (order, name, fn)
 
 
 def register_validator(fn: ValidatorFn | None = None, *, name: str | None = None, order: int = 100):
@@ -59,7 +61,7 @@ def register_validator(fn: ValidatorFn | None = None, *, name: str | None = None
     return _decorate(fn)
 
 
-def list_validators() -> List[str]:
+def list_validators() -> list[str]:
     return [n for _, n, _ in _VALIDATORS]
 
 
@@ -67,7 +69,7 @@ def _debug_dump():  # internal helper
     return [(o, n) for o, n, _ in _VALIDATORS]
 
 
-def run_validators(context: Dict[str, Any], rows: List[Dict[str, Any]]):
+def run_validators(context: dict[str, Any], rows: list[dict[str, Any]]):
     """Run all registered validators sequentially.
 
     Each validator can:
@@ -75,12 +77,12 @@ def run_validators(context: Dict[str, Any], rows: List[Dict[str, Any]]):
       - Return (None, report) to drop the row.
       - Raise: will be caught and logged (row kept unchanged, error noted in reports list).
     """
-    cleaned: List[Dict[str, Any]] = []
-    reports: List[Dict[str, Any]] = []
+    cleaned: list[dict[str, Any]] = []
+    reports: list[dict[str, Any]] = []
     for row in rows:
         keep = True
         current = row
-        per_row_reports: List[Dict[str, Any]] = []
+        per_row_reports: list[dict[str, Any]] = []
         for order, name, fn in _VALIDATORS:
             try:
                 new_row, rep = fn(current, context)
@@ -103,13 +105,13 @@ def run_validators(context: Dict[str, Any], rows: List[Dict[str, Any]]):
 # ---------------------------------------------------------------------------
 # Built-in validators
 # ---------------------------------------------------------------------------
-def drop_zero_price(row: Dict[str, Any], ctx: Dict[str, Any]):
+def drop_zero_price(row: dict[str, Any], ctx: dict[str, Any]):
     lp = row.get('last_price')
     if lp in (None, 0, 0.0):
         return None, {'reason': 'zero_last_price'}
     return row, None
 
-def clamp_negative_oi_volume(row: Dict[str, Any], ctx: Dict[str, Any]):
+def clamp_negative_oi_volume(row: dict[str, Any], ctx: dict[str, Any]):
     changed = False
     for fld in ('oi', 'volume'):
         v = row.get(fld)
@@ -120,14 +122,14 @@ def clamp_negative_oi_volume(row: Dict[str, Any], ctx: Dict[str, Any]):
         return row, {'reason': 'clamp_neg_oi_vol'}
     return row, None
 
-def basic_field_presence(row: Dict[str, Any], ctx: Dict[str, Any]):
+def basic_field_presence(row: dict[str, Any], ctx: dict[str, Any]):
     required = ('last_price','oi','volume','strike','instrument_type')
     missing = [f for f in required if f not in row]
     if missing:
         return None, {'reason': 'missing_fields', 'fields': missing}
     return row, None
 
-def dummy_pattern_filter(row: Dict[str, Any], ctx: Dict[str, Any]):
+def dummy_pattern_filter(row: dict[str, Any], ctx: dict[str, Any]):
     """Filter out classic uniform synthetic-looking CE/PE duplicates (post-synthetic removal safety net)."""
     # Heuristic: identical CE/PE prices around small cluster with tiny volumes
     price = row.get('last_price')

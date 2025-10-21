@@ -6,12 +6,14 @@ instance to avoid divergence when importing via different paths (facade vs legac
 Public helpers kept intentionally tiny to minimize import side-effects.
 """
 from __future__ import annotations
-from typing import Optional, TYPE_CHECKING
+
 import threading
+from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:  # pragma: no cover
     from .metrics import MetricsRegistry  # type: ignore
 
-REGISTRY_SINGLETON: 'MetricsRegistry | None' = None
+REGISTRY_SINGLETON: MetricsRegistry | None = None
 _REGISTRY_LOCK = threading.Lock()
 
 

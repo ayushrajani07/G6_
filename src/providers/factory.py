@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Provider factory for the G6 platform.
 
@@ -8,12 +7,10 @@ Backwards compatible: reuses existing broker.kite_provider classes.
 """
 from __future__ import annotations
 
-from typing import Any, Dict
-
-from src.provider.config import get_provider_config
+from typing import Any
 
 
-def create_provider(provider_type: str, config: Dict[str, Any] | None = None):
+def create_provider(provider_type: str, config: dict[str, Any] | None = None):
     """Create a provider instance.
 
     Enhancements (A7 Step 11 shim):
@@ -41,6 +38,7 @@ def create_provider(provider_type: str, config: Dict[str, Any] | None = None):
         # Preserve legacy test expectation: constructing a kite provider via factory
         # with implicit env credentials emits a deprecation warning (migration notice).
         import warnings
+
         from src.broker.kite_provider import DEPRECATION_MSG_FACTORY_IMPLICIT
         warnings.warn(DEPRECATION_MSG_FACTORY_IMPLICIT, DeprecationWarning, stacklevel=2)
         return kite_provider_factory()

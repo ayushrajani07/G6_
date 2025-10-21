@@ -25,16 +25,18 @@ populate via coverage_eval earlier in the pipeline. This module focuses on
 normalization + aggregation only.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, Iterable, Mapping
-import math
+
 import logging
+import math
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-Rollup = Dict[str, Any]
+Rollup = dict[str, Any]
 
 
-def _safe_float(v: Any) -> Optional[float]:
+def _safe_float(v: Any) -> float | None:
     try:
         if v is None:
             return None
@@ -46,7 +48,7 @@ def _safe_float(v: Any) -> Optional[float]:
         return None
 
 
-def compute_index_coverage(index_symbol: str, expiries: Iterable[Mapping[str, Any] | Dict[str, Any]]) -> Rollup:
+def compute_index_coverage(index_symbol: str, expiries: Iterable[Mapping[str, Any] | dict[str, Any]]) -> Rollup:
     """Aggregate per-expiry coverage metrics into an index-level rollup.
 
     Parameters
@@ -63,10 +65,10 @@ def compute_index_coverage(index_symbol: str, expiries: Iterable[Mapping[str, An
       index, expiries_evaluated, expiries_with_options, options_total,
       strike_coverage_avg, field_coverage_avg, per_expiry (list[dict]), status.
     """
-    per_expiry: List[Dict[str, Any]] = []
+    per_expiry: list[dict[str, Any]] = []
     options_total = 0
-    strike_values: List[float] = []
-    field_values: List[float] = []
+    strike_values: list[float] = []
+    field_values: list[float] = []
     expiries_with_options = 0
 
     expiries_list = list(expiries or [])
@@ -93,7 +95,7 @@ def compute_index_coverage(index_symbol: str, expiries: Iterable[Mapping[str, An
             'field_coverage': fc,
         })
 
-    def _avg(vals: List[float]) -> Optional[float]:
+    def _avg(vals: list[float]) -> float | None:
         if not vals:
             return None
         return sum(vals) / len(vals)

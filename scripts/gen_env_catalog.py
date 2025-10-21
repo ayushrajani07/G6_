@@ -24,9 +24,12 @@ missing sections do not break release automation.
 """
 from __future__ import annotations
 
-import os, re, sys, tempfile
+import os
+import re
+import sys
+import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[1]
 ENV_DICT = ROOT / 'docs' / 'env_dict.md'
@@ -55,8 +58,10 @@ def scan_repo_tokens(root: Path) -> set[str]:
     return out
 
 
-def parse_env_dict(path: Path):
-    rows = []
+
+
+def parse_env_dict(path: Path) -> list[tuple[str, str, str, str]]:
+    rows: list[tuple[str, str, str, str]] = []
     if not path.exists():
         return rows
     try:
@@ -77,14 +82,14 @@ def truncate(desc: str, limit: int = 120) -> str:
     return desc[: limit - 1].rstrip() + '…'
 
 
-def build_markdown(doc_rows, code_tokens: set[str]) -> str:
+def build_markdown(doc_rows: list[tuple[str, str, str, str]], code_tokens: set[str]) -> str:
     documented_names = {r[0] for r in doc_rows}
     # Filter out broad prefix placeholders (tokens ending with '_' or obviously generic) to
     # reduce noise that would never be documented individually (e.g., G6_PANELS_, G6_METRICS_)
     filtered = {n for n in code_tokens - documented_names if not (n.endswith('_') or n in {'G6_NAME'})}
     undocumented = sorted(filtered)
 
-    now = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
+    now = datetime.now(UTC).isoformat().replace('+00:00', 'Z')
     stamp = os.getenv('G6_CATALOG_TS', now)
     out = []
     out.append('# G6 Environment Variables Catalog')

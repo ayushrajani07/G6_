@@ -5,8 +5,10 @@ lean registration and documentation generation. Initially migrating the
 "resource utilization" metrics group as a proof of concept.
 """
 from __future__ import annotations
+
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Callable, Sequence, List, Optional
+
 from prometheus_client import Counter, Gauge, Histogram, Summary
 
 __all__ = [
@@ -26,10 +28,10 @@ class MetricDescriptor:
     documentation: str
     mtype: MetricType
     labels: Sequence[str] = ()
-    buckets: Optional[Sequence[float]] = None  # for histograms
+    buckets: Sequence[float] | None = None  # for histograms
     group: str = "resource_utilization"
 
-RESOURCE_DESCRIPTORS: List[MetricDescriptor] = [
+RESOURCE_DESCRIPTORS: list[MetricDescriptor] = [
     MetricDescriptor("g6_memory_usage_mb", "Resident memory usage in MB", "gauge"),
     MetricDescriptor("g6_cpu_usage_percent", "Process CPU utilization percent", "gauge"),
     MetricDescriptor("g6_disk_io_operations_total", "Disk I/O operation count (increment)", "counter"),
@@ -37,14 +39,14 @@ RESOURCE_DESCRIPTORS: List[MetricDescriptor] = [
 ]
 
 # Provider latency / success descriptors (Phase 3 migration subset)
-PROVIDER_DESCRIPTORS: List[MetricDescriptor] = [
+PROVIDER_DESCRIPTORS: list[MetricDescriptor] = [
     MetricDescriptor("g6_api_response_latency_ms", "Upstream API response latency distribution (ms)", "histogram", buckets=[5,10,20,50,100,200,400,800,1600,3200], group="provider"),
     MetricDescriptor("g6_api_success_rate_percent", "Successful API call percentage (rolling window)", "gauge", group="provider"),
     MetricDescriptor("g6_api_response_time_ms", "Average upstream API response time (ms, rolling)", "gauge", group="provider"),
 ]
 
 # Loop / cycle timing core descriptors (non per-index; stick to gauges for snapshot values)
-LOOP_DESCRIPTORS: List[MetricDescriptor] = [
+LOOP_DESCRIPTORS: list[MetricDescriptor] = [
     MetricDescriptor("g6_collection_cycle_time_seconds", "Average end-to-end collection cycle time (sliding)", "gauge", group="loop"),
     MetricDescriptor("g6_cycles_per_hour", "Observed cycles per hour (rolling)", "gauge", group="loop"),
     MetricDescriptor("g6_collection_cycle_in_progress", "Current collection cycle execution flag (1=in-progress,0=idle)", "gauge", group="loop"),

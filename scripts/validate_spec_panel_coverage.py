@@ -21,12 +21,14 @@ from __future__ import annotations
 import json
 import re
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Any, cast
 
 try:
-    import yaml  # type: ignore
-except Exception as e:
+    # Prefer a narrow exception to keep name binding visible to type checkers
+    import yaml  # type: ignore[import-untyped]
+except ImportError:
     print("ERROR: PyYAML is required (pip install pyyaml)", file=sys.stderr)
     sys.exit(2)
 
@@ -35,8 +37,8 @@ SPEC_PATH = ROOT / "metrics" / "spec" / "base.yml"
 DASH_DIR = ROOT / "grafana" / "dashboards" / "generated"
 
 
-def _read_dash_exprs(dash_dir: Path) -> List[str]:
-    exprs: List[str] = []
+def _read_dash_exprs(dash_dir: Path) -> list[str]:
+    exprs: list[str] = []
     if not dash_dir.exists():
         return exprs
     for fp in sorted(dash_dir.glob("*.json")):
@@ -57,7 +59,7 @@ def _read_dash_exprs(dash_dir: Path) -> List[str]:
 _RE_BY_GROUP = re.compile(r"by\s*\(\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\)")
 
 
-def _quantile_suffix_from_promql(promql: str) -> Optional[str]:
+def _quantile_suffix_from_promql(promql: str) -> str | None:
     # Detect histogram_quantile(0.95|0.99|0.9) -> p95|p99|p90
     if "histogram_quantile" not in promql:
         return None
@@ -98,7 +100,7 @@ def _covered_by_dashboard(panel_promql: str, base_metric: str, dash_exprs: Itera
 
     # Non-histogram cases: look for base metric presence
     # If spec suggests a grouping label, prefer a match that includes it
-    want_label: Optional[str] = None
+    want_label: str | None = None
     m = _RE_BY_GROUP.search(pql)
     if m:
         want_label = m.group(1)
@@ -116,33 +118,37 @@ def _covered_by_dashboard(panel_promql: str, base_metric: str, dash_exprs: Itera
     return any_base
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     # Load spec
     if not SPEC_PATH.exists():
         print(f"ERROR: spec file missing: {SPEC_PATH}", file=sys.stderr)
         return 2
-    spec = yaml.safe_load(SPEC_PATH.read_text()) or {}
-    families = (spec.get("families") or {})
+    # Ensure typed containers for downstream access
+    spec = cast(dict[str, Any], yaml.safe_load(SPEC_PATH.read_text()) or {})
+    families = cast(dict[str, Any], spec.get("families") or {})
 
     dash_exprs = _read_dash_exprs(DASH_DIR)
     total = 0
     covered = 0
-    misses: List[Tuple[str, str, str]] = []  # (metric, panel_title, reason)
+    misses: list[tuple[str, str, str]] = []  # (metric, panel_title, reason)
 
-    for fam_name, fdata in families.items():
-        metrics = (fdata or {}).get("metrics") or []
+    for fdata in families.values():
+        fdata_dict = cast(dict[str, Any], fdata or {})
+        metrics = cast(list[Any], fdata_dict.get("metrics") or [])
         for m in metrics:
             if not isinstance(m, dict):
                 continue
-            name = m.get("name")
+            m_dict = cast(dict[str, Any], m)
+            name = m_dict.get("name")
             if not name:
                 continue
-            panels = (m.get("panels") or [])
+            panels = cast(list[Any], m_dict.get("panels") or [])
             for pdef in panels:
                 if not isinstance(pdef, dict):
                     continue
-                promql = (pdef.get("promql") or "").strip()
-                title = pdef.get("title") or pdef.get("kind") or "panel"
+                pdef_dict = cast(dict[str, Any], pdef)
+                promql = (cast(str, pdef_dict.get("promql") or "").strip())
+                title = cast(str, pdef_dict.get("title") or pdef_dict.get("kind") or "panel")
                 # Skip placeholder/comment-only promql
                 if not promql or promql.startswith("/*"):
                     continue

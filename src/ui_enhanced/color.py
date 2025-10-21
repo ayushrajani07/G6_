@@ -2,8 +2,9 @@
 Full version can be dropped in later; keeps API compatibility with utils.color.
 """
 from __future__ import annotations
-import os, sys
-from typing import Tuple
+
+import os
+import sys
 
 RESET = "\x1b[0m"; BOLD = "\x1b[1m"
 FG_RED = "\x1b[31m"; FG_GREEN = "\x1b[32m"; FG_YELLOW = "\x1b[33m"; FG_CYAN = "\x1b[36m"; FG_MAGENTA = "\x1b[35m"; FG_WHITE = "\x1b[37m"
@@ -34,7 +35,7 @@ _STATUS_MAP = {
     'critical': (FG_BRIGHT_RED, True), 'na': (FG_BRIGHT_BLACK, False), 'unknown': (FG_MAGENTA, True),
 }
 
-def status_color(status: str) -> Tuple[str,bool]:
+def status_color(status: str) -> tuple[str,bool]:
     s = (status or '').lower()
     return _STATUS_MAP.get(s, (FG_MAGENTA, True))
 

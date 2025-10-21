@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Shared normalization helpers for option records.
 
 Functions here are intentionally dependency-light to allow usage from
@@ -7,11 +6,13 @@ providers, collectors, and sinks without circular imports.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
 import datetime as _dt
 import os as _os
+from typing import Any
+
 try:
-    from src.collectors.env_adapter import get_float as _env_get_float, get_bool as _env_get_bool  # type: ignore
+    from src.collectors.env_adapter import get_bool as _env_get_bool
+    from src.collectors.env_adapter import get_float as _env_get_float  # type: ignore
 except Exception:  # pragma: no cover
     def _env_get_float(name: str, default: float) -> float:
         try:
@@ -21,7 +22,8 @@ except Exception:  # pragma: no cover
             return float(str(v).strip())
         except Exception:
             return default
-    def _env_get_bool(name: str, default: bool) -> bool:
+    # Match signature of env_adapter.get_bool which provides a default value for 'default'
+    def _env_get_bool(name: str, default: bool = False) -> bool:
         try:
             v = _os.environ.get(name)
             if v is None:
@@ -39,9 +41,9 @@ def _env_flag(name: str, default: bool) -> bool:
 def normalize_price(
     raw: Any,
     *,
-    strike: Optional[float] = None,
-    index_price: Optional[float] = None,
-    oi: Optional[float] = None,
+    strike: float | None = None,
+    index_price: float | None = None,
+    oi: float | None = None,
     paise_threshold: float = _env_get_float('G6_PRICE_PAISE_THRESHOLD', 10000.0),
     max_strike_frac: float = _env_get_float('G6_PRICE_MAX_STRIKE_FRAC', 0.35),
     max_index_frac: float = _env_get_float('G6_PRICE_MAX_INDEX_FRAC', 0.5),
@@ -94,7 +96,7 @@ def normalize_price(
         return 0.0
 
 
-def sanitize_option_fields(record: Dict[str, Any], *, index_price: Optional[float] = None) -> Dict[str, Any]:
+def sanitize_option_fields(record: dict[str, Any], *, index_price: float | None = None) -> dict[str, Any]:
     """Return a copy of record with sanitized core fields.
 
     - Coerce numeric types (last_price, avg_price, volume, oi)

@@ -1,25 +1,31 @@
 from __future__ import annotations
-from typing import Any, Iterable, Sequence, Mapping as TypingMapping, Callable, Protocol, List, Dict, MutableMapping, cast
-InstrumentRow = Dict[str, Any]
 
-import logging, datetime, inspect
+from collections.abc import Callable, Iterable, MutableMapping, Sequence
+from typing import Any, Protocol, cast
+
+InstrumentRow = dict[str, Any]
+
+import datetime
+import logging
+
+from src.collectors.errors import PhaseAbortError, PhaseRecoverableError
+from src.utils.exceptions import NoInstrumentsError, NoQuotesError, ResolveExpiryError  # domain -> taxonomy mappings
+
+from .error_helpers import add_phase_error
 from .state import ExpiryState
 from .struct_events import emit_struct_event
-from .error_helpers import add_phase_error
-from src.collectors.errors import PhaseRecoverableError, PhaseAbortError, PhaseFatalError
-from src.utils.exceptions import ResolveExpiryError, NoInstrumentsError, NoQuotesError  # domain -> taxonomy mappings
 
 logger = logging.getLogger(__name__)
 
 # Helper import indirections kept local to avoid heavy imports if shadow flag off
 
-from typing import Tuple  # (Callable imported above)
+
 
 # Flexible instrument fetch protocol (accepts minor signature drift)
 class _FetchInstrumentsLike(Protocol):  # pragma: no cover
     def __call__(self, index: str, rule: str, expiry: Any, strikes: Sequence[float] | Iterable[float], providers: Any, metrics: Any | None = ...) -> Any: ...
 
-Variants = Sequence[Tuple[Any, ...]]
+Variants = Sequence[tuple[Any, ...]]
 
 def _try_call(fn: Callable[..., Any], variants: Variants) -> Any | None:
     """Attempt calling fn with each arg tuple in variants, returning first success.
@@ -111,7 +117,7 @@ def phase_fetch(ctx: Any, state: ExpiryState, precomputed_strikes: Sequence[floa
             raw_instruments = _try_call(_fetch_option_instruments, variants)
             used_unified = True
         # Normalize shapes into list[InstrumentRow]
-        norm: List[InstrumentRow] = []
+        norm: list[InstrumentRow] = []
         if isinstance(raw_instruments, list):
             norm = [r for r in raw_instruments if isinstance(r, dict)]
         elif isinstance(raw_instruments, dict):
@@ -129,7 +135,7 @@ def phase_fetch(ctx: Any, state: ExpiryState, precomputed_strikes: Sequence[floa
                     (state.index, state.rule, state.expiry_date, state.strikes, ctx.providers),
                 ]
                 raw2 = _try_call(_f2, variants2)
-                norm2: List[InstrumentRow] = []
+                norm2: list[InstrumentRow] = []
                 if isinstance(raw2, list):
                     norm2 = [r for r in raw2 if isinstance(r, dict)]
                 elif isinstance(raw2, dict):
@@ -309,7 +315,8 @@ def phase_coverage(ctx: Any, state: ExpiryState) -> ExpiryState:
         # Preferred pair: coverage_metrics, field_coverage_metrics
         # Fallback single: compute_coverage(enriched) returning dict or tuple
         strike_cov = field_cov = None
-        from src.collectors.modules.coverage_eval import coverage_metrics as _cov, field_coverage_metrics as _f_cov
+        from src.collectors.modules.coverage_eval import coverage_metrics as _cov
+        from src.collectors.modules.coverage_eval import field_coverage_metrics as _f_cov
         try:
             strike_cov = _cov(ctx, state.instruments, state.strikes, state.index, state.rule, state.expiry_date)
         except Exception:
@@ -356,7 +363,7 @@ def phase_iv(ctx: Any, state: ExpiryState) -> ExpiryState:
         try:
             run_iv_estimation(
                 ctx,
-                cast(Dict[str, MutableMapping[str, Any]], state.enriched),
+                cast(dict[str, MutableMapping[str, Any]], state.enriched),
                 state.index,
                 state.rule,
                 state.expiry_date,
@@ -422,7 +429,7 @@ def phase_greeks(ctx: Any, state: ExpiryState) -> ExpiryState:
         try:
             run_greeks_compute(
                 ctx,
-                cast(Dict[str, MutableMapping[str, Any]], state.enriched),
+                cast(dict[str, MutableMapping[str, Any]], state.enriched),
                 state.index,
                 state.rule,
                 state.expiry_date,
@@ -431,6 +438,7 @@ def phase_greeks(ctx: Any, state: ExpiryState) -> ExpiryState:
                 0.0,
                 False,
                 False,
+                None,
                 None,
                 None,
             )

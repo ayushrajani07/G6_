@@ -18,9 +18,11 @@ time (once) or, if fast_fail=True, raise RateLimitedError immediately.
 """
 from __future__ import annotations
 
+import os
+import threading
+import time
 from dataclasses import dataclass
-import os, threading, time
-from typing import Optional
+
 
 class RateLimitedError(RuntimeError):
     """Raised to signal the caller that the request should be delayed / skipped."""
@@ -39,7 +41,7 @@ class _State:
 class RateLimiter:
     def __init__(self,
                  qps: int = 3,
-                 burst: Optional[int] = None,
+                 burst: int | None = None,
                  consecutive_threshold: int = 5,
                  cooldown_seconds: int = 20):
         qps = max(1, qps)

@@ -5,11 +5,11 @@ Intentionally optional: will noop if jsonschema not installed.
 """
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Iterable, Any
 import json
 import logging
 import os
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ def validate_manifest(path: str | Path) -> bool:
     """
     # Always attempt to load JSON first; if unreadable fail fast.
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
     except Exception as e:  # noqa: BLE001
         logger.error("Manifest validation failed: unreadable: %s", e)
@@ -89,7 +89,7 @@ def validate_panel_generic(path: str | Path) -> bool:
     if not schema:
         return True
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         jsonschema.validate(instance=data, schema=schema)  # type: ignore[arg-type]
         return True

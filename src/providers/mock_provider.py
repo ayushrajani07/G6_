@@ -1,12 +1,15 @@
 from __future__ import annotations
+
 """Synchronous shim MockProvider wrapping AsyncMockProvider for test fixtures.
 
 Provides minimal synchronous methods expected by collectors or orchestrator tests
 without requiring an event loop.
 """
-from typing import Any, Dict, List, Tuple
+import math
+import time
 from datetime import date, timedelta
-import math, time
+from typing import Any
+
 
 class MockProvider:
     def __init__(self):
@@ -25,7 +28,7 @@ class MockProvider:
         return round(base + math.sin(t / 30.0) * amp, 2)
 
     # Simplified synchronous APIs -------------------------------------------------
-    def get_index_data(self, index_symbol: str) -> Dict[str, Any]:
+    def get_index_data(self, index_symbol: str) -> dict[str, Any]:
         return { 'last_price': self._ltp_value(index_symbol) }
 
     def resolve_expiry(self, index_symbol: str, expiry_rule: str) -> date:  # pragma: no cover - trivial

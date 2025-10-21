@@ -13,20 +13,26 @@ Limitations:
 """
 from __future__ import annotations
 
-import argparse, json, subprocess, sys, statistics, tempfile, os
+import argparse
+import json
+import statistics
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any
 
-def run_pytest(json_path: Path, extra: List[str]) -> int:
+
+def run_pytest(json_path: Path, extra: list[str]) -> int:
   cmd = [sys.executable, '-m', 'pytest', '--json-report', '--json-report-file', str(json_path), '-q'] + extra
   proc = subprocess.run(cmd, capture_output=True, text=True)
   return proc.returncode
 
-def load_report(path: Path) -> Dict[str, Any]:
+def load_report(path: Path) -> dict[str, Any]:
   return json.loads(path.read_text(encoding='utf-8'))
 
-def aggregate(reports: List[Dict[str, Any]]):
-  matrix: Dict[str, Dict[str, Any]] = {}
+def aggregate(reports: list[dict[str, Any]]):
+  matrix: dict[str, dict[str, Any]] = {}
   for rep in reports:
     tests = rep.get('tests', [])
     for t in tests:
@@ -41,7 +47,7 @@ def aggregate(reports: List[Dict[str, Any]]):
         entry['durations'].append(dur)
   return matrix
 
-def classify(matrix: Dict[str, Dict[str, Any]]):
+def classify(matrix: dict[str, dict[str, Any]]):
   flaky = {}
   always_fail = {}
   stable = {}
@@ -56,7 +62,7 @@ def classify(matrix: Dict[str, Dict[str, Any]]):
       stable[nodeid] = data
   return flaky, always_fail, stable
 
-def slow_tests(matrix: Dict[str, Dict[str, Any]], top_n: int) -> List[Dict[str, Any]]:
+def slow_tests(matrix: dict[str, dict[str, Any]], top_n: int) -> list[dict[str, Any]]:
   rows = []
   for nodeid, data in matrix.items():
     durs = data['durations']
@@ -80,7 +86,7 @@ def parse_args():
 
 def main() -> int:  # pragma: no cover
   args = parse_args()
-  reports: List[Dict[str, Any]] = []
+  reports: list[dict[str, Any]] = []
   with tempfile.TemporaryDirectory() as td:
     for i in range(args.runs):
       rpt = Path(td) / f'report_{i}.json'

@@ -1,31 +1,32 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Providers Interface for G6 Options Trading Platform.
 Serves as a facade for the various data providers.
 """
 
+import datetime
+import logging
+import os
+import time as _time
+
 from src.metrics.generated import (
     m_api_calls_total_labels,
     m_api_response_latency_ms,
+    m_expiry_resolve_fail_total_labels,
+    m_index_zero_price_fallback_total_labels,
+    m_quote_avg_price_fallback_total_labels,
     m_quote_enriched_total_labels,
     m_quote_missing_volume_oi_total_labels,
-    m_quote_avg_price_fallback_total_labels,
-    m_index_zero_price_fallback_total_labels,
-    m_expiry_resolve_fail_total_labels,
 )
 
-import logging
-import datetime
-from typing import Dict, List, Any, Optional, Tuple
-import os, time as _time
 try:
     from src.broker.kite_provider import is_concise_logging as _is_concise_logging  # type: ignore
 except Exception:  # pragma: no cover
     def _is_concise_logging():  # type: ignore
         return os.environ.get('G6_CONCISE_LOGS', '1').lower() not in ('0','false','no','off')
 try:  # Prometheus client optional during some tests
-    from prometheus_client import Counter as _C, Histogram as _H
+    from prometheus_client import Counter as _C
+    from prometheus_client import Histogram as _H
 except Exception:  # pragma: no cover
     class _Dummy:  # noqa: D401
         def __init__(self,*a,**k): pass
@@ -35,8 +36,6 @@ except Exception:  # pragma: no cover
     _C=_H=_Dummy
 
 # Add this before launching the subprocess
-import sys  # retained for potential future use
-import os  # retained
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +51,7 @@ def _safe_inc(lbl, amount=1):  # helper to tolerate label None or unexpected met
 
 class Providers:
     """Interface for all data providers."""
-    
+
     def __init__(self, primary_provider=None, secondary_provider=None):
         """
         Initialize providers interface.
@@ -64,7 +63,7 @@ class Providers:
         self.primary_provider = primary_provider
         self.secondary_provider = secondary_provider
         self.logger = logger
-        
+
         # Log which providers are being used
         provider_names = []
         if primary_provider:
@@ -77,14 +76,14 @@ class Providers:
         self.logger.debug(f"Providers initialized with: {', '.join(provider_names)}")
         # Early metrics init so counters/gauges appear even before first enrichment
         # Deprecated metrics init removed (spec-driven metrics register lazily when first used)
-    
+
     def close(self):
         """Close all providers."""
         if self.primary_provider:
             self.primary_provider.close()
         if self.secondary_provider:
             self.secondary_provider.close()
-    
+
     def get_index_data(self, index_symbol):
         """
         Get index price and OHLC data.
@@ -115,7 +114,7 @@ class Providers:
             else:
                 instruments = [("NSE", index_symbol)]
                 self.logger.debug("INDEX_PATH mapping=GENERIC symbol=%s", index_symbol)
-            
+
             # Get quote from primary provider (includes OHLC) if available
             quotes = {}
             if self.primary_provider and hasattr(self.primary_provider, 'get_quote'):
@@ -130,7 +129,7 @@ class Providers:
                     self.logger.error("Primary provider not initialized")
                     return 0, {}
                 self.logger.debug("Primary provider missing get_quote, using LTP fallback")
-            
+
             # Extract price and OHLC
             for key, quote in quotes.items():
                 price = quote.get('last_price', 0)
@@ -160,13 +159,13 @@ class Providers:
                         self.logger.debug(f"Injected synthetic index price for {index_symbol}: {price}")
                         lbl = m_index_zero_price_fallback_total_labels(index_symbol, 'quote')
                         _safe_inc(lbl)
-                
+
                 if _CONCISE:
                     self.logger.debug(f"Index data for {index_symbol}: Price={price}, OHLC={ohlc}")
                 else:
                     self.logger.info(f"Index data for {index_symbol}: Price={price}, OHLC={ohlc}")
                 return price, ohlc
-                
+
             # Fall back to LTP if quote doesn't have OHLC
             if not self.primary_provider or not hasattr(self.primary_provider, 'get_ltp'):
                 self.logger.error("Primary provider not initialized or missing get_ltp for fallback")
@@ -178,7 +177,7 @@ class Providers:
             except Exception as le:
                 self.logger.error(f"get_ltp fallback failed: {le}")
                 return 0, {}
-            
+
             for key, data in ltp_data.items():
                 price = data.get('last_price', 0)
                 if price == 0:
@@ -203,10 +202,10 @@ class Providers:
                 else:
                     self.logger.info(f"LTP for {index_symbol}: {price}")
                 return price, {}
-            
+
             self.logger.error(f"No index data returned for {index_symbol}")
             return 0, {}
-            
+
         except Exception as e:
             self.logger.error(f"Error getting index data: {e}")
             try:
@@ -214,7 +213,7 @@ class Providers:
             except Exception:
                 pass
             return 0, {}
-    
+
     def get_ltp(self, index_symbol):
         """
         Get last traded price for an index.
@@ -228,7 +227,7 @@ class Providers:
         try:
             # Get index price and OHLC
             price, _ = self.get_index_data(index_symbol)
-            
+
             # Calculate ATM strike based on index
             if index_symbol in ["BANKNIFTY", "SENSEX"]:
                 # Round to nearest 100
@@ -236,16 +235,16 @@ class Providers:
             else:
                 # Round to nearest 50
                 atm_strike = round(float(price) / 50) * 50
-                
+
             if _CONCISE:
                 self.logger.debug(f"LTP for {index_symbol}: {price}")
                 self.logger.debug(f"ATM strike for {index_symbol}: {atm_strike}")
             else:
                 self.logger.info(f"LTP for {index_symbol}: {price}")
                 self.logger.info(f"ATM strike for {index_symbol}: {atm_strike}")
-            
+
             return atm_strike
-            
+
         except Exception as e:
             self.logger.error(f"Error getting LTP: {e}")
             return 20000 if index_symbol == "BANKNIFTY" else 22000
@@ -276,7 +275,7 @@ class Providers:
         except Exception as e:  # pragma: no cover
             self.logger.error(f"option_instruments alias failure: {e}")
             return []
-    
+
     def resolve_expiry(self, index_symbol, expiry_rule):
         """Resolve expiry strictly from provider's raw expiry list.
 
@@ -295,7 +294,6 @@ class Providers:
                     * All logic is based solely on the provider's raw expiry list (single source of truth).
                     * If there are NO future expiries, a ResolveExpiryError is raised.
         """
-        import datetime
         from src.utils.exceptions import ResolveExpiryError
 
         try:
@@ -364,7 +362,7 @@ class Providers:
             lbl = m_expiry_resolve_fail_total_labels(index_symbol, str(expiry_rule).lower(), 'exception')
             _safe_inc(lbl)
             raise _RE(f"Failed to resolve expiry for {index_symbol} using rule '{expiry_rule}': {e}")
-    
+
     def get_option_instruments(self, index_symbol, expiry_date, strikes):
         """
         Get option instruments for specific expiry and strikes.
@@ -386,7 +384,7 @@ class Providers:
                 instruments = self.primary_provider.get_option_instruments(index_symbol, expiry_date, strikes)  # type: ignore
                 if instruments:
                     return instruments
-            
+
             # Fallback to option_instruments if available
             if hasattr(self.primary_provider, 'option_instruments'):
                 if not self.primary_provider or not hasattr(self.primary_provider, 'option_instruments'):
@@ -395,16 +393,16 @@ class Providers:
                 instruments = self.primary_provider.option_instruments(index_symbol, expiry_date, strikes)  # type: ignore
                 if instruments:
                     return instruments
-            
+
             self.logger.error("Error getting option instruments from primary provider")
-            
+
             # Emergency fallback - return empty list
             return []
-            
+
         except Exception as e:
             self.logger.error(f"Error getting option instruments: {e}")
             return []
-    
+
     def get_quote(self, instruments):
         """
         Get quotes for a list of instruments.
@@ -425,7 +423,7 @@ class Providers:
         except Exception as e:
             self.logger.error(f"Error getting quotes: {e}")
             return {}
-    
+
     def enrich_with_quotes(self, instruments):
         """
         Enrich option instruments with quotes data.

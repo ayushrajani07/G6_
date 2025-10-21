@@ -74,14 +74,15 @@ Usage Examples:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import json
 import logging
 import os
 import threading
 import time
 import traceback
-from typing import Any, Dict, Optional
+from dataclasses import dataclass, field
+from types import TracebackType
+from typing import Any, Literal
 
 # Public, stable constants (importable by tests if desired)
 PROVIDER_NAMESPACE = "provider.kite"
@@ -122,7 +123,7 @@ def _truncate(s: str, limit: int) -> str:
     return s[: limit - 3] + "..."
 
 
-def _serialize(event: Dict[str, Any]) -> str:
+def _serialize(event: dict[str, Any]) -> str:
     try:
         return json.dumps(event, separators=(",", ":"), ensure_ascii=False)
     except Exception:  # pragma: no cover - never raise; fallback repr
@@ -137,8 +138,8 @@ def emit_provider_event(
     action: str,
     outcome: str,
     *,
-    start_ts: Optional[float] = None,
-    extra: Optional[Dict[str, Any]] = None,
+    start_ts: float | None = None,
+    extra: dict[str, Any] | None = None,
 ) -> None:
     """Emit a provider event immediately.
 
@@ -186,11 +187,11 @@ class _ProviderEventCtx:
     domain: str
     action: str
     start_ts: float = field(default_factory=_safe_now)
-    extra: Dict[str, Any] = field(default_factory=dict)
-    outcome: Optional[str] = None
-    error_type: Optional[str] = None
-    error_msg: Optional[str] = None
-    trace: Optional[str] = None
+    extra: dict[str, Any] = field(default_factory=dict)
+    outcome: str | None = None
+    error_type: str | None = None
+    error_msg: str | None = None
+    trace: str | None = None
 
     def add_field(self, key: str, value: Any) -> None:
         # Only retain JSON-serializable simple types; complex -> repr
@@ -211,10 +212,15 @@ class _ProviderEventCtx:
             self.trace = _truncate("".join(tb), MAX_TRACE_CHARS)
 
     # Context manager protocol
-    def __enter__(self) -> "_ProviderEventCtx":
+    def __enter__(self) -> _ProviderEventCtx:
         return self
 
-    def __exit__(self, exc_type, exc, tb) -> bool:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
+    ) -> Literal[False]:
         if not _is_enabled():  # skip all processing if disabled
             return False  # don't suppress exceptions
         if exc is not None:

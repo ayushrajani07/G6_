@@ -1,27 +1,28 @@
 """Diagnostics utilities (Phase 4 A7 skeleton)."""
 from __future__ import annotations
-from typing import Set, Dict, Any, Optional
+
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 class Diagnostics:
     def __init__(self) -> None:
-        self._emitted: Set[str] = set()
+        self._emitted: set[str] = set()
 
     def emit_once(self, key: str, message: str) -> None:
         if key not in self._emitted:
             logger.info(message)
             self._emitted.add(key)
 
-    def snapshot(self, *, core: Any | None = None, legacy_provider: Any | None = None) -> Dict[str, Any]:
+    def snapshot(self, *, core: Any | None = None, legacy_provider: Any | None = None) -> dict[str, Any]:
         """Return aggregated diagnostics.
 
         Parameters:
             core: Optional ProviderCore instance (for direct cache/auth data).
             legacy_provider: Optional legacy KiteProvider (for synthetic flags until fully migrated).
         """
-        out: Dict[str, Any] = {"emitted_diagnostics": len(self._emitted)}
+        out: dict[str, Any] = {"emitted_diagnostics": len(self._emitted)}
         try:
             if core is not None:
                 # Auth status

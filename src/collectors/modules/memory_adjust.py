@@ -21,8 +21,9 @@ Public API:
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Tuple, Optional
-import os, logging
+import logging
+import os
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +33,12 @@ __all__ = ["apply_memory_and_adaptive_scaling"]
 def apply_memory_and_adaptive_scaling(
     effective_itm: int,
     effective_otm: int,
-    mem_flags: Dict[str, Any],
+    mem_flags: dict[str, Any],
     ctx: Any,
     *,
     compute_greeks: bool,
     estimate_iv: bool,
-) -> Tuple[int, int, bool, bool, bool, Optional[float]]:
+) -> tuple[int, int, bool, bool, bool, float | None]:
     allow_per_option_metrics = True
     local_compute_greeks = compute_greeks
     local_estimate_iv = estimate_iv

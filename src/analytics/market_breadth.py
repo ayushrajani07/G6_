@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-from typing import Dict, Union
+
 
 class MarketBreadthAnalytics:
-    def analyze(self, breadth_data: Dict[str, Union[int, float]]) -> Dict[str, Union[int, float]]:
+    def analyze(self, breadth_data: dict[str, int | float]) -> dict[str, int | float]:
         """
         Compute market breadth metrics from advancers/decliners/unchanged counts.
         """

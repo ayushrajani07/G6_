@@ -16,21 +16,27 @@ Future (planned):
 from __future__ import annotations
 
 import datetime as _dt
-from datetime import timedelta
 import logging
-import os
-from src.utils.env_flags import is_truthy_env  # type: ignore
 import time
-from typing import Callable, Tuple, Optional, Any
-from .gating_types import ProviderLike, ProviderProbeResult
+from collections.abc import Callable
+from typing import Any
+
+from src.utils.env_flags import is_truthy_env  # type: ignore
+
+from .gating_types import ProviderLike
 
 try:
-    from src.utils.market_hours import is_market_open, get_next_market_open, sleep_until_market_open, is_premarket_window  # type: ignore
+    from src.utils.market_hours import (  # type: ignore
+        get_next_market_open,
+        is_market_open,
+        is_premarket_window,
+        sleep_until_market_open,
+    )
 except Exception:  # pragma: no cover
     def is_market_open(*_, **__):  # type: ignore
         return True
     def get_next_market_open():  # type: ignore
-        return _dt.datetime.now(_dt.timezone.utc)
+        return _dt.datetime.now(_dt.UTC)
     def sleep_until_market_open(**_):  # type: ignore
         time.sleep(0.1)
     def is_premarket_window(*_, **__):  # type: ignore
@@ -47,7 +53,7 @@ def wait_for_market_open(market_type: str = "equity", session_type: str = "regul
     progress line every ~5 minutes (configurable via check_interval).
     """
     next_open = get_next_market_open()
-    wait_secs = (next_open - _dt.datetime.now(_dt.timezone.utc)).total_seconds()
+    wait_secs = (next_open - _dt.datetime.now(_dt.UTC)).total_seconds()
     logger.info(f"{log_prefix} Market closed. Waiting {wait_secs/60:.1f} minutes until {next_open}")
     def _on_wait_start(dt):  # pragma: no cover (callback wiring)
         logger.info(f"{log_prefix} Waiting for market open at {dt}")
@@ -64,7 +70,7 @@ def wait_for_market_open(market_type: str = "equity", session_type: str = "regul
     )
 
 
-def provider_readiness_probe(providers: ProviderLike | Any, symbol: str = "NIFTY", error_handler: Optional[Callable[..., Any]] = None) -> Tuple[bool, str]:
+def provider_readiness_probe(providers: ProviderLike | Any, symbol: str = "NIFTY", error_handler: Callable[..., Any] | None = None) -> tuple[bool, str]:
     """Perform a lightweight provider readiness probe using get_ltp.
 
     Parameters
@@ -138,7 +144,7 @@ def market_will_be_closed(next_interval_seconds: float) -> bool:
     that would complete after close.
     """
     try:
-        ref_time = _dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(seconds=next_interval_seconds)
+        ref_time = _dt.datetime.now(_dt.UTC) + _dt.timedelta(seconds=next_interval_seconds)
         return not is_market_open(reference_time=ref_time)  # type: ignore[arg-type]
     except Exception:  # pragma: no cover
         return False

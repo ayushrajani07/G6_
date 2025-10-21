@@ -5,22 +5,22 @@ This module provides comprehensive error handling, logging, and routing
 capabilities for the entire G6 platform ecosystem.
 """
 
-import logging
-import traceback
 import functools
-import threading
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, TypeVar, Union, Protocol, runtime_checkable, cast
-from dataclasses import dataclass, field
-from pathlib import Path
 import json
-import sys
+import logging
+import threading
+import traceback
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from enum import Enum
+from pathlib import Path
+from typing import Any, Protocol, TypeVar, cast, runtime_checkable
 
 
 class ErrorCategory(Enum):
     """Categorization of errors for better tracking and handling."""
-    
+
     # Data Collection Errors (routed to Indices Panel)
     COLLECTOR = "collector"
     PROVIDER_API = "provider_api"
@@ -28,29 +28,29 @@ class ErrorCategory(Enum):
     DATA_VALIDATION = "data_validation"
     DATA_PARSING = "data_parsing"
     DATA_COLLECTION = "data_collection"
-    
+
     # Processing Errors
     CALCULATION = "calculation"
     TRANSFORMATION = "transformation"
     ANALYTICS = "analytics"
-    
+
     # Storage Errors
     FILE_IO = "file_io"
     DATABASE = "database"
     CSV_WRITE = "csv_write"
     BACKUP = "backup"
-    
+
     # System Errors
     CONFIGURATION = "configuration"
     INITIALIZATION = "initialization"
     RESOURCE = "resource"
     MEMORY = "memory"
-    
+
     # UI/Display Errors
     RENDERING = "rendering"
     PANEL_DISPLAY = "panel_display"
     RICH_MARKUP = "rich_markup"
-    
+
     # General/Unknown Errors
     UNKNOWN = "unknown"
     CRITICAL = "critical"
@@ -61,7 +61,7 @@ class ErrorDestination(Enum):
     INDICES_PANEL = "indices_panel"  # Collector errors go here
     ALERTS_PANEL = "alerts_panel"    # All other errors go here
     BOTH_PANELS = "both_panels"      # Critical errors that need wide visibility
-    
+
     # General/Unknown
     UNKNOWN = "unknown"
     CRITICAL = "critical"
@@ -69,7 +69,7 @@ class ErrorDestination(Enum):
 
 class ErrorSeverity(Enum):
     """Error severity levels for prioritization."""
-    
+
     LOW = "low"          # Non-critical, cosmetic issues
     MEDIUM = "medium"    # Affects functionality but not critical
     HIGH = "high"        # Important functionality affected
@@ -79,29 +79,29 @@ class ErrorSeverity(Enum):
 @dataclass
 class ErrorInfo:
     """Comprehensive error information structure with routing."""
-    
+
     # Core error details
     exception: Exception
     category: ErrorCategory
     severity: ErrorSeverity
-    
+
     # Context information
     component: str = ""
     function_name: str = ""
     message: str = ""
-    
+
     # Technical details
     traceback_str: str = ""
-    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = field(default_factory=lambda: datetime.now(UTC))
     thread_id: str = ""
-    
+
     # Additional context
-    context: Dict[str, Any] = field(default_factory=dict)
+    context: dict[str, Any] = field(default_factory=dict)
     retry_count: int = 0
-    
+
     # Error routing information
     destination: ErrorDestination = field(init=False)
-    
+
     def __post_init__(self):
         """Determine error destination based on category."""
         # Collector errors go to indices panel (live stream description)
@@ -113,7 +113,7 @@ class ErrorInfo:
             ErrorCategory.DATA_PARSING,
             ErrorCategory.DATA_COLLECTION
         }
-        
+
         if self.category in collector_categories:
             self.destination = ErrorDestination.INDICES_PANEL
         elif self.severity == ErrorSeverity.CRITICAL:
@@ -122,8 +122,8 @@ class ErrorInfo:
         else:
             # All other errors go to alerts panel
             self.destination = ErrorDestination.ALERTS_PANEL
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert ErrorInfo to dictionary for serialization."""
         return {
             "exception_type": type(self.exception).__name__,
@@ -143,8 +143,8 @@ class ErrorInfo:
 
 class G6ErrorHandler:
     """Centralized error handling and logging system."""
-    
-    def __init__(self, log_file: Optional[str] = None, max_errors: int = 1000):
+
+    def __init__(self, log_file: str | None = None, max_errors: int = 1000):
         """
         Initialize the error handler.
         
@@ -153,25 +153,25 @@ class G6ErrorHandler:
             max_errors: Maximum number of errors to keep in memory
         """
         self.logger = logging.getLogger("G6ErrorHandler")
-        self.errors: List[ErrorInfo] = []
+        self.errors: list[ErrorInfo] = []
         self.max_errors = max_errors
         self._lock = threading.Lock()
-        
+
         # Setup file logging if specified
         if log_file:
             self._setup_file_logging(log_file)
-        
+
         # Error statistics
-        self.error_counts: Dict[str, int] = {}
-        self.category_counts: Dict[ErrorCategory, int] = {}
-        self.severity_counts: Dict[ErrorSeverity, int] = {}
-    
+        self.error_counts: dict[str, int] = {}
+        self.category_counts: dict[ErrorCategory, int] = {}
+        self.severity_counts: dict[ErrorSeverity, int] = {}
+
     def _setup_file_logging(self, log_file: str) -> None:
         """Setup file logging for errors."""
         try:
             log_path = Path(log_file)
             log_path.parent.mkdir(parents=True, exist_ok=True)
-            
+
             handler = logging.FileHandler(log_file)
             formatter = logging.Formatter(
                 '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
@@ -181,7 +181,7 @@ class G6ErrorHandler:
             self.logger.setLevel(logging.ERROR)
         except Exception as e:
             print(f"Failed to setup error log file {log_file}: {e}")
-    
+
     def handle_error(
         self,
         exception: Exception,
@@ -190,7 +190,7 @@ class G6ErrorHandler:
         component: str = "",
         function_name: str = "",
         message: str = "",
-        context: Optional[Dict[str, Any]] = None,
+        context: dict[str, Any] | None = None,
         should_log: bool = True,
         should_reraise: bool = False
     ) -> ErrorInfo:
@@ -223,13 +223,13 @@ class G6ErrorHandler:
             thread_id=str(threading.current_thread().ident),
             context=context or {}
         )
-        
+
         # Store error with thread safety
         with self._lock:
             self.errors.append(error_info)
             if len(self.errors) > self.max_errors:
                 self.errors.pop(0)  # Remove oldest error
-            
+
             # Update statistics
             exc_type = type(exception).__name__
             self.error_counts[exc_type] = self.error_counts.get(exc_type, 0) + 1
@@ -246,7 +246,7 @@ class G6ErrorHandler:
 
             from src.metrics import get_metrics_singleton  # facade import
             metrics_obj = get_metrics_singleton()
-            metrics = cast(Optional[_MetricsLike], metrics_obj)
+            metrics = cast(_MetricsLike | None, metrics_obj)
             if metrics is not None:
                 ctx = context or {}
                 comp = component or error_info.component or "unknown"
@@ -279,17 +279,17 @@ class G6ErrorHandler:
                         pass
         except Exception:
             pass
-        
+
         # Log the error
         if should_log:
             self._log_error(error_info)
-        
+
         # Re-raise if requested
         if should_reraise:
             raise exception
-        
+
         return error_info
-    
+
     def _log_error(self, error_info: ErrorInfo) -> None:
         """Log error information at appropriate level."""
         log_msg = (
@@ -297,10 +297,10 @@ class G6ErrorHandler:
             f"{error_info.component}.{error_info.function_name}: "
             f"{error_info.message}"
         )
-        
+
         if error_info.context:
             log_msg += f" | Context: {error_info.context}"
-        
+
         # Log at appropriate level based on severity
         if error_info.severity == ErrorSeverity.CRITICAL:
             self.logger.critical(log_msg, exc_info=error_info.exception)
@@ -310,13 +310,13 @@ class G6ErrorHandler:
             self.logger.warning(log_msg)
         else:
             self.logger.info(log_msg)
-    
-    def get_recent_errors(self, count: int = 50) -> List[ErrorInfo]:
+
+    def get_recent_errors(self, count: int = 50) -> list[ErrorInfo]:
         """Get recent errors for monitoring."""
         with self._lock:
             return self.errors[-count:] if self.errors else []
-    
-    def get_error_summary(self) -> Dict[str, Any]:
+
+    def get_error_summary(self) -> dict[str, Any]:
         """Get error summary statistics."""
         with self._lock:
             return {
@@ -324,10 +324,10 @@ class G6ErrorHandler:
                 "by_type": dict(self.error_counts),
                 "by_category": {cat.value: count for cat, count in self.category_counts.items()},
                 "by_severity": {sev.value: count for sev, count in self.severity_counts.items()},
-                "recent_error_count": len([e for e in self.errors[-100:] 
-                                         if (datetime.now(timezone.utc) - e.timestamp).seconds < 300])  # Last 5 minutes
+                "recent_error_count": len([e for e in self.errors[-100:]
+                                         if (datetime.now(UTC) - e.timestamp).seconds < 300])  # Last 5 minutes
             }
-    
+
     def clear_errors(self) -> None:
         """Clear all stored errors (useful for testing)."""
         with self._lock:
@@ -335,20 +335,20 @@ class G6ErrorHandler:
             self.error_counts.clear()
             self.category_counts.clear()
             self.severity_counts.clear()
-    
-    def export_errors(self, file_path: str, count: Optional[int] = None) -> None:
+
+    def export_errors(self, file_path: str, count: int | None = None) -> None:
         """Export errors to JSON file for analysis."""
         try:
             errors_to_export = self.get_recent_errors(count or len(self.errors))
             export_data = {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "summary": self.get_error_summary(),
                 "errors": [error.to_dict() for error in errors_to_export]
             }
-            
+
             with open(file_path, 'w') as f:
                 json.dump(export_data, f, indent=2, default=str)
-                
+
         except Exception as e:
             # Route through central handler instead of logging-only
             self.handle_error(
@@ -362,15 +362,15 @@ class G6ErrorHandler:
                 should_log=True,
                 should_reraise=False,
             )
-    
-    def get_errors_for_indices_panel(self, count: int = 20) -> List[Dict[str, Any]]:
+
+    def get_errors_for_indices_panel(self, count: int = 20) -> list[dict[str, Any]]:
         """Get collector errors formatted for indices panel live stream."""
         with self._lock:
             indices_errors = [
                 error for error in self.errors
                 if error.destination in (ErrorDestination.INDICES_PANEL, ErrorDestination.BOTH_PANELS)
             ]
-            
+
             # Format for indices panel consumption
             formatted_errors = []
             for error in indices_errors[-count:]:
@@ -383,17 +383,17 @@ class G6ErrorHandler:
                     "severity": error.severity.value,
                     "cycle": error.context.get("cycle")
                 })
-            
+
             return formatted_errors
-    
-    def get_errors_for_alerts_panel(self, count: int = 50) -> List[Dict[str, Any]]:
+
+    def get_errors_for_alerts_panel(self, count: int = 50) -> list[dict[str, Any]]:
         """Get non-collector errors formatted for alerts panel."""
         with self._lock:
             alert_errors = [
                 error for error in self.errors
                 if error.destination in (ErrorDestination.ALERTS_PANEL, ErrorDestination.BOTH_PANELS)
             ]
-            
+
             # Format for alerts panel consumption
             formatted_errors = []
             for error in alert_errors[-count:]:
@@ -402,7 +402,7 @@ class G6ErrorHandler:
                         "WARNING" if error.severity == ErrorSeverity.MEDIUM else "INFO"
                     )
                 )
-                
+
                 formatted_errors.append({
                     "time": error.timestamp.isoformat(),
                     "level": level,
@@ -410,12 +410,12 @@ class G6ErrorHandler:
                     "message": error.message or str(error.exception),
                     "context": error.context
                 })
-            
+
             return formatted_errors
 
 
 # Global error handler instance
-_global_error_handler: Optional[G6ErrorHandler] = None
+_global_error_handler: G6ErrorHandler | None = None
 
 
 def get_error_handler() -> G6ErrorHandler:
@@ -427,7 +427,7 @@ def get_error_handler() -> G6ErrorHandler:
     return _global_error_handler
 
 
-def initialize_error_handler(log_file: Optional[str] = None, max_errors: int = 1000) -> G6ErrorHandler:
+def initialize_error_handler(log_file: str | None = None, max_errors: int = 1000) -> G6ErrorHandler:
     """Initialize the global error handler with specific configuration."""
     global _global_error_handler
     _global_error_handler = G6ErrorHandler(log_file=log_file, max_errors=max_errors)
@@ -520,10 +520,10 @@ def safe_execute(
         return func(*args, **kwargs)
     except Exception as e:
         error_handler = get_error_handler()
-        
+
         comp = component or func.__module__.split('.')[-1] if hasattr(func, '__module__') else "unknown"
         func_name = func.__name__ if hasattr(func, '__name__') else "unknown"
-        
+
         error_handler.handle_error(
             exception=e,
             category=category,
@@ -535,12 +535,12 @@ def safe_execute(
                 "kwargs": str(kwargs)[:200]
             }
         )
-        
+
         return default_return
 
 
 # Convenience functions for common error categories
-def handle_data_error(e: Exception, component: str = "", context: Optional[Dict[str, Any]] = None) -> ErrorInfo:
+def handle_data_error(e: Exception, component: str = "", context: dict[str, Any] | None = None) -> ErrorInfo:
     """Handle data-related errors."""
     return get_error_handler().handle_error(
         e, ErrorCategory.DATA_VALIDATION, ErrorSeverity.MEDIUM,
@@ -548,7 +548,7 @@ def handle_data_error(e: Exception, component: str = "", context: Optional[Dict[
     )
 
 
-def handle_api_error(e: Exception, component: str = "", context: Optional[Dict[str, Any]] = None) -> ErrorInfo:
+def handle_api_error(e: Exception, component: str = "", context: dict[str, Any] | None = None) -> ErrorInfo:
     """Handle general API-related errors (non-collector)."""
     return get_error_handler().handle_error(
         e, ErrorCategory.CONFIGURATION, ErrorSeverity.HIGH,  # Use CONFIGURATION for non-collector API errors
@@ -556,7 +556,7 @@ def handle_api_error(e: Exception, component: str = "", context: Optional[Dict[s
     )
 
 
-def handle_critical_error(e: Exception, component: str = "", context: Optional[Dict[str, Any]] = None) -> ErrorInfo:
+def handle_critical_error(e: Exception, component: str = "", context: dict[str, Any] | None = None) -> ErrorInfo:
     """Handle critical system errors."""
     return get_error_handler().handle_error(
         e, ErrorCategory.CRITICAL, ErrorSeverity.CRITICAL,
@@ -564,7 +564,7 @@ def handle_critical_error(e: Exception, component: str = "", context: Optional[D
     )
 
 
-def handle_ui_error(e: Exception, component: str = "", context: Optional[Dict[str, Any]] = None) -> ErrorInfo:
+def handle_ui_error(e: Exception, component: str = "", context: dict[str, Any] | None = None) -> ErrorInfo:
     """Handle UI/rendering errors."""
     return get_error_handler().handle_error(
         e, ErrorCategory.RENDERING, ErrorSeverity.LOW,
@@ -573,11 +573,11 @@ def handle_ui_error(e: Exception, component: str = "", context: Optional[Dict[st
 
 
 def handle_collector_error(
-    e: Exception, 
-    component: str = "", 
-    index_name: str = "", 
-    cycle: Optional[int] = None,
-    context: Optional[Dict[str, Any]] = None
+    e: Exception,
+    component: str = "",
+    index_name: str = "",
+    cycle: int | None = None,
+    context: dict[str, Any] | None = None
 ) -> ErrorInfo:
     """Handle collector errors (routed to indices panel)."""
     collector_context = context or {}
@@ -585,7 +585,7 @@ def handle_collector_error(
         collector_context["index"] = index_name
     if cycle is not None:
         collector_context["cycle"] = cycle
-    
+
     return get_error_handler().handle_error(
         e, ErrorCategory.COLLECTOR, ErrorSeverity.HIGH,
         component=component, context=collector_context
@@ -593,16 +593,16 @@ def handle_collector_error(
 
 
 def handle_provider_error(
-    e: Exception, 
-    component: str = "", 
+    e: Exception,
+    component: str = "",
     index_name: str = "",
-    context: Optional[Dict[str, Any]] = None
+    context: dict[str, Any] | None = None
 ) -> ErrorInfo:
     """Handle provider API errors (routed to indices panel)."""
     provider_context = context or {}
     if index_name:
         provider_context["index"] = index_name
-    
+
     return get_error_handler().handle_error(
         e, ErrorCategory.PROVIDER_API, ErrorSeverity.HIGH,
         component=component, context=provider_context
@@ -610,11 +610,11 @@ def handle_provider_error(
 
 
 def handle_data_collection_error(
-    e: Exception, 
-    component: str = "", 
+    e: Exception,
+    component: str = "",
     index_name: str = "",
     data_type: str = "",
-    context: Optional[Dict[str, Any]] = None
+    context: dict[str, Any] | None = None
 ) -> ErrorInfo:
     """Handle data collection errors (routed to indices panel)."""
     collection_context = context or {}
@@ -622,7 +622,7 @@ def handle_data_collection_error(
         collection_context["index"] = index_name
     if data_type:
         collection_context["data_type"] = data_type
-    
+
     return get_error_handler().handle_error(
         e, ErrorCategory.DATA_COLLECTION, ErrorSeverity.MEDIUM,
         component=component, context=collection_context
@@ -633,21 +633,21 @@ if __name__ == "__main__":
     # Example usage and testing
     print("G6 Centralized Error Handling System")
     print("====================================")
-    
+
     # Initialize error handler
     handler = initialize_error_handler("logs/test_errors.log")
-    
+
     # Test different error types
     try:
         raise ValueError("Test data validation error")
     except Exception as e:
         handle_data_error(e, "test_component", {"test_data": "sample"})
-    
+
     try:
         raise ConnectionError("Test API connection error")
     except Exception as e:
         handle_api_error(e, "api_test", {"endpoint": "/test"})
-    
+
     # Test decorator
     @handle_exceptions(
         category=ErrorCategory.CALCULATION,
@@ -656,10 +656,10 @@ if __name__ == "__main__":
     )
     def test_calculation(x, y):
         return x / y
-    
+
     result = test_calculation(10, 0)  # Division by zero
     print(f"Safe calculation result: {result}")
-    
+
     # Print error summary
     summary = handler.get_error_summary()
     print(f"\nError Summary: {summary}")

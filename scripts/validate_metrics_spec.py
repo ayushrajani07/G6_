@@ -20,8 +20,13 @@ Usage:
   python scripts/validate_metrics_spec.py [path/to/base.yml]
 """
 from __future__ import annotations
-import sys, json, argparse, re
+
+import argparse
+import re
+import sys
 from pathlib import Path
+from typing import Any, cast
+
 import yaml  # type: ignore
 
 RE_METRIC = re.compile(r'^g6_[a-z0-9_]+$')
@@ -33,20 +38,21 @@ ALLOWED_KEYS = REQUIRED_KEYS | {"labels","buckets","panels","alerts","unit","not
 
 SEVERITY_ORDER = ["info","warning","critical","error"]
 
-def fail(msg: str):
+def fail(msg: str) -> None:
     print(f"ERROR: {msg}", file=sys.stderr)
 
-def warn(msg: str):
+def warn(msg: str) -> None:
     print(f"WARN: {msg}", file=sys.stderr)
 
-def load_spec(path: Path):
+def load_spec(path: Path) -> dict[str, Any]:
     try:
-        return yaml.safe_load(path.read_text())
+        data: Any = yaml.safe_load(path.read_text())
+        return cast(dict[str, Any], data)
     except Exception as e:
         fail(f"Failed to load spec YAML: {e}")
         sys.exit(2)
 
-def validate_metric(m: dict, seen: set[str], family: str, errors: list[str]):
+def validate_metric(m: dict, seen: set[str], family: str, errors: list[str]) -> None:
     missing = REQUIRED_KEYS - m.keys()
     if missing:
         errors.append(f"{family}:{m.get('name','<unknown>')} missing keys {missing}")
@@ -111,7 +117,7 @@ def validate_metric(m: dict, seen: set[str], family: str, errors: list[str]):
             warn(f"{name} unknown key {k}")
 
 
-def main():
+def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument('path', nargs='?', default='metrics/spec/base.yml')
     args = ap.parse_args()
@@ -119,7 +125,7 @@ def main():
     data = load_spec(spec_path)
     if not isinstance(data, dict) or 'families' not in data:
         fail("Spec missing top-level 'families'")
-        return sys.exit(2)
+        return 2
     fams = data['families']
     if not isinstance(fams, dict):
         fail("'families' must be mapping")
@@ -143,8 +149,9 @@ def main():
         for e in errors:
             fail(e)
         print(f"Validation FAILED: {len(errors)} error(s)")
-        sys.exit(2)
+        return 2
     print(f"Validation OK: {len(seen)} metrics")
+    return 0
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

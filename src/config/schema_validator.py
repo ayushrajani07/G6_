@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set, Type
+from typing import Any
 
 
 @dataclass
 class ValidationError:
     path: str
     message: str
-    value: Optional[Any] = None
+    value: Any | None = None
 
 
 @dataclass
@@ -18,16 +18,16 @@ class ValidationRule:
     path: str
     message: str
     required: bool = False
-    field_type: Optional[Type] = None
-    allowed_values: Optional[List[Any]] = None
-    min_value: Optional[float] = None
-    max_value: Optional[float] = None
-    min_length: Optional[int] = None
-    regex: Optional[str] = None
-    custom_validator: Optional[Callable[[Any], bool]] = None
-    depends_on: Optional[str] = None
-    condition: Optional[Callable[[Dict[str, Any]], bool]] = None
-    transform: Optional[Callable[[Any], Any]] = None
+    field_type: type | None = None
+    allowed_values: list[Any] | None = None
+    min_value: float | None = None
+    max_value: float | None = None
+    min_length: int | None = None
+    regex: str | None = None
+    custom_validator: Callable[[Any], bool] | None = None
+    depends_on: str | None = None
+    condition: Callable[[dict[str, Any]], bool] | None = None
+    transform: Callable[[Any], Any] | None = None
 
 
 @dataclass
@@ -35,22 +35,22 @@ class DependencyRule:
     path: str
     depends_on: str
     message: str
-    required_value: Optional[Any] = None
-    condition: Optional[Callable[[Dict[str, Any]], bool]] = None
+    required_value: Any | None = None
+    condition: Callable[[dict[str, Any]], bool] | None = None
 
 
 @dataclass
 class SchemaValidationResult:
     valid: bool
-    errors: List[ValidationError] = field(default_factory=list)
-    warnings: List[ValidationError] = field(default_factory=list)
+    errors: list[ValidationError] = field(default_factory=list)
+    warnings: list[ValidationError] = field(default_factory=list)
 
 
 class ConfigSchemaValidator:
     def __init__(self) -> None:
-        self.field_rules: List[ValidationRule] = []
-        self.dependency_rules: List[DependencyRule] = []
-        self.global_rules: List[Callable[[Dict[str, Any]], List[ValidationError]]] = []
+        self.field_rules: list[ValidationRule] = []
+        self.dependency_rules: list[DependencyRule] = []
+        self.global_rules: list[Callable[[dict[str, Any]], list[ValidationError]]] = []
 
     def add_field_rule(self, rule: ValidationRule) -> None:
         self.field_rules.append(rule)
@@ -58,10 +58,10 @@ class ConfigSchemaValidator:
     def add_dependency_rule(self, rule: DependencyRule) -> None:
         self.dependency_rules.append(rule)
 
-    def add_global_rule(self, rule: Callable[[Dict[str, Any]], List[ValidationError]]) -> None:
+    def add_global_rule(self, rule: Callable[[dict[str, Any]], list[ValidationError]]) -> None:
         self.global_rules.append(rule)
 
-    def _get(self, cfg: Dict[str, Any], path: str) -> Optional[Any]:
+    def _get(self, cfg: dict[str, Any], path: str) -> Any | None:
         cur: Any = cfg
         for p in path.split('.'):
             if not isinstance(cur, dict) or p not in cur:
@@ -69,10 +69,10 @@ class ConfigSchemaValidator:
             cur = cur[p]
         return cur
 
-    def validate(self, cfg: Dict[str, Any]) -> SchemaValidationResult:
-        errs: List[ValidationError] = []
-        warns: List[ValidationError] = []
-        seen: Set[str] = set()
+    def validate(self, cfg: dict[str, Any]) -> SchemaValidationResult:
+        errs: list[ValidationError] = []
+        warns: list[ValidationError] = []
+        seen: set[str] = set()
 
         for rule in self.field_rules:
             if rule.condition and not rule.condition(cfg):

@@ -15,9 +15,12 @@ Public API:
 Determinism: Pure functions rely only on index symbol & registry baseline; no randomness.
 """
 from __future__ import annotations
+
+import logging
+import time
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Dict, Any, Iterable, Tuple, Protocol
-import time, logging
+from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +65,7 @@ def build_synthetic_index_context(index_symbol: str) -> SyntheticIndexContext:
         atm = base_price
     return SyntheticIndexContext(symbol=index_symbol.upper(), step=step, base_price=base_price, atm=atm)
 
-def synthesize_index_price(index_symbol: str, index_price, atm_strike) -> Tuple[float, float, bool]:
+def synthesize_index_price(index_symbol: str, index_price, atm_strike) -> tuple[float, float, bool]:
     """Return (index_price, atm, used_synthetic) substituting deterministic synthetic values if needed."""
     used = False
     if (not isinstance(index_price, (int,float)) or index_price <= 0) and (not isinstance(atm_strike,(int,float)) or atm_strike <= 0):
@@ -73,13 +76,13 @@ def synthesize_index_price(index_symbol: str, index_price, atm_strike) -> Tuple[
         logger.debug("SYNTH_STRATEGY index=%s price=%s atm=%s step=%s", ctx.symbol, index_price, atm_strike, ctx.step)
     return float(index_price or 0), float(atm_strike or 0), used
 
-def build_synthetic_quotes(instruments: Iterable[Dict[str, Any]]):
+def build_synthetic_quotes(instruments: Iterable[dict[str, Any]]):
     """Fabricate placeholder quotes for a set of option instruments.
 
     Mirrors previous generate_synthetic_quotes but under strategy namespace for future
     extensibility (e.g., volume pattern injection, skew shaping, or randomized seeds behind flag).
     """
-    out: Dict[str, Dict[str, Any]] = {}
+    out: dict[str, dict[str, Any]] = {}
     ts = time.time()
     try:
         for inst in instruments:

@@ -13,8 +13,11 @@ This avoids keeping a private inline function in the monolithic collector file,
 supporting future centralization (e.g., routing to alternate sinks).
 """
 from __future__ import annotations
-from typing import Any, Dict
-import logging, json, os
+
+import json
+import logging
+import os
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +33,7 @@ try:
 except Exception:  # pragma: no cover
     pass
 
-def emit_struct(event: str, fields: Dict[str, Any]) -> None:  # pragma: no cover (thin wrapper)
+def emit_struct(event: str, fields: dict[str, Any]) -> None:  # pragma: no cover (thin wrapper)
     if _STRUCT_DISABLED:
         return
     if event in _SUPPRESS_EVENTS:
@@ -40,7 +43,7 @@ def emit_struct(event: str, fields: Dict[str, Any]) -> None:  # pragma: no cover
     except Exception:
         logger.debug("struct_emit_failed", exc_info=True)
 
-def emit_strike_cluster(cluster_struct: Dict[str, Any]) -> None:  # pragma: no cover
+def emit_strike_cluster(cluster_struct: dict[str, Any]) -> None:  # pragma: no cover
     # event name fixed historically as 'strike_cluster'
     emit_struct('strike_cluster', cluster_struct)
 

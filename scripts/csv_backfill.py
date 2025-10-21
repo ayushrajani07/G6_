@@ -26,24 +26,52 @@ Exit codes:
 
 """
 from __future__ import annotations
-import os, sys, json, argparse, datetime as dt
+
+import argparse
+import datetime as dt
+import json
+import os
+import sys
+from collections.abc import Iterator, Sequence
 from pathlib import Path
-from typing import List, Dict
+from typing import Any, TypedDict
 
-KNOWN_TAGS = {"this_week","this_month","next_week","next_month"}
+KNOWN_TAGS: set[str] = {"this_week","this_month","next_week","next_month"}
 
 
-def load_config_indices(root: Path) -> Dict[str, Dict[str, object]]:
+class IndexCfg(TypedDict, total=False):
+    expiries: Sequence[str]
+
+
+def _parse_indices_cfg(raw: Any) -> dict[str, IndexCfg]:
+    if not isinstance(raw, dict):
+        return {}
+    out: dict[str, IndexCfg] = {}
+    indices = raw.get("indices") if isinstance(raw, dict) else None
+    if not isinstance(indices, dict):
+        return {}
+    for k, v in indices.items():
+        if not isinstance(k, str) or not isinstance(v, dict):
+            continue
+        expiries = v.get("expiries")
+        if isinstance(expiries, list) and all(isinstance(x, str) for x in expiries):
+            out[k] = {"expiries": tuple(expiries)}
+        else:
+            out[k] = {}
+    return out
+
+
+def load_config_indices(root: Path) -> dict[str, IndexCfg]:
     cfg_path = root.parent.parent / 'config' / 'g6_config.json'
     try:
-        with open(cfg_path, 'r', encoding='utf-8') as f:
+        with open(cfg_path, encoding='utf-8') as f:
             cfg = json.load(f)
-        return (cfg.get('indices') or {})  # type: ignore
+        return _parse_indices_cfg(cfg)
     except Exception:
         return {}
 
 
-def discover_buckets(tag_dir: Path):
+def discover_buckets(tag_dir: Path) -> Iterator[Path]:
     for p in tag_dir.iterdir():
         if p.is_dir():
             name = p.name
@@ -54,7 +82,7 @@ def discover_buckets(tag_dir: Path):
                 yield p
 
 
-def ensure_header(path: Path, header: str, no_header: bool):
+def ensure_header(path: Path, header: str, no_header: bool) -> None:
     if path.exists():
         return
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -63,12 +91,18 @@ def ensure_header(path: Path, header: str, no_header: bool):
             f.write(header + '\n')
 
 
-def backfill(root: Path, date_str: str, *, dry_run: bool, no_header: bool, ignore_config: bool, header: str) -> Dict[str, List[str]]:
-    actions: Dict[str, List[str]] = {}
+def backfill(root: Path, date_str: str, *, dry_run: bool, no_header: bool, ignore_config: bool, header: str) -> dict[str, list[str]]:
+    actions: dict[str, list[str]] = {}
     indices_cfg = load_config_indices(root) if not ignore_config else {}
     for index_dir in sorted(p for p in root.iterdir() if p.is_dir()):
         index_name = index_dir.name
-        allowed_tags = set(indices_cfg.get(index_name, {}).get('expiries') or []) if indices_cfg else None
+        allowed_tags: set[str] | None
+        if indices_cfg:
+            cfg = indices_cfg.get(index_name)
+            exp: Sequence[str] | None = cfg.get('expiries') if cfg is not None else None
+            allowed_tags = set(exp) if exp is not None else None
+        else:
+            allowed_tags = None
         for tag_dir in sorted(p for p in index_dir.iterdir() if p.is_dir() and p.name in KNOWN_TAGS):
             tag_name = tag_dir.name
             if allowed_tags is not None and tag_name not in allowed_tags:
@@ -88,7 +122,7 @@ def backfill(root: Path, date_str: str, *, dry_run: bool, no_header: bool, ignor
     return actions
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="Backfill missing per-bucket CSV placeholders for a date")
     ap.add_argument('--date', default=None, help='Target ISO date (default today)')
     ap.add_argument('--root', default=None, help='Root CSV dir (default env G6_CSV_BASE_DIR or data/g6_data)')

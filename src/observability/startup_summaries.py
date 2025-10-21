@@ -13,14 +13,17 @@ JSON summaries (when available) and will emit a combined summary line
 `startup.summaries.hash` once after all registered summaries attempted.
 """
 from __future__ import annotations
-from typing import Callable, Dict, List
-import logging, hashlib, time
+
+import hashlib
+import logging
+import time
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
-_REGISTRY: List[tuple[str, Callable[[], bool]]] = []
-_EMITTED: Dict[str, bool] = {}
-_JSON_FIELD_HASHES: List[str] = []
+_REGISTRY: list[tuple[str, Callable[[], bool]]] = []
+_EMITTED: dict[str, bool] = {}
+_JSON_FIELD_HASHES: list[str] = []
 _COMPOSITE_EMITTED = False
 
 def register_summary(name: str, emitter: Callable[[], bool]) -> None:
@@ -122,7 +125,7 @@ def _force_emit_env_deprecations_summary() -> bool:  # pragma: no cover - determ
     Useful for integration tests that need deterministic presence of the
     env.deprecations.summary line even when zero deprecated vars are set.
     """
-    for name, fn in list(_REGISTRY):
+    for name, fn in _REGISTRY:
         if name == 'env.deprecations':
             try:
                 emitted = fn()

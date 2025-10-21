@@ -21,8 +21,11 @@ Public API:
 Thread is daemonized and idempotent (subsequent calls return early if already running).
 """
 from __future__ import annotations
-import os, threading, time, logging
-from typing import Optional, Dict
+
+import logging
+import os
+import threading
+import time
 
 from .validate import verify_manifest_hashes  # reuses existing helper
 
@@ -33,8 +36,8 @@ except Exception:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-_MONITOR_THREAD: Optional[threading.Thread] = None
-_STOP_EVENT: Optional[threading.Event] = None
+_MONITOR_THREAD: threading.Thread | None = None
+_STOP_EVENT: threading.Event | None = None
 
 # Metric names
 _METRIC_LAST_RUN = 'g6_panels_integrity_last_run_unixtime'
@@ -51,7 +54,7 @@ def _ensure_metrics():
     m = get_metrics()
     # Lazy register if absent (idempotent)
     if not hasattr(m, _METRIC_LAST_RUN):
-        from prometheus_client import Gauge, Counter  # type: ignore
+        from prometheus_client import Counter, Gauge  # type: ignore
         try:
             setattr(m, _METRIC_LAST_RUN, Gauge(_METRIC_LAST_RUN, 'Panels integrity last run unixtime'))
             setattr(m, _METRIC_MISMATCHES_TOTAL, Counter(_METRIC_MISMATCHES_TOTAL, 'Panels integrity mismatches total'))
@@ -65,7 +68,7 @@ def _ensure_metrics():
     return m
 
 
-def run_integrity_check_once(panels_dir: Optional[str] = None) -> Dict[str, int]:
+def run_integrity_check_once(panels_dir: str | None = None) -> dict[str, int]:
     """Run a single integrity verification pass.
 
     Returns mapping of panel filename -> mismatch count (always 1 per bad panel)
@@ -106,7 +109,7 @@ def run_integrity_check_once(panels_dir: Optional[str] = None) -> Dict[str, int]
     return result
 
 
-def start_panels_integrity_monitor(panels_dir: Optional[str] = None) -> None:
+def start_panels_integrity_monitor(panels_dir: str | None = None) -> None:
     """Start background integrity monitor if enabled by env.
 
     Safe to call multiple times; only first call starts thread.

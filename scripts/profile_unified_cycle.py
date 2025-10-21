@@ -41,7 +41,15 @@ Notes:
     * Adaptive expansion lines show previous->new depths when an expansion occurred
 """
 from __future__ import annotations
-import argparse, os, sys, time, cProfile, pstats, io, random
+
+import argparse
+import cProfile
+import io
+import os
+import pstats
+import random
+import sys
+import time
 from pathlib import Path
 
 # Ensure project root on path
@@ -49,9 +57,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.collectors.unified_collectors import run_unified_collectors  # type: ignore
 from src.collectors.cycle_context import CycleContext  # type: ignore
-
+from src.collectors.unified_collectors import run_unified_collectors  # type: ignore
 
 try:  # Optional import; profiling hook only
     from src.collectors.helpers.expiry_map import build_expiry_map as _build_expiry_map  # type: ignore
@@ -74,7 +81,7 @@ class _DummyProvider:
         self.field_coverage = max(0.0, min(1.0, field_coverage))
         self._rng = random.Random(seed if seed is not None else 8675309)
         import datetime as _dt
-        self._expiry = (_dt.datetime.now(_dt.timezone.utc) + _dt.timedelta(days=7)).date()
+        self._expiry = (_dt.datetime.now(_dt.UTC) + _dt.timedelta(days=7)).date()
     def get_index_data(self, index):
         return {'last_price': 100.0, 'index': index}
     def list_expiries(self, index):

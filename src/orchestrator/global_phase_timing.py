@@ -28,12 +28,11 @@ left out for performance and to avoid needless complexity now.
 """
 from __future__ import annotations
 
-from typing import Dict
 import logging
 import os
 
 _ACTIVE_CYCLE_TS: int | None = None
-_ACC: Dict[str, float] = {}
+_ACC: dict[str, float] = {}
 
 def _enabled() -> bool:
     return os.environ.get('G6_GLOBAL_PHASE_TIMING','').lower() in ('1','true','yes','on')
@@ -50,7 +49,7 @@ def reset_for_cycle(cycle_ts: int | None) -> None:
         _ACTIVE_CYCLE_TS = ts_int
         _ACC.clear()
 
-def record_phases(phases: Dict[str, float] | None) -> None:
+def record_phases(phases: dict[str, float] | None) -> None:
     if not _enabled() or not phases:
         return
     for k, v in phases.items():

@@ -4,7 +4,10 @@ Wrapper retained for one release cycle; prints deprecation notice unless
 suppressed by G6_SUPPRESS_DEPRECATIONS. Delegates to dev_smoke subcommand.
 """
 from __future__ import annotations
-import os, sys, runpy
+
+import os
+import runpy
+import sys
 
 if not os.getenv("G6_SUPPRESS_DEPRECATIONS"):
     try:

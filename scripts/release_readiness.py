@@ -18,9 +18,13 @@ Exit Codes:
   0 success, non-zero on first failure (details printed).
 """
 from __future__ import annotations
-import argparse, os, sys, re, json, time, http.client, subprocess
+
+import argparse
+import http.client
+import json
+import subprocess
+import sys
 from pathlib import Path
-from typing import List
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -43,7 +47,7 @@ ENV_DOC_FILE = REPO / 'docs' / 'env_dict.md'
 class ReadinessError(Exception):
     pass
 
-def load_env_doc_lines() -> List[str]:
+def load_env_doc_lines() -> list[str]:
     if not ENV_DOC_FILE.exists():
         raise ReadinessError(f"env doc missing: {ENV_DOC_FILE}")
     return ENV_DOC_FILE.read_text(encoding='utf-8', errors='ignore').splitlines()
@@ -66,7 +70,7 @@ def check_deprecations() -> None:
 
 # --- SSE live checks ------------------------------------------------------
 
-def fetch_sse_events(host: str, port: int, path: str = '/summary/events', timeout: float = 5.0, want: int = 2) -> List[str]:
+def fetch_sse_events(host: str, port: int, path: str = '/summary/events', timeout: float = 5.0, want: int = 2) -> list[str]:
     conn = http.client.HTTPConnection(host, port, timeout=timeout)
     conn.request('GET', path)
     resp = conn.getresponse()

@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
-from typing import Callable, Dict, Optional
+from collections.abc import Callable
 
 
 class _NoopLimiter:
@@ -115,7 +115,7 @@ class RateLimiterRegistry:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._by_name: Dict[str, TokenBucket | _NoopLimiter] = {}
+        self._by_name: dict[str, TokenBucket | _NoopLimiter] = {}
 
     def get(self, name: str, rate: float, burst: int) -> TokenBucket | _NoopLimiter:
         if rate <= 0 or burst <= 0:

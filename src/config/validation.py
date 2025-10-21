@@ -21,9 +21,9 @@ from __future__ import annotations
 import json
 import logging
 import os
-from pathlib import Path
-from typing import Any, Dict, List, Optional
 from datetime import date, timedelta
+from pathlib import Path
+from typing import Any
 
 try:
     import jsonschema  # type: ignore
@@ -42,7 +42,7 @@ class ConfigValidationError(Exception):
     """Raised when configuration fails schema validation."""
 
 
-def _load_schema() -> Dict[str, Any]:
+def _load_schema() -> dict[str, Any]:
     if not SCHEMA_PATH.exists():
         # Autogen minimal permissive schema for sandbox tests that omit schema file.
         # This keeps validation paths working without relaxing production expectations.
@@ -68,7 +68,7 @@ def _load_schema() -> Dict[str, Any]:
         raise ConfigValidationError(f"Failed to load schema: {e}") from e
 
 
-def _validate_jsonschema(cfg: Dict[str, Any], schema: Dict[str, Any]) -> None:
+def _validate_jsonschema(cfg: dict[str, Any], schema: dict[str, Any]) -> None:
     if jsonschema is None:  # pragma: no cover
         logger.warning("jsonschema not installed; skipping structural validation")
         return
@@ -78,8 +78,8 @@ def _validate_jsonschema(cfg: Dict[str, Any], schema: Dict[str, Any]) -> None:
         raise ConfigValidationError(f"Config schema validation error: {e.message} (path: {'/'.join(str(p) for p in e.path)})") from e
 
 
-def _detect_legacy(cfg: Dict[str, Any]) -> Dict[str, Any]:
-    findings: Dict[str, Any] = {"legacy_keys": [], "deprecated_fields": []}
+def _detect_legacy(cfg: dict[str, Any]) -> dict[str, Any]:
+    findings: dict[str, Any] = {"legacy_keys": [], "deprecated_fields": []}
     for key in LEGACY_TOP_LEVEL:
         if key in cfg:
             findings["legacy_keys"].append(key)
@@ -91,7 +91,7 @@ def _detect_legacy(cfg: Dict[str, Any]) -> Dict[str, Any]:
     return findings
 
 
-def validate_config(config: Dict[str, Any], *, strict: bool = False, metrics: Any | None = None) -> Dict[str, Any]:
+def validate_config(config: dict[str, Any], *, strict: bool = False, metrics: Any | None = None) -> dict[str, Any]:
     """Validate a loaded config dict against schema and perform legacy detection.
 
     Parameters
@@ -144,8 +144,8 @@ def validate_config(config: Dict[str, Any], *, strict: bool = False, metrics: An
 
 
 def validate_config_file(
-    path: str | os.PathLike[str], *, strict: bool = False, soft_legacy: bool = False, metrics: Optional[Any] = None
-) -> Dict[str, Any]:
+    path: str | os.PathLike[str], *, strict: bool = False, soft_legacy: bool = False, metrics: Any | None = None
+) -> dict[str, Any]:
     """Load and validate config JSON from file path.
 
     Parameters
@@ -193,7 +193,7 @@ def validate_config_file(
                 repl_day = 0
                 # Optionally aggregate coercion warnings to avoid log spam
                 aggregate = os.environ.get('G6_EXPIRY_COERCION_AGGREGATE','').lower() in ('1','true','yes','on')
-                aggregated: List[tuple[str,str,str]] = []  # (token, sym, iso)
+                aggregated: list[tuple[str,str,str]] = []  # (token, sym, iso)
                 use_rule_resolution = os.environ.get('G6_EXPIRY_RULE_RESOLUTION','').lower() in ('1','true','yes','on')
                 resolver = None
                 if use_rule_resolution:
@@ -207,7 +207,7 @@ def validate_config_file(
                         continue
                     expiries = spec.get('expiries')
                     if isinstance(expiries, list):
-                        new_list: List[str] = []
+                        new_list: list[str] = []
                         logical_rules = {'this_week','next_week','this_month','next_month'}
                         for token in expiries:
                             if isinstance(token, str) and token and not token.strip().isdigit():
@@ -243,7 +243,7 @@ def validate_config_file(
         except Exception:  # pragma: no cover - defensive
             pass
 
-    deprecated_detected: List[str] = []
+    deprecated_detected: list[str] = []
     if soft_legacy:
         # Identify legacy keys before schema validation so we can remove them (schema currently rejects them)
         for key in list(cfg.keys()):

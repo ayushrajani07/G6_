@@ -1,3 +1,20 @@
+# Testing
+
+## Windows note: use the pytest wrapper
+
+On Windows (PowerShell/cmd), quoting for marker expressions and environment injection via PYTEST_ADDOPTS can cause flaky or failing runs (e.g., -m "not serial"). To avoid this, use the Python wrapper which sanitizes the environment and passes arguments directly to pytest:
+
+- scripts/pytest_run.py serial → run full suite in serial (-n 0)
+- scripts/pytest_run.py parallel-subset → run not serial with xdist (-n auto)
+- scripts/pytest_run.py fast-inner → quick loop excluding slow/integration/perf/serial
+
+VS Code tasks in .vscode/tasks.json are wired to this wrapper so you can use the Command Palette → Run Task and pick:
+
+- pytest - full serial
+- pytest - parallel (xdist)
+- pytest - fast inner loop
+
+This avoids shell quoting pitfalls and ensures G6_INFLUX_OPTIONAL=1 during tests while clearing PYTEST_* variables.
 # Testing Strategy
 
 This project splits tests into **core** and **optional** categories to minimize interference with normal development while still offering richer integration coverage when desired.

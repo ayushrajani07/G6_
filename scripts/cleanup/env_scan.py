@@ -6,7 +6,9 @@ Artifacts:
   docs/environment.md (rewritten section between markers if present)
 """
 from __future__ import annotations
-import os, re, json
+
+import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -17,7 +19,7 @@ DOC_OUT = ROOT / 'docs' / 'environment.md'
 
 ENV_PATTERN = re.compile(r"os\.(?:getenv|environ\.get)\(\s*['\"](G6_[A-Z0-9_]+)['\"]")
 
-def scan_files():
+def scan_files() -> list[str]:
     vars_found: set[str] = set()
     for p in ROOT.rglob('*.py'):
         try:
@@ -28,11 +30,11 @@ def scan_files():
             vars_found.add(m.group(1))
     return sorted(vars_found)
 
-def emit_json(vars_list):
+def emit_json(vars_list: list[str]) -> None:
     JSON_OUT.write_text(json.dumps({'env_vars': vars_list}, indent=2), encoding='utf-8')
     print(f"[env-scan] wrote {JSON_OUT} count={len(vars_list)}")
 
-def emit_markdown(vars_list):
+def emit_markdown(vars_list: list[str]) -> None:
     lines = [
         '# Environment Variables (Auto-Scanned)',
         '',
@@ -49,7 +51,7 @@ def emit_markdown(vars_list):
     DOC_OUT.write_text('\n'.join(lines) + '\n', encoding='utf-8')
     print(f"[env-scan] wrote {DOC_OUT} table_rows={len(vars_list)}")
 
-def main():
+def main() -> int:
     vars_list = scan_files()
     emit_json(vars_list)
     emit_markdown(vars_list)

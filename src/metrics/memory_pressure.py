@@ -1,11 +1,13 @@
 """Memory pressure & adaptive degradation metric registrations (extracted)."""
 from __future__ import annotations
-from prometheus_client import Counter, Gauge
+
 import logging
+
+from prometheus_client import Counter, Gauge
 
 logger = logging.getLogger(__name__)
 
-def init_memory_pressure_metrics(registry: "MetricsRegistry") -> None:
+def init_memory_pressure_metrics(registry: MetricsRegistry) -> None:
     core = registry._core_reg  # type: ignore[attr-defined]
     core('memory_pressure_level', Gauge, 'g6_memory_pressure_level', 'Memory pressure ordinal level (0=normal,1=elevated,2=high,3=critical)')
     core('memory_pressure_actions', Counter, 'g6_memory_pressure_actions_total', 'Count of mitigation actions taken due to memory pressure', ['action','tier'])

@@ -11,19 +11,21 @@ Subcommands:
   full-tests      Convenience wrapper to run core + optional test suites
     summary         Launch the Rich/ASCII summarizer view
     simulate-status Generate a realistic runtime_status.json for demo/testing
+        uds-cache-stats Print UnifiedDataSource cache stats (hits/misses/reads)
 """
 from __future__ import annotations
+
 import argparse
 import json
 import os
+import subprocess
 import sys
 import time
-import subprocess
 from pathlib import Path
 
 _warned = False
 
-def _warn():
+def _warn() -> None:
     global _warned
     if _warned:
         return
@@ -36,20 +38,25 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.schema.runtime_status_validator import validate_runtime_status  # noqa: E402
+from src.data_access.unified_source import UnifiedDataSource  # noqa: E402
 from src.orchestrator.bootstrap import bootstrap_runtime  # type: ignore  # noqa: E402
-from src.orchestrator.cycle import run_cycle  # type: ignore  # noqa: E402
 from src.orchestrator.context import RuntimeContext  # type: ignore  # noqa: E402
+from src.orchestrator.cycle import run_cycle  # type: ignore  # noqa: E402
+from src.schema.runtime_status_validator import validate_runtime_status  # noqa: E402
 
 DEFAULT_CONFIG = 'config/g6_config.json'
 
 
-def _common_status_args(p: argparse.ArgumentParser):
+def _common_status_args(p: argparse.ArgumentParser) -> None:
     p.add_argument('--status-file', default='runtime_status.json', help='Path to runtime status JSON file')
     p.add_argument('--interval', type=int, default=3, help='Collection interval seconds')
 
 
-def _bootstrap(config_path: str) -> tuple[RuntimeContext, callable]:  # type: ignore[name-defined]
+from collections.abc import Callable
+from typing import cast
+
+
+def _bootstrap(config_path: str) -> tuple[RuntimeContext, Callable[[], None]]:  # type: ignore[name-defined]
     ctx, metrics_stop = bootstrap_runtime(config_path)
     # Derive index_params heuristic if missing
     try:
@@ -100,9 +107,21 @@ def cmd_dashboard(args: argparse.Namespace) -> int:
                 print(f"Cycle error: {e}")
                 return 3
             if not args.no_view:
+                # Prefer StatusReader or cached JSON to avoid repeated disk reads
                 try:
-                    data = json.loads(Path(args.status_file).read_text())
-                    print(f"Cycle {i}: cycle={data.get('cycle')} elapsed={data.get('elapsed')}s indices={data.get('indices')}")
+                    try:
+                        from src.utils.status_reader import get_status_reader  # type: ignore
+                        reader = get_status_reader(args.status_file)
+                        data = reader.get_raw_status()
+                    except Exception:
+                        from pathlib import Path as _Path
+
+                        from src.utils.csv_cache import read_json_cached as _read_json_cached
+                        data = _read_json_cached(_Path(args.status_file))
+                    if isinstance(data, dict):
+                        print(f"Cycle {i}: cycle={data.get('cycle')} elapsed={data.get('elapsed')}s indices={data.get('indices')}")
+                    else:
+                        print(f'Cycle {i}: (status read failed)')
                 except Exception:
                     print(f'Cycle {i}: (status read failed)')
             if cycles > 0 and i + 1 >= cycles:
@@ -125,13 +144,21 @@ def cmd_view_status(args: argparse.Namespace) -> int:
         print(f"Status file {path} does not exist yet. Waiting...")
     last = None
     try:
+        from src.utils.status_reader import get_status_reader  # type: ignore
+    except Exception:
+        get_status_reader = None  # type: ignore
+    try:
         while True:
             if path.exists():
                 try:
-                    raw = path.read_text()
-                    if raw != last:
-                        last = raw
-                        data = json.loads(raw)
+                    if get_status_reader is not None:
+                        reader = get_status_reader(str(path))
+                        data = reader.get_raw_status()
+                    else:
+                        from src.utils.csv_cache import read_json_cached as _read_json_cached
+                        data = _read_json_cached(path)
+                    if data != last and isinstance(data, dict):
+                        last = data
                         print(json.dumps(data, indent=2))
                 except Exception as e:  # noqa: BLE001
                     print(f"Read/parse error: {e}")
@@ -154,8 +181,8 @@ def cmd_validate_status(args: argparse.Namespace) -> int:
     errors = validate_runtime_status(obj)
     if errors:
         print("INVALID:")
-        for e in errors:
-            print(f" - {e}")
+        for err in errors:
+            print(f" - {err}")
         return 1
     print("VALID")
     return 0
@@ -210,6 +237,14 @@ def cmd_simulate_status(args: argparse.Namespace) -> int:
         base_cmd.append('--with-analytics')
 
     inject = args.inject_empty_quotes or args.inject_csv_activity
+    # Optionally start Prometheus metrics server in this process so any injected counters are exposed on 9108
+    if args.start_metrics_server:
+        try:
+            from src.utils.metrics_utils import init_metrics  # type: ignore
+            init_metrics(port=9108)
+            print('[simulate-status] metrics server started on 127.0.0.1:9108')
+        except Exception as e:  # noqa: BLE001
+            print(f'[simulate-status] failed to start metrics server: {e}')
     if not inject:
         return subprocess.call(base_cmd)
 
@@ -246,10 +281,11 @@ def cmd_simulate_status(args: argparse.Namespace) -> int:
         except Exception:
             pass
 
-    import random, threading
+    import random
+    import threading
     stop_evt = threading.Event()
 
-    def _loop():
+    def _loop() -> None:
         expiry_rules = ['weekly','monthly']
         while not stop_evt.is_set():
             try:
@@ -272,6 +308,26 @@ def cmd_simulate_status(args: argparse.Namespace) -> int:
     finally:
         stop_evt.set()
         t.join(timeout=2)
+
+
+def cmd_uds_cache_stats(args: argparse.Namespace) -> int:
+    """Print UnifiedDataSource cache statistics.
+
+    Optionally enable stats collection before printing and/or reset after print.
+    """
+    uds = UnifiedDataSource()
+    # Optionally enable stats collection on the fly
+    try:
+        if args.enable:
+            try:
+                uds.config.enable_cache_stats = True  # type: ignore[assignment]
+            except Exception:
+                pass
+    except Exception:
+        pass
+    stats = uds.get_cache_stats(reset=args.reset)
+    print(json.dumps(stats, indent=2, sort_keys=True))
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -319,18 +375,27 @@ def build_parser() -> argparse.ArgumentParser:
     sim.add_argument('--cycles', type=int, default=0, help='Number of updates (0=infinite)')
     sim.add_argument('--open-market', action='store_true', help='Mark market as open')
     sim.add_argument('--with-analytics', action='store_true', help='Include dummy analytics PCR/Max Pain')
+    sim.add_argument('--start-metrics-server', action='store_true', help='Start Prometheus metrics server on 9108 in this process')
     sim.add_argument('--inject-empty-quotes', action='store_true', help='Inject demo increments for g6_empty_quote_fields_total')
     sim.add_argument('--inject-csv-activity', action='store_true', help='Inject demo CSV records plus occasional write errors')
     sim.set_defaults(func=cmd_simulate_status)
 
+    uc = sub.add_parser('uds-cache-stats', help='Print UnifiedDataSource cache stats (hits/misses/reads)')
+    uc.add_argument('--enable', action='store_true', help='Enable cache stats collection before printing')
+    uc.add_argument('--reset', action='store_true', help='Reset counters after printing')
+    uc.set_defaults(func=cmd_uds_cache_stats)
+
     return p
 
 
-def main():  # add explicit main wrapper for deprecation warn
+def main() -> int:  # add explicit main wrapper for deprecation warn
     _warn()
     parser = build_parser()
     args = parser.parse_args()
-    return args.func(args)
+    handler = cast(Callable[[argparse.Namespace], int], getattr(args, 'func', None))
+    if handler is None:
+        return 2
+    return handler(args)
 
 if __name__ == '__main__':  # pragma: no cover
     raise SystemExit(main())

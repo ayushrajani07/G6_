@@ -17,15 +17,22 @@ Future Phases: scoring (Phase 2), issues (Phase 3), adaptive integration (Phase 
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, List, Optional, Tuple
-import os, json, time, logging, hashlib
-from datetime import datetime, timezone
+import hashlib
+import json
+import logging
+import os
+import time
+from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
+from typing import Any
+
+from prometheus_client import REGISTRY as _PROM_REGISTRY  # type: ignore
+from prometheus_client import Counter as _PROM_Counter
+from prometheus_client import Histogram as _PROM_Histogram  # type: ignore
 
 from scripts.summary.thresholds import T
+
 _get_metrics = None  # platform registry integration disabled for simplicity
-from prometheus_client import REGISTRY as _PROM_REGISTRY  # type: ignore
-from prometheus_client import Histogram as _PROM_Histogram, Counter as _PROM_Counter  # type: ignore
 
 FLAG = os.getenv("G6_SUMMARY_AGG_V2", "0").lower() in {"1","true","yes","on"}
 # Optional signature v2 flag (defaults ON when aggregation flag on unless explicitly disabled)
@@ -35,38 +42,38 @@ if SIG_FLAG == "auto":
 SIG_FLAG_ACTIVE = SIG_FLAG in {"1","true","yes","on"}
 DEBUG_LOG = os.getenv("G6_SUMMARY_V2_LOG_DEBUG", "0").lower() in {"1","true","yes","on"}
 
-def _dbg(msg: str):  # lightweight conditional debug
+def _dbg(msg: str) -> None:  # lightweight conditional debug
     if DEBUG_LOG:
         logging.debug(f"[snapshot_builder] {msg}")
 
 @dataclass
 class CycleInfo:
-    cycle: Optional[int] = None
-    last_duration_s: Optional[float] = None
-    interval_s: Optional[float] = None
+    cycle: int | None = None
+    last_duration_s: float | None = None
+    interval_s: float | None = None
 
 @dataclass
 class IndexSummary:
     name: str
-    dq_percent: Optional[float] = None
-    status: Optional[str] = None
-    age_s: Optional[float] = None
+    dq_percent: float | None = None
+    status: str | None = None
+    age_s: float | None = None
 
 @dataclass
 class AlertsSummary:
     total: int = 0
-    levels: Dict[str,int] = field(default_factory=dict)
+    levels: dict[str,int] = field(default_factory=dict)
 
 @dataclass
 class MemorySummary:
-    rss_mb: Optional[float] = None
-    tier: Optional[int] = None  # naive threshold based tiering
+    rss_mb: float | None = None
+    tier: int | None = None  # naive threshold based tiering
 
 @dataclass
 class FrameSnapshotBase:
     ts: str
     cycle: CycleInfo
-    indices: List[IndexSummary]
+    indices: list[IndexSummary]
     alerts: AlertsSummary
     memory: MemorySummary
     raw_status_present: bool
@@ -75,12 +82,12 @@ class FrameSnapshotBase:
 # Simple metric counter (placeholder) – replaced/augmented later with histogram
 _build_counter = 0
 _metrics_initialized = False
-_snapshot_hist = None
-_snapshot_counter = None
-_alerts_dedup_counter = None  # PH1-04
-_refresh_skipped_counter = None  # PH1-05
+_snapshot_hist: _PROM_Histogram | None = None
+_snapshot_counter: _PROM_Counter | None = None
+_alerts_dedup_counter: _PROM_Counter | None = None  # PH1-04
+_refresh_skipped_counter: _PROM_Counter | None = None  # PH1-05
 
-def _ensure_metrics():
+def _ensure_metrics() -> None:
     """Idempotently register snapshot metrics when aggregation flag is enabled.
 
     Uses a dynamic flag check each call so tests (or runtime) can enable
@@ -101,7 +108,15 @@ def _ensure_metrics():
         if 'g6_summary_snapshot_build_seconds' in name_map:
             _snapshot_hist = name_map['g6_summary_snapshot_build_seconds']  # type: ignore[index]
         else:
-            _snapshot_hist = _PROM_Histogram('g6_summary_snapshot_build_seconds', 'Snapshot builder wall time (seconds)', buckets=[0.001,0.002,0.005,0.01,0.02,0.05,0.075,0.1,0.25,0.5,1,2,3])
+            _snapshot_hist = _PROM_Histogram(
+                'g6_summary_snapshot_build_seconds',
+                'Snapshot builder wall time (seconds)',
+                buckets=[
+                    0.001, 0.002, 0.005, 0.01, 0.02,
+                    0.05, 0.075, 0.1, 0.25, 0.5,
+                    1, 2, 3,
+                ],
+            )
         # Counter naming: use base name without trailing _total (prom client appends)
         if 'g6_summary_v2_frames' in name_map:
             _snapshot_counter = name_map['g6_summary_v2_frames']  # type: ignore[index]
@@ -116,7 +131,10 @@ def _ensure_metrics():
             if 'g6_summary_refresh_skipped_total' in name_map:
                 _refresh_skipped_counter = name_map['g6_summary_refresh_skipped_total']  # type: ignore[index]
             else:
-                _refresh_skipped_counter = _PROM_Counter('g6_summary_refresh_skipped_total', 'Summary render refresh operations skipped due to unchanged signature (PH1-05)')
+                _refresh_skipped_counter = _PROM_Counter(
+                    'g6_summary_refresh_skipped_total',
+                    'Summary render refresh operations skipped due to unchanged signature (PH1-05)',
+                )
         _metrics_initialized = True
     except Exception:  # pragma: no cover
         _snapshot_hist = None
@@ -126,8 +144,22 @@ class SnapshotBuildError(Exception):
     pass
 
 def _read_json(path: str) -> Any:
+    """Read JSON with mtime cache when available, fallback to direct read.
+
+    Returns None on errors to match previous semantics in this module.
+    """
     try:
-        with open(path, 'r', encoding='utf-8') as f:
+        from pathlib import Path as _Path
+
+        from src.utils.csv_cache import read_json_cached as _read_json_cached
+    except Exception:
+        _read_json_cached = None  # type: ignore
+        _Path = None  # type: ignore
+    try:
+        if _read_json_cached is not None and _Path is not None:
+            data = _read_json_cached(_Path(path))
+            return data
+        with open(path, encoding='utf-8') as f:
             return json.load(f)
     except FileNotFoundError:
         return None
@@ -135,7 +167,7 @@ def _read_json(path: str) -> Any:
         logging.warning(f"[snapshot_builder] Failed reading {path}: {e}")
         return None
 
-def _derive_cycle(status: Dict[str, Any] | None) -> CycleInfo:
+def _derive_cycle(status: dict[str, Any] | None) -> CycleInfo:
     if not status or not isinstance(status, dict):
         return CycleInfo()
     loop = status.get("loop") or {}
@@ -147,8 +179,8 @@ def _derive_cycle(status: Dict[str, Any] | None) -> CycleInfo:
         interval_s=status.get("interval"),
     )
 
-def _collect_indices(status: Dict[str, Any] | None, panels_dir: Optional[str]) -> List[IndexSummary]:
-    result: List[IndexSummary] = []
+def _collect_indices(status: dict[str, Any] | None, panels_dir: str | None) -> list[IndexSummary]:
+    result: list[IndexSummary] = []
     seen = set()
     # Prefer indices_detail from status
     if isinstance(status, dict) and isinstance(status.get("indices_detail"), dict):
@@ -163,18 +195,25 @@ def _collect_indices(status: Dict[str, Any] | None, panels_dir: Optional[str]) -
             except Exception:
                 pass
             age = data.get("age") or data.get("age_sec")
-            result.append(IndexSummary(name=name, dq_percent=dq, status=str(data.get("status") or "") or None, age_s=age))
+            result.append(
+                IndexSummary(
+                    name=name,
+                    dq_percent=dq,
+                    status=str(data.get("status") or "") or None,
+                    age_s=age,
+                )
+            )
             seen.add(str(name))
     # Optionally enrich from panels stream (latest items) to fill gaps
     if panels_dir:
         stream = _read_json(os.path.join(panels_dir, "indices_stream.json"))
-        items: List[Dict[str, Any]] = []
+        items: list[dict[str, Any]] = []
         if isinstance(stream, list):
             items = stream
         elif isinstance(stream, dict) and isinstance(stream.get("items"), list):
             items = stream.get("items")  # type: ignore
         # Keep most recent occurrence per index
-        latest: Dict[str, Dict[str, Any]] = {}
+        latest: dict[str, dict[str, Any]] = {}
         for it in items:
             if not isinstance(it, dict):
                 continue
@@ -197,7 +236,7 @@ def _collect_indices(status: Dict[str, Any] | None, panels_dir: Optional[str]) -
             seen.add(idx)
     return result
 
-def _hash_alert(a: Dict[str, Any]) -> str:
+def _hash_alert(a: dict[str, Any]) -> str:
     try:
         # Normalize essential fields for dedupe key; fallback to repr
         t = str(a.get("time") or a.get("timestamp") or "")[:19]  # second resolution
@@ -209,16 +248,16 @@ def _hash_alert(a: Dict[str, Any]) -> str:
     except Exception:
         return hashlib.sha1(repr(a).encode("utf-8", errors="ignore")).hexdigest()
 
-def _generate_synthetic_alerts(status: Dict[str, Any] | None) -> List[Dict[str, Any]]:
-    syn: List[Dict[str, Any]] = []
+def _generate_synthetic_alerts(status: dict[str, Any] | None) -> list[dict[str, Any]]:
+    syn: list[dict[str, Any]] = []
     if not status or not isinstance(status, dict):
         return syn
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now_iso = datetime.now(UTC).isoformat()
     # Data quality heuristic (simple copy from panel logic subset)
     try:
         ids = status.get("indices_detail")
         if isinstance(ids, dict):
-            low: List[str] = []
+            low: list[str] = []
             for k, v in ids.items():
                 if not isinstance(v, dict):
                     continue
@@ -232,8 +271,11 @@ def _generate_synthetic_alerts(status: Dict[str, Any] | None) -> List[Dict[str, 
                     "time": now_iso,
                     "level": "WARNING" if all(":7" not in it and ":6" not in it for it in low) else "ERROR",
                     "component": "Data Quality",
-                    "message": f"Low data quality: {', '.join(low[:3])}{' (+'+str(len(low)-3)+' more)' if len(low)>3 else ''}",
-                    "source": "synthetic"
+                    "message": (
+                        f"Low data quality: {', '.join(low[:3])}"
+                        f"{' (+'+str(len(low)-3)+' more)' if len(low)>3 else ''}"
+                    ),
+                    "source": "synthetic",
                 })
     except Exception:
         pass
@@ -251,9 +293,9 @@ def _generate_synthetic_alerts(status: Dict[str, Any] | None) -> List[Dict[str, 
         pass
     return syn
 
-def _load_rolling_alerts_log(log_path: str) -> List[Dict[str, Any]]:
+def _load_rolling_alerts_log(log_path: str) -> list[dict[str, Any]]:
     try:
-        with open(log_path, 'r', encoding='utf-8') as f:
+        with open(log_path, encoding='utf-8') as f:
             data = json.load(f)
             if isinstance(data, dict) and isinstance(data.get("alerts"), list):
                 return [a for a in data["alerts"] if isinstance(a, dict)]
@@ -263,18 +305,23 @@ def _load_rolling_alerts_log(log_path: str) -> List[Dict[str, Any]]:
         return []
     return []
 
-def _write_rolling_alerts_log(log_path: str, alerts: List[Dict[str, Any]], *, max_entries: int = 500):  # pragma: no cover (IO best effort)
+def _write_rolling_alerts_log(
+    log_path: str,
+    alerts: list[dict[str, Any]],
+    *,
+    max_entries: int = 500,
+) -> None:  # pragma: no cover (IO best effort)
     try:
         os.makedirs(os.path.dirname(log_path), exist_ok=True)
         trimmed = alerts[-max_entries:]
-        payload = {"updated_at": datetime.now(timezone.utc).isoformat(), "alerts": trimmed}
+        payload = {"updated_at": datetime.now(UTC).isoformat(), "alerts": trimmed}
         # Always write atomically to avoid interleaved data corruption (observed JSON extra data issue)
         try:
             from src.utils.output import atomic_write_json  # type: ignore
             atomic_write_json(log_path, payload, ensure_ascii=False, indent=2)
             # Post-write validation: ensure file is valid JSON; if not, rewrite once.
             try:
-                with open(log_path, 'r', encoding='utf-8') as _vf:
+                with open(log_path, encoding='utf-8') as _vf:
                     _ = json.load(_vf)
             except Exception:
                 # One retry on validation failure
@@ -304,7 +351,7 @@ def _write_rolling_alerts_log(log_path: str, alerts: List[Dict[str, Any]], *, ma
                     pass
             # Validate after fallback write
             try:
-                with open(log_path, 'r', encoding='utf-8') as _vf2:
+                with open(log_path, encoding='utf-8') as _vf2:
                     _ = json.load(_vf2)
             except Exception:
                 try:
@@ -322,7 +369,7 @@ def _write_rolling_alerts_log(log_path: str, alerts: List[Dict[str, Any]], *, ma
     except Exception:
         pass
 
-def _collect_and_persist_alerts(status: Dict[str, Any] | None, panels_dir: Optional[str]) -> Tuple[AlertsSummary, int]:
+def _collect_and_persist_alerts(status: dict[str, Any] | None, panels_dir: str | None) -> tuple[AlertsSummary, int]:
     """Collect alerts + synthetic + panels, persist rolling log once (PH1-04).
 
     Returns (AlertsSummary, duplicates_skipped).
@@ -330,8 +377,8 @@ def _collect_and_persist_alerts(status: Dict[str, Any] | None, panels_dir: Optio
     # Strategy: maintain chronological ascending order so trimming keeps most recent tail.
     # Load existing rolling log first (assumed oldest->newest) then append freshly collected alerts.
     log_path = os.path.join("data", "panels", "alerts_log.json")
-    alerts: List[Dict[str, Any]] = _load_rolling_alerts_log(log_path)
-    new_batch: List[Dict[str, Any]] = []
+    alerts: list[dict[str, Any]] = _load_rolling_alerts_log(log_path)
+    new_batch: list[dict[str, Any]] = []
     if isinstance(status, dict):  # status alerts/events
         for key in ("alerts", "events"):
             raw = status.get(key)
@@ -346,7 +393,7 @@ def _collect_and_persist_alerts(status: Dict[str, Any] | None, panels_dir: Optio
     # Append new batch after historical alerts so they appear at end and survive tail trimming
     alerts.extend(new_batch)
     # Dedupe
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     seen: set[str] = set()
     duplicates = 0
     for a in alerts:
@@ -371,7 +418,7 @@ def _collect_and_persist_alerts(status: Dict[str, Any] | None, panels_dir: Optio
     _write_rolling_alerts_log(log_path, out, max_entries=max_entries)
     # Summarize levels
     total = 0
-    levels: Dict[str,int] = {}
+    levels: dict[str,int] = {}
     for a in out:
         lvl = str(a.get("level") or a.get("severity") or "").upper()
         if not lvl:
@@ -386,7 +433,7 @@ def _collect_and_persist_alerts(status: Dict[str, Any] | None, panels_dir: Optio
             pass
     return AlertsSummary(total=total, levels=levels), duplicates
 
-def _collect_memory(status: Dict[str, Any] | None) -> MemorySummary:
+def _collect_memory(status: dict[str, Any] | None) -> MemorySummary:
     if not status or not isinstance(status, dict):
         return MemorySummary()
     mem = status.get("memory")
@@ -411,7 +458,7 @@ def _collect_memory(status: Dict[str, Any] | None) -> MemorySummary:
         pass
     return MemorySummary(rss_mb=rss, tier=tier)
 
-def build_frame_snapshot(status: Dict[str, Any] | None, *, panels_dir: Optional[str] = None) -> FrameSnapshotBase:
+def build_frame_snapshot(status: dict[str, Any] | None, *, panels_dir: str | None = None) -> FrameSnapshotBase:
     """Build a base snapshot (Phase 1) from current sources.
 
     This function is idempotent for a given input status + panel artifacts.
@@ -426,7 +473,10 @@ def build_frame_snapshot(status: Dict[str, Any] | None, *, panels_dir: Optional[
         indices = _collect_indices(status, panels_dir if panels_dir and os.path.isdir(panels_dir) else None)
         _dbg(f"indices collected: count={len(indices)} panels_mode={bool(panels_dir)}")
         if FLAG:  # relocated path
-            alerts, _dedup = _collect_and_persist_alerts(status, panels_dir if panels_dir and os.path.isdir(panels_dir) else None)
+            alerts, _dedup = _collect_and_persist_alerts(
+                status,
+                panels_dir if panels_dir and os.path.isdir(panels_dir) else None,
+            )
             _dbg(f"alerts aggregated (relocated): total={alerts.total} levels={alerts.levels}")
         else:
             alerts = _collect_alerts(status, panels_dir if panels_dir and os.path.isdir(panels_dir) else None)  # type: ignore
@@ -434,7 +484,7 @@ def build_frame_snapshot(status: Dict[str, Any] | None, *, panels_dir: Optional[
         memory = _collect_memory(status)
         _dbg(f"memory summary: rss_mb={memory.rss_mb} tier={memory.tier}")
         snap = FrameSnapshotBase(
-            ts=datetime.now(timezone.utc).isoformat(),
+            ts=datetime.now(UTC).isoformat(),
             cycle=cycle,
             indices=indices,
             alerts=alerts,
@@ -462,7 +512,7 @@ def build_frame_snapshot(status: Dict[str, Any] | None, *, panels_dir: Optional[
             except Exception:
                 pass
 
-def snapshot_to_dict(snap: FrameSnapshotBase) -> Dict[str, Any]:
+def snapshot_to_dict(snap: FrameSnapshotBase) -> dict[str, Any]:
     return asdict(snap)
 
 __all__ = [
@@ -473,23 +523,24 @@ __all__ = [
     "SnapshotBuildError",
 ]
 
-def _reset_metrics_for_tests():  # pragma: no cover - test utility
+def _reset_metrics_for_tests() -> None:  # pragma: no cover - test utility
     global _metrics_initialized, _snapshot_hist, _snapshot_counter, _alerts_dedup_counter
     _metrics_initialized = False
     _snapshot_hist = None
     _snapshot_counter = None
     _alerts_dedup_counter = None
 
-def _get_internal_metric_objects():  # pragma: no cover - diagnostic/testing helper
+def _get_internal_metric_objects(
+) -> tuple[_PROM_Counter | None, _PROM_Histogram | None]:  # pragma: no cover - diagnostic/testing helper
     return _snapshot_counter, _snapshot_hist
 
-def _get_alerts_dedup_metric():  # pragma: no cover - test helper
+def _get_alerts_dedup_metric() -> _PROM_Counter | None:  # pragma: no cover - test helper
     return _alerts_dedup_counter
 
-def _get_refresh_skipped_metric():  # pragma: no cover - test helper
+def _get_refresh_skipped_metric() -> _PROM_Counter | None:  # pragma: no cover - test helper
     return _refresh_skipped_counter
 
-def compute_snapshot_signature(status: Dict[str, Any] | None, *, panels_dir: Optional[str] = None) -> Optional[str]:
+def compute_snapshot_signature(status: dict[str, Any] | None, *, panels_dir: str | None = None) -> str | None:
     """Compute a lightweight signature over snapshot-relevant stable fields.
 
     Excludes volatile timestamps. Inputs considered:
@@ -511,7 +562,7 @@ def compute_snapshot_signature(status: Dict[str, Any] | None, *, panels_dir: Opt
                 if isinstance(c, (int, float)):
                     cycle = int(c)
         # Indices list via existing helper (avoid full builder call); fallback to status indices
-        indices: List[str] = []
+        indices: list[str] = []
         try:
             ids = status.get('indices_detail') if isinstance(status, dict) else None
             if isinstance(ids, dict):
@@ -528,7 +579,7 @@ def compute_snapshot_signature(status: Dict[str, Any] | None, *, panels_dir: Opt
             try:
                 # Combine rolling log + current status alerts/events (without synthetic generation)
                 log_path = os.path.join('data', 'panels', 'alerts_log.json')
-                combined: List[Dict[str, Any]] = []
+                combined: list[dict[str, Any]] = []
                 combined.extend(_load_rolling_alerts_log(log_path))
                 if isinstance(status, dict):
                     for key in ('alerts','events'):
@@ -536,7 +587,7 @@ def compute_snapshot_signature(status: Dict[str, Any] | None, *, panels_dir: Opt
                         if isinstance(raw, list):
                             combined.extend([a for a in raw if isinstance(a, dict)])
                 total = 0
-                levels: Dict[str,int] = {}
+                levels: dict[str,int] = {}
                 for a in combined:
                     lvl = str(a.get('level') or a.get('severity') or '').upper()
                     if not lvl:
@@ -572,9 +623,12 @@ def compute_snapshot_signature(status: Dict[str, Any] | None, *, panels_dir: Opt
         return None
 
 # Backwards compatibility: legacy function kept until PH1-04 fully merged
-def _collect_alerts(status: Dict[str, Any] | None, panels_dir: Optional[str]):  # pragma: no cover - legacy path
+def _collect_alerts(
+    status: dict[str, Any] | None,
+    panels_dir: str | None,
+) -> AlertsSummary:  # pragma: no cover - legacy path
     # Use simplified legacy logic (copied from prior implementation) for when FLAG is off
-    alerts: List[Dict[str, Any]] = []
+    alerts: list[dict[str, Any]] = []
     if status:
         raw_alerts = status.get("alerts")
         if isinstance(raw_alerts, list):
@@ -584,7 +638,7 @@ def _collect_alerts(status: Dict[str, Any] | None, panels_dir: Optional[str]):  
         if isinstance(pj, list):
             alerts.extend([a for a in pj if isinstance(a, dict)])
     total = 0
-    levels: Dict[str,int] = {}
+    levels: dict[str,int] = {}
     for a in alerts:
         lvl = str(a.get("level") or a.get("severity") or "").upper()
         if not lvl:

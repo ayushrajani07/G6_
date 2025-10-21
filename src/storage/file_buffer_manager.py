@@ -10,11 +10,11 @@ Notes:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, TextIO, Any
 import csv
 import os
 import time
+from dataclasses import dataclass, field
+from typing import Any, TextIO
 
 
 @dataclass
@@ -23,7 +23,7 @@ class _FileEntry:
     fh: TextIO
     writer: Any
     header_written: bool
-    pending: List[List[object]] = field(default_factory=list)
+    pending: list[list[object]] = field(default_factory=list)
     last_access: float = field(default_factory=time.time)
     last_flush: float = field(default_factory=time.time)
 
@@ -42,10 +42,10 @@ class FileBufferManager:
         self.buffer_size = max(0, int(buffer_size))
         self.newline = newline
         self.encoding = encoding
-        self._files: Dict[str, _FileEntry] = {}
+        self._files: dict[str, _FileEntry] = {}
 
     # ---------------- Public API ----------------
-    def write_row(self, filepath: str, row: List[object], header: Optional[List[str]] = None) -> None:
+    def write_row(self, filepath: str, row: list[object], header: list[str] | None = None) -> None:
         """Queue a row for a file; create/open the file if needed.
 
         If file is new and header is provided, header is written immediately
@@ -79,7 +79,7 @@ class FileBufferManager:
                     self._files.pop(path, None)
 
     # ---------------- Internals ----------------
-    def _ensure_file(self, filepath: str, header: Optional[List[str]]) -> _FileEntry:
+    def _ensure_file(self, filepath: str, header: list[str] | None) -> _FileEntry:
         fe = self._files.get(filepath)
         if fe is not None:
             return fe
@@ -91,14 +91,16 @@ class FileBufferManager:
         file_exists = os.path.isfile(filepath)
         mode = "a" if file_exists else "w"
         fh = open(filepath, mode, newline=self.newline, encoding=self.encoding)
-        writer = csv.writer(fh)
-        fe = _FileEntry(path=filepath, fh=fh, writer=writer, header_written=file_exists)
+        # Help type checker: treat file handle as TextIO for csv writer
+        fh_typed: TextIO = fh  # type: ignore[assignment]
+        writer = csv.writer(fh_typed)
+        fe = _FileEntry(path=filepath, fh=fh_typed, writer=writer, header_written=file_exists)
         self._files[filepath] = fe
         # Header for new file
         if (not fe.header_written) and header:
             writer.writerow(header)
             fe.header_written = True
-            fh.flush()
+            fh_typed.flush()
         return fe
 
     def _flush_one(self, fe: _FileEntry) -> None:

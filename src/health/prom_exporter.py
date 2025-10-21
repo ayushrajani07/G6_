@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Prometheus exporter for health data. Optional and lightweight.
 
@@ -11,7 +10,7 @@ It doesn't start any HTTP server on its own; integrate with the existing metrics
 """
 from __future__ import annotations
 
-from typing import Dict, Any, Optional, cast
+from typing import Any, cast
 
 _PromGauge: Any | None
 try:  # optional dependency; safe fallback when missing
@@ -26,8 +25,8 @@ class HealthMetricsExporter:
     def __init__(self, namespace: str = "g6") -> None:
         self._enabled = _PromGauge is not None
         if not self._enabled:
-            self._level_g: Optional[Any] = None
-            self._state_info_g: Optional[Any] = None
+            self._level_g: Any | None = None
+            self._state_info_g: Any | None = None
             return
         pg = cast(Any, _PromGauge)
         self._level_g = pg(
@@ -59,7 +58,7 @@ class HealthMetricsExporter:
         lvl.labels(component=name).set(int(level))
         self._mark_state(name, state)
 
-    def bulk_set_components(self, mapping: Dict[str, Dict[str, int | str]]) -> None:
+    def bulk_set_components(self, mapping: dict[str, dict[str, int | str]]) -> None:
         """
         mapping: {name: {"level": int(HealthLevel), "state": str}}
         """

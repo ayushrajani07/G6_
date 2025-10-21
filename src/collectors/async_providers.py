@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import asyncio
-import datetime
 import logging
-from typing import Any, Dict, List, Tuple
-from src.error_handling import handle_provider_error, handle_data_collection_error
-from src.utils.normalization import sanitize_option_fields
+from typing import Any
 
+from src.error_handling import handle_data_collection_error, handle_provider_error
+from src.utils.normalization import sanitize_option_fields
 
 logger = logging.getLogger(__name__)
 
@@ -66,14 +64,14 @@ class AsyncProviders:
     async def resolve_expiry(self, index_symbol: str, expiry_rule: str):
         return await self.primary_provider.resolve_expiry(index_symbol, expiry_rule)
 
-    async def get_option_instruments(self, index_symbol: str, expiry_date, strikes: List[int]):
+    async def get_option_instruments(self, index_symbol: str, expiry_date, strikes: list[int]):
         if hasattr(self.primary_provider, 'get_option_instruments'):
             return await self.primary_provider.get_option_instruments(index_symbol, expiry_date, strikes)
         return await self.primary_provider.option_instruments(index_symbol, expiry_date, strikes)
 
-    async def enrich_with_quotes(self, instruments: List[Dict[str, Any]]):
+    async def enrich_with_quotes(self, instruments: list[dict[str, Any]]):
         # Convert instruments to quote format and fanout
-        quote_instruments: List[Tuple[str, str]] = []
+        quote_instruments: list[tuple[str, str]] = []
         for inst in instruments:
             symbol = inst.get('tradingsymbol', '')
             exchange = inst.get('exchange', 'NFO')
@@ -82,7 +80,7 @@ class AsyncProviders:
         if not quote_instruments:
             return {}
         quotes = await self.primary_provider.get_quote(quote_instruments)
-        enriched: Dict[str, Any] = {}
+        enriched: dict[str, Any] = {}
         for inst in instruments:
             symbol = inst.get('tradingsymbol', '')
             exchange = inst.get('exchange', 'NFO')

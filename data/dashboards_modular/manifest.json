@@ -1,0 +1,71 @@
+{
+  "count": 8,
+  "dashboards": [
+    {
+      "families": [
+        "core"
+      ],
+      "panel_count": 13,
+      "slug": "core_overview",
+      "uid": "g6-core_overview"
+    },
+    {
+      "families": [
+        "greeks"
+      ],
+      "panel_count": 3,
+      "slug": "greeks_overview",
+      "uid": "g6-greeks_overview"
+    },
+    {
+      "families": [
+        "adaptive_controller"
+      ],
+      "panel_count": 2,
+      "slug": "adaptive_controller",
+      "uid": "g6-adaptive_controller"
+    },
+    {
+      "families": [
+        "panels_integrity"
+      ],
+      "panel_count": 7,
+      "slug": "bus_health",
+      "uid": "g6-bus_health"
+    },
+    {
+      "families": [
+        "core"
+      ],
+      "panel_count": 13,
+      "slug": "system_overview_minimal",
+      "uid": "g6-system_overview_minimal"
+    },
+    {
+      "families": [
+        "core"
+      ],
+      "panel_count": 6,
+      "slug": "multi_pane_explorer",
+      "uid": "g6-multi_pane_explorer"
+    },
+    {
+      "families": [
+        "core"
+      ],
+      "panel_count": 5,
+      "slug": "multi_pane_explorer_compact",
+      "uid": "g6-multi_pane_explorer_compact"
+    },
+    {
+      "families": [
+        "core"
+      ],
+      "panel_count": 4,
+      "slug": "multi_pane_explorer_ultra",
+      "uid": "g6-multi_pane_explorer_ultra"
+    }
+  ],
+  "generated_at_unix": 1760886631,
+  "spec_hash": "b1fb37bf991f1a94"
+}

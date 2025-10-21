@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import TypedDict, Optional, List
+
+from typing import TypedDict
+
 
 class OptionQuoteDict(TypedDict, total=False):
     symbol: str
@@ -7,7 +9,7 @@ class OptionQuoteDict(TypedDict, total=False):
     last_price: float
     volume: int
     oi: int
-    timestamp: Optional[str]
+    timestamp: str | None
 
 class ExpirySnapshotDict(TypedDict):
     index: str
@@ -16,20 +18,20 @@ class ExpirySnapshotDict(TypedDict):
     atm_strike: float
     option_count: int
     generated_at: str
-    options: List[OptionQuoteDict]
+    options: list[OptionQuoteDict]
 
 class OverviewSnapshotDict(TypedDict, total=False):
     generated_at: str
     total_indices: int
     total_expiries: int
     total_options: int
-    put_call_ratio: Optional[float]
-    max_pain_strike: Optional[float]
+    put_call_ratio: float | None
+    max_pain_strike: float | None
 
 class SerializedSnapshotsDict(TypedDict, total=False):
     generated_at: str
     count: int
-    snapshots: List[ExpirySnapshotDict]
+    snapshots: list[ExpirySnapshotDict]
     overview: OverviewSnapshotDict | None
 
 __all__ = [

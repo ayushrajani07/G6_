@@ -15,20 +15,21 @@ preserve original provider resilience semantics.
 """
 from __future__ import annotations
 
-from typing import Any, Tuple
 import logging
-import time
+from typing import Any
 
 from src.utils.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
 
-def setup_rate_limiter(settings) -> tuple[Any | None, float, float]:  # pragma: no cover - logic mirrored from provider
+def setup_rate_limiter(settings: Any) -> tuple[Any | None, float, float]:  # pragma: no cover - logic mirrored from provider
     try:
         from src.broker.kite.rate_limiter_helpers import (
-            setup_api_rate_limiter as _setup_rl,
             make_throttled_flags as _make_flags,
+        )
+        from src.broker.kite.rate_limiter_helpers import (
+            setup_api_rate_limiter as _setup_rl,
         )
         api_rl = _setup_rl(settings)
         flags = _make_flags()
@@ -42,7 +43,7 @@ def setup_rate_limiter(settings) -> tuple[Any | None, float, float]:  # pragma: 
         return api_rl, 0.0, 0.0
 
 
-def emit_startup_summary_if_needed(provider) -> None:  # pragma: no cover - behavior validated via existing tests
+def emit_startup_summary_if_needed(provider: Any) -> None:  # pragma: no cover - behavior validated via existing tests
     try:
         from src.broker.kite.startup_summary import emit_startup_summary as _emit_summary
         _emit_summary(provider)

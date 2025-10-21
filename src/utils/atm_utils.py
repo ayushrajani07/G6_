@@ -6,6 +6,7 @@ Falls back gracefully to 50 if registry unavailable.
 """
 from __future__ import annotations
 
+
 def atm_round(index_symbol: str, price: float) -> float:
     if not isinstance(price, (int, float)) or price <= 0:
         return 0.0

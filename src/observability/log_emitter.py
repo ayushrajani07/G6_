@@ -30,12 +30,13 @@ NOTE: Actual legacy formatting injection is pluggable via set_legacy_formatter.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Dict, Iterable, Mapping, Optional, Tuple
 import logging
 import os
 import re
 import time
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any
 
 _logger = logging.getLogger("g6.logemitter")
 
@@ -49,7 +50,7 @@ NOISY_EVENTS = {
 _dedup_enabled = os.environ.get("G6_LOG_DEDUP_DISABLE", "").lower() not in {"1","true","yes","on"}
 _compat_enabled = os.environ.get("G6_LOG_SCHEMA_COMPAT", "").lower() in {"1","true","yes","on"}
 
-_dedup_cache: set[Tuple[str, Tuple[Tuple[str,str],...]]] = set()
+_dedup_cache: set[tuple[str, tuple[tuple[str,str],...]]] = set()
 _legacy_formatter = None  # type: ignore[assignment]
 
 def set_legacy_formatter(fn):  # pragma: no cover - rarely used configuration path
@@ -59,8 +60,8 @@ def set_legacy_formatter(fn):  # pragma: no cover - rarely used configuration pa
     global _legacy_formatter
     _legacy_formatter = fn
 
-def _normalize_fields(fields: Mapping[str, Any]) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
+def _normalize_fields(fields: Mapping[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
     for k, v in fields.items():
         try:
             if isinstance(v, (str, int, float)) or v is None:
@@ -71,7 +72,7 @@ def _normalize_fields(fields: Mapping[str, Any]) -> Dict[str, Any]:
             out[k] = "<unrepr>"
     return out
 
-def _should_dedup(event: str, norm_items: Tuple[Tuple[str,str],...]) -> bool:
+def _should_dedup(event: str, norm_items: tuple[tuple[str,str],...]) -> bool:
     if not _dedup_enabled:
         return False
     if event not in NOISY_EVENTS:

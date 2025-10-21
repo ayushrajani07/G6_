@@ -11,7 +11,8 @@ from __future__ import annotations
 
 import datetime
 import logging
-from typing import Any, Iterable, List, Dict
+from collections.abc import Iterable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +49,7 @@ class DummyKiteProvider:  # pragma: no cover - logic exercised indirectly in tes
     # ------------------------------------------------------------------
     # Instrument / option universe
     # ------------------------------------------------------------------
-    def get_instruments(self, exchange: str | None = None) -> List[Dict[str, Any]]:
+    def get_instruments(self, exchange: str | None = None) -> list[dict[str, Any]]:
         if exchange == "NFO":
             expiry = datetime.date.today() + datetime.timedelta(days=15)
             base = expiry.strftime('%d%b').upper()
@@ -87,8 +88,8 @@ class DummyKiteProvider:  # pragma: no cover - logic exercised indirectly in tes
     # ------------------------------------------------------------------
     # LTP / Quotes
     # ------------------------------------------------------------------
-    def get_ltp(self, instruments: Iterable[tuple[str, str]]) -> Dict[str, Any]:
-        out: Dict[str, Any] = {}
+    def get_ltp(self, instruments: Iterable[tuple[str, str]]) -> dict[str, Any]:
+        out: dict[str, Any] = {}
         for exch, ts in instruments:
             price = 1000.0
             if "NIFTY 50" in ts:
@@ -104,9 +105,9 @@ class DummyKiteProvider:  # pragma: no cover - logic exercised indirectly in tes
             out[f"{exch}:{ts}"] = {"instrument_token": 1, "last_price": price}
         return out
 
-    def get_quote(self, instruments: Iterable[tuple[str, str]]) -> Dict[str, Any]:
+    def get_quote(self, instruments: Iterable[tuple[str, str]]) -> dict[str, Any]:
         base = self.get_ltp(instruments)
-        quotes: Dict[str, Any] = {}
+        quotes: dict[str, Any] = {}
         for key, payload in base.items():
             lp = payload.get('last_price', 0.0)
             quotes[key] = {
@@ -165,7 +166,7 @@ class DummyKiteProvider:  # pragma: no cover - logic exercised indirectly in tes
         except Exception:
             return datetime.date.today()
 
-    def check_health(self) -> Dict[str, Any]:
+    def check_health(self) -> dict[str, Any]:
         pair = ("NSE", "NIFTY 50")
         ltp_resp = self.get_ltp([pair])
         price_ok = False

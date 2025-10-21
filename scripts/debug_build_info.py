@@ -1,5 +1,6 @@
-from src.metrics import setup_metrics_server, register_build_info  # facade import
 from prometheus_client import REGISTRY
+
+from src.metrics import register_build_info, setup_metrics_server  # facade import
 
 metrics,_ = setup_metrics_server(use_custom_registry=False, reset=True)
 register_build_info(metrics, version='1.0', git_commit='a', config_hash='h1')

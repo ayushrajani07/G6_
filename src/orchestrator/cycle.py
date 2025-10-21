@@ -6,13 +6,13 @@ CSV writes, etc.) identical by delegating to existing collector functions.
 """
 from __future__ import annotations
 
-import time
-import logging
 import json
-from typing import Any, Dict
-from typing import Optional
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import logging
 import os
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any
+
 try:
     from src.utils.env_flags import is_truthy_env
 except Exception:  # pragma: no cover
@@ -26,6 +26,7 @@ except Exception:  # pragma: no cover
         return None
 
 from src.orchestrator.context import RuntimeContext
+
 try:  # optional event dispatch (graceful if module absent)
     from src.events.event_log import dispatch as emit_event
 except Exception:  # pragma: no cover
@@ -34,7 +35,7 @@ except Exception:  # pragma: no cover
 
 logger = logging.getLogger(__name__)
 
-def _env_float(name: str, default: float, *, minimum: Optional[float] = None, maximum: Optional[float] = None) -> float:
+def _env_float(name: str, default: float, *, minimum: float | None = None, maximum: float | None = None) -> float:
     """Parse a float environment variable robustly.
 
     Handles values with inline comments (e.g. "60   # seconds") and whitespace.
@@ -58,7 +59,7 @@ def _env_float(name: str, default: float, *, minimum: Optional[float] = None, ma
         f = maximum
     return f
 
-def _env_int(name: str, default: int, *, minimum: Optional[int] = None, maximum: Optional[int] = None) -> int:
+def _env_int(name: str, default: int, *, minimum: int | None = None, maximum: int | None = None) -> int:
     raw = os.environ.get(name)
     if raw is None:
         return default
@@ -97,7 +98,7 @@ if _PIPELINE_FLAG:
         build_default_pipeline = None
 
 
-def _collect_single_index(index_key: str, index_params: Dict[str, Any], ctx: RuntimeContext) -> None:
+def _collect_single_index(index_key: str, index_params: dict[str, Any], ctx: RuntimeContext) -> None:
     """Helper to collect for a single index invoking unified collectors.
 
     NOTE: We resolve the collector function dynamically so tests that monkeypatch
@@ -152,6 +153,26 @@ def run_cycle(ctx: RuntimeContext) -> float:
     # NOTE: Missing cycle detection moved BEFORE provider guard so tests using a stub providers=None
     # can still exercise scheduler gap logic (test_missing_cycles_metric). We only need wall clock.
     start = time.time()
+    # Initialize per-cycle env snapshot (single reads reused below)
+    cycle_interval = _env_float('G6_CYCLE_INTERVAL', 60.0, minimum=0.1)
+    parallel_enabled = is_truthy_env('G6_PARALLEL_INDICES')
+    max_workers = _env_int('G6_PARALLEL_INDEX_WORKERS', 4, minimum=1)
+    cycle_budget_fraction = _env_float('G6_PARALLEL_CYCLE_BUDGET_FRACTION', 0.9, minimum=0.1, maximum=1.0)
+    _pit_raw = os.environ.get('G6_PARALLEL_INDEX_TIMEOUT_SEC')
+    if _pit_raw is not None:
+        try:
+            per_index_timeout_val = float(_pit_raw)
+        except ValueError:
+            per_index_timeout_val = max(1.0, cycle_interval * 0.25)
+    else:
+        per_index_timeout_val = max(1.0, cycle_interval * 0.25)
+    retry_limit = _env_int('G6_PARALLEL_INDEX_RETRY', 0, minimum=0)
+    stagger_ms = _env_int('G6_PARALLEL_STAGGER_MS', 0, minimum=0)
+    auto_snapshots_flag = is_truthy_env('G6_AUTO_SNAPSHOTS')
+    try:
+        sla_fraction = float(os.environ.get('G6_CYCLE_SLA_FRACTION','0.85'))
+    except Exception:
+        sla_fraction = 0.85
     try:
         # Missing cycle detection: only advance reference timestamp when providers present.
         interval_env = float(os.environ.get('G6_CYCLE_INTERVAL','60'))
@@ -177,7 +198,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
         # Only update the baseline start when we have providers (i.e., a real collection attempt)
         if getattr(ctx, 'providers', None) is not None:
             try:
-                setattr(ctx, '_last_cycle_start', start)
+                ctx._last_cycle_start = start
             except Exception:
                 pass
     except Exception:
@@ -188,7 +209,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
         if not getattr(run_cycle, '_g6_warned_missing_providers', False):
             logger.warning("run_cycle: providers missing; cycle producing NO_DATA (credentials or provider init required)")
             try:
-                setattr(run_cycle, '_g6_warned_missing_providers', True)
+                run_cycle._g6_warned_missing_providers = True
             except Exception:
                 pass
         return 0.0
@@ -201,8 +222,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
     except Exception:  # pragma: no cover
         logger.debug("event emission failed (cycle_start)")
     try:
-        parallel_enabled = is_truthy_env('G6_PARALLEL_INDICES')
-        max_workers = _env_int('G6_PARALLEL_INDEX_WORKERS', 4, minimum=1)
+        # Use env snapshot variables computed above
         # Guard extremely low or high values
         if max_workers < 1:
             max_workers = 1
@@ -212,18 +232,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
             indices = []
         if parallel_enabled and len(indices) > 1:
             # Budget & timeout parameters
-            interval_env = _env_float('G6_CYCLE_INTERVAL', 60.0, minimum=0.1)
-            cycle_budget_fraction = _env_float('G6_PARALLEL_CYCLE_BUDGET_FRACTION', 0.9, minimum=0.1, maximum=1.0)
-            per_index_timeout = os.environ.get('G6_PARALLEL_INDEX_TIMEOUT_SEC')
-            if per_index_timeout is not None:
-                try:
-                    per_index_timeout_val = float(per_index_timeout)
-                except ValueError:
-                    per_index_timeout_val = max(1.0, interval_env * 0.25)
-            else:
-                per_index_timeout_val = max(1.0, interval_env * 0.25)
-            retry_limit = _env_int('G6_PARALLEL_INDEX_RETRY', 0, minimum=0)
-            stagger_ms = _env_int('G6_PARALLEL_STAGGER_MS', 0, minimum=0)
+            interval_env = cycle_interval
             deadline = start + (interval_env * cycle_budget_fraction)
             remaining = lambda: deadline - time.time()
             if ctx.metrics and hasattr(ctx.metrics, 'parallel_index_workers'):
@@ -245,8 +254,8 @@ def run_cycle(ctx: RuntimeContext) -> float:
                     params_map = ctx.index_params or {}
                     fut = executor.submit(_collect_single_index, idx, params_map[idx], ctx)
                     try:
-                        setattr(fut, '_g6_index', idx)
-                        setattr(fut, '_g6_start', time.time())
+                        fut._g6_index = idx
+                        fut._g6_start = time.time()
                     except Exception:
                         pass
                     fut_map[fut] = idx
@@ -410,7 +419,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
                                     if _pcrs:
                                         ts_val = base_ts.get(_idx)
                                         import datetime as _dt
-                                        snap_ts = _dt.datetime.fromtimestamp(ts_val, _dt.timezone.utc) if ts_val else _dt.datetime.now(_dt.timezone.utc)
+                                        snap_ts = _dt.datetime.fromtimestamp(ts_val, _dt.UTC) if ts_val else _dt.datetime.now(_dt.UTC)
                                         day_w = day_width_map.get(_idx, 0)
                                         if ctx.csv_sink:
                                             try:
@@ -442,7 +451,6 @@ def run_cycle(ctx: RuntimeContext) -> float:
                     greeks_cfg = ctx.config.get('greeks', {})
                 except Exception:
                     greeks_cfg = {}
-                auto_snapshots = is_truthy_env('G6_AUTO_SNAPSHOTS')
                 # Dynamically resolve unified collectors each cycle so external monkeypatching works (tests rely on this)
                 try:
                     import src.collectors.unified_collectors as _uni_mod
@@ -463,9 +471,9 @@ def run_cycle(ctx: RuntimeContext) -> float:
                         iv_max_iterations=int(greeks_cfg.get('iv_max_iterations', 100)),
                         iv_min=float(greeks_cfg.get('iv_min', 0.01)),
                         iv_max=float(greeks_cfg.get('iv_max', 5.0)),
-                        build_snapshots=auto_snapshots,
+                        build_snapshots=auto_snapshots_flag,
                     )
-                if auto_snapshots and result and isinstance(result, dict):
+                if auto_snapshots_flag and result and isinstance(result, dict):
                     try:
                         snaps = result.get('snapshots')
                         if snaps:
@@ -507,8 +515,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
     # SLA breach & data gap instrumentation
     try:
         if getattr(ctx, 'metrics', None):
-            interval_env = _env_float('G6_CYCLE_INTERVAL', 60.0, minimum=0.1)
-            sla_fraction = float(os.environ.get('G6_CYCLE_SLA_FRACTION','0.85'))
+            interval_env = cycle_interval
             sla_budget = max(0.0, interval_env * sla_fraction)
             if elapsed > sla_budget:
                 try:
@@ -553,12 +560,12 @@ def run_cycle(ctx: RuntimeContext) -> float:
     # Mark successful cycle timestamp for gap metrics (only if not failed)
     try:
         if not cycle_failed and getattr(ctx, 'metrics', None) is not None:
-            setattr(ctx.metrics, '_last_success_cycle_time', time.time())
+            ctx.metrics._last_success_cycle_time = time.time()
     except Exception:
         logger.debug("failed to set last_success_cycle_time", exc_info=True)
     # Adaptive strike scaling (optional)
     try:
-        interval = _env_float('G6_CYCLE_INTERVAL', 60.0, minimum=0.1)
+        interval = cycle_interval
         update_strike_scaling(ctx, elapsed, interval)
     except Exception:  # pragma: no cover
         logger.debug("adaptive scaling hook failed", exc_info=True)
@@ -618,7 +625,8 @@ def run_cycle(ctx: RuntimeContext) -> float:
                     os.makedirs('logs', exist_ok=True)
                     try:
                         # Run integrity checker. Prefer explicit --output path if supported by fake or real module.
-                        import io, sys as _sys
+                        import io
+                        import sys as _sys
                         data = ''
                         try:
                             rc = integrity_main(['--output', out_path])  # type: ignore[arg-type]
@@ -656,7 +664,7 @@ def run_cycle(ctx: RuntimeContext) -> float:
                         # Post-process: ensure file contains missing_cycles key even if integrity_main created it.
                         try:
                             if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
-                                with open(out_path,'r',encoding='utf-8') as _f:
+                                with open(out_path,encoding='utf-8') as _f:
                                     _data = json.load(_f)
                                 if 'missing_cycles' not in _data:
                                     _data['missing_cycles'] = 0

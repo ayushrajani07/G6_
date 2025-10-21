@@ -17,10 +17,10 @@ Design Notes:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
-from typing import Any, Dict, List, Optional, cast
-import time
 import logging
+import time
+from dataclasses import asdict, dataclass
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -28,24 +28,24 @@ try:  # optional import (legacy path may run before module available during roll
     # Import via facade to keep types loose and avoid cross-module TypedDict mismatches
     from src.collectors.modules.status_finalize_core import compute_cycle_reason_totals
 except Exception:  # pragma: no cover
-    def compute_cycle_reason_totals(indices_struct: List[Dict[str, Any]], metrics: Any | None) -> Optional[Dict[str, int]]:
+    def compute_cycle_reason_totals(indices_struct: list[dict[str, Any]], metrics: Any | None) -> dict[str, int] | None:
         return None
 
 @dataclass
 class SnapshotSummary:
     status: str
     indices_processed: int
-    indices: List[Dict[str, Any]]
+    indices: list[dict[str, Any]]
     indices_count: int
     options_total: int
     expiries_total: int
     indices_ok: int
     indices_empty: int
-    alerts_total: Optional[int]
-    partial_reason_totals: Optional[Dict[str,int]]
+    alerts_total: int | None
+    partial_reason_totals: dict[str, int] | None
     timestamp: float
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         # Preserve legacy return keys naming subset
         return {
@@ -64,7 +64,7 @@ class SnapshotSummary:
         }
 
 
-def _compute_basic_counts(indices_struct: List[Dict[str, Any]]) -> tuple[int,int,int,int,int]:
+def _compute_basic_counts(indices_struct: list[dict[str, Any]]) -> tuple[int,int,int,int,int]:
     idx_count = len(indices_struct)
     opt_total = 0
     expiries_total = 0
@@ -85,19 +85,19 @@ def _compute_basic_counts(indices_struct: List[Dict[str, Any]]) -> tuple[int,int
     return idx_count, opt_total, expiries_total, indices_ok, indices_empty
 
 
-def _derive_alerts_total(indices_struct: List[Dict[str, Any]]) -> Optional[int]:
+def _derive_alerts_total(indices_struct: list[dict[str, Any]]) -> int | None:
     # Alerts not directly embedded in indices_struct; placeholder for future aggregation.
     return None
 
 
-def build_snapshot(indices_struct: List[Dict[str, Any]], index_param_count: int, metrics: Any | None, *, build_reason_totals: bool = True) -> SnapshotSummary:
+def build_snapshot(indices_struct: list[dict[str, Any]], index_param_count: int, metrics: Any | None, *, build_reason_totals: bool = True) -> SnapshotSummary:
     idx_count, opt_total, expiries_total, indices_ok, indices_empty = _compute_basic_counts(indices_struct)
     alerts_total = _derive_alerts_total(indices_struct)
-    reason_totals: Optional[Dict[str, int]] = None
+    reason_totals: dict[str, int] | None = None
     if build_reason_totals:
         try:
             # The facade returns a Dict[str,int] | None at runtime; cast for mypy harmony with dataclass field type.
-            reason_totals = cast(Optional[Dict[str, int]], compute_cycle_reason_totals(indices_struct, metrics))
+            reason_totals = cast(dict[str, int] | None, compute_cycle_reason_totals(indices_struct, metrics))
         except Exception:
             logger.debug('compute_cycle_reason_totals_failed', exc_info=True)
             reason_totals = None

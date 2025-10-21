@@ -1,165 +1,71 @@
 {
-  "count": 19,
+  "count": 8,
   "dashboards": [
     {
       "families": [
-        "provider",
-        "provider_mode"
+        "core"
       ],
-      "panel_count": 25,
-      "slug": "provider_ingestion",
-      "uid": "g6-provider_ingestion"
+      "panel_count": 13,
+      "slug": "core_overview",
+      "uid": "g6-core_overview"
     },
     {
       "families": [
-        "bus",
-        "stream"
+        "greeks"
       ],
-      "panel_count": 18,
-      "slug": "bus_stream",
-      "uid": "g6-bus_stream"
+      "panel_count": 3,
+      "slug": "greeks_overview",
+      "uid": "g6-greeks_overview"
     },
     {
       "families": [
-        "emission"
-      ],
-      "panel_count": 10,
-      "slug": "emission_pipeline",
-      "uid": "g6-emission_pipeline"
-    },
-    {
-      "families": [
-        "panels",
-        "stream"
-      ],
-      "panel_count": 12,
-      "slug": "panels_summary",
-      "uid": "g6-panels_summary"
-    },
-    {
-      "families": [
-        "stale"
-      ],
-      "panel_count": 9,
-      "slug": "data_quality",
-      "uid": "g6-data_quality"
-    },
-    {
-      "families": [
-        "column_store"
-      ],
-      "panel_count": 26,
-      "slug": "column_store",
-      "uid": "g6-column_store"
-    },
-    {
-      "families": [
-        "governance"
-      ],
-      "panel_count": 14,
-      "slug": "governance",
-      "uid": "g6-governance"
-    },
-    {
-      "families": [
-        "option_chain"
-      ],
-      "panel_count": 20,
-      "slug": "option_chain",
-      "uid": "g6-option_chain"
-    },
-    {
-      "families": [
-        "system"
+        "adaptive_controller"
       ],
       "panel_count": 2,
-      "slug": "system_overview",
-      "uid": "g6-system_overview"
+      "slug": "adaptive_controller",
+      "uid": "g6-adaptive_controller"
     },
     {
       "families": [
-        "panels"
+        "panels_integrity"
       ],
-      "panel_count": 18,
-      "slug": "panels_efficiency",
-      "uid": "g6-panels_efficiency"
-    },
-    {
-      "families": [
-        "column_store",
-        "emission"
-      ],
-      "panel_count": 36,
-      "slug": "lifecycle_storage",
-      "uid": "g6-lifecycle_storage"
-    },
-    {
-      "families": [
-        "system",
-        "bus",
-        "governance"
-      ],
-      "panel_count": 25,
-      "slug": "health_core",
-      "uid": "g6-health_core"
-    },
-    {
-      "families": [
-        "bus"
-      ],
-      "panel_count": 12,
+      "panel_count": 7,
       "slug": "bus_health",
       "uid": "g6-bus_health"
     },
     {
       "families": [
-        "sse"
+        "core"
       ],
-      "panel_count": 4,
-      "slug": "sse_latency",
-      "uid": "g6-sse_latency"
-    },
-    {
-      "families": [
-        "system"
-      ],
-      "panel_count": 2,
+      "panel_count": 13,
       "slug": "system_overview_minimal",
       "uid": "g6-system_overview_minimal"
     },
     {
       "families": [
-        "system"
+        "core"
       ],
-      "panel_count": 7,
+      "panel_count": 6,
       "slug": "multi_pane_explorer",
       "uid": "g6-multi_pane_explorer"
     },
     {
       "families": [
-        "system"
+        "core"
       ],
-      "panel_count": 6,
+      "panel_count": 5,
       "slug": "multi_pane_explorer_compact",
       "uid": "g6-multi_pane_explorer_compact"
     },
     {
       "families": [
-        "system"
+        "core"
       ],
       "panel_count": 4,
       "slug": "multi_pane_explorer_ultra",
       "uid": "g6-multi_pane_explorer_ultra"
-    },
-    {
-      "families": [
-        "system"
-      ],
-      "panel_count": 2,
-      "slug": "multi_pane_explorer_minimal",
-      "uid": "g6-multi_pane_explorer_minimal"
     }
   ],
-  "generated_at_unix": 1760849363,
-  "spec_hash": "0533405d11f9f66e"
+  "generated_at_unix": 1760961677,
+  "spec_hash": "b1fb37bf991f1a94"
 }

@@ -10,6 +10,7 @@ Resolution order for get_version():
 Update the __version__ value during release tagging.
 """
 from __future__ import annotations
+
 import os
 
 __version__ = "0.0.0-dev"

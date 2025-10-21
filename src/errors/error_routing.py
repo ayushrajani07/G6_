@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Central error routing registry.
 
 Purpose: Provide a single table-driven mechanism to classify and act on error events.
@@ -16,14 +15,18 @@ Example:
     route_error('csv.mixed_expiry.prune', logger, metrics, index='NIFTY', dropped=12)
 """
 from __future__ import annotations
-from typing import Dict, Any, Optional, Callable, Tuple
-import os, time, json, threading
+
+import json
+import os
+import threading
+import time
+from typing import Any
 
 # Registry definition (seed with a few exemplar entries mirroring existing patterns)
 # Registry can now include:
 #   log_level, metric, suppress, escalate_env,
 #   severity (string), throttle_sec (float), serializer (callable)
-ERROR_REGISTRY: Dict[str, Dict[str, Any]] = {
+ERROR_REGISTRY: dict[str, dict[str, Any]] = {
     'csv.mixed_expiry.prune': {
         'log_level': 'info',
         'metric': 'csv_mixed_expiry_dropped',
@@ -51,7 +54,7 @@ _SEVERITY_DEFAULT = {
     'critical': 'critical'
 }
 
-_THROTTLE_CACHE: Dict[str, float] = {}
+_THROTTLE_CACHE: dict[str, float] = {}
 _LOCK = threading.Lock()
 
 def _escalate(level: str) -> str:
@@ -68,9 +71,9 @@ def register_error(code: str, **spec) -> None:
 def unregister_error(code: str) -> None:
     ERROR_REGISTRY.pop(code, None)
 
-def _serialize_labels(labels: Dict[str, Any]) -> Tuple[Dict[str,str], Optional[str]]:
-    safe: Dict[str,str] = {}
-    err: Optional[str] = None
+def _serialize_labels(labels: dict[str, Any]) -> tuple[dict[str,str], str | None]:
+    safe: dict[str,str] = {}
+    err: str | None = None
     for k,v in labels.items():
         if not isinstance(k,str):
             continue
@@ -79,7 +82,7 @@ def _serialize_labels(labels: Dict[str, Any]) -> Tuple[Dict[str,str], Optional[s
             continue
         try:
             safe[k] = json.dumps(v, default=str)[:512]
-        except Exception as e:
+        except Exception:
             safe[k] = '<unserializable>'
             err = f'serialize_fail:{k}'
     return safe, err

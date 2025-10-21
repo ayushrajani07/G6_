@@ -12,8 +12,12 @@ Optional env:
   G6_FORCE_MARKET_OPEN=1 (recommended for deterministic coverage)
 """
 from __future__ import annotations
-import os, json, datetime
-from typing import Any, Dict
+
+import datetime
+import json
+import os
+from typing import Any
+
 
 # Minimal embedded provider (avoid test imports)
 class _Prov:
@@ -32,7 +36,7 @@ class _Prov:
             out.append({'symbol': f"{index}-{int(s)}-PE", 'strike': s, 'instrument_type': 'PE'})
         return out
     def enrich_with_quotes(self, instruments):
-        data: Dict[str, Any] = {}
+        data: dict[str, Any] = {}
         for inst in instruments:
             data[inst['symbol']] = {
                 'oi': 10,

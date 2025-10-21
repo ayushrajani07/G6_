@@ -25,29 +25,36 @@ Exit Codes:
   0 success, non-zero for failure in any execution step (execute mode only).
 """
 from __future__ import annotations
-import os, sys, argparse, datetime, json, logging, pathlib
-from typing import Any, Dict
+
+import argparse
+import datetime
+import json
+import logging
+import os
+import pathlib
+import sys
+from typing import Any
 
 logger = logging.getLogger("scripts.rollback_drill")
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s %(name)s: %(message)s')
 
 
-def capture_health_snapshot() -> Dict[str, Any]:
+def capture_health_snapshot() -> dict[str, Any]:
   """Capture parity score (if baseline + indices snapshot available) and timestamp.
 
   Looks for a JSON snapshot file path via env G6_PARITY_BASELINE (optional) to treat
   as legacy baseline and a pipeline snapshot via G6_PARITY_PIPELINE. If both load and
   contain 'indices', compute parity score.
   """
-  ts = datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00','Z')
+  ts = datetime.datetime.now(datetime.UTC).isoformat().replace('+00:00','Z')
   legacy_path = os.getenv('G6_PARITY_BASELINE')
   pipeline_path = os.getenv('G6_PARITY_PIPELINE')
   parity_obj = None
   try:
     if legacy_path and pipeline_path and pathlib.Path(legacy_path).is_file() and pathlib.Path(pipeline_path).is_file():
-      with open(legacy_path,'r',encoding='utf-8') as fh:
+      with open(legacy_path,encoding='utf-8') as fh:
         legacy = json.load(fh)
-      with open(pipeline_path,'r',encoding='utf-8') as fh:
+      with open(pipeline_path,encoding='utf-8') as fh:
         pipe = json.load(fh)
       if isinstance(legacy, dict) and isinstance(pipe, dict):
         try:
@@ -64,7 +71,7 @@ def capture_health_snapshot() -> Dict[str, Any]:
     'pipeline_source': pipeline_path,
   }
 
-def perform_disable_pipeline_flag(execute: bool) -> Dict[str, Any]:
+def perform_disable_pipeline_flag(execute: bool) -> dict[str, Any]:
     # Strategy: rely on environment variable toggling; in execute mode set an env file or instruct operator.
     # For now just simulate.
     if execute:
@@ -72,12 +79,12 @@ def perform_disable_pipeline_flag(execute: bool) -> Dict[str, Any]:
     return {'flag_set': execute, 'new_value': os.environ.get('G6_PIPELINE_COLLECTOR','<unset>')}
 
 
-def legacy_warm_run(execute: bool) -> Dict[str, Any]:
+def legacy_warm_run(execute: bool) -> dict[str, Any]:
     # Placeholder for invoking legacy collector one-shot; not implemented here.
     return {'invoked': execute, 'status': 'skipped' if not execute else 'ok'}
 
 
-def _persist_artifact(data: Dict[str, Any], path: str) -> Dict[str, Any]:
+def _persist_artifact(data: dict[str, Any], path: str) -> dict[str, Any]:
   try:
     pathlib.Path(path).parent.mkdir(parents=True, exist_ok=True)
     with open(path,'w',encoding='utf-8') as fh:
@@ -86,8 +93,8 @@ def _persist_artifact(data: Dict[str, Any], path: str) -> Dict[str, Any]:
   except Exception as e:
     return {'written': False, 'path': path, 'error': str(e)}
 
-def drill_steps(execute: bool, artifact_dir: str | None, metrics_enabled: bool) -> Dict[str, Any]:
-  result: Dict[str, Any] = {'execute': execute, 'steps': [], 'artifact_dir': artifact_dir}
+def drill_steps(execute: bool, artifact_dir: str | None, metrics_enabled: bool) -> dict[str, Any]:
+  result: dict[str, Any] = {'execute': execute, 'steps': [], 'artifact_dir': artifact_dir}
   snap = capture_health_snapshot()
   result['steps'].append({'step': 'health_snapshot', 'data': snap})
   flag = perform_disable_pipeline_flag(execute)

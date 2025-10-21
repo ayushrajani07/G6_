@@ -31,10 +31,15 @@ Environment flags:
   G6_PIPELINE_LOG_DEDUP_DISABLE=1 -> disable dedup
 """
 from __future__ import annotations
-import os, time, logging, threading
+
+import logging
+import os
+import threading
+import time
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Dict, Any, Callable, Optional, Iterator
+from typing import Any
 
 logger = logging.getLogger('src.collectors.pipeline')
 
@@ -57,7 +62,7 @@ if _PHASE_METRICS:
         _phase_duration_observer = None
 
 _dedup_lock = threading.Lock()
-_last_sig: Optional[tuple] = None
+_last_sig: tuple | None = None
 
 @dataclass
 class _PhaseRecord:
@@ -67,7 +72,7 @@ class _PhaseRecord:
     started: float
     outcome: str = 'ok'
     reason: str | None = None
-    meta: Dict[str, Any] = field(default_factory=dict)
+    meta: dict[str, Any] = field(default_factory=dict)
 
     def add_meta(self, **kw: Any) -> None:
         self.meta.update({k: v for k,v in kw.items() if v is not None})
@@ -84,7 +89,7 @@ class _PhaseRecord:
 
 @contextmanager
 def phase_log(phase: str, ctx: Any = None, rule: str = '', index: str = '') -> Iterator[_PhaseRecord]:
-    from src.collectors.pipeline.errors import PhaseRecoverableError, PhaseFatalError
+    from src.collectors.pipeline.errors import PhaseFatalError, PhaseRecoverableError
     rec = _PhaseRecord(phase=phase, index=index, rule=rule, started=time.time())
     try:
         yield rec
@@ -118,7 +123,7 @@ class PhaseLogger:
         self._logger = base_logger or logger
 
     @contextmanager
-    def phase_log(self, phase: str, index: str, rule: str, extra_meta_provider: Callable[[], Dict[str, Any]] | None = None) -> Iterator[_PhaseRecord]:
+    def phase_log(self, phase: str, index: str, rule: str, extra_meta_provider: Callable[[], dict[str, Any]] | None = None) -> Iterator[_PhaseRecord]:
         rec = _PhaseRecord(phase=phase, index=index, rule=rule, started=time.perf_counter())
         error: Exception | None = None
         try:
@@ -128,7 +133,7 @@ class PhaseLogger:
             error = e
         finally:
             dt_ms = (time.perf_counter() - rec.started) * 1000.0
-            payload: Dict[str, Any] = {
+            payload: dict[str, Any] = {
                 'phase': rec.phase,
                 'dt_ms': round(dt_ms, 2),
                 'index': rec.index,
@@ -151,7 +156,7 @@ class PhaseLogger:
             if error is not None:
                 raise error
 
-    def _emit(self, payload: Dict[str, Any]) -> None:
+    def _emit(self, payload: dict[str, Any]) -> None:
         # Dedup signature
         global _last_sig
         sig = (

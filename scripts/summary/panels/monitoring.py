@@ -1,22 +1,30 @@
 from __future__ import annotations
-from typing import Any, Dict, Optional
-from datetime import datetime, timezone
-import os
-from scripts.summary.env_config import load_summary_env
-import sys
 
 import logging
-from src.utils.panel_error_utils import centralized_panel_error_handler, safe_panel_execute  # reuse centralized helpers
+import os
+from datetime import UTC, datetime
+from typing import Any
+
+from scripts.summary.env_config import load_summary_env
 from src.error_handling import handle_ui_error
+from src.utils.panel_error_utils import centralized_panel_error_handler, safe_panel_execute  # reuse centralized helpers
+
 panel_logger = logging.getLogger("G6.panels.monitoring")
 
 @centralized_panel_error_handler("monitoring_panel")
-def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, compact: bool = False, show_title: bool = True) -> Any:
+def unified_performance_storage_panel(
+    status: dict[str, Any] | None,
+    *,
+    low_contrast: bool = False,
+    compact: bool = False,
+    show_title: bool = True,
+) -> Any:
     """Performance Metrics panel with comprehensive system monitoring."""
-    from rich.panel import Panel
-    from rich.table import Table
     from rich import box
     from rich.console import Group
+    from rich.panel import Panel
+    from rich.table import Table
+
     from scripts.summary.derive import fmt_timedelta_secs, parse_iso
 
     def _format_bytes(b: float) -> str:
@@ -44,9 +52,9 @@ def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_cont
             level3_mb = float(os.getenv("G6_MEMORY_LEVEL3_MB", "500") or "500")
         except Exception:
             level3_mb = 500.0
-        
+
         rss_mb = rss_bytes / (1024 * 1024)
-        
+
         if rss_mb >= level3_mb:
             return 3, "CRITICAL"
         elif rss_mb >= level2_mb:
@@ -56,16 +64,16 @@ def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_cont
         else:
             return 0, "NORMAL"
 
-    def _calculate_collection_lag(status: Dict[str, Any]) -> Optional[float]:
+    def _calculate_collection_lag(status: dict[str, Any]) -> float | None:
         """Calculate seconds since last successful data collection."""
         try:
             loop_data = status.get("loop", {})
             last_run = loop_data.get("last_run")
             if last_run:
                 last_dt = parse_iso(last_run)
-                if last_dt:
-                    now = datetime.now(timezone.utc)
-                    return (now - last_dt).total_seconds()
+                if isinstance(last_dt, datetime):
+                    now = datetime.now(UTC)
+                    return float((now - last_dt).total_seconds())
         except Exception:
             pass
         return None
@@ -79,7 +87,7 @@ def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_cont
 
     if not status:
         tbl.add_row("System", "Status", "[red]No Data[/]", "[red]●[/]")
-        return Panel(tbl, title=("Performance Metrics" if show_title else None), 
+        return Panel(tbl, title=("Performance Metrics" if show_title else None),
                     border_style=("white" if low_contrast else "white"), expand=True)
 
     # === RESOURCE METRICS ===
@@ -87,13 +95,13 @@ def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_cont
         resources = status.get("resources", {})
         rss_bytes = resources.get("rss", 0)
         cpu_pct = resources.get("cpu")
-        
+
         if cpu_pct is not None:
             cpu_color = "green" if cpu_pct < 70 else ("yellow" if cpu_pct < 90 else "red")
             tbl.add_row("Resource", "CPU Usage", f"[{cpu_color}]{cpu_pct:.1f}%[/]", f"[{cpu_color}]●[/]")
         else:
             tbl.add_row("Resource", "CPU Usage", "[yellow]N/A[/]", "[yellow]●[/]")
-        
+
         if rss_bytes > 0:
             pressure_level, pressure_desc = safe_panel_execute(
                 _get_memory_pressure_level, float(rss_bytes),
@@ -105,15 +113,15 @@ def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_cont
                 default_return=f"{rss_bytes} B",
                 error_msg="Failed to format memory size"
             )
-            
+
             memory_color = "green" if pressure_level == 0 else ("yellow" if pressure_level <= 1 else "red")
             tbl.add_row("", "Memory Usage", f"[{memory_color}]{memory_display}[/]", f"[{memory_color}]●[/]")
         else:
             tbl.add_row("", "Memory Usage", "[yellow]N/A[/]", "[yellow]●[/]")
-        
+
         # Thread count (from system info)
         tbl.add_row("", "Threads", "[green]4[/]", "[green]●[/]")
-        
+
     except Exception as e:
         # Route to central handler and log
         handle_ui_error(
@@ -131,21 +139,21 @@ def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_cont
     # === TIMING METRICS ===
     loop_data = status.get("loop", {})
     last_duration = loop_data.get("last_duration")
-    
+
     provider_data = status.get("provider", {})
     provider_latency = provider_data.get("latency_ms")
-    
+
     if provider_latency is not None:
         latency_color = "green" if provider_latency < 100 else ("yellow" if provider_latency < 500 else "red")
         latency_display = f"{provider_latency/1000:.2f}s" if provider_latency >= 1000 else f"{provider_latency}ms"
         tbl.add_row("Timing", "API Response", f"[{latency_color}]{latency_display}[/]", f"[{latency_color}]●[/]")
     else:
         tbl.add_row("Timing", "API Response", "[green]0.54s[/]", "[green]●[/]")
-    
+
     if last_duration is not None:
         duration_color = "green" if last_duration < 2.0 else ("yellow" if last_duration < 5.0 else "red")
         tbl.add_row("", "Collection", f"[{duration_color}]{last_duration:.1f}s[/]", f"[{duration_color}]●[/]")
-    
+
     # Processing time (estimated)
     tbl.add_row("", "Processing", "[green]4.22s[/]", "[green]●[/]")
 
@@ -156,7 +164,7 @@ def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_cont
     # Options/Sec and Requests/Min (from provider data or estimates)
     tbl.add_row("Throughput", "Options/Sec", "[green]14.8[/]", "[green]●[/]")
     tbl.add_row("", "Requests/Min", "[green]120[/]", "[green]●[/]")
-    
+
     # Data points processed: prefer per-cycle stream legs sum; fallback to status legs
     total_legs = 0
     try:
@@ -171,7 +179,7 @@ def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_cont
                 stream_items = pj_stream
             elif isinstance(pj_stream, dict) and isinstance(pj_stream.get("items"), list):
                 stream_items = list(pj_stream.get("items") or [])
-            per_index_latest: Dict[str, Dict[str, Any]] = {}
+            per_index_latest: dict[str, dict[str, Any]] = {}
             for it in stream_items:
                 if isinstance(it, dict) and isinstance(it.get("index"), str):
                     per_index_latest[str(it.get("index"))] = it
@@ -184,12 +192,12 @@ def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_cont
     if total_legs <= 0:
         indices_detail = status.get("indices_detail", {})
         if isinstance(indices_detail, dict):
-            for _, idx_data in indices_detail.items():
+            for idx_data in indices_detail.values():
                 if isinstance(idx_data, dict):
                     lv = idx_data.get("legs", 0)
                     if isinstance(lv, (int, float)):
                         total_legs += int(lv)
-    
+
     if total_legs > 0:
         legs_color = "green" if total_legs > 100 else ("yellow" if total_legs > 50 else "red")
         tbl.add_row("", "Data Points", f"[{legs_color}]{total_legs:,}[/]", f"[{legs_color}]●[/]")
@@ -215,13 +223,13 @@ def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_cont
                     stream_items2 = pj_stream2
                 elif isinstance(pj_stream2, dict) and isinstance(pj_stream2.get("items"), list):
                     stream_items2 = list(pj_stream2.get("items") or [])
-                per_index_latest2: Dict[str, Dict[str, Any]] = {}
+                per_index_latest2: dict[str, dict[str, Any]] = {}
                 for it in stream_items2:
                     if isinstance(it, dict) and isinstance(it.get("index"), str):
                         per_index_latest2[str(it.get("index"))] = it
                 vals: list[float] = []
-                for _it in per_index_latest2.values():
-                    _v = _it.get("success")
+                for v in per_index_latest2.values():
+                    _v = v.get("success")
                     if isinstance(_v, (int, float)):
                         vals.append(float(_v))
                 if vals:
@@ -233,16 +241,24 @@ def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_cont
         tbl.add_row("Success", "API Success", f"[{success_color}]{success_rate:.1f}%[/]", f"[{success_color}]●[/]")
     else:
         tbl.add_row("Success", "API Success", "[green]93.5%[/]", "[green]●[/]")
-    
+
     # Overall health
     health_data = status.get("health", {})
     if health_data:
         collector_health = health_data.get("collector", "unknown")
         sinks_health = health_data.get("sinks", "unknown")
         provider_health = health_data.get("provider", "unknown")
-        
+
         overall_health_ok = all(h == "ok" for h in [collector_health, sinks_health, provider_health])
-        health_color = "green" if overall_health_ok else ("yellow" if any(h == "ok" for h in [collector_health, sinks_health, provider_health]) else "red")
+        health_color = (
+            "green"
+            if overall_health_ok
+            else (
+                "yellow"
+                if any(h == "ok" for h in [collector_health, sinks_health, provider_health])
+                else "red"
+            )
+        )
         health_pct = 100.0 if overall_health_ok else 80.0
         tbl.add_row("", "Overall Health", f"[{health_color}]{health_pct:.1f}%[/]", f"[{health_color}]●[/]")
     else:
@@ -263,7 +279,7 @@ def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_cont
     # Add footer as bottom rows of the table
     app_data = status.get("app", {})
     uptime = app_data.get("uptime_sec", 0)
-    
+
     # Get cycle count: prefer latest stream-derived cycle to match cadence
     cycle_num = loop_data.get("cycle", 0)
     try:
@@ -278,7 +294,7 @@ def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_cont
                 stream_items3 = pj_stream3
             elif isinstance(pj_stream3, dict) and isinstance(pj_stream3.get("items"), list):
                 stream_items3 = list(pj_stream3.get("items") or [])
-            latest_cycle: Optional[int] = None
+            latest_cycle: int | None = None
             for it in stream_items3:
                 if isinstance(it, dict):
                     c_val = it.get("cycle")
@@ -288,13 +304,13 @@ def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_cont
                 cycle_num = latest_cycle
         except Exception:
             pass
-    
+
     footer_parts = []
     if uptime > 0:
         footer_parts.append(f"Uptime: {fmt_timedelta_secs(float(uptime))}")
     if isinstance(cycle_num, (int, float)) and cycle_num > 0:
         footer_parts.append(f"Collections: {cycle_num}")
-    
+
     # Create footer as separate component (like in the screenshot)
     footer_content = None
     if footer_parts:
@@ -320,13 +336,25 @@ def unified_performance_storage_panel(status: Dict[str, Any] | None, *, low_cont
         )
 
 
-def performance_metrics_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, compact: bool = False, show_title: bool = True) -> Any:
+def performance_metrics_panel(
+    status: dict[str, Any] | None,
+    *,
+    low_contrast: bool = False,
+    compact: bool = False,
+    show_title: bool = True,
+) -> Any:
     """Legacy performance metrics panel - redirects to unified panel."""
     return unified_performance_storage_panel(status, low_contrast=low_contrast, compact=compact, show_title=show_title)
 
 
 @centralized_panel_error_handler("storage_backup_panel")
-def storage_backup_metrics_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, compact: bool = False, show_title: bool = True) -> Any:
+def storage_backup_metrics_panel(
+    status: dict[str, Any] | None,
+    *,
+    low_contrast: bool = False,
+    compact: bool = False,
+    show_title: bool = True,
+) -> Any:
     """Storage & Backup Metrics panel with comprehensive error handling."""
     return safe_panel_execute(
         _create_storage_backup_panel,
@@ -334,14 +362,19 @@ def storage_backup_metrics_panel(status: Dict[str, Any] | None, *, low_contrast:
         error_msg="Storage & Backup Metrics panel error"
     )
 
-def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bool, compact: bool, show_title: bool) -> Any:
+def _create_storage_backup_panel(
+    status: dict[str, Any] | None,
+    low_contrast: bool,
+    compact: bool,
+    show_title: bool,
+) -> Any:
     """Internal implementation for storage backup metrics panel."""
-    from rich.panel import Panel
-    from rich.table import Table
     from rich import box
     from rich.console import Group
-    from scripts.summary.derive import parse_iso
-    
+    from rich.panel import Panel
+    from rich.table import Table
+
+
     # Create table matching the image format
     tbl = Table(box=box.SIMPLE_HEAD)
     tbl.add_column("Category", style="bold")
@@ -351,14 +384,14 @@ def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bo
 
     if not status:
         tbl.add_row("Storage", "Status", "[red]No Data[/]", "[red]●[/]")
-        return Panel(tbl, title=("Storage & Backup Metrics" if show_title else None), 
+        return Panel(tbl, title=("Storage & Backup Metrics" if show_title else None),
                     border_style=("white" if low_contrast else "magenta"), expand=True)
 
     # === CSV METRICS ===
     try:
         sinks = status.get("sinks", {})
         csv_data = sinks.get("csv", {})
-        
+
         # Files Created
         try:
             files_created = csv_data.get("files_created", 53)
@@ -369,7 +402,7 @@ def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bo
             handle_ui_error(e, component="storage_backup_panel.csv", context={"metric": "files_created"})
             logging.warning(f"Error processing CSV files created: {e}")
             tbl.add_row("CSV", "Files Created", "[yellow]N/A[/]", "[yellow]●[/]")
-        
+
         # Records count
         try:
             records_count = csv_data.get("records", 48613)
@@ -381,7 +414,7 @@ def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bo
             handle_ui_error(e, component="storage_backup_panel.csv", context={"metric": "records"})
             logging.warning(f"Error processing CSV records count: {e}")
             tbl.add_row("", "Records", "[yellow]N/A[/]", "[yellow]●[/]")
-        
+
         # Write Errors
         try:
             write_errors = csv_data.get("write_errors", 3)
@@ -393,7 +426,7 @@ def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bo
             handle_ui_error(e, component="storage_backup_panel.csv", context={"metric": "write_errors"})
             logging.warning(f"Error processing CSV write errors: {e}")
             tbl.add_row("", "Write Errors", "[yellow]N/A[/]", "[yellow]●[/]")
-        
+
         # Disk Usage
         try:
             disk_usage_mb = csv_data.get("disk_usage_mb", 146.5)
@@ -405,7 +438,7 @@ def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bo
             handle_ui_error(e, component="storage_backup_panel.csv", context={"metric": "disk_usage_mb"})
             logging.warning(f"Error processing CSV disk usage: {e}")
             tbl.add_row("", "Disk Usage", "[yellow]N/A[/]", "[yellow]●[/]")
-    
+
     except Exception as e:
         handle_ui_error(e, component="storage_backup_panel.csv_section")
         logging.error(f"Error processing CSV metrics section: {e}")
@@ -418,7 +451,7 @@ def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bo
     try:
         sinks = status.get("sinks", {}) if status else {}
         influx_data = sinks.get("influxdb", {})
-        
+
         # Points Written
         try:
             points_written = influx_data.get("points_written", 114824)
@@ -430,7 +463,7 @@ def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bo
             handle_ui_error(e, component="storage_backup_panel.influxdb", context={"metric": "points_written"})
             logging.warning(f"Error processing InfluxDB points written: {e}")
             tbl.add_row("InfluxDB", "Points Written", "[yellow]N/A[/]", "[yellow]●[/]")
-        
+
         # Write Success Rate
         try:
             write_success = influx_data.get("write_success_rate", 99.8)
@@ -442,7 +475,7 @@ def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bo
             handle_ui_error(e, component="storage_backup_panel.influxdb", context={"metric": "write_success_rate"})
             logging.warning(f"Error processing InfluxDB write success rate: {e}")
             tbl.add_row("", "Write Success", "[yellow]N/A[/]", "[yellow]●[/]")
-        
+
         # Connection status
         try:
             connection_healthy = influx_data.get("connection_healthy", True)
@@ -453,7 +486,7 @@ def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bo
             handle_ui_error(e, component="storage_backup_panel.influxdb", context={"metric": "connection_healthy"})
             logging.warning(f"Error processing InfluxDB connection status: {e}")
             tbl.add_row("", "Connection", "[yellow]N/A[/]", "[yellow]●[/]")
-        
+
         # Query Time (if available)
         try:
             query_time = influx_data.get("query_time_ms", 37.5)
@@ -465,7 +498,7 @@ def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bo
             handle_ui_error(e, component="storage_backup_panel.influxdb", context={"metric": "query_time_ms"})
             logging.warning(f"Error processing InfluxDB query time: {e}")
             tbl.add_row("", "Query Time", "[yellow]N/A[/]", "[yellow]●[/]")
-    
+
     except Exception as e:
         handle_ui_error(e, component="storage_backup_panel.influxdb_section")
         logging.error(f"Error processing InfluxDB metrics section: {e}")
@@ -478,7 +511,7 @@ def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bo
     try:
         sinks = status.get("sinks", {}) if status else {}
         backup_data = sinks.get("backup", {})
-        
+
         # Files Created
         try:
             backup_files = backup_data.get("files_created", 12)
@@ -489,13 +522,19 @@ def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bo
             handle_ui_error(e, component="storage_backup_panel.backup", context={"metric": "files_created"})
             logging.warning(f"Error processing backup files created: {e}")
             tbl.add_row("Backup", "Files Created", "[yellow]N/A[/]", "[yellow]●[/]")
-        
+
         # Last Backup
         try:
             last_backup = backup_data.get("last_backup", "11.5h")
             # Safe parsing of backup timing
             if isinstance(last_backup, str):
-                if "m" in last_backup or ("h" in last_backup and last_backup.replace("h", "").replace(".", "").isdigit()):
+                if (
+                    "m" in last_backup
+                    or (
+                        "h" in last_backup
+                        and last_backup.replace("h", "").replace(".", "").isdigit()
+                    )
+                ):
                     backup_color = "green" if "m" in last_backup or (
                         "h" in last_backup and float(last_backup.replace("h", "")) < 24
                     ) else "yellow"
@@ -508,7 +547,7 @@ def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bo
             handle_ui_error(e, component="storage_backup_panel.backup", context={"metric": "last_backup"})
             logging.warning(f"Error processing last backup time: {e}")
             tbl.add_row("", "Last Backup", "[yellow]N/A[/]", "[yellow]●[/]")
-        
+
         # Backup Size
         try:
             backup_size = backup_data.get("backup_size_mb", 776.8)
@@ -520,7 +559,7 @@ def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bo
             handle_ui_error(e, component="storage_backup_panel.backup", context={"metric": "backup_size_mb"})
             logging.warning(f"Error processing backup size: {e}")
             tbl.add_row("", "Backup Size", "[yellow]N/A[/]", "[yellow]●[/]")
-    
+
     except Exception as e:
         handle_ui_error(e, component="storage_backup_panel.backup_section")
         logging.error(f"Error processing backup metrics section: {e}")
@@ -534,7 +573,7 @@ def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bo
         total_files = 53 + 12  # CSV files + Backup files
         total_points = 114824  # InfluxDB points
         storage_status = "healthy"
-        
+
         footer_text = f"[dim]{total_files} files | {total_points:,} points | {storage_status}[/dim]"
         footer_content = Align.left(footer_text)
 
@@ -556,6 +595,12 @@ def _create_storage_backup_panel(status: Dict[str, Any] | None, low_contrast: bo
         )
 
 
-def enhanced_monitoring_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, compact: bool = False, show_title: bool = True) -> Any:
-    """Legacy enhanced monitoring panel - redirects to unified panel.""" 
+def enhanced_monitoring_panel(
+    status: dict[str, Any] | None,
+    *,
+    low_contrast: bool = False,
+    compact: bool = False,
+    show_title: bool = True,
+) -> Any:
+    """Legacy enhanced monitoring panel - redirects to unified panel."""
     return unified_performance_storage_panel(status, low_contrast=low_contrast, compact=compact, show_title=show_title)

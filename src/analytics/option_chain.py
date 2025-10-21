@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Option Chain Analytics for G6 Platform
 Provides advanced option chain metrics and analysis.
@@ -7,30 +6,30 @@ Provides advanced option chain metrics and analysis.
 from __future__ import annotations
 
 import logging
-import math
+from datetime import date, datetime
+from typing import Any
+
 import pandas as pd
-import numpy as np
-from datetime import datetime, date, timedelta
-from typing import Dict, List, Optional, Tuple, Union, Any
+
 from src.error_handling import (
-    handle_provider_error,
     handle_api_error,
+    handle_provider_error,
 )
 
 logger = logging.getLogger(__name__)
 
 class OptionChainAnalytics:
     """Advanced analytics for option chains."""
-    
+
     def __init__(self, provider: Any):
         self.provider = provider
-        
+
     def fetch_option_chain(
-        self, 
-        index_symbol: str, 
-        expiry_date: Union[date, datetime],
-        strike_range: Tuple[float, float],
-        strike_step: Optional[float] = None
+        self,
+        index_symbol: str,
+        expiry_date: date | datetime,
+        strike_range: tuple[float, float],
+        strike_step: float | None = None
     ) -> pd.DataFrame:
         """
         Fetch complete option chain for an index within strike range.
@@ -38,7 +37,7 @@ class OptionChainAnalytics:
         Returns a DataFrame with options data.
         """
         min_strike, max_strike = strike_range
-        
+
         # Determine strike step from registry if not explicitly provided
         if strike_step is None:
             try:
@@ -49,14 +48,14 @@ class OptionChainAnalytics:
             except Exception:
                 # Fallback legacy heuristic
                 strike_step = 100.0 if "BANK" in index_symbol.upper() or "SENSEX" in index_symbol.upper() else 50.0
-                
+
         # Generate strikes within range
         strikes = []
         current_strike = min_strike
         while current_strike <= max_strike:
             strikes.append(current_strike)
             current_strike += strike_step
-            
+
         # Get option instruments
         instruments = []
         try:
@@ -93,7 +92,7 @@ class OptionChainAnalytics:
                 context={"expiry": str(expiry_date)},
             )
             logger.error(f"Error fetching option instruments: {e}")
-        
+
         # Get all option symbols
         option_keys = []
         for inst in instruments:
@@ -101,7 +100,7 @@ class OptionChainAnalytics:
             symbol = inst.get("tradingsymbol")
             if symbol:
                 option_keys.append((exchange, symbol))
-                
+
         # Get quotes
         quotes = {}
         if option_keys:
@@ -115,7 +114,7 @@ class OptionChainAnalytics:
                     context={"num_keys": len(option_keys)},
                 )
                 logger.error(f"Error fetching quotes for option chain: {e}")
-        
+
         # Convert to DataFrame
         rows = []
         for inst in instruments:
@@ -123,7 +122,7 @@ class OptionChainAnalytics:
             symbol = inst.get("tradingsymbol")
             key = f"{exchange}:{symbol}"
             quote = quotes.get(key, {})
-            
+
             # Some providers may omit OI or volume fields; default to 0 and log once
             row = {
                 "symbol": symbol,
@@ -140,29 +139,29 @@ class OptionChainAnalytics:
                 "ask": float(quote.get("depth", {}).get("sell", [{}])[0].get("price", 0)),
             }
             rows.append(row)
-            
+
         if not rows:
             return pd.DataFrame()
-            
+
         df = pd.DataFrame(rows)
-        
+
         # Add call/put columns for analysis
         call_df = df[df["type"] == "CE"].copy()
         put_df = df[df["type"] == "PE"].copy()
-        
+
         merged_df = pd.merge(
-            call_df, put_df, on="strike", how="outer", 
+            call_df, put_df, on="strike", how="outer",
             suffixes=("_call", "_put")
         )
-        
+
         return merged_df
-        
+
     def calculate_pcr(
-        self, 
-        index_symbol: str, 
-        expiry_date: Union[date, datetime],
+        self,
+        index_symbol: str,
+        expiry_date: date | datetime,
         width_percent: float = 0.05
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         Calculate Put-Call Ratio metrics.
         
@@ -188,41 +187,41 @@ class OptionChainAnalytics:
                 )
                 logger.error("Provider missing ATM strike capability; defaulting to 0")
                 atm_strike = 0
-        
+
         # Calculate strike range
         current_price = float(atm_strike)
         range_width = current_price * width_percent
         min_strike = current_price - range_width
         max_strike = current_price + range_width
-        
+
         # Get option chain
         option_chain = self.fetch_option_chain(
             index_symbol, expiry_date, (min_strike, max_strike)
         )
-        
+
         if option_chain.empty:
             logger.debug(f"Empty option chain for {index_symbol} {expiry_date}; PCR defaults to 0")
             return {"oi_pcr": 0.0, "volume_pcr": 0.0}
-            
+
         # Calculate PCR
         total_call_oi = option_chain["oi_call"].sum()
         total_put_oi = option_chain["oi_put"].sum()
-        
+
         total_call_volume = option_chain["volume_call"].sum()
         total_put_volume = option_chain["volume_put"].sum()
-        
+
         oi_pcr = total_put_oi / total_call_oi if total_call_oi > 0 else 0
         volume_pcr = total_put_volume / total_call_volume if total_call_volume > 0 else 0
-        
+
         return {
             "oi_pcr": oi_pcr,
             "volume_pcr": volume_pcr
         }
-        
+
     def calculate_max_pain(
-        self, 
-        index_symbol: str, 
-        expiry_date: Union[date, datetime]
+        self,
+        index_symbol: str,
+        expiry_date: date | datetime
     ) -> float:
         """
         Calculate max pain point (strike where option writers have minimum pain).
@@ -243,29 +242,29 @@ class OptionChainAnalytics:
                 )
                 logger.error("Provider missing ATM strike capability; defaulting to 0")
                 atm_strike = 0
-        
+
         # Calculate strike range (wide enough for max pain)
         current_price = float(atm_strike)
         range_width = current_price * 0.1  # 10% range
         min_strike = current_price - range_width
         max_strike = current_price + range_width
-        
+
         # Get option chain
         option_chain = self.fetch_option_chain(
             index_symbol, expiry_date, (min_strike, max_strike)
         )
-        
+
         if option_chain.empty:
             logger.debug(f"Empty option chain for max pain calculation {index_symbol} {expiry_date}; returning ATM {atm_strike}")
             return atm_strike
-        
+
         # Get unique strikes
         strikes = sorted(option_chain["strike"].unique())
-        
+
         # Calculate pain at each potential expiry price
         min_pain = float("inf")
         max_pain_strike = atm_strike
-        
+
         for potential_price in strikes:
             # Calculate pain for call options
             call_pain = 0
@@ -275,7 +274,7 @@ class OptionChainAnalytics:
                 if potential_price > strike:
                     # Call ITM, pain to writers
                     call_pain += oi * (potential_price - strike)
-            
+
             # Calculate pain for put options
             put_pain = 0
             for _, row in option_chain[option_chain["type_put"] == "PE"].iterrows():
@@ -284,22 +283,22 @@ class OptionChainAnalytics:
                 if potential_price < strike:
                     # Put ITM, pain to writers
                     put_pain += oi * (strike - potential_price)
-            
+
             # Total pain at this price point
             total_pain = call_pain + put_pain
-            
+
             # Update max pain if this is lower
             if total_pain < min_pain:
                 min_pain = total_pain
                 max_pain_strike = potential_price
-        
+
         return max_pain_strike
-        
+
     def calculate_support_resistance(
-        self, 
-        index_symbol: str, 
-        expiry_date: Union[date, datetime]
-    ) -> Dict[str, List[float]]:
+        self,
+        index_symbol: str,
+        expiry_date: date | datetime
+    ) -> dict[str, list[float]]:
         """
         Calculate support and resistance levels from option chain.
         
@@ -319,40 +318,40 @@ class OptionChainAnalytics:
                 )
                 logger.error("Provider missing ATM strike capability; defaulting to 0")
                 atm_strike = 0
-        
+
         # Calculate strike range
         current_price = float(atm_strike)
         range_width = current_price * 0.1  # 10% range
         min_strike = current_price - range_width
         max_strike = current_price + range_width
-        
+
         # Get option chain
         option_chain = self.fetch_option_chain(
             index_symbol, expiry_date, (min_strike, max_strike)
         )
-        
+
         if option_chain.empty:
             return {"support": [], "resistance": []}
-            
+
         # Find support levels (put OI clusters)
         put_data = option_chain[["strike", "oi_put"]].dropna()
         put_data = put_data.sort_values("oi_put", ascending=False)
-        
+
         # Find resistance levels (call OI clusters)
         call_data = option_chain[["strike", "oi_call"]].dropna()
         call_data = call_data.sort_values("oi_call", ascending=False)
-        
+
         # Get top levels
         support_levels = []
         for _, row in put_data.head(3).iterrows():
             if row["strike"] < current_price:  # Only consider strikes below current price
                 support_levels.append(float(row["strike"]))
-                
+
         resistance_levels = []
         for _, row in call_data.head(3).iterrows():
             if row["strike"] > current_price:  # Only consider strikes above current price
                 resistance_levels.append(float(row["strike"]))
-                
+
         return {
             "support": sorted(support_levels),
             "resistance": sorted(resistance_levels)

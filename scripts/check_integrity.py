@@ -16,11 +16,13 @@ Exit codes:
  3 = fatal error reading file
 """
 from __future__ import annotations
-import argparse, json, sys, os
-from typing import List
+
+import argparse
+import json
+import sys
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Detect missing collection cycles from events log")
     p.add_argument('--events-file', default='logs/events.log', help='Path to structured events log')
     p.add_argument('--metrics', action='store_true', help='Increment g6_missing_cycles_total counter if available')
@@ -28,10 +30,10 @@ def parse_args():
     return p.parse_args()
 
 
-def load_cycles(path: str, max_lines: int) -> List[int]:
-    cycles: List[int] = []
+def load_cycles(path: str, max_lines: int) -> list[int]:
+    cycles: list[int] = []
     try:
-        with open(path,'r', encoding='utf-8') as f:
+        with open(path, encoding='utf-8') as f:
             for i, line in enumerate(f):
                 if i >= max_lines:
                     break
@@ -52,18 +54,18 @@ def load_cycles(path: str, max_lines: int) -> List[int]:
     return cycles
 
 
-def detect_gaps(cycles: List[int]) -> int:
+def detect_gaps(cycles: list[int]) -> int:
     if not cycles:
         return 0
     cycles_sorted = sorted(set(cycles))
     missing = 0
-    for prev, curr in zip(cycles_sorted, cycles_sorted[1:]):
+    for prev, curr in zip(cycles_sorted, cycles_sorted[1:], strict=False):
         if curr > prev + 1:
             missing += (curr - prev - 1)
     return missing
 
 
-def maybe_emit_metric(missing: int, enable: bool):
+def maybe_emit_metric(missing: int, enable: bool) -> bool:
     if missing <= 0 or not enable:
         return False
     try:
@@ -78,7 +80,7 @@ def maybe_emit_metric(missing: int, enable: bool):
     return False
 
 
-def main():
+def main() -> int:
     args = parse_args()
     try:
         cycles = load_cycles(args.events_file, args.max_lines)

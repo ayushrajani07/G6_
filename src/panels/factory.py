@@ -5,23 +5,23 @@ unified StatusReader, so that scripts (bridge/updater) and UIs rely on a
 single source of truth for panel shapes and derivations.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, cast
-import time
-from datetime import datetime, timezone
 
-from src.utils.status_reader import StatusReader
+import time
+from datetime import UTC, datetime
+from typing import Any, cast
+
 from src.panels.models import (
+    IndicesStreamItem,
+    IndicesSummaryPanel,
+    LoopPanel,
+    PanelsDict,
     ProviderPanel,
     ResourcesPanel,
-    LoopPanel,
-    IndicesSummaryPanel,
-    IndicesStreamItem,
-    PanelsDict,
 )
+from src.utils.status_reader import StatusReader
 
 
-
-def _derive_indices_from_status(status: Dict[str, Any] | None) -> List[str]:
+def _derive_indices_from_status(status: dict[str, Any] | None) -> list[str]:
     if not status:
         return []
     indices = status.get("indices") or status.get("symbols") or []
@@ -34,8 +34,8 @@ def _derive_indices_from_status(status: Dict[str, Any] | None) -> List[str]:
     return []
 
 
-def _derive_cycle_from_status(status: Dict[str, Any] | None) -> Dict[str, Any]:
-    d: Dict[str, Any] = {"cycle": None, "last_start": None, "last_duration": None, "success_rate": None}
+def _derive_cycle_from_status(status: dict[str, Any] | None) -> dict[str, Any]:
+    d: dict[str, Any] = {"cycle": None, "last_start": None, "last_duration": None, "success_rate": None}
     if not status:
         return d
     cycle = status.get("cycle") or status.get("last_cycle")
@@ -57,10 +57,10 @@ def _derive_cycle_from_status(status: Dict[str, Any] | None) -> Dict[str, Any]:
     return d
 
 
-def build_provider_panel(reader: StatusReader, status: Optional[Dict[str, Any]]) -> ProviderPanel:
+def build_provider_panel(reader: StatusReader, status: dict[str, Any] | None) -> ProviderPanel:
     prov_raw = reader.get_provider_data() or {}
     if (not prov_raw) and status and isinstance(status.get("provider"), dict):
-        prov_raw = cast(Dict[str, Any], status.get("provider"))
+        prov_raw = cast(dict[str, Any], status.get("provider"))
     prov = prov_raw if isinstance(prov_raw, dict) else {}
     out: ProviderPanel = {"name": None, "auth": None, "expiry": None, "latency_ms": None}
     try:
@@ -76,7 +76,7 @@ def build_provider_panel(reader: StatusReader, status: Optional[Dict[str, Any]])
     return out
 
 
-def build_resources_panel(reader: StatusReader, status: Optional[Dict[str, Any]]) -> ResourcesPanel:
+def build_resources_panel(reader: StatusReader, status: dict[str, Any] | None) -> ResourcesPanel:
     res = reader.get_resources_data() or {}
     out: ResourcesPanel = {}
     if isinstance(res, dict) and res:
@@ -96,7 +96,7 @@ def build_resources_panel(reader: StatusReader, status: Optional[Dict[str, Any]]
     return out
 
 
-def build_loop_panel(reader: StatusReader, status: Optional[Dict[str, Any]]) -> LoopPanel:
+def build_loop_panel(reader: StatusReader, status: dict[str, Any] | None) -> LoopPanel:
     cy = reader.get_cycle_data() or _derive_cycle_from_status(status)
     loop_payload: LoopPanel = {}
     if isinstance(cy, dict):
@@ -115,18 +115,18 @@ def build_loop_panel(reader: StatusReader, status: Optional[Dict[str, Any]]) -> 
     return loop_payload
 
 
-def build_health_panel(reader: StatusReader, status: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def build_health_panel(reader: StatusReader, status: dict[str, Any] | None) -> dict[str, Any]:
     h = reader.get_health_data() or {}
     return h  # passthrough
 
 
-def build_indices_summary(reader: StatusReader, status: Optional[Dict[str, Any]]) -> IndicesSummaryPanel:
+def build_indices_summary(reader: StatusReader, status: dict[str, Any] | None) -> IndicesSummaryPanel:
     # Prefer unified indices data, but merge/fallback to runtime_status.indices_detail
     indices_detail = reader.get_indices_data() or {}
     if (not isinstance(indices_detail, dict)) or not indices_detail:
         indices_detail = {}
     # Runtime status fallback that may contain richer metrics (legs/dq)
-    rs_detail: Dict[str, Any] = {}
+    rs_detail: dict[str, Any] = {}
     if isinstance(status, dict):
         det = status.get("indices_detail")
         if isinstance(det, dict):
@@ -135,15 +135,15 @@ def build_indices_summary(reader: StatusReader, status: Optional[Dict[str, Any]]
     indices = list(indices_detail.keys()) if isinstance(indices_detail, dict) and indices_detail else (
         list(rs_detail.keys()) if isinstance(rs_detail, dict) and rs_detail else _derive_indices_from_status(status)
     )
-    index_metrics: Dict[str, Dict[str, Any]] = {}
+    index_metrics: dict[str, dict[str, Any]] = {}
     for idx in indices:
-        row: Dict[str, Any] = {"status": "OK"}
+        row: dict[str, Any] = {"status": "OK"}
         try:
             det_primary = indices_detail.get(idx) if isinstance(indices_detail, dict) else None
             det_fallback = rs_detail.get(idx) if isinstance(rs_detail, dict) else None
             # Legs: prefer per-expiry sum first (per-cycle), then explicit current_cycle_legs,
             # then other cumulative fallbacks. Pick from primary first, else fallback.
-            def _copy_legs(src: Optional[Dict[str, Any]]) -> bool:
+            def _copy_legs(src: dict[str, Any] | None) -> bool:
                 if isinstance(src, dict):
                     # 1) Sum across expiries breakdown if provided (most accurate per-cycle view)
                     try:
@@ -177,7 +177,7 @@ def build_indices_summary(reader: StatusReader, status: Optional[Dict[str, Any]]
             if not _copy_legs(det_primary):
                 _copy_legs(det_fallback)
             # DQ: copy score and issues when present from whichever has them
-            def _copy_dq(src: Optional[Dict[str, Any]]) -> None:
+            def _copy_dq(src: dict[str, Any] | None) -> None:
                 if isinstance(src, dict):
                     dq = src.get("dq")
                     if isinstance(dq, dict):
@@ -193,13 +193,13 @@ def build_indices_summary(reader: StatusReader, status: Optional[Dict[str, Any]]
     return cast(IndicesSummaryPanel, index_metrics)
 
 
-def build_indices_stream_items(reader: StatusReader, status: Optional[Dict[str, Any]]) -> List[IndicesStreamItem]:
-    items: List[IndicesStreamItem] = []
+def build_indices_stream_items(reader: StatusReader, status: dict[str, Any] | None) -> list[IndicesStreamItem]:
+    items: list[IndicesStreamItem] = []
     # Prefer unified indices data, but merge/fallback to runtime_status.indices_detail for richer metrics
     indices_detail = reader.get_indices_data() or {}
     if (not isinstance(indices_detail, dict)) or not indices_detail:
         indices_detail = {}
-    rs_detail: Dict[str, Any] = {}
+    rs_detail: dict[str, Any] = {}
     if isinstance(status, dict):
         det = status.get("indices_detail")
         if isinstance(det, dict):
@@ -212,7 +212,7 @@ def build_indices_stream_items(reader: StatusReader, status: Optional[Dict[str, 
     # Merge cycle info from reader with richer status-derived fields
     cy_reader = reader.get_cycle_data() or {}
     cy_status = _derive_cycle_from_status(status)
-    cy: Dict[str, Any] = {}
+    cy: dict[str, Any] = {}
     if isinstance(cy_status, dict):
         cy.update(cy_status)
     if isinstance(cy_reader, dict):
@@ -225,7 +225,7 @@ def build_indices_stream_items(reader: StatusReader, status: Optional[Dict[str, 
         cur_cycle = cy.get("cycle") if isinstance(cy, dict) else None
     except Exception:
         cur_cycle = None
-    success_rate_int: Optional[int] = None
+    success_rate_int: int | None = None
     try:
         sr = None
         _sr_val = cy.get("success_rate") if isinstance(cy, dict) else None
@@ -239,7 +239,7 @@ def build_indices_stream_items(reader: StatusReader, status: Optional[Dict[str, 
             success_rate_int = int(round(sr))
     except Exception:
         success_rate_int = None
-    avg_sec_default: Optional[float] = None
+    avg_sec_default: float | None = None
     try:
         _dur = cy.get("last_duration") if isinstance(cy, dict) else None
         if isinstance(_dur, (int, float)):
@@ -264,13 +264,13 @@ def build_indices_stream_items(reader: StatusReader, status: Optional[Dict[str, 
             except Exception:
                 pass
         try:
-            item["time"] = datetime.fromtimestamp(now_ts, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+            item["time"] = datetime.fromtimestamp(now_ts, tz=UTC).isoformat().replace("+00:00", "Z")
         except Exception:
             pass
         try:
             det_primary = indices_detail.get(idx) if isinstance(indices_detail, dict) else None
             det_fallback = rs_detail.get(idx) if isinstance(rs_detail, dict) else None
-            def _copy_legs(src: Optional[Dict[str, Any]]) -> bool:
+            def _copy_legs(src: dict[str, Any] | None) -> bool:
                 if isinstance(src, dict):
                     # 1) Sum across expiries breakdown when available (most accurate per-cycle view)
                     try:
@@ -327,7 +327,7 @@ def build_indices_stream_items(reader: StatusReader, status: Optional[Dict[str, 
         try:
             det_primary = indices_detail.get(idx) if isinstance(indices_detail, dict) else None
             det_fallback = rs_detail.get(idx) if isinstance(rs_detail, dict) else None
-            def _copy_dq(src: Optional[Dict[str, Any]]) -> None:
+            def _copy_dq(src: dict[str, Any] | None) -> None:
                 if isinstance(src, dict):
                     maybe = src.get("dq")
                     if isinstance(maybe, dict):
@@ -358,7 +358,7 @@ def build_indices_stream_items(reader: StatusReader, status: Optional[Dict[str, 
     return items
 
 
-def build_panels(reader: StatusReader, status: Optional[Dict[str, Any]]) -> PanelsDict:
+def build_panels(reader: StatusReader, status: dict[str, Any] | None) -> PanelsDict:
     panels: PanelsDict = {}
     # provider
     prov = build_provider_panel(reader, status)
@@ -370,7 +370,7 @@ def build_panels(reader: StatusReader, status: Optional[Dict[str, Any]]) -> Pane
     if isinstance(status, dict):
         sinks_obj = status.get("sinks")
         if isinstance(sinks_obj, dict):
-            panels["sinks"] = cast(Dict[str, Any], sinks_obj)
+            panels["sinks"] = cast(dict[str, Any], sinks_obj)
     # health
     h = build_health_panel(reader, status)
     if isinstance(h, dict) and h:
@@ -406,8 +406,8 @@ def build_panels(reader: StatusReader, status: Optional[Dict[str, Any]]) -> Pane
                 alerts = status.get("adaptive_alerts")
                 if isinstance(alerts, list) and alerts:
                     # Count by type and collect most recent entries (preserve order)
-                    counts: Dict[str, int] = {}
-                    recent: List[Dict[str, Any]] = []
+                    counts: dict[str, int] = {}
+                    recent: list[dict[str, Any]] = []
                     for a in alerts[-50:]:  # safety cap
                         if not isinstance(a, dict):
                             continue
@@ -424,7 +424,7 @@ def build_panels(reader: StatusReader, status: Optional[Dict[str, Any]]) -> Pane
                             "type": t,
                             "message": msg,
                         })
-                    last_alert: Optional[Dict[str, Any]] = None
+                    last_alert: dict[str, Any] | None = None
                     try:
                         last_raw = alerts[-1]
                         if isinstance(last_raw, dict):
@@ -444,6 +444,7 @@ def build_panels(reader: StatusReader, status: Optional[Dict[str, Any]]) -> Pane
                     # Include follow-ups recent enriched alerts (dedicated ring buffer) if available
                     try:
                         import os  # local import to avoid global dependency if unused
+
                         from src.adaptive import followups as _followups
                         limit = int(os.getenv('G6_FOLLOWUPS_PANEL_LIMIT','20') or 20)
                         panel_obj['followups_recent'] = [
@@ -467,14 +468,14 @@ def build_panels(reader: StatusReader, status: Optional[Dict[str, Any]]) -> Pane
                             panel_obj["severity_counts"] = sev_counts
                             # Inject meta (active threshold rules + decay/min_streak parameters) for operator transparency
                             try:
-                                meta: Dict[str, Any] = {}
+                                meta: dict[str, Any] = {}
                                 # Extract loaded rules (effective warn/critical thresholds per type)
                                 if hasattr(_severity, "_RULES_CACHE"):
-                                    rules_cache = getattr(_severity, "_RULES_CACHE")
+                                    rules_cache = _severity._RULES_CACHE
                                     if not rules_cache and hasattr(_severity, "load_rules"):
                                         try:
                                             _severity.load_rules()  # populate cache
-                                            rules_cache = getattr(_severity, "_RULES_CACHE")
+                                            rules_cache = _severity._RULES_CACHE
                                         except Exception:  # pragma: no cover
                                             rules_cache = {}
                                     rules_cache = rules_cache or {}
@@ -521,7 +522,7 @@ def build_panels(reader: StatusReader, status: Optional[Dict[str, Any]]) -> Pane
                             except Exception:
                                 pass
                             # Enhance per-type severity entries with current active severity & resolved flag summary if available
-                            enhanced_by_type: Dict[str, Any] = {}
+                            enhanced_by_type: dict[str, Any] = {}
                             for _t, _entry in by_type_sev.items():
                                 e = dict(_entry)
                                 # If active severity state tracked in severity module, attempt to reflect it

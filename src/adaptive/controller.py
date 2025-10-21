@@ -10,9 +10,10 @@ we provide a simple API so orchestrator code can begin integrating without
 creating circular dependencies.
 """
 from __future__ import annotations
-from typing import Literal, Any, Optional
+
 import os
 from importlib import import_module
+from typing import Any, Literal
 
 DetailMode = Literal[0,1,2]  # 0=full,1=band,2=agg
 

@@ -4,8 +4,9 @@ Loads environment-driven feature toggles once; exposes a lightweight dataclass
 for injection into hot paths (provider filtering). Avoids repeated os.getenv.
 """
 from __future__ import annotations
-from dataclasses import dataclass
+
 import os
+from dataclasses import dataclass
 
 TRUE_SET = {'1','true','yes','on'}
 
@@ -26,7 +27,7 @@ class RuntimeFlags:
     prefilter_disabled: bool
 
     @classmethod
-    def load(cls) -> "RuntimeFlags":
+    def load(cls) -> RuntimeFlags:
         return cls(
             match_mode=os.environ.get('G6_SYMBOL_MATCH_MODE','strict').strip().lower(),
             underlying_strict=_is_true(os.environ.get('G6_SYMBOL_MATCH_UNDERLYING_STRICT'), True if os.environ.get('G6_SYMBOL_MATCH_UNDERLYING_STRICT') is not None else True),

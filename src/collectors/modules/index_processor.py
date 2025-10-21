@@ -19,24 +19,26 @@ an empty result structure (all None / zeros) is returned; this allows callers
 to fallback / continue the wider cycle without hard stopping.
 """
 from __future__ import annotations
+
+import datetime
+import json
+import logging
+import os
+import time
+from collections.abc import Callable, Iterable
 from typing import (
     Any,
-    Dict,
-    List,
-    Optional,
-    Iterable,
     Protocol,
     TypedDict,
     TypeVar,
-    Callable,
-    runtime_checkable,
     cast,
+    runtime_checkable,
 )
-import time, datetime, os, logging, json
-from src.collectors.env_adapter import get_bool as _env_bool, get_str as _env_str
-from src.utils.timeutils import utc_now
 
+from src.collectors.env_adapter import get_bool as _env_bool
+from src.collectors.env_adapter import get_str as _env_str
 from src.error_handling import handle_collector_error  # parity with legacy path
+from src.utils.timeutils import utc_now
 
 logger = logging.getLogger(__name__)
 
@@ -44,18 +46,18 @@ logger = logging.getLogger(__name__)
 T = TypeVar("T")
 
 class StrikeUniverseResult(TypedDict, total=False):
-    strikes: List[float]
-    meta: Dict[str, Any]
+    strikes: list[float]
+    meta: dict[str, Any]
 
 class IndexProcessResult(TypedDict, total=False):
-    human_block: Optional[str]
-    indices_struct_entry: Optional[Dict[str, Any]]
-    summary_rows_entry: Optional[Dict[str, Any]]
+    human_block: str | None
+    indices_struct_entry: dict[str, Any] | None
+    summary_rows_entry: dict[str, Any] | None
     overall_legs: int
     overall_fails: int
 
-ExpiryDetail = Dict[str, Any]  # current dynamic; could be narrowed in later wave
-DepsMap = Dict[str, Any]
+ExpiryDetail = dict[str, Any]  # current dynamic; could be narrowed in later wave
+DepsMap = dict[str, Any]
 
 @runtime_checkable
 class ProviderFacade(Protocol):  # minimal surface actually used
@@ -63,7 +65,7 @@ class ProviderFacade(Protocol):  # minimal surface actually used
     def get_ltp(self, index: str) -> Any: ...
     def get_atm_strike(self, index: str) -> Any: ...
     def get_expiry_dates(self, index: str) -> Iterable[Any]: ...
-    def get_option_instruments_universe(self, index: str) -> Iterable[Dict[str, Any]]: ...
+    def get_option_instruments_universe(self, index: str) -> Iterable[dict[str, Any]]: ...
 
 class TimePhaseCtx(Protocol):  # context manager factory
     def __call__(self, name: str) -> Any: ...
@@ -102,17 +104,17 @@ def _p(obj: Any, name: str, default: T) -> T:
 def process_index(
     ctx: ContextLike | Any,
     index_symbol: str,
-    params: Dict[str, Any] | Any,
+    params: dict[str, Any] | Any,
     *,
     compute_greeks: bool,
     estimate_iv: bool,
     greeks_calculator: Any,
-    mem_flags: Dict[str, Any],
+    mem_flags: dict[str, Any],
     concise_mode: bool,
     build_snapshots: bool,
     risk_free_rate: float,
     metrics: MetricsLike | Any,
-    snapshots_accum: List[Any],
+    snapshots_accum: list[Any],
     dq_enabled: bool,
     dq_checker: Any,
     deps: DepsMap,
@@ -184,16 +186,16 @@ def process_index(
     if AggregationState is None:  # create a minimal stub class
         class _AggregationStateStub:  # pragma: no cover - exercised only when dependency missing
             def __init__(self) -> None:
-                self.snapshot_base_time: Optional[datetime.datetime] = None
-                self.representative_day_width: Optional[int] = None
+                self.snapshot_base_time: datetime.datetime | None = None
+                self.representative_day_width: int | None = None
         AggregationState = _AggregationStateStub
     # Dependency injected helpers with safe fallbacks (no runtime semantic changes)
     build_strikes_fallback_any: Any = deps.get('build_strikes')
     if not callable(build_strikes_fallback_any):  # pragma: no cover
-        def _build_strikes_fallback_default(*_a: Any, **_k: Any) -> List[float]:
+        def _build_strikes_fallback_default(*_a: Any, **_k: Any) -> list[float]:
             return []
         build_strikes_fallback_any = _build_strikes_fallback_default
-    build_strikes_fallback = cast(Callable[..., List[float]], build_strikes_fallback_any)
+    build_strikes_fallback = cast(Callable[..., list[float]], build_strikes_fallback_any)
 
     synth_index_price_any: Any = deps.get('synth_index_price')
     if not callable(synth_index_price_any):  # pragma: no cover
@@ -204,24 +206,24 @@ def process_index(
 
     aggregate_cycle_status_any: Any = deps.get('aggregate_cycle_status')
     if not callable(aggregate_cycle_status_any):  # pragma: no cover
-        def _aggregate_cycle_status_default(_details: List[ExpiryDetail]) -> str:
+        def _aggregate_cycle_status_default(_details: list[ExpiryDetail]) -> str:
             return 'bad'
         aggregate_cycle_status_any = _aggregate_cycle_status_default
-    aggregate_cycle_status = cast(Callable[[List[ExpiryDetail]], str], aggregate_cycle_status_any)
+    aggregate_cycle_status = cast(Callable[[list[ExpiryDetail]], str], aggregate_cycle_status_any)
 
     process_expiry_any: Any = deps.get('process_expiry')
     if not callable(process_expiry_any):  # pragma: no cover
-        def _process_expiry_default(**_kw: Any) -> Dict[str, Any]:
+        def _process_expiry_default(**_kw: Any) -> dict[str, Any]:
             return {}
         process_expiry_any = _process_expiry_default
-    process_expiry = cast(Callable[..., Dict[str, Any]], process_expiry_any)
+    process_expiry = cast(Callable[..., dict[str, Any]], process_expiry_any)
 
     run_index_quality_any: Any = deps.get('run_index_quality')
     if not callable(run_index_quality_any):  # pragma: no cover
-        def _run_index_quality_default(*_a: Any, **_k: Any) -> tuple[bool, List[str]]:
+        def _run_index_quality_default(*_a: Any, **_k: Any) -> tuple[bool, list[str]]:
             return (True, [])
         run_index_quality_any = _run_index_quality_default
-    run_index_quality = cast(Callable[[Any, Any, Any], tuple[bool, List[str]]], run_index_quality_any)
+    run_index_quality = cast(Callable[[Any, Any, Any], tuple[bool, list[str]]], run_index_quality_any)
 
     # Skip disabled indices early
     if not _p(params, 'enable', True):
@@ -256,22 +258,22 @@ def process_index(
     per_index_attempts = 0
     per_index_failures = 0
     index_price: int | float = 0
-    index_ohlc: Dict[str, Any] = {}
+    index_ohlc: dict[str, Any] = {}
     _t0 = time.time()
     # Predefine variables to ensure they are always bound even if later phases fail early
     atm_strike: int | float = 0
-    precomputed_strikes: List[float] = []
+    precomputed_strikes: list[float] = []
     allow_per_option_metrics: bool = False
     local_compute_greeks: bool = compute_greeks
     local_estimate_iv: bool = estimate_iv
-    scale_factor: Optional[float] = 1.0
+    scale_factor: float | None = 1.0
     allowed_expiry_dates: set[Any] = set()
-    pcr_snapshot: Dict[str, Any] = {}
+    pcr_snapshot: dict[str, Any] = {}
     aggregation_state = AggregationState()
     aggregation_state.snapshot_base_time = per_index_ts
     expected_expiries = _p(params,'expiries',['this_week'])
     # Human rows accumulate per-expiry display tuples: (t, price_disp, atm_disp, exp_str, tag, legs, ce_c, pe_c, pcr_v, rng_disp, step_v)
-    human_rows: List[tuple[Any, ...]] = []
+    human_rows: list[tuple[Any, ...]] = []
     try:
         providers = ctx.providers
         if hasattr(providers, 'get_index_data'):
@@ -448,13 +450,13 @@ def process_index(
         if precomputed_strikes and len(precomputed_strikes) >=3:
             enable_cluster = _env_bool('G6_STRIKE_CLUSTER', False) or TRACE_ENABLED
             if enable_cluster:
-                diffs: List[float] = []; last: float | None = None
+                diffs: list[float] = []; last: float | None = None
                 for s in precomputed_strikes:
                     if last is not None: diffs.append(round(s-last,6))
                     last = s
                 if diffs:
                     from statistics import mean, median
-                    step_counts: Dict[float,int] = {}
+                    step_counts: dict[float,int] = {}
                     for d in diffs: step_counts[d]=step_counts.get(d,0)+1
                     unique_steps=sorted(step_counts.keys())
                     dominant_step=None
@@ -496,8 +498,8 @@ def process_index(
         emit_adaptive_summary(ctx, index_symbol)
     except Exception:
         logger.debug('adaptive_summary_module_failed', exc_info=True)
-    expiry_details: List[ExpiryDetail] = []
-    expiry_universe_map: Optional[Dict[Any, Any]] = None  # keys may be date objects
+    expiry_details: list[ExpiryDetail] = []
+    expiry_universe_map: dict[Any, Any] | None = None  # keys may be date objects
     # Initialize stale flags early to avoid unbound branches
     index_stale: bool = False
     stale_mode: str = 'mark'
@@ -517,7 +519,7 @@ def process_index(
                 try:
                     from typing import cast as _cast
                     expiry_universe_map_raw, map_stats = _build_expiry_map(universe)
-                    expiry_universe_map = _cast(Dict[Any, Any], expiry_universe_map_raw)
+                    expiry_universe_map = _cast(dict[Any, Any], expiry_universe_map_raw)
                     if TRACE_ENABLED:
                         trace('expiry_map_build', index=index_symbol, unique=len(expiry_universe_map) if expiry_universe_map else 0, stats=map_stats)
                     if metrics and hasattr(metrics,'expiry_map_build_seconds'):
@@ -533,7 +535,7 @@ def process_index(
     # ------------------------------------------------------------------
     raw_expiries_obj = _p(params,'expiries',['this_week']) or ['this_week']
     if isinstance(raw_expiries_obj, (list, tuple)):
-        final_expiries: List[str] = [str(x) for x in raw_expiries_obj]
+        final_expiries: list[str] = [str(x) for x in raw_expiries_obj]
     else:
         final_expiries = [str(raw_expiries_obj)]
     try:
@@ -542,7 +544,7 @@ def process_index(
             # Load config
             proj_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '../../..'))
             cfg_path = os.path.join(proj_root, 'config', 'g6_config.json')
-            with open(cfg_path, 'r', encoding='utf-8') as _cf:
+            with open(cfg_path, encoding='utf-8') as _cf:
                 _cfg = json.load(_cf)
             cfg_exp = (_cfg.get('indices', {}).get(index_symbol, {}) or {}).get('expiries')
             if isinstance(cfg_exp, list) and len(cfg_exp) > 1:
@@ -654,7 +656,8 @@ def process_index(
     # Emit stale metrics (per-index) before any potential snapshot gating
     if metrics:
         try:  # pragma: no cover - metrics side-effects
-            from prometheus_client import Counter as _C, Gauge as _G
+            from prometheus_client import Counter as _C
+            from prometheus_client import Gauge as _G
             # Lazy metric creation (attributes cached on metrics registry object)
             if not hasattr(metrics, 'stale_cycles_total'):
                 try:
@@ -750,7 +753,8 @@ def process_index(
         cycle_status = 'unknown'
         try:
             # Derive index status from aggregated expiry statuses (coverage aware) instead of simple fail count heuristic.
-            from src.collectors.helpers.status_reducer import aggregate_cycle_status as _agg_status, compute_expiry_status as _comp_status, get_status_thresholds
+            from src.collectors.helpers.status_reducer import aggregate_cycle_status as _agg_status
+            from src.collectors.helpers.status_reducer import compute_expiry_status as _comp_status
             last_age = 0.0; pcr_val = None
             try:
                 if pcr_snapshot:

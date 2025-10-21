@@ -21,27 +21,27 @@ All functions accept their prior signatures (loosely) but discard inputs.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
 import os
+from typing import Any
 
-_PHASES: list[Dict[str, Any]] = []  # retained for compatibility (not emitted)
-_PIPELINE_SUMMARY: Optional[Dict[str, Any]] = None  # new optional integration payload
+_PHASES: list[dict[str, Any]] = []  # retained for compatibility (not emitted)
+_PIPELINE_SUMMARY: dict[str, Any] | None = None  # new optional integration payload
 
 # --------------- Record Functions ---------------
 
-def record_prefilter(payload: Dict[str, Any]) -> None:  # pragma: no cover
+def record_prefilter(payload: dict[str, Any]) -> None:  # pragma: no cover
     """Deprecated: previously buffered prefilter summary rows (now ignored)."""
     return
 
-def record_option_stats(payload: Dict[str, Any]) -> None:  # pragma: no cover
+def record_option_stats(payload: dict[str, Any]) -> None:  # pragma: no cover
     """Deprecated: previously buffered option match stats rows (now ignored)."""
     return
 
-def record_strike_adjust(payload: Dict[str, Any]) -> None:  # pragma: no cover
+def record_strike_adjust(payload: dict[str, Any]) -> None:  # pragma: no cover
     """Deprecated: previously tracked strike depth adjustment events."""
     return
 
-def record_adaptive(payload: Dict[str, Any]) -> None:  # pragma: no cover
+def record_adaptive(payload: dict[str, Any]) -> None:  # pragma: no cover
     """Deprecated: previously tracked adaptive controller summaries."""
     return
 
@@ -54,7 +54,7 @@ def record_phase_timing(name: str, duration_s: float) -> None:  # pragma: no cov
 
 # --------------- Emission ---------------
 
-def emit_cycle_tables(cycle_payload: Dict[str, Any]) -> None:  # pragma: no cover
+def emit_cycle_tables(cycle_payload: dict[str, Any]) -> None:  # pragma: no cover
     """Emit legacy cycle tables with optional pipeline summary injection.
 
     When G6_CYCLE_TABLES_PIPELINE_INTEGRATION is truthy and a pipeline summary has
@@ -69,7 +69,7 @@ def emit_cycle_tables(cycle_payload: Dict[str, Any]) -> None:  # pragma: no cove
     except Exception:
         pass
 
-def record_pipeline_summary(summary: Dict[str, Any]) -> None:  # pragma: no cover
+def record_pipeline_summary(summary: dict[str, Any]) -> None:  # pragma: no cover
     """Record latest pipeline summary for optional legacy integration layer."""
     global _PIPELINE_SUMMARY
     try:
@@ -77,7 +77,7 @@ def record_pipeline_summary(summary: Dict[str, Any]) -> None:  # pragma: no cove
     except Exception:
         pass
 
-def get_pipeline_summary() -> Optional[Dict[str, Any]]:  # pragma: no cover
+def get_pipeline_summary() -> dict[str, Any] | None:  # pragma: no cover
     """Return last recorded pipeline summary (or None)."""
     return _PIPELINE_SUMMARY
 

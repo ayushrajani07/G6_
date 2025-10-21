@@ -8,10 +8,13 @@ Ordering: invoked early in metrics initialization sequence (after SLA & provider
 so reliability chain metrics remain contiguous.
 """
 from __future__ import annotations
-from prometheus_client import Counter
-from typing import Any, Callable
-import os
+
 import logging
+import os
+from collections.abc import Callable
+from typing import Any
+
+from prometheus_client import Counter
 
 __all__ = ["init_scheduler_placeholders"]
 

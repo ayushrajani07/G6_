@@ -12,21 +12,23 @@ Removal rationale:
     * Retaining hash logic risked brittle drift failures and unnecessary maintenance.
 """
 from __future__ import annotations
-from typing import Any, Dict, List
+
+from typing import Any
+
 from src.utils.deprecations import emit_deprecation  # type: ignore
 
 # Public API -----------------------------------------------------------------
 __all__ = ["capture_parity_snapshot", "snapshot_hash"]
 
 
-def _stable_sorted_symbols(symbols: List[str]) -> List[str]:
+def _stable_sorted_symbols(symbols: list[str]) -> list[str]:
     try:
         return sorted(symbols)
     except Exception:
         return list(symbols)
 
 
-def snapshot_hash(struct: Dict[str, Any]) -> str:  # pragma: no cover - legacy shim
+def snapshot_hash(struct: dict[str, Any]) -> str:  # pragma: no cover - legacy shim
     emit_deprecation(
         'parity_harness-snapshot_hash',
         'snapshot_hash is deprecated and returns a constant placeholder; remove calls.'
@@ -34,7 +36,7 @@ def snapshot_hash(struct: Dict[str, Any]) -> str:  # pragma: no cover - legacy s
     return 'deprecated-parity-hash'
 
 
-def capture_parity_snapshot(unified_result: Dict[str, Any]) -> Dict[str, Any]:
+def capture_parity_snapshot(unified_result: dict[str, Any]) -> dict[str, Any]:
     """Derive a parity snapshot from unified_collectors run_unified_collectors result.
 
     Expected input contract (subset used):
@@ -50,7 +52,7 @@ def capture_parity_snapshot(unified_result: Dict[str, Any]) -> Dict[str, Any]:
       }
     The harness normalizes ordering and extracts only parity-relevant fields.
     """
-    snapshot: Dict[str, Any] = {
+    snapshot: dict[str, Any] = {
         'version': 4,  # v4: hash removed, module deprecated
         'indices': [],
         'meta': {'deprecated': True},
@@ -67,7 +69,7 @@ def capture_parity_snapshot(unified_result: Dict[str, Any]) -> Dict[str, Any]:
 
     for entry in indices_entries:
         index_name = entry.get('index')
-        expiries_out: List[Dict[str, Any]] = []
+        expiries_out: list[dict[str, Any]] = []
         for e in entry.get('expiries', []):
             expiries_out.append({
                 'rule': e.get('rule'),

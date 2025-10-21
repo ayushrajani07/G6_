@@ -19,9 +19,13 @@ Assumptions:
   * Heartbeats may appear as comments (lines starting with ':').
 """
 from __future__ import annotations
-import argparse, os, sys, time, json, math, statistics, threading
-from typing import Dict, List, Optional
-from urllib import request, error
+
+import argparse
+import json
+import os
+import threading
+import time
+from urllib import request
 
 try:
     import resource  # type: ignore
@@ -36,13 +40,13 @@ except Exception:  # noqa
 class SoakStats:
     def __init__(self) -> None:
         self.events: int = 0
-        self.event_types: Dict[str,int] = {}
+        self.event_types: dict[str,int] = {}
         self.reconnects: int = 0
         self.errors: int = 0
         self.parse_errors: int = 0
-        self.gaps: List[float] = []
-        self._last_event_ts: Optional[float] = None
-        self.rss_samples: List[int] = []  # bytes
+        self.gaps: list[float] = []
+        self._last_event_ts: float | None = None
+        self.rss_samples: list[int] = []  # bytes
         self._rss_lock = threading.Lock()
 
     def record_event(self, etype: str) -> None:
@@ -59,7 +63,7 @@ class SoakStats:
             with self._rss_lock:
                 self.rss_samples.append(rss)
 
-    def summary(self) -> Dict[str, object]:
+    def summary(self) -> dict[str, object]:
         gap_p95 = percentile(self.gaps, 95) if self.gaps else 0.0
         rss_growth = 0.0
         if len(self.rss_samples) >= 2:
@@ -76,7 +80,7 @@ class SoakStats:
             'rss_mb_growth': rss_growth,
         }
 
-def percentile(seq: List[float], p: float) -> float:
+def percentile(seq: list[float], p: float) -> float:
     if not seq:
         return 0.0
     s = sorted(seq)
@@ -87,7 +91,7 @@ def percentile(seq: List[float], p: float) -> float:
     d = k - f
     return s[f] + (s[c]-s[f]) * d
 
-def sample_rss() -> Optional[int]:
+def sample_rss() -> int | None:
     if psutil:
         try:
             return psutil.Process().memory_info().rss
@@ -96,7 +100,7 @@ def sample_rss() -> Optional[int]:
     # /proc/self/statm (# pages * page size)
     if os.name == 'posix':
         try:
-            with open('/proc/self/statm','r') as fh:
+            with open('/proc/self/statm') as fh:
                 parts = fh.read().split()
                 if parts:
                     pages = int(parts[1])  # resident
@@ -105,7 +109,7 @@ def sample_rss() -> Optional[int]:
             return None
     return None
 
-def stream_loop(url: str, duration: float, stats: SoakStats, headers: Dict[str,str]) -> None:
+def stream_loop(url: str, duration: float, stats: SoakStats, headers: dict[str,str]) -> None:
     deadline = time.time() + duration
     while time.time() < deadline:
         try:

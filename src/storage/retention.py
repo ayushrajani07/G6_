@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Lightweight retention & optional compression worker for CSV storage.
 
 Purpose:
@@ -32,12 +31,12 @@ Design Notes:
 """
 from __future__ import annotations
 
-import os
-import time
-import threading
-import logging
 import datetime as _dt
-from typing import Optional, Tuple
+import logging
+import os
+import threading
+import time
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +62,9 @@ def _should_delete(mtime: float, cutoff: float) -> bool:
 
 def _scan_and_prune(base_dir: str,
                     retention_days: int,
-                    overview_days: Optional[int],
+                    overview_days: int | None,
                     min_keep: int,
-                    metrics) -> Tuple[int, int]:
+                    metrics: Any) -> tuple[int, int]:
     now = time.time()
     general_cutoff = now - retention_days * 86400 if retention_days > 0 else -1
     overview_cutoff = None
@@ -82,7 +81,7 @@ def _scan_and_prune(base_dir: str,
         if not csv_files:
             continue
         # Safeguard: sort files by mtime descending; preserve newest N regardless
-        file_mt_pairs = []
+        file_mt_pairs: list[tuple[str, float]] = []
         for f in csv_files:
             path = os.path.join(root, f)
             try:
@@ -91,7 +90,7 @@ def _scan_and_prune(base_dir: str,
                 continue
             file_mt_pairs.append((path, mt))
         file_mt_pairs.sort(key=lambda x: x[1], reverse=True)
-        protected = {p for p, _ in file_mt_pairs[:max(min_keep, 0)]}
+        protected: set[str] = {p for p, _ in file_mt_pairs[:max(min_keep, 0)]}
         for path, mt in file_mt_pairs[max(min_keep, 0):]:
             ftype = _classify(path)
             cutoff = overview_cutoff if (ftype == 'overview' and overview_cutoff is not None) else general_cutoff
@@ -120,10 +119,10 @@ def _scan_and_prune(base_dir: str,
 
 def start_retention_worker(base_dir: str,
                            retention_days: int,
-                           overview_days: Optional[int] = None,
+                           overview_days: int | None = None,
                            scan_interval_hours: int = 6,
                            min_files_to_keep: int = 3,
-                           metrics=None) -> threading.Thread:
+                           metrics: Any | None = None) -> threading.Thread:
     """Start background retention daemon thread.
 
     Returns the thread object (already started). Safe to call even if disabled.
@@ -133,14 +132,14 @@ def start_retention_worker(base_dir: str,
         dummy = threading.Thread(target=lambda: None, name="retention-disabled")
         return dummy
 
-    def _loop():
+    def _loop() -> None:
         logger.info(
             "Retention worker started (days=%s overview_days=%s interval_h=%s base_dir=%s)",
             retention_days, overview_days, scan_interval_hours, base_dir,
         )
         while True:
             # Use timezone-aware UTC
-            started = _dt.datetime.now(_dt.timezone.utc)
+            started = _dt.datetime.now(_dt.UTC)
             try:
                 opt_del, ov_del = _scan_and_prune(
                     base_dir,
@@ -151,7 +150,7 @@ def start_retention_worker(base_dir: str,
                 )
                 if opt_del or ov_del:
                     logger.info(
-                        f"Retention pruned option={opt_del} overview={ov_del} files (took {( _dt.datetime.now(_dt.timezone.utc) - started).total_seconds():.2f}s)"
+                        f"Retention pruned option={opt_del} overview={ov_del} files (took {( _dt.datetime.now(_dt.UTC) - started).total_seconds():.2f}s)"
                     )
             except Exception:
                 logger.exception("Retention sweep failure (continuing)")

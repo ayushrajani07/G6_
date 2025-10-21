@@ -33,20 +33,26 @@ Thread-safety: accessed from orchestrator build paths single-threaded per index 
 simple per-index in-memory buffers suffice.
 """
 from __future__ import annotations
+
+import os
 from collections import deque
 from dataclasses import dataclass
-from typing import Deque, Dict, Optional, Any, TYPE_CHECKING
-import os
-import math
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
-    from prometheus_client import Counter as _PromCounter, Gauge as _PromGauge, REGISTRY as _PromREGISTRY
-    from prometheus_client import Counter  # re-export for type checkers
-    from prometheus_client import Gauge
-    from prometheus_client import REGISTRY
+    from prometheus_client import (
+        REGISTRY,
+        Counter,  # re-export for type checkers
+        Gauge,
+    )
+    from prometheus_client import REGISTRY as _PromREGISTRY
+    from prometheus_client import Counter as _PromCounter
+    from prometheus_client import Gauge as _PromGauge
 else:  # runtime dynamic import
     try:  # pragma: no cover - optional dependency
-        from prometheus_client import Counter as _PromCounter, Gauge as _PromGauge, REGISTRY as _PromREGISTRY
+        from prometheus_client import REGISTRY as _PromREGISTRY
+        from prometheus_client import Counter as _PromCounter
+        from prometheus_client import Gauge as _PromGauge
     except Exception:  # pragma: no cover
         _PromCounter = _PromGauge = None  # type: ignore[assignment]
         _PromREGISTRY = None  # type: ignore[assignment]
@@ -65,7 +71,6 @@ def _import_event_bus_getter():  # lazy to avoid hard dependency
 
 _GET_EVENT_BUS = _import_event_bus_getter()
 
-from . import controller  # potential future feedback integration (optional)
 from . import severity  # for enriching emitted alerts (optional if severity enabled)
 
 _GROUP = "adaptive_followups"
@@ -79,8 +84,8 @@ _state_gauge: Any = None
 class IndexBuffers:
     interp_consec: int = 0
     bucket_consec: int = 0
-    risk_window: Optional[Deque[float]] = None
-    risk_options: Optional[Deque[int]] = None
+    risk_window: deque[float] | None = None
+    risk_options: deque[int] | None = None
 
     def __post_init__(self):
         win = _env_int("G6_FOLLOWUPS_RISK_WINDOW", 5)
@@ -89,7 +94,7 @@ class IndexBuffers:
         if self.risk_options is None:
             self.risk_options = deque(maxlen=win)
 
-_buffers: Dict[str, IndexBuffers] = {}
+_buffers: dict[str, IndexBuffers] = {}
 
 # Simple in-memory alert sink; orchestration layer can drain via get_and_clear_alerts().
 _ALERTS: list[dict[str, Any]] = []  # legacy simple list (still exposed)
@@ -104,7 +109,7 @@ _BUS: Any | None = None
 _BUS_FAILED = False
 
 
-def _publish_event(event_type: str, payload: dict[str, Any], *, coalesce_key: Optional[str] = None) -> None:
+def _publish_event(event_type: str, payload: dict[str, Any], *, coalesce_key: str | None = None) -> None:
     global _BUS, _BUS_FAILED, _GET_EVENT_BUS
     if _GET_EVENT_BUS is None or _BUS_FAILED:
         return
@@ -274,7 +279,7 @@ def _maybe_register_metrics():
             _weight_pressure_gauge = target
 
     # Help text map kept near registration for clarity
-    FOLLOWUP_METRIC_HELP: Dict[str, str] = {
+    FOLLOWUP_METRIC_HELP: dict[str, str] = {
         'g6_followups_interp_guard': 'Interpolation guard trigger count',
         'g6_followups_risk_drift': 'Risk exposure drift trigger count',
         'g6_followups_bucket_coverage': 'Bucket coverage low trigger count',
@@ -289,7 +294,7 @@ def _maybe_register_metrics():
     _register('g6_followups_weight_pressure', 'weight_pressure', Gauge)
 
 
-def record_surface_metrics(index: str, interpolated_fraction: float, bucket_utilization: Optional[float]):
+def record_surface_metrics(index: str, interpolated_fraction: float, bucket_utilization: float | None):
     """Feed volatility surface build outputs into follow-up guards.
     Called after each surface build.
     """
@@ -381,7 +386,7 @@ def record_risk_notional(index: str, notional_delta: float, option_count: int):
 
 # Convenience composite feed for orchestrator if both surface & risk info in hand
 
-def feed(index: str, interpolated_fraction: Optional[float]=None, bucket_utilization: Optional[float]=None, notional_delta: Optional[float]=None, option_count: Optional[int]=None):
+def feed(index: str, interpolated_fraction: float | None=None, bucket_utilization: float | None=None, notional_delta: float | None=None, option_count: int | None=None):
     # Invoke surface metrics path if either interpolation fraction or bucket utilization provided.
     if interpolated_fraction is not None or bucket_utilization is not None:
         record_surface_metrics(index, interpolated_fraction if interpolated_fraction is not None else 0.0, bucket_utilization)

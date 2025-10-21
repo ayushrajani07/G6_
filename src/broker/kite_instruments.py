@@ -1,12 +1,12 @@
 # src/broker/kite_instruments.py
 from __future__ import annotations
+
 import json
 import os
 from pathlib import Path
-from typing import List, Dict
 
 
-def load_instruments() -> List[Dict]:
+def load_instruments() -> list[dict]:
     """
     Loads the instrument master from a JSON file.
     Expects path in env KITE_INSTRUMENTS_JSON or defaults to data/instruments.json

@@ -1,24 +1,34 @@
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
-from datetime import datetime, timezone
+
 import os
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rich.panel import Panel as _Panel
+    pass
 
-def header_panel(app_title: str, version: str, indices: List[str], *, low_contrast: bool = False, status: Optional[Dict[str, Any]] = None, interval: Optional[float] = None) -> Any:
+def header_panel(
+    app_title: str,
+    version: str,
+    indices: list[str],
+    *,
+    low_contrast: bool = False,
+    status: dict[str, Any] | None = None,
+    interval: float | None = None,
+) -> Any:
     from rich import box
     from rich.panel import Panel
     from rich.table import Table
+
     from scripts.summary.derive import (
-        fmt_hms_from_dt,
+        clip,
         derive_market_summary,
+        fmt_hms_from_dt,
+        fmt_timedelta_secs,
         is_market_hours_ist,
         next_market_open_ist,
-        fmt_timedelta_secs,
-        clip,
     )
-    now = fmt_hms_from_dt(datetime.now(timezone.utc))
+    now = fmt_hms_from_dt(datetime.now(UTC))
     ind_txt = ", ".join(indices) if indices else "—"
     state, extra = derive_market_summary(status or {})
     try:
@@ -28,8 +38,8 @@ def header_panel(app_title: str, version: str, indices: List[str], *, low_contra
         elif not extra:
             nxt = next_market_open_ist()
             if nxt is not None:
-                nxt_utc = nxt.astimezone(timezone.utc)
-                delta = (nxt_utc - datetime.now(timezone.utc)).total_seconds()
+                nxt_utc = nxt.astimezone(UTC)
+                delta = (nxt_utc - datetime.now(UTC)).total_seconds()
                 extra = f"next open: {fmt_hms_from_dt(nxt_utc)} (in {fmt_timedelta_secs(delta)})"
     except Exception:
         pass
@@ -77,7 +87,7 @@ def header_panel(app_title: str, version: str, indices: List[str], *, low_contra
     if extra:
         mid_parts.append(extra)
     up_txt = "—"
-    import os, time as _t
+    import time as _t
     try:
         start_ts = float(os.getenv("G6_PROCESS_START_TS", "0") or 0)
         if start_ts > 0:

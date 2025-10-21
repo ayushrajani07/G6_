@@ -18,13 +18,12 @@ Environment gate: `G6_EXPIRY_RULE_RESOLUTION` (handled by config.validation call
 """
 from __future__ import annotations
 
-from datetime import date, timedelta
 from calendar import monthrange
-from typing import Optional, Dict
+from datetime import date, timedelta
 
 # Weekday mapping per index symbol (Mon=0 .. Sun=6)
 # Weekly contracts (current schedule): NIFTY Tuesday (1), SENSEX Thursday (3)
-WEEKLY_EXPIRY_WEEKDAY: Dict[str, int] = {
+WEEKLY_EXPIRY_WEEKDAY: dict[str, int] = {
     "NIFTY": 1,    # Tuesday weekly
     "SENSEX": 3,   # Thursday weekly
 }
@@ -32,7 +31,7 @@ WEEKLY_EXPIRY_WEEKDAY: Dict[str, int] = {
 # Monthly contracts mapping (last weekday of month)
 # NIFTY, BANKNIFTY, MIDCPNIFTY, FINNIFTY -> last Tuesday (1)
 # SENSEX, BANKEX -> last Thursday (3)
-MONTHLY_EXPIRY_WEEKDAY: Dict[str, int] = {
+MONTHLY_EXPIRY_WEEKDAY: dict[str, int] = {
     "NIFTY": 1,
     "BANKNIFTY": 1,
     "MIDCPNIFTY": 1,
@@ -52,7 +51,7 @@ def _last_weekday_of_month(year: int, month: int, weekday: int) -> date:
         d -= timedelta(days=1)
     return d
 
-def resolve_rule(symbol: str, token: str, today: date | None = None) -> Optional[str]:
+def resolve_rule(symbol: str, token: str, today: date | None = None) -> str | None:
     """Resolve a rule token to ISO date or return None if unsupported.
 
     Rules:

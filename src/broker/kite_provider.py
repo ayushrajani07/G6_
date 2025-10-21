@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Primary Kite provider facade (post modular Phases 1–8).
 
 Reconstructed after extraction phases:
@@ -16,29 +15,26 @@ from __future__ import annotations
 
 import datetime as _dt
 import logging
-import os
 import time
 import warnings
-from src.utils.deprecations import emit_deprecation  # type: ignore
-from typing import Set
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
-from typing import Any, Iterable, Optional, Protocol, Dict, List
-
-from src.broker.kite.settings import load_settings, Settings
-from src.broker.kite.state import ProviderState
-from src.utils.rate_limiter import RateLimiter
-from src.utils.retry import call_with_retry
-from src.error_handling import handle_provider_error, handle_data_collection_error
-from src.provider.errors import (
-    classify_provider_exception,
-    ProviderRecoverableError,
-    ProviderAuthError,
-    ProviderTimeoutError,
-    ProviderFatalError,
-)
+from collections.abc import Iterable
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
+from typing import Any, Protocol
 
 # Re-export DummyKiteProvider for backwards compatibility
 from src.broker.kite.dummy_provider import DummyKiteProvider  # noqa: F401
+from src.broker.kite.settings import Settings, load_settings
+from src.broker.kite.state import ProviderState
+from src.provider.errors import (
+    ProviderAuthError,
+    ProviderFatalError,
+    ProviderRecoverableError,
+    ProviderTimeoutError,
+    classify_provider_exception,
+)
+from src.utils.deprecations import emit_deprecation  # type: ignore
+from src.utils.rate_limiter import RateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -104,14 +100,14 @@ def is_concise_logging() -> bool:
 # ----------------------------------------------------------------------------
 # Index + exchange pool mappings (minimal set used across modules/tests)
 # ----------------------------------------------------------------------------
-INDEX_MAPPING: Dict[str, tuple[str, str]] = {
+INDEX_MAPPING: dict[str, tuple[str, str]] = {
     "NIFTY": ("NSE", "NIFTY 50"),
     "BANKNIFTY": ("NSE", "NIFTY BANK"),
     "FINNIFTY": ("NSE", "NIFTY FIN SERVICE"),
     "MIDCPNIFTY": ("NSE", "NIFTY MIDCAP SELECT"),
     "SENSEX": ("BSE", "SENSEX"),
 }
-POOL_FOR: Dict[str, str] = {k: "NFO" for k in INDEX_MAPPING.keys()}
+POOL_FOR: dict[str, str] = {k: "NFO" for k in INDEX_MAPPING.keys()}
 
 # ----------------------------------------------------------------------------
 # Helpers
@@ -156,8 +152,8 @@ class KiteProvider:
         self,
         api_key: str | None = None,
         access_token: str | None = None,
-        kite_client: Optional[_KiteLike] = None,
-        settings: Optional[Settings] = None,
+        kite_client: _KiteLike | None = None,
+        settings: Settings | None = None,
     ) -> None:
         # Phase A7 Step 4: delegate .env hydration to bootstrap helper (kept for side-effects)
         try:  # pragma: no cover - best effort
@@ -183,7 +179,7 @@ class KiteProvider:
         self._api_key = getattr(_pc, 'api_key', None)
         self._access_token = getattr(_pc, 'access_token', None)
         self._provider_config = _pc
-        self.kite: Optional[_KiteLike] = kite_client
+        self.kite: _KiteLike | None = kite_client
         self._auth_failed = False
 
         # Initialize mutable provider state (was lost during refactor removing legacy env fallback)
@@ -417,7 +413,7 @@ class KiteProvider:
     # --- deprecation property shims ----------------------------------------
     def _warn_once(self, name: str):
         if not hasattr(self, '_issued_deprecation_warnings'):
-            self._issued_deprecation_warnings: Set[str] = set()
+            self._issued_deprecation_warnings: set[str] = set()
         if name not in self._issued_deprecation_warnings:
             emit_deprecation(
                 f'kite-provider-attr-{name}',

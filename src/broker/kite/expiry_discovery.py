@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import datetime as _dt
 import logging
-from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
@@ -122,7 +121,7 @@ def get_monthly_expiries(provider, index_symbol: str) -> list[_dt.date]:
     try:
         all_exp = get_expiry_dates(provider, index_symbol)
         today = _dt.date.today()
-        by_month: Dict[tuple[int,int], List[_dt.date]] = {}
+        by_month: dict[tuple[int,int], list[_dt.date]] = {}
         for d in all_exp:
             if d >= today:
                 by_month.setdefault((d.year, d.month), []).append(d)

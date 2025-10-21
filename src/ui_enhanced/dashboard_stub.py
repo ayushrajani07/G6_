@@ -2,8 +2,9 @@
 Real implementation can provide multi-panel layout; this just prints a banner once.
 """
 from __future__ import annotations
-import time
-from .color import colorize, FG_CYAN, FG_GREEN
+
+from .color import FG_CYAN, FG_GREEN, colorize
+
 
 class TerminalDashboardStub:
     def __init__(self, refresh_interval: int = 10):

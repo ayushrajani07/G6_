@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """TOMBSTONED: legacy panels bridge (status_to_panels.py).
 
 All historical implementation has been removed. The unified summary path
@@ -15,7 +16,8 @@ Environment flags:
 This tombstone remains only so any lingering automation invoking the old
 script does not crash the process or produce stack traces.
 """
-import os, sys
+import os
+import sys
 
 _TRUTHY = {"1","true","yes","on"}
 

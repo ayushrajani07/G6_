@@ -21,8 +21,14 @@ Deterministic provider logic retained for reproducible cycles.
 """
 from __future__ import annotations
 
-import os, json, time, argparse, statistics, pathlib, sys
-from typing import Dict, Any, List
+import argparse
+import json
+import os
+import pathlib
+import statistics
+import sys
+import time
+from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -50,8 +56,8 @@ except Exception:  # pragma: no cover
             return {inst['symbol']:{'oi':10,'instrument_type':inst['instrument_type'],'strike':inst['strike'],'expiry':None} for inst in instruments}
 
 
-def build_index_params(symbols: List[str]) -> Dict[str, Dict[str, Any]]:
-    params: Dict[str, Dict[str, Any]] = {}
+def build_index_params(symbols: list[str]) -> dict[str, dict[str, Any]]:
+    params: dict[str, dict[str, Any]] = {}
     for sym in symbols:
         params[sym] = {
             'symbol': sym,
@@ -66,7 +72,7 @@ def _truthy(v: str | None) -> bool:
     return (v or '').lower() in ('1','true','yes','on')
 
 
-def run_cycle(mode: str, index_params, provider) -> Dict[str, Any]:
+def run_cycle(mode: str, index_params, provider) -> dict[str, Any]:
     """Run one cycle under facade mode.
 
     mode: legacy | pipeline | parity
@@ -88,7 +94,7 @@ def run_cycle(mode: str, index_params, provider) -> Dict[str, Any]:
         try:
             legacy_res = run_collect_cycle(index_params, provider, None, None, None, mode='legacy', parity_check=False, build_snapshots=False)
             # Heuristic structural hash comparison (same helper logic used in tests/test_pipeline_promotion_default).
-            def _h(r: Dict[str, Any]) -> int:
+            def _h(r: dict[str, Any]) -> int:
                 if not isinstance(r, dict):
                     return -1
                 top = len(r.keys())
@@ -106,13 +112,13 @@ def run_cycle(mode: str, index_params, provider) -> Dict[str, Any]:
                     mismatch = False
         except Exception:
             mismatch = False
-    ret: Dict[str, Any] = {'duration_s': elapsed, 'status': result.get('status') if isinstance(result, dict) else None}
+    ret: dict[str, Any] = {'duration_s': elapsed, 'status': result.get('status') if isinstance(result, dict) else None}
     if parity_check:
         ret['parity_mismatch'] = bool(mismatch)
     return ret
 
 
-def aggregate(durations: List[float]) -> Dict[str, float]:
+def aggregate(durations: list[float]) -> dict[str, float]:
     return {
         'mean_s': statistics.mean(durations) if durations else 0.0,
         'min_s': min(durations) if durations else 0.0,
@@ -133,10 +139,10 @@ def main():
     provider = DeterministicProvider()
 
     modes = [m.strip() for m in args.modes.split(',') if m.strip()]
-    report: Dict[str, Any] = {'modes': modes, 'cycles_per_mode': args.cycles, 'results': {}}
+    report: dict[str, Any] = {'modes': modes, 'cycles_per_mode': args.cycles, 'results': {}}
 
     for mode in modes:
-        durations: List[float] = []
+        durations: list[float] = []
         parity_mismatches = 0
         for i in range(args.cycles):
             rec = run_cycle(mode, index_params, provider)

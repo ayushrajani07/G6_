@@ -19,6 +19,7 @@ These are intentionally light so they can be extended with richer context later.
 """
 from __future__ import annotations
 
+
 class PipelineError(Exception):
     """Base class for pipeline-specific errors."""
     pass

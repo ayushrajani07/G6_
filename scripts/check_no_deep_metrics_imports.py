@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Fail CI if non-test files deep-import the legacy module 'src.metrics.metrics'.
 Allowed:
@@ -12,7 +11,10 @@ Exit codes:
 - 3: Script error
 """
 from __future__ import annotations
-import os, re, sys
+
+import os
+import re
+import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -49,7 +51,7 @@ try:
                 continue
             rel = os.path.relpath(fpath, ROOT)
             try:
-                with open(fpath, 'r', encoding='utf-8', errors='ignore') as f:
+                with open(fpath, encoding='utf-8', errors='ignore') as f:
                     for i, line in enumerate(f, start=1):
                         for pat in PATTERNS:
                             if pat.search(line):
@@ -65,7 +67,7 @@ if VIOLATIONS:
     print("Deep import violations detected (non-test files):")
     for rel, ln, src in VIOLATIONS:
         print(f" - {rel}:{ln}: {src}")
-    print("\nUse: 'from src.metrics import <symbol>' or dynamic 'importlib.import_module("src.metrics")'.")
+    print("\nUse: 'from src.metrics import <symbol>' or dynamic 'importlib.import_module(\"src.metrics\")'.")
     sys.exit(2)
 else:
     print("No deep import violations found.")

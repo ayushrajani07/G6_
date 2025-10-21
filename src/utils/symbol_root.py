@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Optional
 
 # Ordered by descending length so longer (more specific) roots match first.
 INDEX_ROOTS = [
@@ -46,7 +45,7 @@ def _normalized(s: str) -> str:
     return (s or "").upper().strip()
 
 
-def detect_root(tradingsymbol: str) -> Optional[str]:
+def detect_root(tradingsymbol: str) -> str | None:
     """Return the index root if the tradingsymbol begins with a known root.
 
     Longest root wins to prevent partial classification (e.g., MIDCPNIFTY before NIFTY).

@@ -13,8 +13,8 @@ introduced, this guard can be relaxed or replaced with a feature flag.
 
 from __future__ import annotations
 
-from importlib import import_module
 import logging
+from importlib import import_module
 
 logger = logging.getLogger(__name__)
 

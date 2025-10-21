@@ -4,13 +4,18 @@ import json
 import logging
 import os
 import sys
-from dataclasses import dataclass, asdict
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Optional, Protocol, Sequence, Tuple, Union
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
+from typing import Any, Protocol, Union
+
 try:
     # Prefer central env adapter for consistency
-    from src.collectors.env_adapter import get_str as _env_get_str, get_bool as _env_get_bool, get_int as _env_get_int, get_float as _env_get_float  # type: ignore
+    from src.collectors.env_adapter import get_bool as _env_get_bool
+    from src.collectors.env_adapter import get_float as _env_get_float
+    from src.collectors.env_adapter import get_int as _env_get_int
+    from src.collectors.env_adapter import get_str as _env_get_str  # type: ignore
 except Exception:  # pragma: no cover
     # Safe fallbacks if adapter not available early in import graph
     def _env_get_str(name: str, default: str = "") -> str:
@@ -49,7 +54,6 @@ def is_truthy_env(name: str) -> bool:
     return _env_get_bool(name, False)
 
 # Optional Rich support
-from typing import TYPE_CHECKING, Optional
 try:
     import rich.console as _rich_console
 except Exception:  # pragma: no cover
@@ -68,15 +72,15 @@ class OutputEvent:
     timestamp: str
     level: str
     message: str
-    scope: Optional[str] = None
-    tags: Optional[Union[List[str], Mapping[str, str]]] = None
-    data: Optional[JsonLike] = None
+    scope: str | None = None
+    tags: list[str] | Mapping[str, str] | None = None
+    data: JsonLike | None = None
     # Allow attaching arbitrary extras without breaking sinks
-    extra: Optional[Mapping[str, Any]] = None
+    extra: Mapping[str, Any] | None = None
 
     @staticmethod
     def now_iso() -> str:
-        return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
 # ------------------------------
@@ -117,7 +121,7 @@ def atomic_replace(src_path: str, dst_path: str, retries: int = 20, delay: float
     os.replace(src_path, dst_path)
 
 
-def atomic_write_json(dst_path: str, payload: Dict[str, Any], *, ensure_ascii: bool = False, indent: int = 2, retries: int = 20, delay: float = 0.05) -> None:
+def atomic_write_json(dst_path: str, payload: dict[str, Any], *, ensure_ascii: bool = False, indent: int = 2, retries: int = 20, delay: float = 0.05) -> None:
     """Write JSON to a file atomically, with fsync and Windows-safe retry replace.
 
     - Writes to <dst>.tmp, flushes and fsyncs, then replaces dst.
@@ -160,6 +164,7 @@ class StdoutSink:
 
     def emit(self, event: OutputEvent) -> None:
         # Compact human string with optional JSON payload
+        # Ensure level token is uppercased for visibility and tests
         base = f"[{event.level.upper()}] {event.message}"
         if event.scope:
             base = f"({event.scope}) " + base
@@ -171,11 +176,23 @@ class StdoutSink:
             except Exception:
                 payload = str(event.data)
             base += f" data={payload}"
-        print(base, file=self._stream)
+        # Write directly to the configured stream to avoid global print() suppression hooks
+        try:
+            self._stream.write(base + "\n")
+        except Exception:
+            # Fallback to print if stream.write unavailable
+            print(base, file=self._stream)
+        # Best-effort flush for custom streams (e.g., StringIO) to ensure immediate visibility in tests
+        try:
+            flush = getattr(self._stream, 'flush', None)
+            if callable(flush):
+                flush()
+        except Exception:
+            pass
 
 
 class LoggingSink:
-    def __init__(self, logger: Optional[logging.Logger] = None) -> None:
+    def __init__(self, logger: logging.Logger | None = None) -> None:
         self._logger = logger or logging.getLogger("g6")
         # If no handlers are configured, default to a basic stream handler
         if not self._logger.handlers:
@@ -279,7 +296,7 @@ def _install_color_filter():  # pragma: no cover (runtime cosmetic)
 
 
 class RichSink:
-    def __init__(self, console: Optional[Any] = None) -> None:
+    def __init__(self, console: Any | None = None) -> None:
         if console is not None:
             self._console = console
         elif _rich_console is not None:
@@ -334,7 +351,7 @@ class JsonlSink:
 
 class MemorySink:
     def __init__(self) -> None:
-        self.events: List[OutputEvent] = []
+        self.events: list[OutputEvent] = []
 
     def emit(self, event: OutputEvent) -> None:
         self.events.append(event)
@@ -350,7 +367,7 @@ class PanelFileSink:
       - G6_PANELS_ATOMIC: true/false, atomic replace writes (default true)
     Usage via router.panel_update(panel, data, kind=optional)
     """
-    def __init__(self, base_dir: str, include: Optional[Iterable[str]] = None, atomic: bool = True) -> None:
+    def __init__(self, base_dir: str, include: Iterable[str] | None = None, atomic: bool = True) -> None:
         self._base_dir = base_dir
         self._include = {s.strip().lower() for s in include} if include else None
         self._atomic = bool(atomic)
@@ -397,7 +414,7 @@ class PanelFileSink:
         # Delegate to public helper for consistency
         atomic_replace(src_path, dst_path, retries=retries, delay=delay)
 
-    def _write_json_atomic(self, dst: str, payload: Dict[str, Any]) -> None:
+    def _write_json_atomic(self, dst: str, payload: dict[str, Any]) -> None:
         # Ensure directory exists
         try:
             os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -441,7 +458,7 @@ class PanelFileSink:
             try:
                 if txn_action == "commit":
                     stage_dir = self._txn_dir(str(txn_id))
-                    committed: List[str] = []
+                    committed: list[str] = []
                     diag_env = _env_get_str("G6_PANELS_TXN_DEBUG", "")
                     # Optional auto-debug now gated by explicit env to avoid default noise in CI
                     if not diag_env and _env_get_str('PYTEST_CURRENT_TEST','') and is_truthy_env('G6_PANELS_TXN_AUTO_DEBUG'):
@@ -465,7 +482,7 @@ class PanelFileSink:
                                 pass
                             try:
                                 # Copy contents (do not remove staging yet) so a later retry path can still read.
-                                with open(src, 'r', encoding='utf-8') as _rf, open(dst + '.tmpcopy', 'w', encoding='utf-8') as _wf:
+                                with open(src, encoding='utf-8') as _rf, open(dst + '.tmpcopy', 'w', encoding='utf-8') as _wf:
                                     _wf.write(_rf.read())
                                 # Atomic-ish replace of final target
                                 try:
@@ -503,7 +520,7 @@ class PanelFileSink:
                                 src = os.path.join(stage_dir, name)
                                 dst = os.path.join(self._base_dir, name)
                                 try:
-                                    with open(src,'r',encoding='utf-8') as _rf, open(dst,'w',encoding='utf-8') as _wf:
+                                    with open(src,encoding='utf-8') as _rf, open(dst,'w',encoding='utf-8') as _wf:
                                         _wf.write(_rf.read())
                                     committed.append(name[:-5])
                                 except Exception:
@@ -520,7 +537,7 @@ class PanelFileSink:
                                 if not os.path.exists(dst):
                                     src = os.path.join(stage_dir, name)
                                     try:
-                                        with open(src,'r',encoding='utf-8') as _rf, open(dst,'w',encoding='utf-8') as _wf:
+                                        with open(src,encoding='utf-8') as _rf, open(dst,'w',encoding='utf-8') as _wf:
                                             _wf.write(_rf.read())
                                         if name[:-5] not in committed:
                                             committed.append(name[:-5])
@@ -577,7 +594,7 @@ class PanelFileSink:
                         from src.metrics import get_metrics_singleton  # type: ignore
                         m = get_metrics_singleton()
                         if m and hasattr(m, 'panels_txn_commits'):
-                            getattr(m, 'panels_txn_commits').inc()  # type: ignore[arg-type]
+                            m.panels_txn_commits.inc()  # type: ignore[arg-type]
                     except Exception:
                         pass
                 else:
@@ -620,7 +637,7 @@ class PanelFileSink:
                         from src.metrics import get_metrics_singleton  # type: ignore
                         m = get_metrics_singleton()
                         if m and hasattr(m, 'panels_txn_aborts'):
-                            getattr(m, 'panels_txn_aborts').inc()  # type: ignore[arg-type]
+                            m.panels_txn_aborts.inc()  # type: ignore[arg-type]
                     except Exception:
                         pass
                 return
@@ -637,7 +654,7 @@ class PanelFileSink:
                                 dst = os.path.join(self._base_dir, name)
                                 try:
                                     os.makedirs(self._base_dir, exist_ok=True)
-                                    with open(src,'r',encoding='utf-8') as _rf, open(dst,'w',encoding='utf-8') as _wf:
+                                    with open(src,encoding='utf-8') as _rf, open(dst,'w',encoding='utf-8') as _wf:
                                         _wf.write(_rf.read())
                                 except Exception:
                                     pass
@@ -693,7 +710,7 @@ class PanelFileSink:
                 # Prefer staged file if present
                 if os.path.exists(dst):
                     try:
-                        with open(dst, "r", encoding="utf-8") as rf:
+                        with open(dst, encoding="utf-8") as rf:
                             prev_obj = json.load(rf)
                         if isinstance(prev_obj, dict):
                             if "data" in prev_obj:
@@ -707,7 +724,7 @@ class PanelFileSink:
                     live = os.path.join(self._base_dir, f"{panel_s}.json")
                     if os.path.exists(live):
                         try:
-                            with open(live, "r", encoding="utf-8") as rf:
+                            with open(live, encoding="utf-8") as rf:
                                 prev_obj2 = json.load(rf)
                             if isinstance(prev_obj2, dict):
                                 if "data" in prev_obj2:
@@ -761,7 +778,7 @@ class PanelFileSink:
                             ts_val = float(ts_val)
                         except Exception:
                             ts_val = None
-                    iso_ts = _dt.datetime.fromtimestamp(float(ts_val), _dt.timezone.utc).isoformat().replace('+00:00','Z') if isinstance(ts_val, (int,float)) else None
+                    iso_ts = _dt.datetime.fromtimestamp(float(ts_val), _dt.UTC).isoformat().replace('+00:00','Z') if isinstance(ts_val, (int,float)) else None
                 except Exception:
                     iso_ts = None  # best-effort
                 # Import version constant lazily to avoid import cycles
@@ -788,11 +805,11 @@ class PanelFileSink:
                 from src.metrics import get_metrics_singleton  # facade import
                 m = get_metrics_singleton()
                 if m and hasattr(m, 'panels_writes'):
-                    getattr(m, 'panels_writes').inc()  # type: ignore[call-arg]
+                    m.panels_writes.inc()  # type: ignore[call-arg]
                 # Panel update counters by mode
                 if m and hasattr(m, 'panels_updates_total'):
                     try:
-                        getattr(m, 'panels_updates_total').labels(mode).inc()  # type: ignore[arg-type]
+                        m.panels_updates_total.labels(mode).inc()  # type: ignore[arg-type]
                     except Exception:
                         pass
             except Exception:
@@ -806,7 +823,7 @@ class PanelFileSink:
                 from src.metrics import get_metrics_singleton  # facade import
                 m = get_metrics_singleton()
                 if m and hasattr(m, 'panels_write_errors'):
-                    getattr(m, 'panels_write_errors').inc()  # type: ignore[call-arg]
+                    m.panels_write_errors.inc()  # type: ignore[call-arg]
             except Exception:
                 pass
 
@@ -836,11 +853,11 @@ def _normalize_level(level: str) -> str:
 
 
 class OutputRouter:
-    def __init__(self, sinks: Optional[List[OutputSink]] = None, min_level: str = "info") -> None:
-        self._sinks: List[OutputSink] = list(sinks or [])
+    def __init__(self, sinks: list[OutputSink] | None = None, min_level: str = "info") -> None:
+        self._sinks: list[OutputSink] = list(sinks or [])
         self._min_level = _normalize_level(min_level)
         # Maintain a simple transaction stack for panel writes
-        self._panel_txn_stack: List[str] = []
+        self._panel_txn_stack: list[str] = []
 
     def add_sink(self, sink: OutputSink) -> None:
         self._sinks.append(sink)
@@ -856,11 +873,11 @@ class OutputRouter:
         message: str,
         *,
         level: str = "info",
-        scope: Optional[str] = None,
-        tags: Optional[Union[List[str], Mapping[str, str]]] = None,
-        data: Optional[JsonLike] = None,
-        extra: Optional[Mapping[str, Any]] = None,
-        timestamp: Optional[str] = None,
+        scope: str | None = None,
+        tags: list[str] | Mapping[str, str] | None = None,
+        data: JsonLike | None = None,
+        extra: Mapping[str, Any] | None = None,
+        timestamp: str | None = None,
     ) -> None:
         level_n = _normalize_level(level)
         if not self.should_emit(level_n):
@@ -893,9 +910,9 @@ class OutputRouter:
     def critical(self, msg: str, **kw: Any) -> None: self.emit(msg, level="critical", **kw)
 
     # Panel update helper: directs to panel sinks without printing human output
-    def panel_update(self, panel: str, data: JsonLike, *, kind: Optional[str] = None) -> None:
+    def panel_update(self, panel: str, data: JsonLike, *, kind: str | None = None) -> None:
         # Attach txn context if any
-        extra_base: Dict[str, Any] = {"_panel": panel}
+        extra_base: dict[str, Any] = {"_panel": panel}
         if kind:
             extra_base["_kind"] = kind
         if self._panel_txn_stack:
@@ -919,8 +936,8 @@ class OutputRouter:
                 except Exception:
                     pass
 
-    def panel_append(self, panel: str, item: JsonLike, *, cap: int = 100, kind: Optional[str] = None) -> None:
-        extra_base: Dict[str, Any] = {"_panel": panel, "_mode": "append", "_cap": cap}
+    def panel_append(self, panel: str, item: JsonLike, *, cap: int = 100, kind: str | None = None) -> None:
+        extra_base: dict[str, Any] = {"_panel": panel, "_mode": "append", "_cap": cap}
         if kind:
             extra_base["_kind"] = kind
         if self._panel_txn_stack:
@@ -943,8 +960,8 @@ class OutputRouter:
                 except Exception:
                     pass
 
-    def panel_extend(self, panel: str, items: Sequence[JsonLike], *, cap: int = 100, kind: Optional[str] = None) -> None:
-        extra_base: Dict[str, Any] = {"_panel": panel, "_mode": "extend", "_cap": cap}
+    def panel_extend(self, panel: str, items: Sequence[JsonLike], *, cap: int = 100, kind: str | None = None) -> None:
+        extra_base: dict[str, Any] = {"_panel": panel, "_mode": "extend", "_cap": cap}
         if kind:
             extra_base["_kind"] = kind
         if self._panel_txn_stack:
@@ -971,14 +988,14 @@ class OutputRouter:
     # Panel transactions
     # ---------------
     class PanelsTransaction:
-        def __init__(self, router: "OutputRouter", txn_id: Optional[str] = None) -> None:
+        def __init__(self, router: OutputRouter, txn_id: str | None = None) -> None:
             self._router = router
             self._txn_id = txn_id or str(uuid.uuid4())
             self._active = False
         @property
         def id(self) -> str:
             return self._txn_id
-        def __enter__(self) -> "OutputRouter.PanelsTransaction":
+        def __enter__(self) -> OutputRouter.PanelsTransaction:
             self._router._panel_txn_stack.append(self._txn_id)
             self._active = True
             return self
@@ -1022,7 +1039,7 @@ class OutputRouter:
                                 dst = os.path.join(base_dir, name)
                                 try:
                                     os.makedirs(base_dir, exist_ok=True)
-                                    with open(src,'r',encoding='utf-8') as _rf, open(dst,'w',encoding='utf-8') as _wf:
+                                    with open(src,encoding='utf-8') as _rf, open(dst,'w',encoding='utf-8') as _wf:
                                         _wf.write(_rf.read())
                                 except Exception:
                                     pass
@@ -1037,7 +1054,8 @@ class OutputRouter:
                             pass
                         # Aggressive cleanup of individual txn dir and prune root if empty
                         try:
-                            import shutil as _sh, time as _t
+                            import shutil as _sh
+                            import time as _t
                             _sh.rmtree(stage_dir, ignore_errors=True)
                             if os.path.isdir(stage_dir):  # retry briefly
                                 _t.sleep(0.05)
@@ -1056,7 +1074,8 @@ class OutputRouter:
                     base_dir = _env_get_str('G6_PANELS_DIR', os.path.join('data','panels'))
                     stage_dir = os.path.join(base_dir, '.txn', self._txn_id)
                     if os.path.isdir(stage_dir):
-                        import shutil as _sh, time as _t
+                        import shutil as _sh
+                        import time as _t
                         _sh.rmtree(stage_dir, ignore_errors=True)
                         if os.path.isdir(stage_dir):
                             _t.sleep(0.05)
@@ -1068,7 +1087,7 @@ class OutputRouter:
                 except Exception:
                     pass
 
-    def begin_panels_txn(self, txn_id: Optional[str] = None) -> "OutputRouter.PanelsTransaction":
+    def begin_panels_txn(self, txn_id: str | None = None) -> OutputRouter.PanelsTransaction:
         """Begin a panels transaction. Use as a context manager:
         with router.begin_panels_txn():
             router.panel_update(...)
@@ -1081,7 +1100,7 @@ class OutputRouter:
         for s in self._sinks:
             try:
                 if hasattr(s, 'close'):
-                    getattr(s, 'close')()
+                    s.close()
             except Exception:
                 pass
         self._sinks.clear()
@@ -1092,13 +1111,13 @@ class OutputRouter:
 # Factory / singleton
 # ------------------------------
 
-_router_singleton: Optional[OutputRouter] = None
+_router_singleton: OutputRouter | None = None
 
 
 def _build_from_env() -> OutputRouter:
     sinks_env = _env_get_str("G6_OUTPUT_SINKS", "stdout,logging").strip()
     min_level = _env_get_str("G6_OUTPUT_LEVEL", "info").strip().lower() or "info"
-    sinks: List[OutputSink] = []
+    sinks: list[OutputSink] = []
 
     for token in [s.strip().lower() for s in sinks_env.split(",") if s.strip()]:
         if token == "stdout":

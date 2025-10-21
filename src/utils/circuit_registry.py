@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Tiny adaptive circuit breaker registry and decorators (opt-in).
 Safe-by-default: nothing changes unless explicitly used.
@@ -8,14 +7,16 @@ from __future__ import annotations
 
 import os
 import threading
-from typing import Callable, Dict, Optional, Any, TypeVar, cast
+from collections.abc import Callable
+from typing import Any, TypeVar, cast
 
-from .adaptive_circuit_breaker import AdaptiveCircuitBreaker, BreakerConfig, CircuitOpenError, CircuitState
 from src.health import runtime as health_runtime
 from src.health.models import HealthLevel, HealthState
 
+from .adaptive_circuit_breaker import AdaptiveCircuitBreaker, BreakerConfig, CircuitOpenError, CircuitState
+
 _REG_LOCK = threading.RLock()
-_REGISTRY: Dict[str, AdaptiveCircuitBreaker] = {}
+_REGISTRY: dict[str, AdaptiveCircuitBreaker] = {}
 
 
 def get_breaker(name: str) -> AdaptiveCircuitBreaker:
@@ -39,13 +40,14 @@ def get_breaker(name: str) -> AdaptiveCircuitBreaker:
         return b
 
 
+P = TypeVar("P")
 F = TypeVar("F")
 
 
-def circuit_protected(name: Optional[str] = None, fallback: Optional[Callable[..., Any]] = None):
+def circuit_protected(name: str | None = None, fallback: Callable[..., Any] | None = None) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
     def deco(func: Callable[..., Any]) -> Callable[..., Any]:
         cb_name = name or f"cb:{func.__module__}.{func.__name__}"
-        def wrapper(*args, **kwargs):
+        def wrapper(*args: Any, **kwargs: Any) -> Any:
             br = get_breaker(cb_name)
             try:
                 result = br.execute(func, *args, **kwargs)
@@ -72,7 +74,7 @@ def circuit_protected(name: Optional[str] = None, fallback: Optional[Callable[..
                 if callable(fallback):
                     return fallback(*args, **kwargs)
                 raise
-        return cast(Callable[..., Any], wrapper)
+        return wrapper
     return deco
 
 

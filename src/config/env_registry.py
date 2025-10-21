@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 from __future__ import annotations
 
 import os
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum, auto
-from typing import Any, Callable, Dict, Generic, List, Optional, Pattern, TypeVar, Union
+from re import Pattern
+from typing import Any, Generic, TypeVar
 
 T = TypeVar('T')
 
@@ -23,43 +24,43 @@ class EnvVarType(Enum):
 @dataclass
 class EnvVarDefinition(Generic[T]):
     name: str
-    config_path: List[str]
+    config_path: list[str]
     var_type: EnvVarType
     description: str
-    default: Optional[T] = None
+    default: T | None = None
     required: bool = False
-    choices: Optional[List[T]] = None
-    min_value: Optional[Union[int, float]] = None
-    max_value: Optional[Union[int, float]] = None
-    pattern: Optional[Union[str, Pattern[str]]] = None
+    choices: list[T] | None = None
+    min_value: int | float | None = None
+    max_value: int | float | None = None
+    pattern: str | Pattern[str] | None = None
     case_sensitive: bool = False
     hidden: bool = False
     deprecated: bool = False
-    replacement: Optional[str] = None
-    transform: Optional[Callable[[str], T]] = None
+    replacement: str | None = None
+    transform: Callable[[str], T] | None = None
 
 
 class EnvironmentRegistry:
     def __init__(self) -> None:
         self._prefix = "G6_"
-        self._defs: Dict[str, EnvVarDefinition[Any]] = {}
+        self._defs: dict[str, EnvVarDefinition[Any]] = {}
 
     def register(self, definition: EnvVarDefinition[Any]) -> None:
         key = definition.name if definition.case_sensitive else definition.name.upper()
         self._defs[key] = definition
 
-    def register_many(self, defs: List[EnvVarDefinition[Any]]) -> None:
+    def register_many(self, defs: list[EnvVarDefinition[Any]]) -> None:
         for d in defs:
             self.register(d)
 
-    def get_definition(self, name_without_prefix: str) -> Optional[EnvVarDefinition[Any]]:
+    def get_definition(self, name_without_prefix: str) -> EnvVarDefinition[Any] | None:
         # Exact (case-sensitive) first
         if name_without_prefix in self._defs and self._defs[name_without_prefix].case_sensitive:
             return self._defs[name_without_prefix]
         # Case-insensitive
         return self._defs.get(name_without_prefix.upper())
 
-    def apply_to_config(self, cfg: Dict[str, Any]) -> Dict[str, Any]:
+    def apply_to_config(self, cfg: dict[str, Any]) -> dict[str, Any]:
         out = dict(cfg)
         processed: set[str] = set()
         # First pass: registered vars with validation
@@ -67,7 +68,7 @@ class EnvironmentRegistry:
             if not env_name.startswith(self._prefix):
                 continue
             name_wo = env_name[len(self._prefix):]
-             
+
             d = self.get_definition(name_wo)
             if not d:
                 continue
@@ -92,7 +93,7 @@ class EnvironmentRegistry:
                     cur = nxt
         return out
 
-    def _set_nested(self, cfg: Dict[str, Any], path: List[str], val: Any) -> None:
+    def _set_nested(self, cfg: dict[str, Any], path: list[str], val: Any) -> None:
         cur = cfg
         for i, k in enumerate(path):
             if i == len(path) - 1:
@@ -138,7 +139,7 @@ class EnvironmentRegistry:
         elif d.var_type == EnvVarType.LIST:
             res = [s.strip() for s in value.split(',')] if value else []
         elif d.var_type == EnvVarType.DICT:
-            tmp: Dict[str, str] = {}
+            tmp: dict[str, str] = {}
             if value:
                 for pair in value.split(','):
                     if '=' not in pair:
@@ -170,7 +171,7 @@ class EnvironmentRegistry:
             return [p.strip() for p in s.split(',')]
         return s
 
-    def get_documented_variables(self) -> List[EnvVarDefinition[Any]]:
+    def get_documented_variables(self) -> list[EnvVarDefinition[Any]]:
         return [d for d in self._defs.values() if not d.hidden]
 
 

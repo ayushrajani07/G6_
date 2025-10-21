@@ -8,11 +8,11 @@ The factory + dataclass currently live in the flat module
 stable package-style import path.
 """
 from src.collectors.pipeline_root import (
-	build_default_pipeline,
-	ExpiryWorkItem,
-	EnrichedExpiry,
-	PersistOutcome,
 	CollectorPipeline,
+	EnrichedExpiry,
+	ExpiryWorkItem,
+	PersistOutcome,
+	build_default_pipeline,
 )
 
 __all__ = [

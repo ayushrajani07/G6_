@@ -21,8 +21,8 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, Optional, Tuple
 from dataclasses import dataclass
+from typing import Any
 
 # Freeze gating: if platform egress (non-Prometheus) is frozen, we no-op.
 _EGRESS_FROZEN = os.getenv('G6_EGRESS_FROZEN','').lower() in {'1','true','yes','on'}
@@ -34,22 +34,27 @@ except Exception:  # pragma: no cover - fallback when module unavailable
 
 @dataclass
 class _DiffState:
-    last_snapshot: Dict[str, Any]
+    last_snapshot: dict[str, Any]
     status_path: str
     counter: int = 0
 
-_state: Optional[_DiffState] = None
+_state: _DiffState | None = None
 _BUS = None
 
 
 def _copy_jsonable(obj: Any) -> Any:
+    # Prefer deepcopy to avoid serialization overhead; fallback to json round-trip if needed.
     try:
-        return json.loads(json.dumps(obj))
+        import copy as _copy
+        return _copy.deepcopy(obj)
     except Exception:
-        return obj
+        try:
+            return json.loads(json.dumps(obj))
+        except Exception:
+            return obj
 
 
-def _publish_event(event_type: str, payload: Dict[str, Any], *, coalesce_key: Optional[str] = None) -> None:
+def _publish_event(event_type: str, payload: dict[str, Any], *, coalesce_key: str | None = None) -> None:
     global _BUS
     if get_event_bus is None:
         return
@@ -66,7 +71,7 @@ def _publish_event(event_type: str, payload: Dict[str, Any], *, coalesce_key: Op
     except Exception:
         pass
 
-def emit_panel_artifacts(status: Dict[str, Any], *, status_path: str) -> None:
+def emit_panel_artifacts(status: dict[str, Any], *, status_path: str) -> None:
     """Emit panel diff & periodic full snapshots with optional recursive depth.
 
     Environment Variables:
@@ -153,9 +158,9 @@ def emit_panel_artifacts(status: Dict[str, Any], *, status_path: str) -> None:
 
     truncated = False
     # Count only top-level diff entries (added + removed + changed + nested keys)
-    def _diff_dict(a: Dict[str, Any], b: Dict[str, Any], depth: int, *, _root: bool = True) -> Dict[str, Any]:
+    def _diff_dict(a: dict[str, Any], b: dict[str, Any], depth: int, *, _root: bool = True) -> dict[str, Any]:
         nonlocal truncated
-        out: Dict[str, Any] = {"added": {}, "removed": [], "changed": {}, "nested": {}}
+        out: dict[str, Any] = {"added": {}, "removed": [], "changed": {}, "nested": {}}
         key_budget = 0
         # Helper to check & set truncation
         def _maybe_truncate() -> bool:

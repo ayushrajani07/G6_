@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """CollectorSettings
 
 Centralized parsing of environment-driven collector configuration flags.
@@ -20,11 +19,11 @@ Design notes:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
-from typing import ClassVar, Set
+from dataclasses import dataclass
+from typing import ClassVar
 
-_TRUE_SET: Set[str] = {"1","true","yes","on"}
+_TRUE_SET: set[str] = {"1","true","yes","on"}
 
 @dataclass(slots=True)
 class CollectorSettings:
@@ -50,7 +49,7 @@ class CollectorSettings:
     }
 
     @classmethod
-    def from_env(cls) -> 'CollectorSettings':  # pragma: no cover - simple parsing
+    def from_env(cls) -> CollectorSettings:  # pragma: no cover - simple parsing
         kw = {}
         for attr, env_name in cls.INT_ENV_MAP.items():
             raw = os.environ.get(env_name, '').strip()

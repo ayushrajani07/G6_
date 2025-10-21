@@ -25,26 +25,25 @@ Future extensions may add correlation ids, cycle counters, or host metadata.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import json
+import logging
 import os
+import random
 import threading
 import time
-from typing import Any, Optional, List
-import logging
-import random
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 _lock = threading.Lock()
 _io_suppressed = False  # once we hit a persistent IO error we stop spamming logs
 _seq = 0  # monotonic sequence for emitted events (resets on process restart)
-_cycle_correlation_id: Optional[str] = None  # correlation id scoped to a cycle boundary
+_cycle_correlation_id: str | None = None  # correlation id scoped to a cycle boundary
 _metrics_counter = None  # lazily bound metrics counter (g6_events_emitted_total)
 _min_level_rank = 0  # dynamic level threshold
 _sampling_map: dict[str, float] = {}
 _sampling_default: float = 1.0
-_recent_buffer: List[str] = []  # raw JSON lines
+_recent_buffer: list[str] = []  # raw JSON lines
 _recent_buffer_max = 500
 
 _LEVEL_RANK = {"debug": 10, "info": 20, "warn": 30, "warning": 30, "error": 40, "critical": 50}
@@ -58,7 +57,7 @@ def _log_path() -> str:
 
 
 def events_enabled() -> bool:
-    return not (os.environ.get("G6_EVENTS_DISABLE", "").lower() in ("1", "true", "yes", "on"))
+    return os.environ.get("G6_EVENTS_DISABLE", "").lower() not in ("1", "true", "yes", "on")
 
 
 def register_events_metrics(counter_obj: Any) -> None:
@@ -71,15 +70,15 @@ def register_events_metrics(counter_obj: Any) -> None:
     _metrics_counter = counter_obj
 
 
-def set_cycle_correlation(correlation_id: Optional[str]) -> None:
+def set_cycle_correlation(correlation_id: str | None) -> None:
     """Set or clear the active cycle correlation id (propagated to subsequent events)."""
     global _cycle_correlation_id
     _cycle_correlation_id = correlation_id
 
 
-def dispatch(event: str, *, level: str = "info", index: Optional[str] = None,
-             expiry: Optional[str] = None, context: Optional[dict[str, Any]] = None,
-             correlation_id: Optional[str] = None) -> None:
+def dispatch(event: str, *, level: str = "info", index: str | None = None,
+             expiry: str | None = None, context: dict[str, Any] | None = None,
+             correlation_id: str | None = None) -> None:
     """Emit a structured event line.
 
     Best-effort: failures to write after first warning are ignored silently.

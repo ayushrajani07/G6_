@@ -17,16 +17,17 @@ struct event emission, which mirrors legacy logic for observability.
 """
 from __future__ import annotations
 
-from typing import Any, Iterable, List, Sequence, Tuple, Optional
-import os
 import logging
+import os
+from collections.abc import Sequence
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-ClampMeta = Tuple[int, int, int, bool]
+ClampMeta = tuple[int, int, int, bool]
 
 
-def apply_prefilter_clamp(index_symbol: str, expiry_rule: str, expiry_date: Any, instruments: Sequence[dict]) -> tuple[List[dict], Optional[ClampMeta]]:
+def apply_prefilter_clamp(index_symbol: str, expiry_rule: str, expiry_date: Any, instruments: Sequence[dict]) -> tuple[list[dict], ClampMeta | None]:
     """Apply prefilter clamp logic.
 
     Parameters

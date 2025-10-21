@@ -1,7 +1,8 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any, Optional
+
 import time
+from dataclasses import dataclass, field
+from typing import Any
 
 __all__ = ["PhaseErrorRecord"]
 
@@ -21,7 +22,7 @@ class PhaseErrorRecord:
     phase: str
     classification: str
     message: str
-    detail: Optional[str] = None
+    detail: str | None = None
     attempt: int = 1
     timestamp: float = field(default_factory=lambda: time.time())
     outcome_token: str = ""

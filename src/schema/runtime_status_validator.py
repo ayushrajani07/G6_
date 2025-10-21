@@ -4,7 +4,9 @@ Performs minimal structural & semantic checks approximating the JSON schema
 in `runtime_status_schema.json` without requiring jsonschema package.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Iterable
+
+from collections.abc import Iterable
+from typing import Any
 
 REQUIRED_TOP = [
     "timestamp", "cycle", "elapsed", "interval", "sleep_sec", "indices", "indices_info"
@@ -35,7 +37,7 @@ def _known_top_level_keys() -> Iterable[str]:  # small helper for strict mode
         yield k
 
 
-def validate_runtime_status(obj: Dict[str, Any], *, strict: bool = False) -> List[str]:
+def validate_runtime_status(obj: dict[str, Any], *, strict: bool = False) -> list[str]:
     """Validate runtime status structure.
 
     Parameters:
@@ -47,7 +49,7 @@ def validate_runtime_status(obj: Dict[str, Any], *, strict: bool = False) -> Lis
     Returns:
         List of human-readable error strings. Empty when valid.
     """
-    errors: List[str] = []
+    errors: list[str] = []
     if not isinstance(obj, dict):
         return ["Root must be object"]
     # Required fields

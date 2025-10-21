@@ -1,7 +1,8 @@
 """Structured event logging helpers for provider (A19)."""
 from __future__ import annotations
-from typing import Any, Mapping
+
 import logging
+from typing import Any
 
 __all__ = ["emit_event"]
 

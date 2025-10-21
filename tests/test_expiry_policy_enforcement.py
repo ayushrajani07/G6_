@@ -28,7 +28,7 @@ def _options_pair(strike, expiry_a, expiry_b=None):
     }
 
 def _run_cycle(sink, index, exp_date, options_data):
-    ts = datetime.datetime.now()
+    ts = datetime.datetime.now()  # local-ok
     sink.write_options_data(index=index, expiry=exp_date, options_data=options_data, timestamp=ts)
 
 

@@ -15,9 +15,8 @@ Future: extend with validated groups & feature flags once stable.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
-from typing import Optional
+from dataclasses import dataclass
 
 __all__ = [
     "LoopSettings",
@@ -29,7 +28,7 @@ __all__ = [
 @dataclass(frozen=True)
 class LoopSettings:
     interval_seconds: float
-    max_cycles: Optional[int]
+    max_cycles: int | None
 
 @dataclass(frozen=True)
 class MetricsSettings:
@@ -44,7 +43,7 @@ class RuntimeConfig:
 
 _singleton: RuntimeConfig | None = None
 
-def _coerce_int(val: str | None) -> Optional[int]:
+def _coerce_int(val: str | None) -> int | None:
     if val is None or not val.strip():
         return None
     try:

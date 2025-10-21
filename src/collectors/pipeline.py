@@ -21,11 +21,12 @@ Future Extensions (not implemented now):
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Protocol, Any, Dict, List, Optional, Iterable, Tuple
 import datetime
-import os
 import logging
+from collections.abc import Iterable
+from dataclasses import dataclass
+from typing import Any, Protocol
+
 from src.utils.expiry_service import build_expiry_service
 
 logger = logging.getLogger(__name__)
@@ -38,15 +39,15 @@ class ExpiryWorkItem:
     index: str
     expiry_rule: str
     expiry_date: datetime.date | datetime.datetime | Any  # unresolved until resolve phase
-    strikes: List[float]
+    strikes: list[float]
     index_price: float
     atm_strike: float
 
 @dataclass
 class EnrichedExpiry:
     work: ExpiryWorkItem
-    instruments: List[Dict[str, Any]]
-    enriched: Dict[str, Dict[str, Any]]
+    instruments: list[dict[str, Any]]
+    enriched: dict[str, dict[str, Any]]
 
 @dataclass
 class PersistOutcome:
@@ -64,10 +65,10 @@ class ExpiryResolver(Protocol):
     def resolve(self, wi: ExpiryWorkItem) -> ExpiryWorkItem: ...
 
 class InstrumentFetcher(Protocol):
-    def fetch(self, wi: ExpiryWorkItem) -> List[Dict[str, Any]]: ...
+    def fetch(self, wi: ExpiryWorkItem) -> list[dict[str, Any]]: ...
 
 class QuoteEnricher(Protocol):
-    def enrich(self, wi: ExpiryWorkItem, instruments: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]: ...
+    def enrich(self, wi: ExpiryWorkItem, instruments: list[dict[str, Any]]) -> dict[str, dict[str, Any]]: ...
 
 class AnalyticsBlock(Protocol):
     def apply(self, ee: EnrichedExpiry) -> None: ...
@@ -98,10 +99,10 @@ class ProvidersAdapter:
             pass
         return wi
 
-    def fetch(self, wi: ExpiryWorkItem) -> List[Dict[str, Any]]:  # InstrumentFetcher
+    def fetch(self, wi: ExpiryWorkItem) -> list[dict[str, Any]]:  # InstrumentFetcher
         return self.providers.get_option_instruments(wi.index, wi.expiry_date, wi.strikes)
 
-    def enrich(self, wi: ExpiryWorkItem, instruments: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:  # QuoteEnricher
+    def enrich(self, wi: ExpiryWorkItem, instruments: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:  # QuoteEnricher
         return self.providers.enrich_with_quotes(instruments)
 
 class NoOpAnalytics(AnalyticsBlock):
@@ -193,7 +194,7 @@ class CsvPersistAdapter(PersistenceBlock):
                 ee.work.index,
                 ee.work.expiry_date,
                 ee.enriched,
-                datetime.datetime.now(datetime.timezone.utc),
+                datetime.datetime.now(datetime.UTC),
                 index_price=ee.work.index_price,
                 index_ohlc={},
                 suppress_overview=True,
@@ -210,7 +211,7 @@ class CsvPersistAdapter(PersistenceBlock):
                     ee.work.index,
                     ee.work.expiry_date,
                     ee.enriched,
-                    datetime.datetime.now(datetime.timezone.utc),
+                    datetime.datetime.now(datetime.UTC),
                 )
             except Exception as e:  # pragma: no cover
                 logger.debug("Influx persistence failed in pipeline: %s", e)
@@ -246,7 +247,7 @@ class CollectorPipeline:
         self.analytics = list(analytics)
         self.persistence = persistence
 
-    def run_expiry(self, wi: ExpiryWorkItem) -> Tuple[Optional[EnrichedExpiry], Optional[PersistOutcome]]:
+    def run_expiry(self, wi: ExpiryWorkItem) -> tuple[EnrichedExpiry | None, PersistOutcome | None]:
         try:
             wi = self.resolver.resolve(wi)
             instruments = self.fetcher.fetch(wi)
@@ -309,7 +310,7 @@ def build_default_pipeline(
     else:
         resolver = adapter
     persist = CsvPersistAdapter(csv_sink, influx_sink=influx_sink, metrics=metrics)
-    analytics: List[AnalyticsBlock] = []
+    analytics: list[AnalyticsBlock] = []
     greeks_calculator = None
     if compute_greeks or estimate_iv:
         try:  # lazy import to avoid overhead when disabled

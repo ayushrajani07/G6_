@@ -2,7 +2,7 @@ param(
   [string]$Port = "9109",
   [string]$Index = "NIFTY",
   [string]$Expiry = "this_week",
-  [string]$Offset = "ATM",
+  [string]$Offset = "0",
   [string]$Layout = "grid",
   [string]$Output = "overlays_demo.html",
   [int]$IntervalMs = 1000

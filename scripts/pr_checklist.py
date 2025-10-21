@@ -13,9 +13,11 @@ Usage:
 Exit code non-zero if --strict and a required item is missing.
 """
 from __future__ import annotations
-import argparse, os, sys, re, subprocess
+
+import argparse
+import subprocess
+import sys
 from pathlib import Path
-from typing import List, Tuple
 
 REPO = Path(__file__).resolve().parent.parent
 README = REPO / 'README.md'
@@ -42,7 +44,7 @@ class ChecklistFailure(Exception):
 def file_exists(rel: str) -> bool:
     return (REPO / rel).exists()
 
-def run_readiness(strict: bool) -> Tuple[bool,str]:
+def run_readiness(strict: bool) -> tuple[bool,str]:
     cmd = [sys.executable,'scripts/release_readiness.py','--check-env','--check-deprecations']
     if strict:
         cmd.append('--strict')
@@ -57,7 +59,7 @@ def main() -> int:
     ap.add_argument('--summary-line', action='store_true', help='Emit a single-line machine friendly summary (no checklist)')
     args = ap.parse_args()
 
-    missing: List[str] = []
+    missing: list[str] = []
 
     readme_text = README.read_text(encoding='utf-8', errors='ignore') if README.exists() else ''
 

@@ -8,9 +8,11 @@ Extracted from temporary placement in storage_category. Covers:
 Registration happens only if lifecycle group is allowed.
 """
 from __future__ import annotations
-from prometheus_client import Counter, Histogram, Gauge
-from typing import TYPE_CHECKING
+
 import logging
+from typing import TYPE_CHECKING
+
+from prometheus_client import Counter, Gauge, Histogram
 
 if TYPE_CHECKING:  # pragma: no cover - type hint only
     from .registry import MetricsRegistry  # noqa: F401
@@ -19,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 __all__ = ["init_lifecycle_metrics"]
 
-def init_lifecycle_metrics(registry: "MetricsRegistry") -> None:
+def init_lifecycle_metrics(registry: MetricsRegistry) -> None:
     try:
         core = registry._core_reg  # type: ignore[attr-defined]
         core('compressed_files_total', Counter, 'g6_compressed_files_total', 'Lifecycle compression operations performed (files compressed)', ['type'])

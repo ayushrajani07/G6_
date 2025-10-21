@@ -14,15 +14,18 @@ Environment flags respected:
   G6_CONCISE_LOGS=0 to make sure detailed logs show.
 """
 from __future__ import annotations
-import os, sys, json, math, datetime as dt
-from typing import List
+
+import json
+import math
+import os
+from typing import Any
 
 os.environ.setdefault('G6_RELAX_EMPTY_MATCH','1')
 os.environ.setdefault('G6_CONCISE_LOGS','0')
 
 try:
-    from src.broker.kite_provider import KiteProvider
     from src.broker.kite.options import option_instruments
+    from src.broker.kite_provider import KiteProvider
     from src.collectors.modules.expiry_helpers import resolve_expiry
 except Exception as e:  # pragma: no cover
     print("IMPORT_FAIL", e)
@@ -33,7 +36,7 @@ RULES = ['this_week','next_week']
 
 prov = KiteProvider()
 
-report = []
+report: list[dict[str, Any]] = []
 for idx in [i.strip().upper() for i in INDICES if i.strip()] :
     for rule in RULES:
         try:
@@ -45,7 +48,7 @@ for idx in [i.strip().upper() for i in INDICES if i.strip()] :
         # Build strikes (guard atm int)
         base = int(atm) if isinstance(atm,(int,float)) and not math.isnan(float(atm)) else 0
         increments = [0, 100, 200, 300]
-        strikes: List[float] = []
+        strikes: list[float] = []
         for inc in increments:
             strikes.append(float(base + inc))
             if inc != 0:

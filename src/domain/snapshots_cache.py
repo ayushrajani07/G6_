@@ -5,8 +5,12 @@ route (see catalog_http extension). Designed to avoid repeated reconstruction of
 snapshot objects while allowing lightweight JSON serialization.
 """
 from __future__ import annotations
-import threading, os, datetime as dt
-from typing import List, Dict, Optional, Iterable, Tuple, TYPE_CHECKING, Any
+
+import datetime as dt
+import os
+import threading
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # only for type checking; at runtime avoid import cost / cycles
     from .models import ExpirySnapshot  # noqa: F401
@@ -16,8 +20,8 @@ ExpirySnapshot = Any  # type: ignore
 
 _LOCK = threading.RLock()
 # map (index, expiry_rule) -> ExpirySnapshot
-_SNAPSHOTS: Dict[Tuple[str, str], Any] = {}
-_LAST_UPDATED: Optional[dt.datetime] = None
+_SNAPSHOTS: dict[tuple[str, str], Any] = {}
+_LAST_UPDATED: dt.datetime | None = None
 
 
 def enabled() -> bool:
@@ -31,10 +35,10 @@ def update(snapshots: Iterable[Any]) -> None:
         for snap in snapshots:
             key = (snap.index, snap.expiry_rule)
             _SNAPSHOTS[key] = snap
-    _LAST_UPDATED = dt.datetime.now(dt.timezone.utc)
+    _LAST_UPDATED = dt.datetime.now(dt.UTC)
 
 
-def get_all(index: Optional[str] = None) -> List[Any]:
+def get_all(index: str | None = None) -> list[Any]:
     with _LOCK:
         if index is None:
             return list(_SNAPSHOTS.values())
@@ -48,10 +52,10 @@ def clear() -> None:
     _LAST_UPDATED = None
 
 
-def serialize(index: Optional[str] = None) -> Dict[str, object]:  # SerializedSnapshotsDict at runtime
+def serialize(index: str | None = None) -> dict[str, object]:  # SerializedSnapshotsDict at runtime
     snaps = get_all(index)
     # to avoid import cycle, rely on snapshot having as_dict method (added via models patch)
-    data = [getattr(s, 'as_dict')() if hasattr(s, 'as_dict') else str(s) for s in snaps]
+    data = [s.as_dict() if hasattr(s, 'as_dict') else str(s) for s in snaps]
     overview = None
     try:
         from .models import OverviewSnapshot  # type: ignore
@@ -60,7 +64,7 @@ def serialize(index: Optional[str] = None) -> Dict[str, object]:  # SerializedSn
     except Exception:
         overview = None
     return {
-        'generated_at': (_LAST_UPDATED or dt.datetime.now(dt.timezone.utc)).isoformat().replace('+00:00','Z'),
+        'generated_at': (_LAST_UPDATED or dt.datetime.now(dt.UTC)).isoformat().replace('+00:00','Z'),
         'count': len(data),
         'snapshots': data,
         'overview': overview,

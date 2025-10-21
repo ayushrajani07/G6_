@@ -1,0 +1,394 @@
+groups:
+- interval: 30s
+  name: g6_synth_generated.rules
+  rules:
+  - expr: sum(rate(g6_api_calls_total[5m])) by (endpoint,result)
+    labels:
+      job: g6_platform
+    record: g6_api_calls_total:rate_5m
+  - expr: sum(rate(g6_api_calls_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_api_calls_total:total_rate_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_api_response_latency_ms_bucket[5m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_api_response_latency_ms:p95_5m
+  - expr: histogram_quantile(0.99, sum(rate(g6_api_response_latency_ms_bucket[5m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_api_response_latency_ms:p99_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_api_response_latency_ms_bucket[30m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_api_response_latency_ms:p95_30m
+  - expr: g6_api_response_latency_ms:p95_5m / clamp_min(g6_api_response_latency_ms:p95_30m,
+      0.001)
+    labels:
+      job: g6_platform
+    record: g6_api_response_latency_ms:p95_ratio_5m_30m
+  - expr: sum(rate(g6_quote_enriched_total[5m])) by (provider)
+    labels:
+      job: g6_platform
+    record: g6_quote_enriched_total:rate_5m
+  - expr: sum(rate(g6_quote_enriched_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_quote_enriched_total:total_rate_5m
+  - expr: sum(rate(g6_quote_missing_volume_oi_total[5m])) by (provider)
+    labels:
+      job: g6_platform
+    record: g6_quote_missing_volume_oi_total:rate_5m
+  - expr: sum(rate(g6_quote_missing_volume_oi_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_quote_missing_volume_oi_total:total_rate_5m
+  - expr: sum(rate(g6_quote_avg_price_fallback_total[5m])) by (provider)
+    labels:
+      job: g6_platform
+    record: g6_quote_avg_price_fallback_total:rate_5m
+  - expr: sum(rate(g6_quote_avg_price_fallback_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_quote_avg_price_fallback_total:total_rate_5m
+  - expr: sum(rate(g6_index_zero_price_fallback_total[5m])) by (index,path)
+    labels:
+      job: g6_platform
+    record: g6_index_zero_price_fallback_total:rate_5m
+  - expr: sum(rate(g6_index_zero_price_fallback_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_index_zero_price_fallback_total:total_rate_5m
+  - expr: sum(rate(g6_expiry_resolve_fail_total[5m])) by (index,rule,reason)
+    labels:
+      job: g6_platform
+    record: g6_expiry_resolve_fail_total:rate_5m
+  - expr: sum(rate(g6_expiry_resolve_fail_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_expiry_resolve_fail_total:total_rate_5m
+  - expr: topk(5, g6_cardinality_series_total)
+    labels:
+      job: g6_platform
+    record: g6_cardinality_series_total:top5
+  - expr: topk(5, g6_provider_mode)
+    labels:
+      job: g6_platform
+    record: g6_provider_mode:top5
+  - expr: sum(rate(g6_provider_failover_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_provider_failover_total:total_rate_5m
+  - expr: topk(5, g6_metrics_spec_hash_info)
+    labels:
+      job: g6_platform
+    record: g6_metrics_spec_hash_info:top5
+  - expr: topk(5, g6_build_config_hash_info)
+    labels:
+      job: g6_platform
+    record: g6_build_config_hash_info:top5
+  - expr: sum(rate(g6_metric_duplicates_total[5m])) by (name)
+    labels:
+      job: g6_platform
+    record: g6_metric_duplicates_total:rate_5m
+  - expr: sum(rate(g6_metric_duplicates_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_metric_duplicates_total:total_rate_5m
+  - expr: topk(5, g6_cardinality_guard_growth_percent)
+    labels:
+      job: g6_platform
+    record: g6_cardinality_guard_growth_percent:top5
+  - expr: topk(5, g6_option_contracts_active)
+    labels:
+      job: g6_platform
+    record: g6_option_contracts_active:top5
+  - expr: topk(5, g6_option_open_interest)
+    labels:
+      job: g6_platform
+    record: g6_option_open_interest:top5
+  - expr: topk(5, g6_option_volume_24h)
+    labels:
+      job: g6_platform
+    record: g6_option_volume_24h:top5
+  - expr: topk(5, g6_option_iv_mean)
+    labels:
+      job: g6_platform
+    record: g6_option_iv_mean:top5
+  - expr: topk(5, g6_option_spread_bps_mean)
+    labels:
+      job: g6_platform
+    record: g6_option_spread_bps_mean:top5
+  - expr: sum(rate(g6_option_contracts_new_total[5m])) by (dte)
+    labels:
+      job: g6_platform
+    record: g6_option_contracts_new_total:rate_5m
+  - expr: sum(rate(g6_option_contracts_new_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_option_contracts_new_total:total_rate_5m
+  - expr: sum(rate(g6_bus_events_published_total[5m])) by (bus)
+    labels:
+      job: g6_platform
+    record: g6_bus_events_published_total:rate_5m
+  - expr: sum(rate(g6_bus_events_published_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_bus_events_published_total:total_rate_5m
+  - expr: sum(rate(g6_bus_events_dropped_total[5m])) by (bus,reason)
+    labels:
+      job: g6_platform
+    record: g6_bus_events_dropped_total:rate_5m
+  - expr: sum(rate(g6_bus_events_dropped_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_bus_events_dropped_total:total_rate_5m
+  - expr: topk(5, g6_bus_queue_retained_events)
+    labels:
+      job: g6_platform
+    record: g6_bus_queue_retained_events:top5
+  - expr: topk(5, g6_bus_subscriber_lag_events)
+    labels:
+      job: g6_platform
+    record: g6_bus_subscriber_lag_events:top5
+  - expr: histogram_quantile(0.95, sum(rate(g6_bus_publish_latency_ms_bucket[5m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_bus_publish_latency_ms:p95_5m
+  - expr: histogram_quantile(0.99, sum(rate(g6_bus_publish_latency_ms_bucket[5m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_bus_publish_latency_ms:p99_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_bus_publish_latency_ms_bucket[30m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_bus_publish_latency_ms:p95_30m
+  - expr: g6_bus_publish_latency_ms:p95_5m / clamp_min(g6_bus_publish_latency_ms:p95_30m,
+      0.001)
+    labels:
+      job: g6_platform
+    record: g6_bus_publish_latency_ms:p95_ratio_5m_30m
+  - expr: histogram_quantile(0.95, sum(rate(g6_bus_publish_latency_ms_bucket[5m]))
+      by (le,bus))
+    labels:
+      job: g6_platform
+    record: g6_bus_publish_latency_ms:p95_5m_by_bus
+  - expr: histogram_quantile(0.95, sum(rate(g6_bus_publish_latency_ms_bucket[30m]))
+      by (le,bus))
+    labels:
+      job: g6_platform
+    record: g6_bus_publish_latency_ms:p95_30m_by_bus
+  - expr: g6_bus_publish_latency_ms:p95_5m_by_bus / clamp_min(g6_bus_publish_latency_ms:p95_30m_by_bus,
+      0.001)
+    labels:
+      job: g6_platform
+    record: g6_bus_publish_latency_ms:p95_ratio_5m_30m_by_bus
+  - expr: sum(rate(g6_emission_failures_total[5m])) by (emitter)
+    labels:
+      job: g6_platform
+    record: g6_emission_failures_total:rate_5m
+  - expr: sum(rate(g6_emission_failures_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_emission_failures_total:total_rate_5m
+  - expr: sum(rate(g6_emission_failure_once_total[5m])) by (emitter)
+    labels:
+      job: g6_platform
+    record: g6_emission_failure_once_total:rate_5m
+  - expr: sum(rate(g6_emission_failure_once_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_emission_failure_once_total:total_rate_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_metrics_batch_flush_duration_ms_bucket[5m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_metrics_batch_flush_duration_ms:p95_5m
+  - expr: histogram_quantile(0.99, sum(rate(g6_metrics_batch_flush_duration_ms_bucket[5m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_metrics_batch_flush_duration_ms:p99_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_metrics_batch_flush_duration_ms_bucket[30m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_metrics_batch_flush_duration_ms:p95_30m
+  - expr: g6_metrics_batch_flush_duration_ms:p95_5m / clamp_min(g6_metrics_batch_flush_duration_ms:p95_30m,
+      0.001)
+    labels:
+      job: g6_platform
+    record: g6_metrics_batch_flush_duration_ms:p95_ratio_5m_30m
+  - expr: sum(rate(g6_cs_ingest_rows_total[5m])) by (table)
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_rows_total:rate_5m
+  - expr: sum(rate(g6_cs_ingest_rows_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_rows_total:total_rate_5m
+  - expr: sum(rate(g6_cs_ingest_bytes_total[5m])) by (table)
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_bytes_total:rate_5m
+  - expr: sum(rate(g6_cs_ingest_bytes_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_bytes_total:total_rate_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_cs_ingest_latency_ms_bucket[5m])) by
+      (le))
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_latency_ms:p95_5m
+  - expr: histogram_quantile(0.99, sum(rate(g6_cs_ingest_latency_ms_bucket[5m])) by
+      (le))
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_latency_ms:p99_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_cs_ingest_latency_ms_bucket[30m]))
+      by (le))
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_latency_ms:p95_30m
+  - expr: g6_cs_ingest_latency_ms:p95_5m / clamp_min(g6_cs_ingest_latency_ms:p95_30m,
+      0.001)
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_latency_ms:p95_ratio_5m_30m
+  - expr: sum(rate(g6_cs_ingest_failures_total[5m])) by (table,reason)
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_failures_total:rate_5m
+  - expr: sum(rate(g6_cs_ingest_failures_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_failures_total:total_rate_5m
+  - expr: topk(5, g6_cs_ingest_backlog_rows)
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_backlog_rows:top5
+  - expr: (sum(g6_cs_ingest_backlog_rows) / clamp_min(sum(rate(g6_cs_ingest_rows_total[5m])),1))
+      / 60
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_backlog_rows:eta_minutes
+  - expr: clamp_min((sum(g6_cs_ingest_backlog_rows offset 5m) - sum(g6_cs_ingest_backlog_rows))
+      / 300, 0)
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_backlog_rows:burn_rows_per_s
+  - expr: topk(5, g6_cs_ingest_backpressure_flag)
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_backpressure_flag:top5
+  - expr: sum(rate(g6_cs_ingest_retries_total[5m])) by (table)
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_retries_total:rate_5m
+  - expr: sum(rate(g6_cs_ingest_retries_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_cs_ingest_retries_total:total_rate_5m
+  - expr: sum(rate(g6_stream_append_total[5m])) by (mode)
+    labels:
+      job: g6_platform
+    record: g6_stream_append_total:rate_5m
+  - expr: sum(rate(g6_stream_append_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_stream_append_total:total_rate_5m
+  - expr: sum(rate(g6_stream_skipped_total[5m])) by (mode,reason)
+    labels:
+      job: g6_platform
+    record: g6_stream_skipped_total:rate_5m
+  - expr: sum(rate(g6_stream_skipped_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_stream_skipped_total:total_rate_5m
+  - expr: sum(rate(g6_stream_state_persist_errors_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_stream_state_persist_errors_total:total_rate_5m
+  - expr: sum(rate(g6_stream_conflict_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_stream_conflict_total:total_rate_5m
+  - expr: sum(rate(g6_panel_diff_writes_total[5m])) by (type)
+    labels:
+      job: g6_platform
+    record: g6_panel_diff_writes_total:rate_5m
+  - expr: sum(rate(g6_panel_diff_writes_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_panel_diff_writes_total:total_rate_5m
+  - expr: sum(rate(g6_panel_diff_truncated_total[5m])) by (reason)
+    labels:
+      job: g6_platform
+    record: g6_panel_diff_truncated_total:rate_5m
+  - expr: sum(rate(g6_panel_diff_truncated_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_panel_diff_truncated_total:total_rate_5m
+  - expr: sum(rate(g6_panel_diff_bytes_total[5m])) by (type)
+    labels:
+      job: g6_platform
+    record: g6_panel_diff_bytes_total:rate_5m
+  - expr: sum(rate(g6_panel_diff_bytes_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_panel_diff_bytes_total:total_rate_5m
+  - expr: topk(5, g6_panel_diff_bytes_last)
+    labels:
+      job: g6_platform
+    record: g6_panel_diff_bytes_last:top5
+  - expr: topk(5, g6_stale_active)
+    labels:
+      job: g6_platform
+    record: g6_stale_active:top5
+  - expr: sum(rate(g6_stale_cycles_total[5m])) by (index,mode)
+    labels:
+      job: g6_platform
+    record: g6_stale_cycles_total:rate_5m
+  - expr: sum(rate(g6_stale_cycles_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_stale_cycles_total:total_rate_5m
+  - expr: sum(rate(g6_stale_system_cycles_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_stale_system_cycles_total:total_rate_5m
+  - expr: sum(rate(g6_empty_quote_fields_total[5m])) by (index)
+    labels:
+      job: g6_platform
+    record: g6_empty_quote_fields_total:rate_5m
+  - expr: sum(rate(g6_empty_quote_fields_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_empty_quote_fields_total:total_rate_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_sse_flush_seconds_bucket[5m])) by (le))
+    labels:
+      job: g6_platform
+    record: g6_sse_flush_seconds:p95_5m
+  - expr: histogram_quantile(0.99, sum(rate(g6_sse_flush_seconds_bucket[5m])) by (le))
+    labels:
+      job: g6_platform
+    record: g6_sse_flush_seconds:p99_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_sse_flush_seconds_bucket[30m])) by
+      (le))
+    labels:
+      job: g6_platform
+    record: g6_sse_flush_seconds:p95_30m
+  - expr: g6_sse_flush_seconds:p95_5m / clamp_min(g6_sse_flush_seconds:p95_30m, 0.001)
+    labels:
+      job: g6_platform
+    record: g6_sse_flush_seconds:p95_ratio_5m_30m
+  - expr: sum(rate(g6_sse_trace_stages_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_sse_trace_stages_total:total_rate_5m

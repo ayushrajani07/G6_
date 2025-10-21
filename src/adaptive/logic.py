@@ -19,21 +19,23 @@ State is maintained on the metrics singleton (attributes with _adaptive_ prefix)
 additional global singletons.
 """
 from __future__ import annotations
+
 import os
 import time
-from typing import Optional
-from .controller import record_controller_action, set_detail_mode, DetailMode
-from . import followups as _followups
 from typing import cast
+
 from src.metrics import get_metrics  # facade import
+
+from . import followups as _followups
 from . import severity as _severity
+from .controller import DetailMode, record_controller_action, set_detail_mode
 
 
 def _enabled() -> bool:
     return os.getenv('G6_ADAPTIVE_CONTROLLER','').lower() in ('1','true','yes','on')
 
 
-def _get_val(metric, labels=None) -> Optional[float]:  # best-effort gauge value fetch
+def _get_val(metric, labels=None) -> float | None:  # best-effort gauge value fetch
     try:
         if metric is None:
             return None
@@ -54,6 +56,13 @@ def evaluate_and_apply(indexes: list[str]) -> None:
     if not _enabled():
         return
     m = get_metrics()
+    # Always record a trend snapshot early in the cycle when severity feature is enabled,
+    # so that HTTP theme endpoint has recent data even if later gates short-circuit.
+    try:
+        if _severity.enabled():
+            _severity.record_trend_snapshot()
+    except Exception:
+        pass
     # Drain follow-up guard alerts (interpolation_high, risk_delta_drift, bucket_util_low)
     try:
         _new_followup_alerts = _followups.get_and_clear_alerts()
@@ -88,8 +97,8 @@ def evaluate_and_apply(indexes: list[str]) -> None:
         streak += 1
     else:
         streak = 0
-    setattr(m, '_adaptive_last_sla_total', sla_total)
-    setattr(m, '_adaptive_sla_streak', streak)
+    m._adaptive_last_sla_total = sla_total
+    m._adaptive_sla_streak = streak
 
     # Cardinality guard trips delta
     card_total = 0
@@ -101,7 +110,7 @@ def evaluate_and_apply(indexes: list[str]) -> None:
     except Exception:
         pass
     card_delta = card_total - last_card_total
-    setattr(m, '_adaptive_last_cardinality_trips', card_total)
+    m._adaptive_last_cardinality_trips = card_total
 
     # Determine desired mode based on signals (simple heuristic)
     # Start from current (assume full=0 if unknown)
@@ -137,7 +146,7 @@ def evaluate_and_apply(indexes: list[str]) -> None:
                 crit_filter = {s.strip() for s in raw_crit.split(',') if s.strip()}
             if raw_warn_block:
                 warn_block_filter = {s.strip() for s in raw_warn_block.split(',') if s.strip()}
-            # Record trend snapshot first
+            # Record trend snapshot first (kept for historical ordering; already captured above)
             _severity.record_trend_snapshot()
             # Apply smoothing logic (falls back to immediate if smoothing disabled)
             severity_demote = _severity.should_trigger_critical_demote(crit_filter or None)
@@ -183,7 +192,7 @@ def evaluate_and_apply(indexes: list[str]) -> None:
                     mode_change_count += 1
                 healthy_cycles = 0
                 last_demote_cycle = cycle_counter
-                setattr(m, '_adaptive_last_demote_streak_id', current_streak_id)
+                m._adaptive_last_demote_streak_id = current_streak_id
     else:
         # No pressure this cycle; increment healthy count
         healthy_cycles += 1
@@ -209,15 +218,15 @@ def evaluate_and_apply(indexes: list[str]) -> None:
             healthy_cycles = 0
             last_promote_cycle = cycle_counter
 
-    setattr(m, '_adaptive_current_mode', current_mode)
-    setattr(m, '_adaptive_healthy_cycles', healthy_cycles)
-    setattr(m, '_adaptive_last_demote_cycle', last_demote_cycle)
-    setattr(m, '_adaptive_last_promote_cycle', last_promote_cycle)
-    setattr(m, '_adaptive_cycle_counter', cycle_counter + 1)
-    setattr(m, '_adaptive_last_streak_id', current_streak_id)
-    setattr(m, '_adaptive_last_mode_change_cycle', last_mode_change_cycle)
-    setattr(m, '_adaptive_last_mode_change_time', last_mode_change_time)
-    setattr(m, '_adaptive_mode_change_count', mode_change_count)
+    m._adaptive_current_mode = current_mode
+    m._adaptive_healthy_cycles = healthy_cycles
+    m._adaptive_last_demote_cycle = last_demote_cycle
+    m._adaptive_last_promote_cycle = last_promote_cycle
+    m._adaptive_cycle_counter = cycle_counter + 1
+    m._adaptive_last_streak_id = current_streak_id
+    m._adaptive_last_mode_change_cycle = last_mode_change_cycle
+    m._adaptive_last_mode_change_time = last_mode_change_time
+    m._adaptive_mode_change_count = mode_change_count
 
     # Emit per-index mode gauge
     for idx in indexes:

@@ -7,7 +7,7 @@ under TYPE_CHECKING to avoid runtime dependency on typing_extensions.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, TypedDict, NotRequired, Any, Dict, List
+from typing import Any, NotRequired, TypedDict
 
 # NOTE: We keep fields intentionally permissive (Optional / unions) to match
 # current dynamic dict usage; later passes can narrow once all writers are
@@ -25,7 +25,7 @@ class ExpiryRecord(TypedDict, total=False):
     field_coverage: int | None
     status: str | None
     # Additional dynamically attached fields (kept loose for now)
-    issues: NotRequired[List[str]]
+    issues: NotRequired[list[str]]
     notes: NotRequired[str]
 
 class MetricsPayload(TypedDict, total=False):
@@ -36,7 +36,7 @@ class MetricsPayload(TypedDict, total=False):
     strike_coverage: NotRequired[int]
     field_coverage: NotRequired[int]
     status: NotRequired[str]
-    raw: NotRequired[Dict[str, Any]]
+    raw: NotRequired[dict[str, Any]]
 
 # Public re-export convenience
 __all__ = ["ExpiryRecord", "MetricsPayload"]

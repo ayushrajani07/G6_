@@ -1,6 +1,8 @@
-import logging, datetime
-from src.utils.bootstrap import bootstrap
+import datetime
+import logging
+
 from src.broker.kite_provider import KiteProvider
+from src.utils.bootstrap import bootstrap
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(levelname)s %(message)s')
 
@@ -8,7 +10,7 @@ INDEXES = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX"]
 RULES = ["this_week", "next_week", "this_month", "next_month"]
 
 
-def main():
+def main() -> None:
     # Use bootstrap to ensure environment and metrics alignment
     boot = bootstrap(enable_metrics=False)  # metrics not required for diagnostic
     kp = KiteProvider(api_key="dummy", access_token="dummy")

@@ -1,10 +1,10 @@
 from __future__ import annotations
+
 import os
-from typing import Optional
 
 # Environment and sizing helpers
 
-def _env_int(name: str) -> Optional[int]:
+def _env_int(name: str) -> int | None:
     val = os.getenv(name)
     if val is None or val == "":
         return None
@@ -26,17 +26,17 @@ def _env_clip_len() -> int:
         return 60
 
 
-def panel_width(name: str) -> Optional[int]:
+def panel_width(name: str) -> int | None:
     # Example: G6_PANEL_W_MARKET=60
     return _env_int(f"G6_PANEL_W_{name.upper()}")
 
 
-def panel_height(name: str) -> Optional[int]:
+def panel_height(name: str) -> int | None:
     # Example: G6_PANEL_H_MARKET=5
     return _env_int(f"G6_PANEL_H_{name.upper()}")
 
 
-def effective_panel_width(name: str) -> Optional[int]:
+def effective_panel_width(name: str) -> int | None:
     """Return env-specified width if set; otherwise, when auto-fit is enabled,
     provide a sensible narrow default so panels don't assume full column width.
 

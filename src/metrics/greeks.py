@@ -4,10 +4,12 @@ Provides a function to initialize greek-related option metrics formerly
 implemented inside `MetricsRegistry._init_greek_metrics` without changing
 metric names, labels or grouping semantics.
 """
-from prometheus_client import Gauge
-from typing import Sequence
+from collections.abc import Sequence
 
-def init_greek_metrics(registry, greek_names: Sequence[str] = ('delta','theta','gamma','vega','rho')) -> None:
+from prometheus_client import Gauge
+
+
+def init_greek_metrics(registry, greek_names: Sequence[str] = ('delta','theta','gamma','vega','rho','iv')) -> None:
     """Attach greek option metrics to the provided registry instance.
 
     Parameters

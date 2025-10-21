@@ -38,9 +38,16 @@ Usage examples:
 """
 from __future__ import annotations
 
-import argparse, json, math, os, re, sys, xml.etree.ElementTree as ET
+import argparse
+import json
+import math
+import re
+import sys
+import xml.etree.ElementTree as ET
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import List, Optional, Sequence, Dict, Any, Tuple
+from typing import Any
+
 
 @dataclass
 class ModuleCov:
@@ -51,13 +58,13 @@ class ModuleCov:
     coverage_pct: float
     risk: float
 
-def parse_cobertura(xml_path: str, *, prefix: Optional[str]=None, exclude: Sequence[str]=()) -> List[ModuleCov]:
+def parse_cobertura(xml_path: str, *, prefix: str | None=None, exclude: Sequence[str]=()) -> list[ModuleCov]:
     try:
         tree = ET.parse(xml_path)
     except Exception as e:
         raise RuntimeError(f"failed parsing coverage XML: {e}") from e
     root = tree.getroot()
-    modules: List[ModuleCov] = []
+    modules: list[ModuleCov] = []
     # Cobertura: <packages><package><classes><class filename="..." line-rate="...">
     for cls in root.findall('.//class'):
         filename = cls.get('filename') or ''
@@ -104,8 +111,8 @@ def parse_cobertura(xml_path: str, *, prefix: Optional[str]=None, exclude: Seque
         modules.append(ModuleCov(filename, total, covered, missed, pct, risk))
     return modules
 
-def format_table(mods: List[ModuleCov], *, top: int, quick_win_max_lines: int, quick_win_threshold: float,
-                 baseline: Optional[Dict[str, float]] = None) -> str:
+def format_table(mods: list[ModuleCov], *, top: int, quick_win_max_lines: int, quick_win_threshold: float,
+                 baseline: dict[str, float] | None = None) -> str:
     has_baseline = baseline is not None
     head_cols = [f"{'Rank':>4}", f"{'File':<55}", f"{'Tot':>5}", f"{'Miss':>5}", f"{'Cov%':>6}", f"{'Risk':>8}"]
     if has_baseline:
@@ -160,10 +167,10 @@ def main(argv: Sequence[str]) -> int:
         modules.sort(key=lambda m: (-m.lines_uncovered, m.coverage_pct, m.lines_total))
 
     # Load baseline if requested (best-effort; on failure exit code 5)
-    baseline_map: Optional[Dict[str, float]] = None
+    baseline_map: dict[str, float] | None = None
     if args.baseline:
         try:
-            with open(args.baseline, 'r', encoding='utf-8') as fh:
+            with open(args.baseline, encoding='utf-8') as fh:
                 data = json.load(fh)
             if isinstance(data, dict) and 'modules' in data and isinstance(data['modules'], list):
                 baseline_map = {}
@@ -187,7 +194,7 @@ def main(argv: Sequence[str]) -> int:
             return 5
 
     if args.json:
-        out: List[Dict[str,Any]] = []
+        out: list[dict[str,Any]] = []
         for m in modules[:args.top]:
             base_risk = baseline_map.get(m.name) if baseline_map else None
             risk_delta = None

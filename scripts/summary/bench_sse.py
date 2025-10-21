@@ -38,25 +38,30 @@ Future Enhancements (Phase follow-up):
 """
 from __future__ import annotations
 
-import argparse, json, threading, time, sys, os, queue
+import argparse
+import json
+import os
+import queue
+import sys
+import threading
+import time
 from dataclasses import dataclass, field
-from typing import Optional, Dict, List
 
 try:
     import requests  # type: ignore
-except Exception as e:  # pragma: no cover
+except Exception:  # pragma: no cover
     print("requests library required for bench_sse harness (pip install requests)", file=sys.stderr)
     raise
 
 @dataclass
 class ClientStats:
     id: int
-    hello_at: Optional[float] = None
-    snapshot_at: Optional[float] = None
+    hello_at: float | None = None
+    snapshot_at: float | None = None
     events: int = 0
-    by_type: Dict[str,int] = field(default_factory=dict)
+    by_type: dict[str,int] = field(default_factory=dict)
     parse_errors: int = 0
-    last_event_at: Optional[float] = None
+    last_event_at: float | None = None
     stop: bool = False
 
     def record(self, etype: str, now: float) -> None:
@@ -72,9 +77,9 @@ class ClientStats:
 _EVENT_PREFIX = 'event:'
 _DATA_PREFIX = 'data:'
 
-def _parse_event_lines(lines: List[str]) -> Optional[tuple[str,str]]:
+def _parse_event_lines(lines: list[str]) -> tuple[str, str] | None:
     etype = None
-    data_lines: List[str] = []
+    data_lines: list[str] = []
     for ln in lines:
         if ln.startswith(_EVENT_PREFIX):
             etype = ln[len(_EVENT_PREFIX):].strip()
@@ -84,7 +89,14 @@ def _parse_event_lines(lines: List[str]) -> Optional[tuple[str,str]]:
         return None
     return etype, '\n'.join(data_lines)
 
-def _client_worker(idx: int, url: str, token: Optional[str], stats: ClientStats, stop_time: float, qerr: queue.Queue[str]) -> None:
+def _client_worker(
+    idx: int,
+    url: str,
+    token: str | None,
+    stats: ClientStats,
+    stop_time: float,
+    qerr: queue.Queue[str],
+) -> None:
     headers = {'Accept': 'text/event-stream'}
     if token:
         headers['X-API-Token'] = token
@@ -93,7 +105,7 @@ def _client_worker(idx: int, url: str, token: Optional[str], stats: ClientStats,
             if resp.status_code != 200:
                 qerr.put(f"client {idx} non-200 status {resp.status_code}")
                 return
-            buf: List[str] = []
+            buf: list[str] = []
             for raw in resp.iter_lines(decode_unicode=True):
                 if stats.stop or time.time() >= stop_time:
                     break
@@ -116,13 +128,12 @@ def _client_worker(idx: int, url: str, token: Optional[str], stats: ClientStats,
         qerr.put(f"client {idx} error: {e}")
 
 
-def run_bench(url: str, clients: int, duration: float, token: Optional[str]) -> dict:
-    start_wall = time.time()
+def run_bench(url: str, clients: int, duration: float, token: str | None) -> dict:
     start_perf = time.perf_counter()
     stop_time = time.time() + duration
-    stats: List[ClientStats] = [ClientStats(i) for i in range(clients)]
+    stats: list[ClientStats] = [ClientStats(i) for i in range(clients)]
     qerr: queue.Queue[str] = queue.Queue()
-    threads: List[threading.Thread] = []
+    threads: list[threading.Thread] = []
     for s in stats:
         t = threading.Thread(target=_client_worker, args=(s.id, url, token, s, stop_time, qerr), daemon=True)
         t.start()
@@ -136,10 +147,11 @@ def run_bench(url: str, clients: int, duration: float, token: Optional[str]) -> 
     for t in threads:
         t.join(timeout=2)
     errors = []
-    while not qerr.empty():
+    # PERF203: draining a queue typically uses try/except; producers are joined, so this is safe
+    while not qerr.empty():  # noqa: PERF203
         try:
             errors.append(qerr.get_nowait())
-        except Exception:
+        except Exception:  # noqa: PERF203
             break
     # Aggregate
     agg_events = sum(s.events for s in stats)
@@ -167,15 +179,15 @@ def run_bench(url: str, clients: int, duration: float, token: Optional[str]) -> 
     return result
 
 
-def _merge_dicts(dicts: List[Dict[str,int]]) -> Dict[str,int]:
-    out: Dict[str,int] = {}
+def _merge_dicts(dicts: list[dict[str,int]]) -> dict[str,int]:
+    out: dict[str,int] = {}
     for d in dicts:
         for k,v in d.items():
             out[k] = out.get(k,0)+v
     return out
 
 
-def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="SSE load / throughput harness")
     ap.add_argument('-H', '--host', default='127.0.0.1', help='SSE host (default 127.0.0.1)')
     ap.add_argument('-p', '--port', type=int, default=int(os.getenv('G6_SSE_HTTP_PORT','9320')), help='SSE port')
@@ -187,7 +199,7 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     return ap.parse_args(argv)
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     ns = _parse_args(argv)
     url = f"http://{ns.host}:{ns.port}{ns.path}"
     res = run_bench(url, ns.clients, float(ns.duration), ns.token)

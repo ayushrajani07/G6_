@@ -9,36 +9,38 @@ Usage:
 
 The script maps out:
 1. Collector metrics: _per_index_last_cycle_options (current cycle legs)
-2. Runtime status: indices_detail[index]["legs"] (cumulative legs)  
+2. Runtime status: indices_detail[index]["legs"] (cumulative legs)
 3. Panel data: indices_stream.json legs field
 4. Live metrics server: prometheus metrics endpoint
 
 This helps organize the complete supply chain for proper legs display:
-- First number: Current cycle legs (from metrics._per_index_last_cycle_options)  
+- First number: Current cycle legs (from metrics._per_index_last_cycle_options)
 - Number in brackets: Average legs per cycle (cumulative / total_cycles)
 """
 from __future__ import annotations
-import json
-import sys
+
 import argparse
-import time
-from pathlib import Path
-from typing import Dict, Any, Optional
+import json
 import os
+import sys
+from pathlib import Path
+from typing import Any
+
 import requests
 
-# Add project root to path
+# Add project root to path before local imports
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.data_access.unified_source import UnifiedDataSource, DataSourceConfig
+from src.data_access.unified_source import DataSourceConfig, UnifiedDataSource  # noqa: E402
 
-def analyze_runtime_status(status_file: str = "data/runtime_status.json") -> Dict[str, Any]:
+
+def analyze_runtime_status(status_file: str = "data/runtime_status.json") -> dict[str, Any]:
     """Analyze runtime status data structure for legs metrics using UnifiedDataSource."""
     print("🔍 ANALYZING RUNTIME STATUS STRUCTURE")
     print("=" * 60)
-    
+
     try:
         # Use a single UnifiedDataSource and configure all key paths to keep instance coherent
         uds = UnifiedDataSource()
@@ -48,21 +50,21 @@ def analyze_runtime_status(status_file: str = "data/runtime_status.json") -> Dic
             metrics_url=os.environ.get('G6_METRICS_URL', 'http://127.0.0.1:9108/metrics')
         ))
         status = uds.get_runtime_status()
-        
+
         # Extract cycle info
         cycle_info = status.get("loop", {})
         cycle_count = cycle_info.get("cycle", 0)
-        
+
         print(f"Current Cycle: {cycle_count}")
         print(f"Last Duration: {cycle_info.get('last_duration', 'N/A')} seconds")
         print(f"Success Rate: {cycle_info.get('success_rate', 'N/A')}%")
         print()
-        
+
         # Analyze indices detail (cumulative legs)
         print("📊 INDICES DETAIL (Cumulative Legs):")
         indices_detail = status.get("indices_detail", {})
         cumulative_data = {}
-        
+
         for index, details in indices_detail.items():
             legs = details.get("legs", 0)
             avg_per_cycle = legs / cycle_count if cycle_count > 0 else 0
@@ -71,7 +73,7 @@ def analyze_runtime_status(status_file: str = "data/runtime_status.json") -> Dic
                 "avg_per_cycle": round(avg_per_cycle, 1)
             }
             print(f"  {index}: {legs:,} legs total ({avg_per_cycle:.1f} avg/cycle)")
-        
+
         # Check if metrics data is available in status
         print("\n🎯 CURRENT CYCLE METRICS:")
         metrics = status.get("metrics", {})
@@ -86,13 +88,13 @@ def analyze_runtime_status(status_file: str = "data/runtime_status.json") -> Dic
         else:
             print("  ❌ No metrics section found in runtime status")
             print("  ⚠️  Current cycle legs not available in runtime_status.json")
-        
+
         return {
             "cycle_count": cycle_count,
             "cumulative_data": cumulative_data,
             "has_current_cycle_metrics": bool(metrics)
         }
-        
+
     except FileNotFoundError:
         print(f"❌ Runtime status file not found: {status_file}")
         return {}
@@ -103,11 +105,11 @@ def analyze_runtime_status(status_file: str = "data/runtime_status.json") -> Dic
         print(f"❌ Error analyzing runtime status: {e}")
         return {}
 
-def analyze_panel_data(panels_dir: str = "data/panels") -> Dict[str, Any]:
+def analyze_panel_data(panels_dir: str = "data/panels") -> dict[str, Any]:
     """Analyze panel JSON files for legs metrics using UnifiedDataSource."""
     print("\n🔍 ANALYZING PANEL DATA STRUCTURE")
     print("=" * 60)
-    
+
     # Initialize data source with provided panels_dir
     uds = UnifiedDataSource()
     uds.reconfigure(DataSourceConfig(panels_dir=panels_dir))
@@ -150,7 +152,7 @@ def analyze_panel_data(panels_dir: str = "data/panels") -> Dict[str, Any]:
         print(f"❌ Error reading indices_stream panel via UnifiedDataSource: {e}")
         return {}
 
-def analyze_live_metrics(metrics_url: str = "http://127.0.0.1:9108/metrics") -> Dict[str, Any]:
+def analyze_live_metrics(metrics_url: str = "http://127.0.0.1:9108/metrics") -> dict[str, Any]:
     """Analyze live metrics for legs data using UnifiedDataSource when possible.
 
     Attempts JSON endpoint via UnifiedDataSource; falls back to Prometheus text scrape.
@@ -162,7 +164,7 @@ def analyze_live_metrics(metrics_url: str = "http://127.0.0.1:9108/metrics") -> 
     uds.reconfigure(DataSourceConfig(metrics_url=metrics_url))
     try:
         m = uds.get_metrics_data() or {}
-        current_cycle_data: Dict[str, int] = {}
+        current_cycle_data: dict[str, int] = {}
         if m:
             # Accept several shapes: {indices: {INDEX: {legs: N}}} or flat list
             inds = m.get('indices') if isinstance(m, dict) else None
@@ -246,38 +248,43 @@ def analyze_live_metrics(metrics_url: str = "http://127.0.0.1:9108/metrics") -> 
         print(f"❌ Error analyzing metrics: {e}")
         return {"metrics_available": False}
 
-def check_data_flow_consistency(runtime_data: Dict, panel_data: Dict, metrics_data: Dict):
+def check_data_flow_consistency(
+    runtime_data: dict[str, Any],
+    panel_data: dict[str, Any],
+    metrics_data: dict[str, Any],
+) -> None:
     """Check consistency between different data sources."""
     print("\n🔍 DATA FLOW CONSISTENCY CHECK")
     print("=" * 60)
-    
+
     # Get runtime cumulative data
     cumulative_data = runtime_data.get("cumulative_data", {})
-    cycle_count = runtime_data.get("cycle_count", 0)
-    
+    # cycle_count kept for future analysis if needed
+    # cycle_count = runtime_data.get("cycle_count", 0)
+
     # Get stream data
     stream_legs = panel_data.get("stream_legs", {})
-    
+
     # Get current cycle data from metrics
     current_cycle_data = metrics_data.get("current_cycle_data", {})
-    
+
     print("📊 COMPARISON TABLE:")
     print(f"{'Index':<12} {'Cumulative':<12} {'Stream':<12} {'Current Cycle':<15} {'Avg/Cycle':<10}")
     print("-" * 70)
-    
+
     indices = set(cumulative_data.keys()) | set(stream_legs.keys()) | set(current_cycle_data.keys())
-    
+
     for index in sorted(indices):
         cumulative = cumulative_data.get(index, {}).get("cumulative_legs", "N/A")
         stream = stream_legs.get(index, "N/A")
         current_cycle = current_cycle_data.get(index, "N/A")
         avg_cycle = cumulative_data.get(index, {}).get("avg_per_cycle", "N/A")
-        
+
         print(f"{index:<12} {str(cumulative):<12} {str(stream):<12} {str(current_cycle):<15} {str(avg_cycle):<10}")
-    
+
     # Analysis
     print("\n🎯 ANALYSIS:")
-    
+
     # Check if stream matches cumulative
     cumulative_stream_match = True
     for index in cumulative_data.keys():
@@ -285,12 +292,12 @@ def check_data_flow_consistency(runtime_data: Dict, panel_data: Dict, metrics_da
             if cumulative_data[index]["cumulative_legs"] != stream_legs[index]:
                 cumulative_stream_match = False
                 break
-    
+
     if cumulative_stream_match:
         print("✅ Stream legs data matches cumulative legs (as expected)")
     else:
         print("⚠️  Stream legs data doesn't match cumulative legs")
-    
+
     # Check availability of current cycle data
     if current_cycle_data:
         print("✅ Current cycle legs data available from metrics server")
@@ -299,11 +306,11 @@ def check_data_flow_consistency(runtime_data: Dict, panel_data: Dict, metrics_da
         print("❌ Current cycle legs data NOT available")
         print("💡 RECOMMENDATION: Need to access metrics._per_index_last_cycle_options directly")
 
-def generate_implementation_recommendation():
+def generate_implementation_recommendation() -> None:
     """Generate recommendations for implementing proper legs display."""
     print("\n🎯 IMPLEMENTATION RECOMMENDATIONS")
     print("=" * 60)
-    
+
     print("📋 TO DISPLAY LEGS AS: current_cycle_legs (average_per_cycle)")
     print()
     print("1️⃣  CURRENT CYCLE LEGS (First Number):")
@@ -337,41 +344,41 @@ def generate_implementation_recommendation():
     print("   - Provides live updates every 5 seconds")
     print("   - No changes to core collection system needed")
 
-def main():
+def main() -> int:
     """Main analyzer function."""
     parser = argparse.ArgumentParser(description="Analyze G6 metrics supply chain for legs display")
     parser.add_argument("--runtime-status", action="store_true", help="Analyze runtime status structure")
     parser.add_argument("--panels", action="store_true", help="Analyze panel data structure")
     parser.add_argument("--live-metrics", action="store_true", help="Analyze live metrics server")
     parser.add_argument("--all", action="store_true", help="Run all analyses")
-    
+
     args = parser.parse_args()
-    
+
     if not any([args.runtime_status, args.panels, args.live_metrics, args.all]):
         args.all = True  # Default to all if no specific option
-    
+
     print("🚀 G6 METRICS SUPPLY CHAIN ANALYZER")
     print("=" * 60)
     print("Analyzing legs metrics flow: collection → processing → storage → display")
     print()
-    
+
     runtime_data = {}
     panel_data = {}
     metrics_data = {}
-    
+
     if args.all or args.runtime_status:
         runtime_data = analyze_runtime_status()
-    
+
     if args.all or args.panels:
         panel_data = analyze_panel_data()
-    
+
     if args.all or args.live_metrics:
         metrics_data = analyze_live_metrics()
-    
+
     if args.all:
         check_data_flow_consistency(runtime_data, panel_data, metrics_data)
         generate_implementation_recommendation()
-    
+
     print("\n✅ ANALYSIS COMPLETE")
     return 0
 

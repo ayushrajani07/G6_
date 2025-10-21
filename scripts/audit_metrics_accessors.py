@@ -9,7 +9,9 @@ Heuristics:
 Exit code: 0 if clean, 1 if violations found.
 """
 from __future__ import annotations
-import ast, sys
+
+import ast
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -18,7 +20,7 @@ ALLOW_METRIC_NAMES = {"Counter","Gauge","Summary","Histogram","CollectorRegistry
 ALLOW_PATH_PREFIXES = {str((SRC / 'metrics').resolve())}
 ALLOWED_FILES = {str((ROOT / 'scripts' / 'gen_metrics.py').resolve())}
 
-violations: list[tuple[str,str,int]] = []  # (file, symbol, line)
+violations: list[tuple[str, str, int]] = []  # (file, symbol, line)
 
 for py in SRC.rglob('*.py'):
     rp = str(py.resolve())
@@ -29,16 +31,23 @@ for py in SRC.rglob('*.py'):
     except Exception:
         continue
     class Visitor(ast.NodeVisitor):
-        def visit_Import(self, node: ast.Import):
-            for n in node.names:
-                if n.name == 'prometheus_client':
-                    violations.append((rp, 'prometheus_client', node.lineno))
-        def visit_ImportFrom(self, node: ast.ImportFrom):
+        def __init__(self, path: str) -> None:
+            super().__init__()
+            self.path = path
+        def visit_Import(self, node: ast.Import) -> None:
+            violations.extend(
+                (self.path, 'prometheus_client', node.lineno)
+                for n in node.names
+                if n.name == 'prometheus_client'
+            )
+        def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
             if node.module == 'prometheus_client':
-                for n in node.names:
-                    if n.name in ALLOW_METRIC_NAMES:
-                        violations.append((rp, n.name, node.lineno))
-    Visitor().visit(tree)
+                violations.extend(
+                    (self.path, n.name, node.lineno)
+                    for n in node.names
+                    if n.name in ALLOW_METRIC_NAMES
+                )
+    Visitor(rp).visit(tree)
 
 if violations:
     print("Direct prometheus_client usage found (should use generated accessors):")

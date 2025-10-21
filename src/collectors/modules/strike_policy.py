@@ -23,8 +23,12 @@ This early version intentionally avoids volatility modeling; future iterations
 may incorporate realized IV buckets or historical quote density.
 """
 from __future__ import annotations
-from typing import Any, Dict, Tuple
-import os, statistics, time, logging
+
+import logging
+import os
+import statistics
+import time
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +49,7 @@ def _env_int(name: str, default: int) -> int:
 def _policy_name() -> str:
     return os.environ.get('G6_STRIKE_POLICY','fixed').lower()
 
-def resolve_strike_depth(ctx: Any, index_symbol: str, base_cfg: Dict[str, Any]) -> Tuple[int,int]:
+def resolve_strike_depth(ctx: Any, index_symbol: str, base_cfg: dict[str, Any]) -> tuple[int,int]:
     """Return (strikes_itm, strikes_otm) per active policy.
 
     base_cfg: index_params[index_symbol] mapping from caller (immutable expectation).
@@ -55,11 +59,11 @@ def resolve_strike_depth(ctx: Any, index_symbol: str, base_cfg: Dict[str, Any]) 
         return int(base_cfg.get('strikes_itm', 2) or 2), int(base_cfg.get('strikes_otm', 2) or 2)
     return _adaptive_v2(ctx, index_symbol, base_cfg)
 
-def _adaptive_v2(ctx: Any, index_symbol: str, base_cfg: Dict[str, Any]) -> Tuple[int,int]:
+def _adaptive_v2(ctx: Any, index_symbol: str, base_cfg: dict[str, Any]) -> tuple[int,int]:
     # Initialize state container on ctx
     if not hasattr(ctx, '_strike_policy_state'):
-        setattr(ctx, '_strike_policy_state', {})
-    st = getattr(ctx, '_strike_policy_state')
+        ctx._strike_policy_state = {}
+    st = ctx._strike_policy_state
     if index_symbol not in st:
         st[index_symbol] = {
             'baseline_itm': int(base_cfg.get('strikes_itm', 2) or 2),
@@ -77,7 +81,7 @@ def _adaptive_v2(ctx: Any, index_symbol: str, base_cfg: Dict[str, Any]) -> Tuple
     coverage_val = None
     try:
         if hasattr(ctx, 'last_index_coverage'):
-            coverage_val = getattr(ctx, 'last_index_coverage').get(index_symbol)
+            coverage_val = ctx.last_index_coverage.get(index_symbol)
     except Exception:
         coverage_val = None
     if coverage_val is not None:

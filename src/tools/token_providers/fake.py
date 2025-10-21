@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 
 class FakeTokenProvider:
     """Deterministic fake provider for tests & headless workflows.
@@ -22,6 +20,6 @@ class FakeTokenProvider:
         api_secret: str,
         headless: bool = False,
         interactive: bool = True,
-    ) -> Optional[str]:
+    ) -> str | None:
         # Ignore all inputs; always issue deterministic token
         return self._ISSUED_TOKEN

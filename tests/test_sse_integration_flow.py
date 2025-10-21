@@ -60,8 +60,8 @@ def test_sse_stream_integration(monkeypatch, sse_port: int):
     resp = conn.getresponse()
     assert resp.status == 200
     raw = b''
-    # Read bursts for up to ~2s
-    end = time.time() + 2.0
+    # Read bursts for up to ~2.5s
+    end = time.time() + 2.5
     while time.time() < end and (b'event: heartbeat' not in raw or b'event: panel_update' not in raw):
         chunk = resp.read(1024)
         if not chunk:

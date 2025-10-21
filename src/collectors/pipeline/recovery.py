@@ -1,11 +1,13 @@
 from __future__ import annotations
+
 """Recovery strategy abstractions (Phase 2 scaffolding).
 
 Currently unused by legacy main path; shadow pipeline can experiment with
 pluggable strategies in later patches. Provided now to anchor future tests and
 reduce churn when wired in.
 """
-from typing import Protocol, Any
+from typing import Any, Protocol
+
 
 class RecoveryStrategy(Protocol):  # pragma: no cover - interface
     def attempt_salvage(self, ctx: Any, settings: Any, state: Any) -> bool: ...

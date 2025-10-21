@@ -5,11 +5,12 @@ Provides structured diff with categories.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping
 import hashlib
 import json
 import math
 import os
+from collections.abc import Mapping
+from typing import Any
 
 Float = float
 
@@ -25,13 +26,13 @@ def _canonical_json(obj: Any) -> str:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-def build_reduced(snapshot: Mapping[str, Any] | None) -> Dict[str, Any]:
+def build_reduced(snapshot: Mapping[str, Any] | None) -> dict[str, Any]:
     """Extract stable structural + aggregate fields from a collector snapshot.
 
     Expected input keys (best-effort): indices, alerts, benchmark, memory, etc.
     Missing keys are tolerated; absent sections simply omitted.
     """
-    reduced: Dict[str, Any] = {}
+    reduced: dict[str, Any] = {}
     if snapshot is None:
         return reduced
     indices = snapshot.get("indices")
@@ -115,21 +116,21 @@ def build_reduced(snapshot: Mapping[str, Any] | None) -> Dict[str, Any]:
     return reduced
 
 
-def compute_signature(reduced: Dict[str, Any]) -> str:
+def compute_signature(reduced: dict[str, Any]) -> str:
     payload = _canonical_json(reduced).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
 
 
 # Diff categories: missing_section, extra_section, field_value_drift, set_size_mismatch, structural_mismatch
-Diff = Dict[str, Any]
+Diff = dict[str, Any]
 
 
 def _float_close(a: Float, b: Float, *, rtol: float, atol: float) -> bool:
     return math.isclose(a, b, rel_tol=rtol, abs_tol=atol)
 
 
-def diff_reduced(a: Dict[str, Any], b: Dict[str, Any], *, rtol: float = DEFAULT_RTOL, atol: float = DEFAULT_ATOL) -> List[Diff]:
-    diffs: List[Diff] = []
+def diff_reduced(a: dict[str, Any], b: dict[str, Any], *, rtol: float = DEFAULT_RTOL, atol: float = DEFAULT_ATOL) -> list[Diff]:
+    diffs: list[Diff] = []
     # Section presence
     a_keys = set(a.keys())
     b_keys = set(b.keys())
@@ -158,7 +159,7 @@ def diff_reduced(a: Dict[str, Any], b: Dict[str, Any], *, rtol: float = DEFAULT_
                 diffs.append({"category": "set_size_mismatch", "field": k, "a_size": len(va), "b_size": len(vb)})
             else:
                 # For indices list compare per-position dict fields
-                for i, (ia, ib) in enumerate(zip(va, vb)):
+                for i, (ia, ib) in enumerate(zip(va, vb, strict=False)):
                     if isinstance(ia, dict) and isinstance(ib, dict):
                         for fk in ("index", "status", "option_count", "expiry_count"):
                             if ia.get(fk) != ib.get(fk):

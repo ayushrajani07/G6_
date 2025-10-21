@@ -16,8 +16,13 @@ Notes:
 - Failures in snapshotting never raise; they only log debug.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Tuple
-import os, datetime, json, pathlib, logging
+
+import datetime
+import json
+import logging
+import os
+import pathlib
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,10 +32,10 @@ try:  # pragma: no cover
         index_symbol: str,
         rule: str,
         expiry_date: Any,
-        instruments: List[Dict[str, Any]],
-        enriched: Dict[str, Any],
+        instruments: list[dict[str, Any]],
+        enriched: dict[str, Any],
         index_price: float | None,
-    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         """Adapter ensuring stable parameter names and return typing.
 
         Underlying implementation may use different parameter names
@@ -54,7 +59,7 @@ try:  # pragma: no cover
         # Normalize report (PreventiveResult or dict)
         if hasattr(report, 'as_dict'):
             try:
-                report = getattr(report, 'as_dict')()
+                report = report.as_dict()
             except Exception:
                 report = {'error': True}
         if not isinstance(report, dict):
@@ -65,10 +70,10 @@ except Exception:  # pragma: no cover
         index_symbol: str,
         rule: str,
         expiry_date: Any,
-        instruments: List[Dict[str, Any]],
-        enriched: Dict[str, Any],
+        instruments: list[dict[str, Any]],
+        enriched: dict[str, Any],
         index_price: float | None,
-    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
         return enriched, {'skipped': True}
 
 __all__ = ["run_preventive_validation"]
@@ -78,10 +83,10 @@ def run_preventive_validation(
     index_symbol: str,
     rule: str,
     expiry_date: Any,
-    instruments: List[Dict[str, Any]],
-    enriched: Dict[str, Any],
+    instruments: list[dict[str, Any]],
+    enriched: dict[str, Any],
     index_price: float | None,
-) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+) -> tuple[dict[str, Any], dict[str, Any]]:
     preventive_debug = os.environ.get('G6_PREVENTIVE_DEBUG','0').lower() in ('1','true','yes','on')
     snap_root = None
     ts_key = None
@@ -89,7 +94,7 @@ def run_preventive_validation(
         try:
             snap_root = pathlib.Path('data') / 'debug_preventive' / index_symbol / rule
             snap_root.mkdir(parents=True, exist_ok=True)
-            ts_key = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S')
+            ts_key = datetime.datetime.now(datetime.UTC).strftime('%Y%m%dT%H%M%S')
             with open(snap_root / f'{ts_key}_01_instruments.json','w', encoding='utf-8') as f:
                 json.dump({'index': index_symbol,'expiry_rule': rule,'expiry_date': str(expiry_date),'count': len(instruments),'records': instruments[:500]}, f, indent=2)
             head = list(enriched.items())[:500]

@@ -12,20 +12,21 @@ subsystems so callers can wire collectors without repeating boilerplate.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Optional, Tuple
+import json
 import logging
 import os
-import json
+from dataclasses import dataclass
+from typing import Any
 
-from .path_utils import ensure_sys_path, resolve_path
-from .logging_utils import setup_logging
 from src.config.config_wrapper import ConfigWrapper
-from src.config.loader import load_and_process_config, ConfigError
+from src.config.loader import ConfigError, load_and_process_config
+from src.health import AlertManager, HealthLevel, HealthMetricsExporter, HealthServer, HealthState
+from src.health import runtime as health_runtime
 from src.metrics import setup_metrics_server  # facade import (modularized)
 from src.metrics.circuit_metrics import CircuitMetricsExporter
-from src.health import HealthServer, HealthMetricsExporter, HealthLevel, HealthState, AlertManager
-from src.health import runtime as health_runtime
+
+from .logging_utils import setup_logging
+from .path_utils import ensure_sys_path
 
 try:  # optional dependency
     from dotenv import load_dotenv  # type: ignore
@@ -48,7 +49,7 @@ def load_raw_config(path: str) -> dict:
         # Minimal default; unified_main has richer create_default_config but for early boot we keep lean
         return {"storage": {"csv_dir": "data/g6_data"}}
     try:
-        with open(path, "r") as f:
+        with open(path) as f:
             return json.load(f)
     except Exception as e:  # pragma: no cover - fallback path
         logging.error("Bootstrap config load failed (%s): %s", path, e)

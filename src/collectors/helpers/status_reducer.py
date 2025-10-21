@@ -8,8 +8,9 @@ Synthetic fallback status removed (2025-10 aggressive cleanup). Remaining status
 Cycle aggregation unchanged except SYNTH no longer considered; any prior SYNTH cases now classify as OK if coverage thresholds met.
 """
 from __future__ import annotations
-from typing import Dict, Any, List, Tuple
+
 import os
+from typing import Any
 
 # Default thresholds (can be overridden via environment variables)
 STRIKE_COVERAGE_OK = 0.75  # 75% of requested strikes realized
@@ -18,7 +19,7 @@ FIELD_COVERAGE_OK = 0.55   # 55% options with full (volume+oi+avg_price)
 ENV_STRIKE = "G6_STRIKE_COVERAGE_OK"
 ENV_FIELD = "G6_FIELD_COVERAGE_OK"
 
-def get_status_thresholds() -> Tuple[float, float]:
+def get_status_thresholds() -> tuple[float, float]:
     """Return (strike_threshold, field_threshold) applying env overrides if present.
 
     Environment variables:
@@ -49,7 +50,7 @@ def get_status_thresholds() -> Tuple[float, float]:
         field_thr = f_parsed
     return strike_thr, field_thr
 
-def compute_expiry_status(expiry_rec: Dict[str, Any]) -> str:
+def compute_expiry_status(expiry_rec: dict[str, Any]) -> str:
     opts = int(expiry_rec.get('options') or 0)
     if opts == 0:
         return 'EMPTY'
@@ -62,7 +63,7 @@ def compute_expiry_status(expiry_rec: Dict[str, Any]) -> str:
         return 'PARTIAL'
     return expiry_rec.get('status') or ('OK' if opts > 0 else 'EMPTY')
 
-def derive_partial_reason(expiry_rec: Dict[str, Any]) -> str | None:
+def derive_partial_reason(expiry_rec: dict[str, Any]) -> str | None:
     """Return a machine-friendly reason token when an expiry is PARTIAL.
 
     Tokens:
@@ -93,7 +94,7 @@ def derive_partial_reason(expiry_rec: Dict[str, Any]) -> str | None:
         return 'unknown'
     return 'unknown'
 
-def aggregate_cycle_status(expiry_recs: List[Dict[str, Any]]) -> str:
+def aggregate_cycle_status(expiry_recs: list[dict[str, Any]]) -> str:
     if not expiry_recs:
         return 'EMPTY'
     statuses = [r.get('status') or compute_expiry_status(r) for r in expiry_recs]

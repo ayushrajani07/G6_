@@ -30,8 +30,9 @@ Environment Flags (future placeholders):
 """
 from __future__ import annotations
 
-from typing import Iterable, Dict, Any, Tuple, List
 import datetime as _dt
+from collections.abc import Iterable
+from typing import Any
 
 __all__ = ["build_expiry_map"]
 
@@ -73,8 +74,8 @@ def _normalize_expiry(raw) -> _dt.date | None:
     return None
 
 
-def build_expiry_map(instruments: Iterable[Dict[str, Any]]) -> Tuple[Dict[_dt.date, List[Dict[str, Any]]], Dict[str, Any]]:
-    mapping: Dict[_dt.date, List[Dict[str, Any]]] = {}
+def build_expiry_map(instruments: Iterable[dict[str, Any]]) -> tuple[dict[_dt.date, list[dict[str, Any]]], dict[str, Any]]:
+    mapping: dict[_dt.date, list[dict[str, Any]]] = {}
     total = 0
     invalid = 0
     for inst in instruments:

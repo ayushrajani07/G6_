@@ -8,34 +8,36 @@ Future phases will migrate renderers and plugins to depend on these models
 instead of raw dictionaries, enabling better testability and evolution.
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any, Dict, Mapping, Optional, List
+
 import time
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from typing import Any
 
 # --- Domain Dataclasses -------------------------------------------------------
 
 @dataclass(frozen=True)
 class CycleInfo:
-    number: Optional[int] = None
-    last_start: Optional[str] = None  # ISO8601 string if available
-    last_duration_sec: Optional[float] = None
-    success_rate_pct: Optional[float] = None
+    number: int | None = None
+    last_start: str | None = None  # ISO8601 string if available
+    last_duration_sec: float | None = None
+    success_rate_pct: float | None = None
 
 @dataclass(frozen=True)
 class AlertsInfo:
-    total: Optional[int] = None
+    total: int | None = None
     severities: Mapping[str, int] = field(default_factory=dict)
 
 @dataclass(frozen=True)
 class ResourceInfo:
-    cpu_pct: Optional[float] = None
-    memory_mb: Optional[float] = None
+    cpu_pct: float | None = None
+    memory_mb: float | None = None
 
 @dataclass(frozen=True)
 class StorageInfo:
-    lag: Optional[float] = None  # generic backlog/lag seconds or units
-    queue_depth: Optional[int] = None
-    last_flush_age_sec: Optional[float] = None
+    lag: float | None = None  # generic backlog/lag seconds or units
+    queue_depth: int | None = None
+    last_flush_age_sec: float | None = None
 
 @dataclass(frozen=True)
 class PerfInfo:
@@ -44,7 +46,7 @@ class PerfInfo:
 
 @dataclass(frozen=True)
 class CoverageInfo:
-    indices_count: Optional[int] = None
+    indices_count: int | None = None
 
 @dataclass(frozen=True)
 class SummaryDomainSnapshot:
@@ -56,11 +58,15 @@ class SummaryDomainSnapshot:
     storage: StorageInfo
     perf: PerfInfo
     coverage: CoverageInfo
-    indices: List[str]
+    indices: list[str]
 
 # --- Builder ------------------------------------------------------------------
 
-def build_domain_snapshot(raw_status: Mapping[str, Any] | None, *, ts_read: Optional[float] = None) -> SummaryDomainSnapshot:
+def build_domain_snapshot(
+    raw_status: Mapping[str, Any] | None,
+    *,
+    ts_read: float | None = None,
+) -> SummaryDomainSnapshot:
     """Build a SummaryDomainSnapshot from a raw status mapping.
 
     Defensive: never raises; missing/invalid structures yield None fields.
@@ -70,7 +76,7 @@ def build_domain_snapshot(raw_status: Mapping[str, Any] | None, *, ts_read: Opti
     raw: Mapping[str, Any] = raw_status or {}
 
     # Extract indices (reuse simple logic here; later we can import derive.derive_indices safely)
-    indices: List[str] = []
+    indices: list[str] = []
     try:
         src = raw.get("indices") or raw.get("symbols")  # type: ignore[attr-defined]
         if isinstance(src, list):
@@ -85,10 +91,10 @@ def build_domain_snapshot(raw_status: Mapping[str, Any] | None, *, ts_read: Opti
     # Cycle extraction
     # Capture raw cycle first (numeric or structured) but allow loop overrides later.
     cycle_data = raw.get("cycle") or raw.get("last_cycle") or {}
-    number: Optional[int] = None
-    last_start: Optional[str] = None
-    last_duration: Optional[float] = None
-    success_rate: Optional[float] = None
+    number: int | None = None
+    last_start: str | None = None
+    last_duration: float | None = None
+    success_rate: float | None = None
     try:
         if isinstance(cycle_data, (int, float)):
             number = int(cycle_data)
@@ -124,11 +130,16 @@ def build_domain_snapshot(raw_status: Mapping[str, Any] | None, *, ts_read: Opti
                 success_rate = float(sr_val)
     except Exception:
         pass
-    cycle = CycleInfo(number=number, last_start=last_start, last_duration_sec=last_duration, success_rate_pct=success_rate)
+    cycle = CycleInfo(
+        number=number,
+        last_start=last_start,
+        last_duration_sec=last_duration,
+        success_rate_pct=success_rate,
+    )
 
     # Alerts
-    alerts_total: Optional[int] = None
-    severities: Dict[str, int] = {}
+    alerts_total: int | None = None
+    severities: dict[str, int] = {}
     try:
         alerts_obj = raw.get("alerts") if isinstance(raw, dict) else None
         if isinstance(alerts_obj, dict):
@@ -145,8 +156,8 @@ def build_domain_snapshot(raw_status: Mapping[str, Any] | None, *, ts_read: Opti
     alerts = AlertsInfo(total=alerts_total, severities=severities)
 
     # Resources (map to cpu & memory heuristics if present)
-    cpu_pct: Optional[float] = None
-    memory_mb: Optional[float] = None
+    cpu_pct: float | None = None
+    memory_mb: float | None = None
     try:
         res_obj = raw.get("resources") if isinstance(raw, dict) else None
         if isinstance(res_obj, dict):
@@ -176,7 +187,11 @@ def build_domain_snapshot(raw_status: Mapping[str, Any] | None, *, ts_read: Opti
             age = st_obj.get("last_flush_age") or st_obj.get("flush_age_sec")
             if not isinstance(age, (int, float)):
                 age = None
-            storage = StorageInfo(lag=lag_val, queue_depth=int(depth) if depth is not None else None, last_flush_age_sec=float(age) if age is not None else None)
+            storage = StorageInfo(
+                lag=lag_val,
+                queue_depth=int(depth) if depth is not None else None,
+                last_flush_age_sec=float(age) if age is not None else None,
+            )
     except Exception:
         pass
 
@@ -184,7 +199,7 @@ def build_domain_snapshot(raw_status: Mapping[str, Any] | None, *, ts_read: Opti
     perf = PerfInfo()
     try:
         perf_obj = raw.get("performance") if isinstance(raw, dict) else None
-        metrics: Dict[str, float] = {}
+        metrics: dict[str, float] = {}
         if isinstance(perf_obj, dict):
             for k, v in perf_obj.items():
                 if isinstance(v, (int, float)):

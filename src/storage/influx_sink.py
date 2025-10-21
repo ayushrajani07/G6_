@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 InfluxDB sink for G6 Options Trading Platform.
 
@@ -10,22 +9,24 @@ Refactored to use:
 """
 
 import logging
-import time
-from datetime import datetime, timezone
-from typing import Dict, Any, List, Optional, cast
+import os  # noqa: F401
 
 # Add this before launching the subprocess
 import sys  # noqa: F401
-import os  # noqa: F401
-from src.collectors.env_adapter import get_bool as _env_bool, get_int as _env_int, get_float as _env_float
+from datetime import UTC, datetime
+from typing import Any, cast
 
-from .influx_buffer_manager import InfluxBufferManager
-from .influx_circuit_breaker import InfluxCircuitBreaker
-from .influx_connection_pool import InfluxConnectionPool
+from src.collectors.env_adapter import get_bool as _env_bool
+from src.collectors.env_adapter import get_float as _env_float
+from src.collectors.env_adapter import get_int as _env_int
+from src.error_handling import ErrorCategory, ErrorSeverity, get_error_handler
+
 from ..health import runtime as health_runtime
 from ..health.models import HealthLevel, HealthState
 from ..utils.circuit_registry import circuit_protected  # optional adaptive CB for write paths
-from src.error_handling import get_error_handler, ErrorCategory, ErrorSeverity
+from .influx_buffer_manager import InfluxBufferManager
+from .influx_circuit_breaker import InfluxCircuitBreaker
+from .influx_connection_pool import InfluxConnectionPool
 
 logger = logging.getLogger(__name__)
 
@@ -38,9 +39,9 @@ class _TinyPoint:
     """
     def __init__(self, measurement: str):
         self._measurement = measurement
-        self._tags: Dict[str, Any] = {}
-        self._fields: Dict[str, Any] = {}
-        self._time: Optional[datetime] = None
+        self._tags: dict[str, Any] = {}
+        self._fields: dict[str, Any] = {}
+        self._time: datetime | None = None
 
     def tag(self, k: str, v: Any):
         self._tags[k] = v
@@ -57,7 +58,7 @@ class _TinyPoint:
 
 class InfluxSink:
     """InfluxDB storage sink for G6 data."""
-    
+
     def __init__(
         self,
         url: str = 'http://localhost:8086',
@@ -105,7 +106,7 @@ class InfluxSink:
             self._health_enabled = _env_bool('G6_HEALTH_COMPONENTS', False)
         except Exception:
             self._health_enabled = False
-        
+
         try:
             from influxdb_client.client.influxdb_client import InfluxDBClient
             # Initialize base client (will also seed pool)
@@ -125,7 +126,7 @@ class InfluxSink:
             eff_flush = _env_float('G6_INFLUX_FLUSH_INTERVAL', float(flush_interval) if flush_interval is not None else 1.0)
             eff_queue = _env_int('G6_INFLUX_MAX_QUEUE_SIZE', max_queue_size or 10000)
 
-            def _write_points(points: List[Any]) -> None:
+            def _write_points(points: list[Any]) -> None:
                 # write using main write_api (single client). Could round-robin via pool if desired.
                 if not self.write_api:
                     raise RuntimeError("write_api not initialized")
@@ -195,11 +196,11 @@ class InfluxSink:
         try:
             if _env_bool('G6_ADAPTIVE_CB_INFLUX', False):
                 if hasattr(self, 'write_options_data'):
-                    setattr(self, 'write_options_data', cast(Any, circuit_protected('influx.write_options_data')(getattr(self, 'write_options_data'))))
+                    self.write_options_data = cast(Any, circuit_protected('influx.write_options_data')(self.write_options_data))
                 if hasattr(self, 'write_overview_snapshot'):
-                    setattr(self, 'write_overview_snapshot', cast(Any, circuit_protected('influx.write_overview_snapshot')(getattr(self, 'write_overview_snapshot'))))
+                    self.write_overview_snapshot = cast(Any, circuit_protected('influx.write_overview_snapshot')(self.write_overview_snapshot))
                 if hasattr(self, 'write_cycle_stats'):
-                    setattr(self, 'write_cycle_stats', cast(Any, circuit_protected('influx.write_cycle_stats')(getattr(self, 'write_cycle_stats'))))
+                    self.write_cycle_stats = cast(Any, circuit_protected('influx.write_cycle_stats')(self.write_cycle_stats))
         except Exception as e:
             get_error_handler().handle_error(
                 e,
@@ -210,8 +211,8 @@ class InfluxSink:
                 message="Failed to enable adaptive circuit breakers",
                 should_log=False,
             )
-    
-    def close(self):
+
+    def close(self) -> None:
         """Close InfluxDB client."""
         try:
             if self._buffer:
@@ -255,7 +256,7 @@ class InfluxSink:
                 should_log=False,
             )
 
-    def flush(self):
+    def flush(self) -> None:
         try:
             if self._buffer:
                 self._buffer.flush()
@@ -269,11 +270,11 @@ class InfluxSink:
                 message="Buffer flush failed",
                 should_log=False,
             )
-    
-    def attach_metrics(self, metrics_registry):
+
+    def attach_metrics(self, metrics_registry: Any) -> None:
         self.metrics = metrics_registry
 
-    def write_options_data(self, index_symbol, expiry_date, options_data: Dict[str, Dict[str, Any]], timestamp=None):
+    def write_options_data(self, index_symbol: str, expiry_date: Any, options_data: dict[str, dict[str, Any]], timestamp: datetime | None = None) -> None:
         """
         Write options data to InfluxDB.
         
@@ -285,21 +286,21 @@ class InfluxSink:
         """
         if not self.client or not self.write_api:
             return
-        
+
         # Use current time if timestamp not provided
         if timestamp is None:
             try:
                 from src.utils.timeutils import utc_now
                 timestamp = utc_now()
             except Exception:
-                timestamp = datetime.now(timezone.utc)
-        
+                timestamp = datetime.now(UTC)
+
         # Convert expiry_date to string if it's a date object
         if hasattr(expiry_date, 'strftime'):
             expiry_str = expiry_date.strftime('%Y-%m-%d')
         else:
             expiry_str = str(expiry_date)
-        
+
         try:
             # Validation integration: mirror csv_sink behavior (drop invalid rows, clamp negatives, etc.)
             # local import to avoid hard dependency if validation package absent
@@ -346,7 +347,7 @@ class InfluxSink:
             except Exception:  # pragma: no cover - env without influxdb_client
                 _Point = _TinyPoint
 
-            points: List[Any] = []
+            points: list[Any] = []
             for symbol, data in options_data.items():
                 strike = data.get('strike', 0)
                 opt_type = data.get('type', data.get('instrument_type', ''))  # 'CE' or 'PE'
@@ -429,7 +430,7 @@ class InfluxSink:
             except Exception:
                 pass
 
-    def write_overview_snapshot(self, index_symbol, pcr_snapshot, timestamp, day_width=0, expected_expiries=None):
+    def write_overview_snapshot(self, index_symbol: str, pcr_snapshot: dict[str, float], timestamp: datetime, day_width: float = 0, expected_expiries: list[str] | None = None) -> None:
         """Write aggregated PCR overview for multiple expiries as a single point.
 
         Measurement: options_overview
@@ -505,7 +506,7 @@ class InfluxSink:
                 should_log=False,
             )
 
-    def write_cycle_stats(self, cycle:int, elapsed: float, success_rate: float | None, options_last:int | None, per_index: dict[str,int] | None, timestamp=None):
+    def write_cycle_stats(self, cycle: int, elapsed: float, success_rate: float | None, options_last: int | None, per_index: dict[str, int] | None, timestamp: datetime | None = None) -> None:
         """Write a single cycle summary point.
 
         Measurement: g6_cycle
@@ -526,7 +527,7 @@ class InfluxSink:
                     utc_now, _iso = ensure_utc_helpers()
                 except Exception:
                     def utc_now() -> datetime:
-                        return datetime.now(timezone.utc)
+                        return datetime.now(UTC)
                 timestamp = utc_now()
             point = _Point("g6_cycle") \
                 .field("cycle", int(cycle)) \
@@ -580,26 +581,26 @@ class InfluxSink:
 
 class NullInfluxSink:
     """Null implementation of InfluxDB sink that does nothing."""
-    
-    def __init__(self):
+
+    def __init__(self) -> None:
         """Initialize null sink."""
         pass
-    
-    def close(self):
+
+    def close(self) -> None:
         """Close sink (no-op)."""
         pass
-    
-    def write_options_data(self, index_symbol, expiry_date, options_data, timestamp=None):
+
+    def write_options_data(self, index_symbol: str, expiry_date: Any, options_data: dict[str, dict[str, Any]], timestamp: datetime | None = None) -> None:
         """Write options data (no-op)."""
         pass
 
-    def write_overview_snapshot(self, index_symbol, pcr_snapshot, timestamp, day_width=0, expected_expiries=None):
+    def write_overview_snapshot(self, index_symbol: str, pcr_snapshot: dict[str, float], timestamp: datetime, day_width: float = 0, expected_expiries: list[str] | None = None) -> None:
         """Write aggregated overview snapshot (no-op).
 
         Accepts expected_expiries for API compatibility with InfluxSink.
         """
         pass
 
-    def write_cycle_stats(self, cycle:int, elapsed: float, success_rate: float | None, options_last:int | None, per_index: dict[str,int] | None, timestamp=None):
+    def write_cycle_stats(self, cycle: int, elapsed: float, success_rate: float | None, options_last: int | None, per_index: dict[str, int] | None, timestamp: datetime | None = None) -> None:
         """Write cycle stats (no-op)."""
         pass

@@ -6,18 +6,20 @@ Enhancements:
 - Explicit credential update path produces new snapshot + optional client rebuild
 """
 from __future__ import annotations
-from typing import Any, Optional
-import time
+
 import logging
-from .metrics_adapter import metrics
-from .logging_events import emit_event
+import time
+from typing import Any
+
+from .config import ProviderConfig, get_provider_config, update_provider_credentials
 from .errors import (
-    classify_provider_exception,
     ProviderAuthError,
-    ProviderRecoverableError,
     ProviderFatalError,
+    ProviderRecoverableError,
+    classify_provider_exception,
 )
-from .config import get_provider_config, update_provider_credentials, ProviderConfig
+from .logging_events import emit_event
+from .metrics_adapter import metrics
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +29,7 @@ class AuthManager:
         self._cfg: ProviderConfig = cfg or get_provider_config()
         if api_key or access_token:
             self._cfg = self._cfg.with_updates(api_key=api_key, access_token=access_token)
-        self._client: Optional[Any] = None
+        self._client: Any | None = None
         self._auth_failed = False
         self._last_log_ts = 0.0
 
@@ -90,7 +92,7 @@ class AuthManager:
                 logger.info("auth.credentials.updated rebuild=0")
 
     @property
-    def client(self) -> Optional[Any]:
+    def client(self) -> Any | None:
         return self._client
 
     @property

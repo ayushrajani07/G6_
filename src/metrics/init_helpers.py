@@ -8,12 +8,13 @@ Will be removed after deprecation window.
 """
 from __future__ import annotations
 
-from typing import Any, Tuple, Set
+from typing import Any
+
 from src.utils.deprecations import emit_deprecation  # type: ignore
 
 _LEGACY_WARN_EMITTED = False
 
-def apply_group_gating(registry: Any) -> Tuple[Set[str], set | None, set]:  # pragma: no cover - legacy shim
+def apply_group_gating(registry: Any) -> tuple[set[str], set | None, set]:  # pragma: no cover - legacy shim
     global _LEGACY_WARN_EMITTED  # noqa: PLW0603
     if not _LEGACY_WARN_EMITTED:
         try:

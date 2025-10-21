@@ -16,18 +16,19 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from typing import Any, Tuple
+from typing import Any
+
 
 def _read_git_head(repo_root: str) -> str | None:
     head_path = os.path.join(repo_root, '.git', 'HEAD')
     try:
-        with open(head_path, 'r', encoding='utf-8') as f:
+        with open(head_path, encoding='utf-8') as f:
             ref = f.read().strip()
         if ref.startswith('ref:'):
             ref_rel = ref.split(' ', 1)[1].strip()
             ref_file = os.path.join(repo_root, '.git', ref_rel)
             try:
-                with open(ref_file, 'r', encoding='utf-8') as rf:
+                with open(ref_file, encoding='utf-8') as rf:
                     return rf.read().strip()[:40]
             except Exception:
                 return None
@@ -65,7 +66,7 @@ def compute_config_hash(config: Any) -> str:
     """
     try:
         if hasattr(config, 'raw'):
-            cfg = getattr(config, 'raw')
+            cfg = config.raw
         else:
             cfg = config
         if not isinstance(cfg, dict):  # pragma: no cover - defensive
@@ -75,7 +76,7 @@ def compute_config_hash(config: Any) -> str:
     except Exception:  # pragma: no cover - defensive
         return 'unknown'
 
-def gather_build_info(config: Any, repo_root: str | None = None) -> Tuple[str,str,str]:
+def gather_build_info(config: Any, repo_root: str | None = None) -> tuple[str,str,str]:
     """Return (version, git_commit, config_hash)."""
     return compute_version(), compute_git_commit(repo_root), compute_config_hash(config)
 

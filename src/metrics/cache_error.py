@@ -1,8 +1,10 @@
 """Cache, batching & error breakdown metric registrations (extracted)."""
 from __future__ import annotations
+
 from prometheus_client import Counter, Gauge
 
-def init_cache_error_metrics(registry: "MetricsRegistry") -> None:
+
+def init_cache_error_metrics(registry: MetricsRegistry) -> None:
     core = registry._core_reg  # type: ignore[attr-defined]
     core('cache_hit_rate', Gauge, 'g6_cache_hit_rate_percent', 'Cache hit rate percent (rolling)')
     core('cache_size_items', Gauge, 'g6_cache_items', 'Number of objects in cache')

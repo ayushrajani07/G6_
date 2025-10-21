@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Adaptive Circuit Breaker with simple error pattern awareness, jittered backoff,
 half-open probing, and optional persistence. Kept lightweight and dependency-free.
@@ -13,9 +12,10 @@ import os
 import random
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 
 class CircuitState(Enum):
@@ -25,7 +25,7 @@ class CircuitState(Enum):
 
 
 class CircuitOpenError(Exception):
-    def __init__(self, message: str = "Circuit is open", retry_after_seconds: Optional[float] = None):
+    def __init__(self, message: str = "Circuit is open", retry_after_seconds: float | None = None):
         self.retry_after_seconds = retry_after_seconds
         if retry_after_seconds is not None:
             message = f"{message}; retry after {retry_after_seconds:.1f}s"
@@ -41,7 +41,7 @@ class BreakerConfig:
     backoff_factor: float = 2.0
     jitter: float = 0.2
     half_open_successes: int = 1
-    persistence_dir: Optional[str] = None
+    persistence_dir: str | None = None
 
 
 class AdaptiveCircuitBreaker:
@@ -50,10 +50,10 @@ class AdaptiveCircuitBreaker:
         self._lock = threading.RLock()
         self._state = CircuitState.CLOSED
         self._failures = 0
-        self._opened_at: Optional[float] = None
+        self._opened_at: float | None = None
         self._current_timeout = max(1.0, float(cfg.min_reset_timeout))
         self._half_open_successes = 0
-        self._recent_errors_ts: List[float] = []  # timestamps of recent errors
+        self._recent_errors_ts: list[float] = []  # timestamps of recent errors
         self._pfile = None
         if cfg.persistence_dir:
             try:
@@ -169,7 +169,7 @@ class AdaptiveCircuitBreaker:
     def _load(self) -> None:
         try:
             if self._pfile and os.path.exists(self._pfile):
-                with open(self._pfile, "r", encoding="utf-8") as f:
+                with open(self._pfile, encoding="utf-8") as f:
                     data = json.load(f)
                 self._state = CircuitState(data.get("state", "CLOSED"))
                 self._failures = int(data.get("failures", 0))

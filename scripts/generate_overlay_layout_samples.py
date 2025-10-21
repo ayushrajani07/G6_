@@ -6,15 +6,18 @@ Tabs and split can be added later; focuses on demonstrating core rendering varia
 Generates small CSV structures in a temporary folder structure to exercise plotting script.
 """
 from __future__ import annotations
-import random, os, sys
+
+import random
+import sys
+from datetime import date, datetime, timedelta
 from pathlib import Path
-from datetime import datetime, timedelta, date
+from typing import Sequence
+
 try:
     import pandas as pd  # type: ignore
 except ImportError:  # pragma: no cover
     raise SystemExit("This script requires pandas. Install with: pip install pandas")
 import subprocess
-import json
 
 BASE = Path('data/_sample_overlay')
 LIVE = BASE / 'g6_data'
@@ -30,7 +33,7 @@ WEEKDAY_NAME = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','S
 random.seed(42)
 
 
-def ensure_dirs():
+def ensure_dirs() -> None:
     for idx in INDICES:
         for exp in EXPIRIES:
             for off in OFFSETS:
@@ -38,7 +41,7 @@ def ensure_dirs():
     (WEEKDAY / WEEKDAY_NAME).mkdir(parents=True, exist_ok=True)
 
 
-def gen_live_csv():
+def gen_live_csv() -> None:
     # generate 30 second buckets for 30 minutes synthetic session
     start = datetime(NOW.year, NOW.month, NOW.day, 9, 15, 0)
     rows = []
@@ -68,7 +71,7 @@ def gen_live_csv():
                 df.to_csv(out_file, index=False)
 
 
-def gen_weekday_master():
+def gen_weekday_master() -> None:
     # Simplified master with mean close to base_tp and EMA slightly different
     for idx in INDICES:
         for exp in EXPIRIES:
@@ -87,7 +90,7 @@ def gen_weekday_master():
                 alpha = 0.4
                 mean_acc_tp = 0
                 mean_acc_avg = 0
-                for i,(t,tpv,avv) in enumerate(zip(df['timestamp'], df['tp'], df['avg_tp'])):
+                for i,(t,tpv,avv) in enumerate(zip(df['timestamp'], df['tp'], df['avg_tp'], strict=False)):
                     if i == 0:
                         mean_acc_tp = tpv
                         mean_acc_avg = avv
@@ -118,7 +121,7 @@ def gen_weekday_master():
                 out_df.to_csv(out_file, index=False)
 
 
-def run_plot(layout, out_name):
+def run_plot(layout: str, out_name: str) -> None:
     # Always request static export into sample_images (created if missing)
     static_dir = Path('sample_images')
     static_dir.mkdir(parents=True, exist_ok=True)
@@ -140,7 +143,7 @@ def run_plot(layout, out_name):
     subprocess.run(cmd, check=True)
 
 
-def main():
+def main() -> None:
     ensure_dirs()
     gen_live_csv()
     gen_weekday_master()

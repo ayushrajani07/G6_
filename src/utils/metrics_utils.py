@@ -3,7 +3,9 @@
 Abstraction layer so scripts do not import deep metrics implementation details.
 """
 from __future__ import annotations
-from typing import Any, Tuple, Callable
+
+from collections.abc import Callable
+from typing import Any, cast
 
 try:
     from src.metrics import setup_metrics_server as _setup_metrics_server  # facade import
@@ -12,18 +14,19 @@ except Exception:
     _setup_metrics_server = None  # type: ignore
 
 
-def init_metrics(port: int = 9108) -> Tuple[Any, Callable[[], None]]:
+def init_metrics(port: int = 9108) -> tuple[Any, Callable[[], None]]:
     """Initialize metrics server returning (registry, stop_fn).
 
     If metrics backend unavailable, returns (None, noop_stop).
     """
-    def _noop():
+    def _noop() -> None:
         pass
 
     if _setup_metrics_server is None:
         return None, _noop
     try:
-        return _setup_metrics_server(port=port)
+        # setup_metrics_server returns (registry, stop_fn); type cast to keep Any from leaking
+        return cast(tuple[Any, Callable[[], None]], _setup_metrics_server(port=port))
     except Exception:
         return None, _noop
 

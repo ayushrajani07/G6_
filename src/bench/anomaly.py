@@ -17,8 +17,9 @@ Public API:
 All NaN / None values are skipped (not flagged). If insufficient points (< min_points), returns all False.
 """
 from __future__ import annotations
-from typing import Iterable, List, Tuple
+
 import math
+from collections.abc import Iterable
 
 __all__ = [
     'detect_anomalies',
@@ -44,7 +45,7 @@ def _clean(series: Iterable[float]):
     return out
 
 
-def detect_anomalies(series: Iterable[float], threshold: float = 3.5, min_points: int = 5) -> Tuple[List[bool], List[float]]:
+def detect_anomalies(series: Iterable[float], threshold: float = 3.5, min_points: int = 5) -> tuple[list[bool], list[float]]:
     vals = list(series)
     cleaned = _clean(vals)
     if len(cleaned) < min_points:
@@ -82,8 +83,8 @@ def detect_anomalies(series: Iterable[float], threshold: float = 3.5, min_points
                 flags.append(True); scores.append(float('inf'))
         return flags, scores
     sigma = 1.4826 * mad
-    flags: List[bool] = []
-    scores: List[float] = []
+    flags: list[bool] = []
+    scores: list[float] = []
     for raw in vals:
         if raw is None:
             flags.append(False); scores.append(0.0); continue
@@ -99,18 +100,18 @@ def detect_anomalies(series: Iterable[float], threshold: float = 3.5, min_points
     return flags, scores
 
 
-def summarize_anomalies(flags: List[bool], scores: List[float]):
+def summarize_anomalies(flags: list[bool], scores: list[float]):
     count = sum(1 for f in flags if f)
     max_sev = 0.0
-    for f, s in zip(flags, scores):
+    for f, s in zip(flags, scores, strict=False):
         if f:
             max_sev = max(max_sev, abs(s))
     return {'count': count, 'max_severity': max_sev}
 
 
-def rolling_detect(series: Iterable[float], window: int = 50, threshold: float = 3.5, min_points: int = 5) -> List[bool]:
+def rolling_detect(series: Iterable[float], window: int = 50, threshold: float = 3.5, min_points: int = 5) -> list[bool]:
     vals = list(series)
-    out: List[bool] = []
+    out: list[bool] = []
     for i in range(len(vals)):
         hist = vals[max(0, i-window):i]
         # Enough clean historical points (excluding current) required

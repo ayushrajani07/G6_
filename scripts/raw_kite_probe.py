@@ -34,14 +34,15 @@ import json
 import os
 import sys
 import traceback
-from typing import Any, Dict, List, Optional
+from typing import Any
+
 
 # Lightweight .env loader (avoids new dependency). Only parses KEY=VALUE lines.
 def _load_dotenv_if_present(dotenv_path: str = '.env') -> None:
     if not os.path.exists(dotenv_path):
         return
     try:
-        with open(dotenv_path, 'r', encoding='utf-8') as f:
+        with open(dotenv_path, encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith('#'):
@@ -59,7 +60,7 @@ def _load_dotenv_if_present(dotenv_path: str = '.env') -> None:
         pass
 
 
-def _read_env_multi(*names: str) -> Optional[str]:
+def _read_env_multi(*names: str) -> str | None:
     for n in names:
         v = os.environ.get(n)
         if v:
@@ -75,14 +76,14 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def safe_len(obj: Any) -> Optional[int]:
+def safe_len(obj: Any) -> int | None:
     try:
         return len(obj)  # type: ignore[arg-type]
     except Exception:
         return None
 
 
-def summarize_first_entry(label: str, data: Any) -> Dict[str, Any]:
+def summarize_first_entry(label: str, data: Any) -> dict[str, Any]:
     if not isinstance(data, list) or not data:
         return {f'{label.lower()}_first': None}
     first = data[0]
@@ -106,7 +107,7 @@ def main() -> int:
         if not access_token:
             access_token = _read_env_multi('KITE_ACCESS_TOKEN', 'KITE_ACCESSTOKEN')
 
-    result: Dict[str, Any] = {
+    result: dict[str, Any] = {
         'python_version': sys.version,
         'api_key_present': bool(api_key),
         'access_token_present': bool(access_token),
@@ -128,8 +129,8 @@ def main() -> int:
         return 2
 
     try:
-        from kiteconnect import KiteConnect  # type: ignore
         import kiteconnect  # type: ignore
+        from kiteconnect import KiteConnect  # type: ignore
         result['kiteconnect_import_ok'] = True
         result['kiteconnect_version'] = getattr(kiteconnect, '__version__', None)
     except Exception as e:  # pragma: no cover - diagnostic path
@@ -176,7 +177,7 @@ def main() -> int:
     # Fallback derivation if needed
     if isinstance(full, list) and full and (not isinstance(nfo, list) or not nfo):
         # Heuristic filters: segment contains 'NFO' OR exchange == 'NFO'
-        derived: List[Any] = []
+        derived: list[Any] = []
         for inst in full:
             if not isinstance(inst, dict):
                 continue
@@ -208,7 +209,7 @@ def main() -> int:
     result['classification'] = classification
 
     # Terminal hints
-    hints: List[str] = []
+    hints: list[str] = []
     if classification == 'NO_FULL_LIST':
         hints.append('Check access token validity / entitlements; consider regenerating token.')
         hints.append('Verify kiteconnect compatibility with this Python version (3.13 may not yet be fully supported).')

@@ -19,25 +19,27 @@ Payload (fields optional when unavailable):
 Honors G6_DISABLE_STRUCT_EVENTS via struct_events_bridge; never raises.
 """
 from __future__ import annotations
-from typing import Any, Dict, Protocol
+
 import logging
+from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 
 try:  # reuse existing bridge for uniform formatting + gating
     from src.collectors.modules.struct_events_bridge import emit_struct
 except Exception:  # pragma: no cover
-    def emit_struct(event: str, fields: Dict[str, Any]) -> None:
+    def emit_struct(event: str, fields: dict[str, Any]) -> None:
         try:
-            import json, logging as _l
+            import json
+            import logging as _l
             _l.getLogger(__name__).info("STRUCT %s | %s", event, json.dumps(fields, default=str, ensure_ascii=False))
         except Exception:
             pass
 
 class AdaptiveCtxLike(Protocol):  # re-uses shape from adaptive_adjust (duplicated locally to avoid import cycle)
-    index_params: Dict[str, Dict[str, Any]]
-    _adaptive_contraction_state: Dict[str, Dict[str, Any]]
-    flags: Dict[str, Any]
+    index_params: dict[str, dict[str, Any]]
+    _adaptive_contraction_state: dict[str, dict[str, Any]]
+    flags: dict[str, Any]
 
 __all__ = ["emit_adaptive_summary", "AdaptiveCtxLike"]
 

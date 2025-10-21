@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """CollectorSettings: single-pass environment hydration for collector/expiry logic.
 
 Phase 0 introduction (pipeline rationalization). Goals:
@@ -8,9 +9,8 @@ Phase 0 introduction (pipeline rationalization). Goals:
 
 Future extensions: add strike span heuristics, salvage tuning parameters, domain model toggles.
 """
-from dataclasses import dataclass
 import os
-from typing import Optional
+from dataclasses import dataclass
 
 _TRUTHY = {"1","true","yes","on"}
 
@@ -50,10 +50,10 @@ class CollectorSettings:
     foreign_expiry_salvage: bool = False
     pipeline_v2_flag: bool = False  # Phase 1: enable shadow pipeline (resolve->enrich) comparison
     # Placeholder for future domain model toggles
-    domain_models: Optional[str] = None  # raw string spec (comma-separated)
+    domain_models: str | None = None  # raw string spec (comma-separated)
 
     @classmethod
-    def load(cls) -> "CollectorSettings":
+    def load(cls) -> CollectorSettings:
         return cls(
             min_volume=_to_int('G6_FILTER_MIN_VOLUME', 0),
             min_open_interest=_to_int('G6_FILTER_MIN_OI', 0),

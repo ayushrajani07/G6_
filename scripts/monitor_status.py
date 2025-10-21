@@ -10,11 +10,9 @@ Optional Rich formatting if 'rich' is installed.
 """
 from __future__ import annotations
 
+import argparse
 import json
 import time
-import argparse
-import os
-import datetime as dt
 
 try:  # optional pretty output
     from rich.console import Console  # type: ignore
@@ -25,11 +23,17 @@ except Exception:  # pragma: no cover
     console = None  # type: ignore
 
 
+from typing import Any, Mapping
 from src.utils.status_reader import get_status_reader
 
-def load_status(path: str):
+
+def load_status(path: str) -> Mapping[str, Any]:
     reader = get_status_reader(path)
-    return reader.get_raw_status()
+    data = reader.get_raw_status()
+    if isinstance(data, dict):
+        return data
+    # Provide an empty mapping if unexpected type; callers handle missing keys
+    return {}
 
 
 def format_line(data: dict) -> str:
@@ -43,7 +47,7 @@ def format_line(data: dict) -> str:
     return f"[{cyc}] {ts} readiness={ok} success={sr}% options={opts} sleep={sleep_sec}s {ltp_reason}"
 
 
-def render_rich(data: dict):  # pragma: no cover - cosmetic
+def render_rich(data: dict) -> None:  # pragma: no cover - cosmetic
     if not RICH or console is None:
         print(format_line(data))
         return
@@ -62,7 +66,7 @@ def render_rich(data: dict):  # pragma: no cover - cosmetic
     console.print(table)
 
 
-def main():
+def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument('--file', default='data/runtime_status.json', help='Status JSON file path')
     ap.add_argument('--interval', type=float, default=1.0, help='Polling interval seconds')

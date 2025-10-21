@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 from __future__ import annotations
 
-from typing import List
-
-from .env_registry import EnvVarDefinition, EnvVarType, registry
+from .env_registry import EnvVarType, registry
 
 
 def _type_to_str(t: EnvVarType) -> str:
@@ -19,7 +16,7 @@ def _type_to_str(t: EnvVarType) -> str:
 
 
 def generate_markdown() -> str:
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append("# G6 Environment Variables\n")
     lines.append("This document is auto-generated from the Environment Registry.\n")
     lines.append("\n")
@@ -28,7 +25,7 @@ def generate_markdown() -> str:
     for d in sorted(registry.get_documented_variables(), key=lambda x: x.name):
         default_str = "" if d.default is None else str(d.default)
         choices_str = "" if not d.choices else ", ".join(str(c) for c in d.choices)
-        notes: List[str] = []
+        notes: list[str] = []
         if d.deprecated:
             repl = f"; use {d.replacement}" if d.replacement else ""
             notes.append(f"deprecated{repl}")

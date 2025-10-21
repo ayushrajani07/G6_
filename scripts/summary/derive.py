@@ -1,12 +1,12 @@
 from __future__ import annotations
-import os
-import re
-from typing import Any, Dict, List, Optional, Tuple, Callable
-from dataclasses import dataclass
-from datetime import datetime, timezone, timedelta
 
-_FmtFunc = Callable[[Any], Optional[str]]
-_fmt_ist_hms_30s: Optional[_FmtFunc]
+import os
+from collections.abc import Callable
+from datetime import UTC, datetime, timedelta, timezone
+from typing import Any
+
+_FmtFunc = Callable[[Any], str | None]
+_fmt_ist_hms_30s: _FmtFunc | None
 try:
     from src.utils.timeutils import format_any_to_ist_hms_30s as _imported_fmt
     # Assign with relaxed signature; cast at call sites by runtime check
@@ -31,11 +31,11 @@ def fmt_hms_from_dt(dt: datetime) -> str:
         except Exception:
             pass
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
     return dt.astimezone(timezone(timedelta(hours=5, minutes=30))).strftime("%H:%M:%S")
 
 
-def fmt_hms(ts: Any) -> Optional[str]:
+def fmt_hms(ts: Any) -> str | None:
     if _fmt_ist_hms_30s is not None:
         try:
             s = _fmt_ist_hms_30s(ts)
@@ -47,7 +47,7 @@ def fmt_hms(ts: Any) -> Optional[str]:
         return fmt_hms_from_dt(ts)
     if isinstance(ts, (int, float)):
         try:
-            return fmt_hms_from_dt(datetime.fromtimestamp(float(ts), tz=timezone.utc))
+            return fmt_hms_from_dt(datetime.fromtimestamp(float(ts), tz=UTC))
         except Exception:
             return None
     if isinstance(ts, str):
@@ -56,7 +56,7 @@ def fmt_hms(ts: Any) -> Optional[str]:
     return None
 
 
-def fmt_timedelta_secs(secs: Optional[float]) -> str:
+def fmt_timedelta_secs(secs: float | None) -> str:
     if secs is None:
         return "—"
     if secs < 0:
@@ -70,7 +70,7 @@ def fmt_timedelta_secs(secs: Optional[float]) -> str:
     return f"{m}m {s}s"
 
 
-def clip(text: Any, max_len: Optional[int] = None) -> str:
+def clip(text: Any, max_len: int | None = None) -> str:
     s = str(text)
     if max_len is None:
         try:
@@ -83,14 +83,14 @@ def clip(text: Any, max_len: Optional[int] = None) -> str:
     return s[: int(max_len) - 1] + "…"
 
 
-def parse_iso(ts: Any) -> Optional[datetime]:
+def parse_iso(ts: Any) -> datetime | None:
     try:
         if isinstance(ts, (int, float)):
-            return datetime.fromtimestamp(float(ts), tz=timezone.utc)
+            return datetime.fromtimestamp(float(ts), tz=UTC)
         if isinstance(ts, str):
             dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=UTC)
             return dt
     except Exception:
         return None
@@ -106,7 +106,7 @@ def ist_now() -> datetime:
         return datetime.now(timezone(timedelta(hours=5, minutes=30)))
 
 
-def is_market_hours_ist(dt: Optional[datetime] = None) -> bool:
+def is_market_hours_ist(dt: datetime | None = None) -> bool:
     d = dt or ist_now()
     if d.weekday() >= 5:
         return False
@@ -116,7 +116,7 @@ def is_market_hours_ist(dt: Optional[datetime] = None) -> bool:
     return start <= hm <= end
 
 
-def next_market_open_ist(dt: Optional[datetime] = None) -> Optional[datetime]:
+def next_market_open_ist(dt: datetime | None = None) -> datetime | None:
     d = dt or ist_now()
     if is_market_hours_ist(d):
         return None
@@ -129,7 +129,7 @@ def next_market_open_ist(dt: Optional[datetime] = None) -> Optional[datetime]:
 
 # ---------- Derivers ----------
 
-def derive_indices(status: Dict[str, Any] | None) -> List[str]:
+def derive_indices(status: dict[str, Any] | None) -> list[str]:
     if not status:
         return []
     indices = status.get("indices") or status.get("symbols") or []
@@ -142,7 +142,7 @@ def derive_indices(status: Dict[str, Any] | None) -> List[str]:
     return []
 
 
-def derive_market_summary(status: Dict[str, Any] | None) -> Tuple[str, str]:
+def derive_market_summary(status: dict[str, Any] | None) -> tuple[str, str]:
     if not status:
         return ("unknown", "next open: —")
     open_flag = status.get("market_open") or status.get("equity_market_open")
@@ -156,13 +156,13 @@ def derive_market_summary(status: Dict[str, Any] | None) -> Tuple[str, str]:
     if next_open:
         # Use local variable inside each branch to avoid partially assigned state
         def _fmt_block(dt_val: datetime) -> str:
-            delta_local = (dt_val - datetime.now(timezone.utc)).total_seconds()
+            delta_local = (dt_val - datetime.now(UTC)).total_seconds()
             from .derive import fmt_hms_from_dt as _fmt
             return f"next open: {_fmt(dt_val)} (in {fmt_timedelta_secs(delta_local)})"
-        parsed_dt: Optional[datetime] = None
+        parsed_dt: datetime | None = None
         try:
             if isinstance(next_open, (int, float)):
-                parsed_dt = datetime.fromtimestamp(float(next_open), tz=timezone.utc)
+                parsed_dt = datetime.fromtimestamp(float(next_open), tz=UTC)
             else:
                 parsed_dt = datetime.fromisoformat(str(next_open).replace("Z", "+00:00"))
         except Exception:
@@ -177,8 +177,8 @@ def derive_market_summary(status: Dict[str, Any] | None) -> Tuple[str, str]:
     return (state, extra)
 
 
-def derive_cycle(status: Dict[str, Any] | None) -> Dict[str, Any]:
-    d: Dict[str, Any] = {"cycle": None, "last_start": None, "last_duration": None, "success_rate": None}
+def derive_cycle(status: dict[str, Any] | None) -> dict[str, Any]:
+    d: dict[str, Any] = {"cycle": None, "last_start": None, "last_duration": None, "success_rate": None}
     if not status:
         return d
     cycle = status.get("cycle") or status.get("last_cycle")
@@ -199,7 +199,7 @@ def derive_cycle(status: Dict[str, Any] | None) -> Dict[str, Any]:
     return d
 
 
-def estimate_next_run(status: Dict[str, Any] | None, interval: Optional[float]) -> Optional[float]:
+def estimate_next_run(status: dict[str, Any] | None, interval: float | None) -> float | None:
     if not status or not interval:
         return None
     loop = status.get("loop") if isinstance(status, dict) else None
@@ -212,10 +212,10 @@ def estimate_next_run(status: Dict[str, Any] | None, interval: Optional[float]) 
     if not dt:
         return None
     next_dt = dt.timestamp() + float(interval)
-    return max(0.0, next_dt - datetime.now(timezone.utc).timestamp())
+    return max(0.0, next_dt - datetime.now(UTC).timestamp())
 
 
-def derive_health(status: Dict[str, Any] | None) -> Tuple[int, int, List[Tuple[str, str]]]:
+def derive_health(status: dict[str, Any] | None) -> tuple[int, int, list[tuple[str, str]]]:
     if not status:
         return (0, 0, [])
     comps = status.get("health") or status.get("components") or {}
@@ -230,16 +230,17 @@ def derive_health(status: Dict[str, Any] | None) -> Tuple[int, int, List[Tuple[s
         healthy = sum(1 for _, s in items if s.lower() in ("ok", "healthy", "ready"))
         return (healthy, len(items), items)
     if isinstance(comps, list):
-        items2 = []
-        for c in comps:
-            if isinstance(c, dict):
-                items2.append((str(c.get("name", "?")), str(c.get("status", "?"))))
+        items2 = [
+            (str(c.get("name", "?")), str(c.get("status", "?")))
+            for c in comps
+            if isinstance(c, dict)
+        ]
         healthy = sum(1 for _, s in items2 if s.lower() in ("ok", "healthy", "ready"))
         return (healthy, len(items2), items2)
     return (0, 0, [])
 
 
-def derive_provider(status: Dict[str, Any] | None) -> Dict[str, Any]:
+def derive_provider(status: dict[str, Any] | None) -> dict[str, Any]:
     p = {"name": None, "auth": None, "expiry": None, "latency_ms": None}
     if not status:
         return p
@@ -254,8 +255,8 @@ def derive_provider(status: Dict[str, Any] | None) -> Dict[str, Any]:
     return p
 
 
-def collect_resources() -> Dict[str, Any]:
-    out: Dict[str, Any] = {"cpu": None, "rss": None}
+def collect_resources() -> dict[str, Any]:
+    out: dict[str, Any] = {"cpu": None, "rss": None}
     if psutil:
         try:
             out["cpu"] = psutil.cpu_percent(interval=None)

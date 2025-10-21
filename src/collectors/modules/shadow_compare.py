@@ -35,8 +35,9 @@ full option chains to keep overhead minimal. Deep parity remains the responsibil
 of the dedicated parity harness.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Tuple
-import copy, math, logging
+
+import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +50,7 @@ _ALERT_PREFIX = 'alert_'
 _COVERAGE_KEYS = ['strike_coverage_avg','field_coverage_avg']
 
 
-def _shallow_extract(result: Dict[str, Any]) -> Dict[str, Any]:
+def _shallow_extract(result: dict[str, Any]) -> dict[str, Any]:
   """Extract only fields needed for diff to reduce memory churn."""
   out = {
     k: result.get(k) for k in (
@@ -82,8 +83,8 @@ def _percent_drift(a: Any, b: Any) -> float | None:
     return None
 
 
-def _compare_counts(legacy: Dict[str, Any], pipeline: Dict[str, Any]) -> List[Dict[str, Any]]:
-  diffs: List[Dict[str, Any]] = []
+def _compare_counts(legacy: dict[str, Any], pipeline: dict[str, Any]) -> list[dict[str, Any]]:
+  diffs: list[dict[str, Any]] = []
   for key in _COUNT_KEYS:
     la = legacy.get(key); pb = pipeline.get(key)
     if la == pb:
@@ -105,8 +106,8 @@ def _compare_counts(legacy: Dict[str, Any], pipeline: Dict[str, Any]) -> List[Di
   return diffs
 
 
-def _compare_alerts(legacy: Dict[str, Any], pipeline: Dict[str, Any]) -> List[Dict[str, Any]]:
-  out: List[Dict[str, Any]] = []
+def _compare_alerts(legacy: dict[str, Any], pipeline: dict[str, Any]) -> list[dict[str, Any]]:
+  out: list[dict[str, Any]] = []
   ls = legacy.get('snapshot_summary') or {}
   ps = pipeline.get('snapshot_summary') or {}
   legacy_alerts = {k:v for k,v in ls.items() if k.startswith(_ALERT_PREFIX)}
@@ -119,8 +120,8 @@ def _compare_alerts(legacy: Dict[str, Any], pipeline: Dict[str, Any]) -> List[Di
   return out
 
 
-def _compare_coverage(legacy: Dict[str, Any], pipeline: Dict[str, Any]) -> List[Dict[str, Any]]:
-  diffs: List[Dict[str, Any]] = []
+def _compare_coverage(legacy: dict[str, Any], pipeline: dict[str, Any]) -> list[dict[str, Any]]:
+  diffs: list[dict[str, Any]] = []
   lidx = {i.get('index'): i for i in legacy.get('indices', [])}
   pidx = {i.get('index'): i for i in pipeline.get('indices', [])}
   for key in sorted(set(lidx) | set(pidx)):
@@ -136,7 +137,7 @@ def _compare_coverage(legacy: Dict[str, Any], pipeline: Dict[str, Any]) -> List[
   return diffs
 
 
-def _compare_partial_reason_totals(legacy: Dict[str, Any], pipeline: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _compare_partial_reason_totals(legacy: dict[str, Any], pipeline: dict[str, Any]) -> list[dict[str, Any]]:
   lpr = legacy.get('partial_reason_totals') or {}
   ppr = pipeline.get('partial_reason_totals') or {}
   diffs = []
@@ -148,12 +149,12 @@ def _compare_partial_reason_totals(legacy: Dict[str, Any], pipeline: Dict[str, A
   return diffs
 
 
-def _compare_structural(legacy: Dict[str, Any], pipeline: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _compare_structural(legacy: dict[str, Any], pipeline: dict[str, Any]) -> list[dict[str, Any]]:
   lsum = set((legacy.get('snapshot_summary') or {}).keys())
   psum = set((pipeline.get('snapshot_summary') or {}).keys())
   miss = lsum - psum
   extra = psum - lsum
-  diffs: List[Dict[str, Any]] = []
+  diffs: list[dict[str, Any]] = []
   for k in sorted(miss):
     diffs.append({'key': k, 'reason': 'missing_in_pipeline'})
   for k in sorted(extra):
@@ -161,7 +162,7 @@ def _compare_structural(legacy: Dict[str, Any], pipeline: Dict[str, Any]) -> Lis
   return diffs
 
 
-def compute_shadow_diff(legacy_result: Dict[str, Any], pipeline_result: Dict[str, Any]) -> Dict[str, Any]:
+def compute_shadow_diff(legacy_result: dict[str, Any], pipeline_result: dict[str, Any]) -> dict[str, Any]:
   l = _shallow_extract(legacy_result)
   p = _shallow_extract(pipeline_result)
   counts = _compare_counts(l, p)

@@ -22,15 +22,16 @@ Buckets:
 Function `aggregate_once()` performs one snapshot aggregation.
 """
 from __future__ import annotations
-import os
-import random
-import time
-from typing import Iterable, Dict, Any, Tuple, Callable, Optional
-from dataclasses import dataclass
 
-from . import generated as m  # generated metric accessors
 import importlib
 import logging
+import os
+import random
+from collections.abc import Iterable
+from dataclasses import dataclass
+from typing import Any
+
+from . import generated as m  # generated metric accessors
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +138,6 @@ def _provider_snapshot() -> Iterable[ContractRow] | None:
 def _normalize_snapshot(obj: Any) -> Iterable[ContractRow]:  # pragma: no cover - data shape normalization
     rows: list[ContractRow] = []
     try:
-        import pandas as _pd  # type: ignore
         if hasattr(obj, 'iterrows'):
             for _i, r in obj.iterrows():  # type: ignore[attr-defined]
                 try:
@@ -161,7 +161,7 @@ def _normalize_snapshot(obj: Any) -> Iterable[ContractRow]:  # pragma: no cover 
                                 try:
                                     base_date = _dt.datetime.now(_dt.UTC).date()  # type: ignore[attr-defined]
                                 except Exception:
-                                    base_date = _dt.datetime.now(_dt.timezone.utc).date()
+                                    base_date = _dt.datetime.now(_dt.UTC).date()
                             except Exception:  # pragma: no cover - extreme fallback
                                 base_date = _dt.date.today()
                             exp_date = exp.date() if isinstance(exp, _dt.datetime) else exp
@@ -237,7 +237,7 @@ def aggregate_once() -> None:
     else:
         rows = list(_fetch_contract_snapshot())
     # Accumulators keyed by (mny_bucket, dte_bucket)
-    buckets: Dict[Tuple[str,str], Dict[str, float]] = {}
+    buckets: dict[tuple[str,str], dict[str, float]] = {}
     for r in rows:
         mny_b = _bucket_mny(r.mny)
         dte_b = _bucket_dte(r.dte)

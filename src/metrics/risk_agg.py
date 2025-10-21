@@ -14,9 +14,8 @@ Registration contract:
   * Pure refactor: No changes to metric names, types, or documentation strings.
 """
 from __future__ import annotations
+
 from typing import Any
-from prometheus_client import Gauge
-import logging
 
 __all__ = ["init_risk_agg_metrics"]
 

@@ -108,8 +108,11 @@
     try{ localStorage.setItem('g6_theme', t || 'light'); }catch(_){ }
   };
   O.initTheme = function(defaultTheme){
+    // If a defaultTheme is explicitly provided, honor it; otherwise fallback to saved preference
     let t = defaultTheme || 'light';
-    try{ t = localStorage.getItem('g6_theme') || t; }catch(_){ }
+    if(!defaultTheme){
+      try{ t = localStorage.getItem('g6_theme') || t; }catch(_){ }
+    }
     O.setTheme(t);
   };
 })();

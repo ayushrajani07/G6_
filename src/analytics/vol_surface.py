@@ -33,16 +33,17 @@ Metrics:
 """
 from __future__ import annotations
 
+import gzip
+import json
 import os
 import time
-from statistics import mean
-from typing import Any, Dict, Optional, Iterable, List, Tuple, Protocol, Callable, Union
+from collections.abc import Iterable
 from collections.abc import Iterable as _IterableABC
-import json
-import gzip
+from statistics import mean
+from typing import Any, Protocol
 
-_surface_cache: Dict[str, Any] = {}
-_last_build_ts: Optional[float] = None
+_surface_cache: dict[str, Any] = {}
+_last_build_ts: float | None = None
 
 
 def _parse_buckets() -> list[float]:
@@ -59,7 +60,7 @@ def _parse_buckets() -> list[float]:
     return sorted(set(edges))
 
 
-def _iter_options(snapshot_source: Any) -> Iterable[Dict[str, Any]]:
+def _iter_options(snapshot_source: Any) -> Iterable[dict[str, Any]]:
     # Direct iterable
     if isinstance(snapshot_source, list):
         for row in snapshot_source:
@@ -79,7 +80,7 @@ def _iter_options(snapshot_source: Any) -> Iterable[Dict[str, Any]]:
             return
 
 
-def _interpolate_missing(rows: List[Dict[str, Any]], buckets: List[float]) -> List[Dict[str, Any]]:
+def _interpolate_missing(rows: list[dict[str, Any]], buckets: list[float]) -> list[dict[str, Any]]:
     """Fill missing bucket entries per (index, expiry) by linear interpolating avg_iv across bucket midpoints.
 
     Rules:
@@ -90,8 +91,8 @@ def _interpolate_missing(rows: List[Dict[str, Any]], buckets: List[float]) -> Li
       - Mark interpolated rows with source='interp' and count=0.
     """
     # Organize by (index, expiry)
-    by_key: Dict[Tuple[str,str], Dict[str, Dict[str, Any]]] = {}
-    def _bucket_mid(b: str) -> Optional[float]:
+    by_key: dict[tuple[str,str], dict[str, dict[str, Any]]] = {}
+    def _bucket_mid(b: str) -> float | None:
         # b forms: "[a,b]", "<-inf,x]", "[x,+inf)" -> only interpolate finite ones
         if b.startswith('[') and ',' in b and b.endswith(']'):
             try:
@@ -152,11 +153,11 @@ def _interpolate_missing(rows: List[Dict[str, Any]], buckets: List[float]) -> Li
 
 
 class _MetricLabel(Protocol):  # minimal subset of prometheus-like label objects
-    def set(self, value: Union[int,float]) -> Any: ...
-    def inc(self, value: Union[int,float]=1) -> Any: ...
-    def observe(self, value: Union[int,float]) -> Any: ...
+    def set(self, value: int | float) -> Any: ...
+    def inc(self, value: int | float=1) -> Any: ...
+    def observe(self, value: int | float) -> Any: ...
 
-def _safe_label(obj: Any) -> Optional[_MetricLabel]:
+def _safe_label(obj: Any) -> _MetricLabel | None:
     if obj is None:
         return None
     # duck-typing: ensure at least one expected attribute
@@ -164,7 +165,7 @@ def _safe_label(obj: Any) -> Optional[_MetricLabel]:
         return obj  # type: ignore[return-value]
     return None
 
-def build_surface(snapshot_source: Any) -> Optional[Dict[str, Any]]:
+def build_surface(snapshot_source: Any) -> dict[str, Any] | None:
     if os.environ.get('G6_VOL_SURFACE','').lower() not in ('1','true','yes','on'):
         return None
     start = time.time()
@@ -176,7 +177,7 @@ def build_surface(snapshot_source: Any) -> Optional[Dict[str, Any]]:
     persist_dir = os.environ.get('G6_ANALYTICS_DIR', 'data/analytics')
 
     # Accumulator: (index, expiry, bucket_label) -> list[iv]
-    acc: Dict[tuple[str,str,str], list[float]] = {}
+    acc: dict[tuple[str,str,str], list[float]] = {}
     processed = 0
     for opt in _iter_options(snapshot_source):
         if processed >= max_options:
@@ -262,7 +263,7 @@ def build_surface(snapshot_source: Any) -> Optional[Dict[str, Any]]:
                 lbl = metrics_obj.vol_surface_builds.labels(index='global')
                 _l = _safe_label(lbl);  _l.inc() if _l else None
             if hasattr(metrics_obj, 'vol_surface_build_seconds'):
-                _l = _safe_label(getattr(metrics_obj, 'vol_surface_build_seconds'))
+                _l = _safe_label(metrics_obj.vol_surface_build_seconds)
                 if _l: _l.observe(elapsed)
             if hasattr(metrics_obj, 'vol_surface_rows'):
                 raw_count = sum(1 for r in rows if r.get('source') == 'raw')
@@ -301,7 +302,7 @@ def build_surface(snapshot_source: Any) -> Optional[Dict[str, Any]]:
                             try:
                                 alerts_list = getattr(snapshot_source, 'adaptive_alerts', None)
                                 if alerts_list is None:
-                                    setattr(snapshot_source, 'adaptive_alerts', [alert])
+                                    snapshot_source.adaptive_alerts = [alert]
                                 else:
                                     if isinstance(alerts_list, list):
                                         alerts_list.append(alert)
@@ -321,13 +322,13 @@ def build_surface(snapshot_source: Any) -> Optional[Dict[str, Any]]:
                         pass
                 if hasattr(metrics_obj, 'vol_surface_interp_seconds') and interp_elapsed:
                     try:
-                        _li2 = _safe_label(getattr(metrics_obj, 'vol_surface_interp_seconds'))
+                        _li2 = _safe_label(metrics_obj.vol_surface_interp_seconds)
                         if _li2: _li2.observe(interp_elapsed)
                     except Exception:
                         pass
                 if hasattr(metrics_obj, 'vol_surface_model_build_seconds') and model_elapsed:
                     try:
-                        _lm = _safe_label(getattr(metrics_obj, 'vol_surface_model_build_seconds'))
+                        _lm = _safe_label(metrics_obj.vol_surface_model_build_seconds)
                         if _lm: _lm.observe(model_elapsed)
                     except Exception:
                         pass
@@ -360,7 +361,7 @@ def build_surface(snapshot_source: Any) -> Optional[Dict[str, Any]]:
                                 pass
                     if hasattr(metrics_obj, 'vol_surface_rows_expiry'):
                         try:
-                            per_expiry: Dict[str, Dict[str, int]] = {}
+                            per_expiry: dict[str, dict[str, int]] = {}
                             for r in rows:
                                 exp = r.get('expiry')
                                 src = r.get('source')
@@ -419,7 +420,7 @@ def build_surface(snapshot_source: Any) -> Optional[Dict[str, Any]]:
     return surface
 
 
-def get_latest_surface() -> Optional[Dict[str, Any]]:
+def get_latest_surface() -> dict[str, Any] | None:
     return _surface_cache or None
 
 __all__ = ["build_surface", "get_latest_surface"]

@@ -1,22 +1,21 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Configuration loader for G6 Options Trading Platform.
 """
 
-import os
 import json
 import logging
+import os
 
 # Add this before launching the subprocess
-import sys  # retained only if needed elsewhere (currently unused beyond compatibility)
 
 logger = logging.getLogger(__name__)
-from src.error_handling import get_error_handler, ErrorCategory, ErrorSeverity
+from src.error_handling import ErrorCategory, ErrorSeverity, get_error_handler
+
 
 class ConfigLoader:
     """Configuration loader for G6 Platform."""
-    
+
     @staticmethod
     def load_config(config_path):
         """
@@ -44,10 +43,10 @@ def load_config(config_path):
         # Check if file exists
         if not os.path.exists(config_path):
             logger.error(f"Configuration file not found: {config_path}")
-            
+
             # Create default config if file doesn't exist
             default_config = create_default_config()
-            
+
             # Ensure directory exists
             try:
                 os.makedirs(os.path.dirname(config_path), exist_ok=True)
@@ -64,7 +63,7 @@ def load_config(config_path):
                     )
                 except Exception:
                     pass
-            
+
             # Write default config
             try:
                 with open(config_path, 'w') as f:
@@ -82,17 +81,17 @@ def load_config(config_path):
                     )
                 except Exception:
                     pass
-                
+
             logger.info(f"Created default configuration at {config_path}")
             return default_config
-        
+
         # Open and parse JSON file
-        with open(config_path, 'r') as f:
+        with open(config_path) as f:
             config = json.load(f)
-        
+
         logger.info(f"Loaded configuration from {config_path}")
         return config
-    
+
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON in configuration file: {config_path}")
         try:

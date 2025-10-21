@@ -8,16 +8,19 @@ Usage (powershell):
 Outputs strike range, offsets present, counts per expiry bucket, inferred ATM and any gaps.
 """
 from __future__ import annotations
+
 import argparse
-import os
 import csv
-from collections import defaultdict
-from statistics import mean
+import os
 from datetime import date
+from statistics import mean
 
 EXPIRY_CODES = ["this_week","next_week","this_month","next_month"]
 
-def scan(base_dir: str, index: str, target_date: str | None):
+from typing import Any
+
+
+def scan(base_dir: str, index: str, target_date: str | None) -> dict[str, dict[str, Any]]:
     base = os.path.join(base_dir, index)
     if not os.path.isdir(base):
         raise SystemExit(f"Index directory not found: {base}")
@@ -44,7 +47,7 @@ def scan(base_dir: str, index: str, target_date: str | None):
                 continue
             offsets.append(offset_dir)
             try:
-                with open(csv_file,'r', newline='') as f:
+                with open(csv_file, newline='') as f:
                     r = csv.DictReader(f)
                     for row in r:
                         records += 1
@@ -65,7 +68,7 @@ def scan(base_dir: str, index: str, target_date: str | None):
             }
     return summary
 
-def main():
+def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument('--base-dir', default='data/g6_data')
     p.add_argument('--index', required=True)

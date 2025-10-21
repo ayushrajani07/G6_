@@ -9,9 +9,9 @@ import asyncio
 import json
 from pathlib import Path
 
-from src.providers.adapters.async_mock_adapter import AsyncMockProvider
 from src.collectors.async_providers import AsyncProviders
 from src.collectors.parallel_collector import ParallelCollector
+from src.providers.adapters.async_mock_adapter import AsyncMockProvider
 from src.storage.csv_sink import CsvSink
 
 CONFIG_PATH = Path('config/g6_config.json')

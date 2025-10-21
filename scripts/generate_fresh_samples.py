@@ -4,13 +4,14 @@
 This bypasses provider/market-hours gating to demonstrate cleaned headers and rows.
 """
 from __future__ import annotations
-import os
+
 import datetime as dt
+import os
 
 from src.storage.csv_sink import CsvSink
 from src.utils.timeutils import (
-    compute_weekly_expiry,
     compute_monthly_expiry,
+    compute_weekly_expiry,
 )
 
 
@@ -46,7 +47,7 @@ def main() -> int:
 
     sink = CsvSink(base_dir="data/g6_data")
     index = "NIFTY"
-    now = dt.datetime.now(dt.timezone.utc)
+    now = dt.datetime.now(dt.UTC)
     # Use a typical ATM for sampling
     index_price = 25180.0
     atm = 25200

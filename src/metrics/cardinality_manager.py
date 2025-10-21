@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 CardinalityManager: adaptive gate for high-cardinality per-option metrics.
 
@@ -26,11 +25,10 @@ or memory-pressure coupling can be layered on later.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from collections import deque
-from typing import Deque, Dict, Optional, Tuple
 import os
 import time
+from collections import deque
+from dataclasses import dataclass
 
 
 def _env_bool(name: str, default: bool = False) -> bool:
@@ -83,12 +81,12 @@ class CardinalityManager:
       - last observed value per key for change-threshold gating
     """
 
-    def __init__(self, cfg: Optional[CardinalityConfig] = None):
+    def __init__(self, cfg: CardinalityConfig | None = None):
         self.cfg = cfg or CardinalityConfig()
         # rate limit bucket: holds timestamps of accepted events in the last 1s
-        self._recent_accepts: Deque[float] = deque()
+        self._recent_accepts: deque[float] = deque()
         # last observed price per (index, expiry, strike, type)
-        self._last_value: Dict[Tuple[str, str, str, str], float] = {}
+        self._last_value: dict[tuple[str, str, str, str], float] = {}
         # optional metrics registry (set via set_metrics)
         self._metrics = None
 
@@ -129,8 +127,8 @@ class CardinalityManager:
             pass
 
     def should_emit(self, index: str, expiry: str, strike: int | float, opt_type: str,
-                    atm_strike: Optional[int | float] = None,
-                    value: Optional[float] = None) -> bool:
+                    atm_strike: int | float | None = None,
+                    value: float | None = None) -> bool:
         """Return True if per-option metrics should be emitted.
 
         Parameters
@@ -244,7 +242,7 @@ class CardinalityManager:
         return True
 
 
-_SINGLETON: Optional[CardinalityManager] = None
+_SINGLETON: CardinalityManager | None = None
 
 
 def get_cardinality_manager() -> CardinalityManager:

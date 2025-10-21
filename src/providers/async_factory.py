@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Dict
+from typing import Any
 
 from .adapters.async_kite_adapter import AsyncKiteAdapter
 from .adapters.async_mock_adapter import AsyncMockProvider
-from src.provider.config import get_provider_config
 
 
-def create_async_provider(provider_type: str, config: Dict[str, Any] | None = None):
+def create_async_provider(provider_type: str, config: dict[str, Any] | None = None):
     ptype = (provider_type or "").lower()
     cfg = config or {}
     # Global defaults with env overrides

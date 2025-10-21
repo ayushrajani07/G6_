@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """UnifiedStatusSnapshot model (Phase 1 -> foundation).
 
 Authoritative schema:
@@ -23,26 +24,27 @@ When implementing a planned TODO above:
     2. Update SCHEMA_VERSION only if change is not purely additive.
     3. Append rationale to MIGRATION.md under a new heading "UnifiedStatusSnapshot <version>".
 """
-from dataclasses import dataclass, field, asdict
-from typing import Any, Dict, List, Optional, Mapping, Tuple
-import time, os
+import os
+import time
+from dataclasses import asdict, dataclass, field
+from typing import Any
 
 SCHEMA_VERSION = 1
 
 @dataclass
 class IndexEntry:
     name: str
-    legs: Optional[int] = None
-    dq_score: Optional[float] = None
-    dq_issues: Optional[int] = None
-    success_rate: Optional[float] = None
+    legs: int | None = None
+    dq_score: float | None = None
+    dq_issues: int | None = None
+    success_rate: float | None = None
 
 @dataclass
 class CycleInfo:
-    number: Optional[int] = None
-    last_duration_sec: Optional[float] = None
-    success_rate_pct: Optional[float] = None
-    next_run_in_sec: Optional[float] = None
+    number: int | None = None
+    last_duration_sec: float | None = None
+    success_rate_pct: float | None = None
+    next_run_in_sec: float | None = None
 
 @dataclass
 class DQCounts:
@@ -55,10 +57,10 @@ class DQCounts:
 @dataclass
 class AdaptiveSummary:
     alerts_total: int = 0
-    alerts_by_type: Dict[str,int] = field(default_factory=dict)
-    severity_counts: Dict[str,int] = field(default_factory=dict)
-    followups: List[Dict[str,Any]] = field(default_factory=list)
-    mode: Optional[str] = None
+    alerts_by_type: dict[str,int] = field(default_factory=dict)
+    severity_counts: dict[str,int] = field(default_factory=dict)
+    followups: list[dict[str,Any]] = field(default_factory=list)
+    mode: str | None = None
 
 @dataclass
 class UnifiedStatusSnapshot:
@@ -66,20 +68,20 @@ class UnifiedStatusSnapshot:
     ts_epoch: float = field(default_factory=lambda: time.time())
     cycle: CycleInfo = field(default_factory=CycleInfo)
     market_status: str = "?"
-    provider: Dict[str, Any] = field(default_factory=dict)
-    resources: Dict[str, Any] = field(default_factory=dict)
-    indices: List[IndexEntry] = field(default_factory=list)
+    provider: dict[str, Any] = field(default_factory=dict)
+    resources: dict[str, Any] = field(default_factory=dict)
+    indices: list[IndexEntry] = field(default_factory=list)
     dq: DQCounts = field(default_factory=DQCounts)
     adaptive: AdaptiveSummary = field(default_factory=AdaptiveSummary)
-    provenance: Dict[str,str] = field(default_factory=dict)
-    meta: Dict[str, Any] = field(default_factory=dict)
-    raw_ref: Dict[str, Any] = field(default_factory=dict)  # slim raw subset for debugging
+    provenance: dict[str,str] = field(default_factory=dict)
+    meta: dict[str, Any] = field(default_factory=dict)
+    raw_ref: dict[str, Any] = field(default_factory=dict)  # slim raw subset for debugging
 
-    def to_dict(self) -> Dict[str, Any]:  # convenience
+    def to_dict(self) -> dict[str, Any]:  # convenience
         return asdict(self)
 
 
-def assemble_model_snapshot(*, runtime_status: Dict[str, Any] | None, panels_dir: Optional[str] = None, include_panels: bool = True, in_memory_panels: Optional[Dict[str, Any]] = None) -> Tuple[UnifiedStatusSnapshot, Dict[str, Any]]:
+def assemble_model_snapshot(*, runtime_status: dict[str, Any] | None, panels_dir: str | None = None, include_panels: bool = True, in_memory_panels: dict[str, Any] | None = None) -> tuple[UnifiedStatusSnapshot, dict[str, Any]]:
     """Return UnifiedStatusSnapshot (native builder) + diagnostics.
 
     Native emission path (Phase 2): builds the model directly from
@@ -95,7 +97,7 @@ def assemble_model_snapshot(*, runtime_status: Dict[str, Any] | None, panels_dir
 
     Diagnostics (`diag`): { 'warnings': [...], 'native': True|False }
     """
-    diag: Dict[str, Any] = {"warnings": [], "native": True}
+    diag: dict[str, Any] = {"warnings": [], "native": True}
 
     try:
         status = runtime_status if isinstance(runtime_status, dict) else {}
@@ -197,13 +199,13 @@ def assemble_model_snapshot(*, runtime_status: Dict[str, Any] | None, panels_dir
         # --- Indices: prefer panel indices else indices_detail ---
         try:
             source_indices = panel_indices if isinstance(panel_indices, dict) else (status.get('indices_detail') if isinstance(status.get('indices_detail'), dict) else {})
-            out: List[IndexEntry] = []
+            out: list[IndexEntry] = []
             for name, info in (source_indices or {}).items():
                 if not isinstance(info, dict):
                     continue
                 legs = info.get('legs') or info.get('current_cycle_legs')
                 if isinstance(legs, (int, float)):
-                    legs_int: Optional[int] = int(legs)
+                    legs_int: int | None = int(legs)
                 else:
                     legs_int = None
                 dq_score = None
@@ -273,7 +275,7 @@ def assemble_model_snapshot(*, runtime_status: Dict[str, Any] | None, panels_dir
 
         # --- raw_ref lightweight capture (debug provenance) ---
         try:
-            raw_subset: Dict[str, Any] = {}
+            raw_subset: dict[str, Any] = {}
             for k in ('market','loop','provider','resources','indices_detail','alerts'):
                 v = status.get(k) if isinstance(status, dict) else None
                 if v is not None:

@@ -11,18 +11,21 @@ Future phases will:
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import List, Dict, Callable, Optional, Any, Protocol
+from typing import Any, Protocol
+
+
 class _SupportsMetricOps(Protocol):  # minimal structural typing for labels objects
     def set(self, value: float | int) -> Any: ...  # pragma: no cover - interface only
     def inc(self, value: float | int = 1) -> Any: ...
     def observe(self, value: float | int) -> Any: ...
 
-def _safe(obj: Any) -> Optional[_SupportsMetricOps]:
+def _safe(obj: Any) -> _SupportsMetricOps | None:
     return obj if obj is not None else None
+import os
 import threading
 import time
-import os
 
 try:
     from src.metrics import generated as m  # runtime-provided metrics family
@@ -63,7 +66,7 @@ class PipelineConfig:
     low_watermark_rows: int = 40000
 
     @staticmethod
-    def from_env() -> "PipelineConfig":
+    def from_env() -> PipelineConfig:
         return PipelineConfig(
             enabled=_getenv_bool("STORAGE_COLUMN_STORE_ENABLED", True),
             table=os.getenv("STORAGE_COLUMN_STORE_TABLE", "option_chain_agg"),
@@ -74,12 +77,12 @@ class PipelineConfig:
         )
 
 # Row type for simulation: dict of column -> value
-Row = Dict[str, Any]
+Row = dict[str, Any]
 
 class _Buffer:
     def __init__(self):
-        self.rows: List[Row] = []
-        self.first_enqueue_ts: Optional[float] = None
+        self.rows: list[Row] = []
+        self.first_enqueue_ts: float | None = None
 
     def add(self, row: Row):
         if self.first_enqueue_ts is None:
@@ -97,7 +100,7 @@ class _Buffer:
                 return True
         return False
 
-    def pop_all(self) -> List[Row]:
+    def pop_all(self) -> list[Row]:
         out = self.rows
         self.rows = []
         self.first_enqueue_ts = None
@@ -109,14 +112,14 @@ class ColumnStorePipeline:
         self._buf = _Buffer()
         self._lock = threading.Lock()
         self._stop = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         # Simulated failure injection hook
-        self._fail_writer: Optional[Callable[[List[Row]], Optional[str]]] = None  # returns reason if failure
+        self._fail_writer: Callable[[list[Row]], str | None] | None = None  # returns reason if failure
         if self.cfg.enabled:
             self._thread = threading.Thread(target=self._run, name="cs-ingest", daemon=True)
             self._thread.start()
 
-    def install_failure_hook(self, fn: Callable[[List[Row]], Optional[str]]):
+    def install_failure_hook(self, fn: Callable[[list[Row]], str | None]):
         self._fail_writer = fn
 
     def enqueue(self, row: Row):
@@ -153,7 +156,7 @@ class ColumnStorePipeline:
         if not batch:
             return
         start = time.perf_counter()
-        failure_reason: Optional[str] = None
+        failure_reason: str | None = None
         try:
             if self._fail_writer:
                 reason = self._fail_writer(batch)
@@ -208,7 +211,7 @@ class ColumnStorePipeline:
             pass
 
 # Simple factory (singleton per table)
-_PIPELINES: Dict[str, ColumnStorePipeline] = {}
+_PIPELINES: dict[str, ColumnStorePipeline] = {}
 
 def get_pipeline(table: str = "option_chain_agg") -> ColumnStorePipeline:
     if table not in _PIPELINES:

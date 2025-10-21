@@ -5,10 +5,12 @@ consume identical structured content. Rich renderers can still choose to
 provide more elaborate formatting later (Phase 2+).
 """
 from __future__ import annotations
-from typing import List, Sequence, Dict
+
 import time
-from .panel_types import PanelData, PanelProvider
+from collections.abc import Sequence
+
 from .domain import SummaryDomainSnapshot
+from .panel_types import PanelData, PanelProvider
 
 # --- Providers ---------------------------------------------------------------
 
@@ -19,16 +21,39 @@ class CyclePanelProvider:
         lines = [
             f"cycle: {c.number if c.number is not None else '—'}",
             f"last_start: {c.last_start or '—'}",
-            f"last_duration: {c.last_duration_sec:.3f}s" if c.last_duration_sec is not None else "last_duration: —",
-            f"success_rate: {c.success_rate_pct:.2f}%" if c.success_rate_pct is not None else "success_rate: —",
+            (
+                f"last_duration: {c.last_duration_sec:.3f}s"
+                if c.last_duration_sec is not None
+                else "last_duration: —"
+            ),
+            (
+                f"success_rate: {c.success_rate_pct:.2f}%"
+                if c.success_rate_pct is not None
+                else "success_rate: —"
+            ),
         ]
-        return PanelData(key=self.key, title="Cycle", lines=lines, meta={"number": c.number})
+        return PanelData(
+            key=self.key,
+            title="Cycle",
+            lines=lines,
+            meta={"number": c.number},
+        )
 
 class IndicesPanelProvider:
     key = "indices"
     def build(self, snapshot: SummaryDomainSnapshot) -> PanelData:  # pragma: no cover - thin
-        lines = [f"count: {len(snapshot.indices)}"] + [", ".join(snapshot.indices)[:120]] if snapshot.indices else ["count: 0"]
-        return PanelData(key=self.key, title="Indices", lines=lines, meta={"count": len(snapshot.indices)})
+        lines = (
+            [f"count: {len(snapshot.indices)}"]
+            + [", ".join(snapshot.indices)[:120]]
+            if snapshot.indices
+            else ["count: 0"]
+        )
+        return PanelData(
+            key=self.key,
+            title="Indices",
+            lines=lines,
+            meta={"count": len(snapshot.indices)},
+        )
 
 class AlertsPanelProvider:
     key = "alerts"
@@ -42,7 +67,12 @@ class AlertsPanelProvider:
             f"total: {a.total if a.total is not None else '—'}",
             f"by_severity: {' '.join(sev_parts) if sev_parts else '—'}",
         ]
-        return PanelData(key=self.key, title="Alerts", lines=lines, meta={"total": a.total})
+        return PanelData(
+            key=self.key,
+            title="Alerts",
+            lines=lines,
+            meta={"total": a.total},
+        )
 
 class ResourcesPanelProvider:
     key = "resources"
@@ -52,18 +82,42 @@ class ResourcesPanelProvider:
             f"cpu_pct: {r.cpu_pct:.1f}" if r.cpu_pct is not None else "cpu_pct: —",
             f"memory_mb: {r.memory_mb:.1f}" if r.memory_mb is not None else "memory_mb: —",
         ]
-        return PanelData(key=self.key, title="Resources", lines=lines, meta={"cpu_pct": r.cpu_pct, "memory_mb": r.memory_mb})
+        return PanelData(
+            key=self.key,
+            title="Resources",
+            lines=lines,
+            meta={"cpu_pct": r.cpu_pct, "memory_mb": r.memory_mb},
+        )
 
 class StoragePanelProvider:
     key = "storage"
     def build(self, snapshot: SummaryDomainSnapshot) -> PanelData:  # pragma: no cover - thin
         s = snapshot.storage
         lines = [
-            f"lag: {s.lag:.2f}" if isinstance(s.lag, (int,float)) else "lag: —",
-            f"queue_depth: {s.queue_depth}" if s.queue_depth is not None else "queue_depth: —",
-            f"last_flush_age_sec: {s.last_flush_age_sec:.2f}" if isinstance(s.last_flush_age_sec, (int,float)) else "last_flush_age_sec: —",
+            (
+                f"lag: {s.lag:.2f}" if isinstance(s.lag, (int, float)) else "lag: —"
+            ),
+            (
+                f"queue_depth: {s.queue_depth}"
+                if s.queue_depth is not None
+                else "queue_depth: —"
+            ),
+            (
+                f"last_flush_age_sec: {s.last_flush_age_sec:.2f}"
+                if isinstance(s.last_flush_age_sec, (int, float))
+                else "last_flush_age_sec: —"
+            ),
         ]
-        return PanelData(key=self.key, title="Storage", lines=lines, meta={"lag": s.lag, "queue_depth": s.queue_depth, "last_flush_age_sec": s.last_flush_age_sec})
+        return PanelData(
+            key=self.key,
+            title="Storage",
+            lines=lines,
+            meta={
+                "lag": s.lag,
+                "queue_depth": s.queue_depth,
+                "last_flush_age_sec": s.last_flush_age_sec,
+            },
+        )
 
 class PerfPanelProvider:
     key = "perfstore"
@@ -75,9 +129,14 @@ class PerfPanelProvider:
         if not items:
             lines = ["metrics: —"]
         else:
-            rendered = [f"{k}={v:.2f}" for k,v in items]
+            rendered = [f"{k}={v:.2f}" for k, v in items]
             lines = [", ".join(rendered)[:120]]
-        return PanelData(key=self.key, title="Performance", lines=lines, meta={"count": len(metrics)})
+        return PanelData(
+            key=self.key,
+            title="Performance",
+            lines=lines,
+            meta={"count": len(metrics)},
+        )
 
 DEFAULT_PANEL_PROVIDERS: Sequence[PanelProvider] = (
     CyclePanelProvider(),
@@ -89,8 +148,8 @@ DEFAULT_PANEL_PROVIDERS: Sequence[PanelProvider] = (
 )
 
 # Failure backoff state (module-level; lightweight and reset on process restart)
-_provider_failures: Dict[str, int] = {}
-_provider_cooldown_until: Dict[str, float] = {}
+_provider_failures: dict[str, int] = {}
+_provider_cooldown_until: dict[str, float] = {}
 _FAIL_THRESHOLD = 3
 _COOLDOWN_SEC = 30.0  # can be tuned later or env driven
 
@@ -110,12 +169,22 @@ def _record_failure(pkey: str) -> None:
     if cnt >= _FAIL_THRESHOLD:
         _provider_cooldown_until[pkey] = time.time() + _COOLDOWN_SEC
 
-def build_all_panels(snapshot: SummaryDomainSnapshot, providers: Sequence[PanelProvider] | None = None) -> List[PanelData]:
-    out: List[PanelData] = []
+def build_all_panels(
+    snapshot: SummaryDomainSnapshot,
+    providers: Sequence[PanelProvider] | None = None,
+) -> list[PanelData]:
+    out: list[PanelData] = []
     for p in providers or DEFAULT_PANEL_PROVIDERS:
         pkey = getattr(p, 'key', 'unknown')
         if _should_skip(pkey):
-            out.append(PanelData(key=pkey, title="ERROR", lines=["provider suppressed (cooldown)"], meta={"error": True, "cooldown": True}))
+            out.append(
+                PanelData(
+                    key=pkey,
+                    title="ERROR",
+                    lines=["provider suppressed (cooldown)"],
+                    meta={"error": True, "cooldown": True},
+                )
+            )
             continue
         try:
             out.append(p.build(snapshot))
@@ -124,10 +193,17 @@ def build_all_panels(snapshot: SummaryDomainSnapshot, providers: Sequence[PanelP
                 _provider_failures.pop(pkey, None)
         except Exception as e:  # pragma: no cover - defensive
             _record_failure(pkey)
-            out.append(PanelData(key=pkey, title="ERROR", lines=[f"provider error: {e}"], meta={"error": True, "failures": _provider_failures.get(pkey, 0)}))
+            out.append(
+                PanelData(
+                    key=pkey,
+                    title="ERROR",
+                    lines=[f"provider error: {e}"],
+                    meta={"error": True, "failures": _provider_failures.get(pkey, 0)},
+                )
+            )
     return out
 
-def build_panels_subset(snapshot: SummaryDomainSnapshot, keys: Sequence[str]) -> List[PanelData]:
+def build_panels_subset(snapshot: SummaryDomainSnapshot, keys: Sequence[str]) -> list[PanelData]:
     """Build only the panels for the provided keys.
 
     Falls back to empty list if keys empty. Unknown keys are ignored.
@@ -135,12 +211,19 @@ def build_panels_subset(snapshot: SummaryDomainSnapshot, keys: Sequence[str]) ->
     if not keys:
         return []
     key_set = set(keys)
-    out: List[PanelData] = []
+    out: list[PanelData] = []
     for prov in DEFAULT_PANEL_PROVIDERS:
         pkey = getattr(prov, 'key', None)
         if pkey in key_set:
             if pkey and _should_skip(pkey):
-                out.append(PanelData(key=pkey, title="ERROR", lines=["provider suppressed (cooldown)"], meta={"error": True, "cooldown": True}))
+                out.append(
+                    PanelData(
+                        key=pkey,
+                        title="ERROR",
+                        lines=["provider suppressed (cooldown)"],
+                        meta={"error": True, "cooldown": True},
+                    )
+                )
                 continue
             try:
                 out.append(prov.build(snapshot))
@@ -149,7 +232,14 @@ def build_panels_subset(snapshot: SummaryDomainSnapshot, keys: Sequence[str]) ->
             except Exception as e:  # pragma: no cover - defensive
                 if pkey:
                     _record_failure(pkey)
-                out.append(PanelData(key=pkey or 'unknown', title="ERROR", lines=[f"provider error: {e}"], meta={"error": True, "failures": _provider_failures.get(pkey, 0)}))
+                out.append(
+                    PanelData(
+                        key=pkey or 'unknown',
+                        title="ERROR",
+                        lines=[f"provider error: {e}"],
+                        meta={"error": True, "failures": _provider_failures.get(pkey, 0)},
+                    )
+                )
     return out
 
 __all__ = [

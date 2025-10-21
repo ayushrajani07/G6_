@@ -8,10 +8,14 @@ Intended for operator quick reference and to pair with ENV_VARS_CATALOG.
 """
 from __future__ import annotations
 
-import json, os, sys, tempfile
+import json
+import os
+import sys
+import tempfile
+from collections.abc import Iterable
+from datetime import UTC, datetime
 from pathlib import Path
-from datetime import datetime, timezone
-from typing import Any, Iterable
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 CONFIG_FILE = ROOT / 'config' / '_config.json'
@@ -46,7 +50,7 @@ def stringify(val: Any) -> str:
     return str(val)
 
 def build_markdown(pairs: list[tuple[str, Any]]) -> str:
-    now = datetime.now(timezone.utc).isoformat().replace('+00:00','Z')
+    now = datetime.now(UTC).isoformat().replace('+00:00','Z')
     stamp = os.getenv('G6_CATALOG_TS', now)
     out = []
     out.append('# G6 Configuration Keys Catalog')
@@ -64,7 +68,6 @@ def build_markdown(pairs: list[tuple[str, Any]]) -> str:
 
 def write_atomic(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    import tempfile
     with tempfile.NamedTemporaryFile('w', delete=False, encoding='utf-8') as tf:
         tmp = Path(tf.name)
         tf.write(text.rstrip() + '\n')

@@ -4,13 +4,15 @@ Lifecycle hygiene metrics have been extracted to `lifecycle_category` (lifecycle
 to keep taxonomy clean.
 """
 from __future__ import annotations
-from prometheus_client import Counter, Gauge
+
 from typing import TYPE_CHECKING
+
+from prometheus_client import Counter, Gauge
 
 if TYPE_CHECKING:  # only for type checkers; avoids runtime import cycles
     from .metrics import MetricsRegistry  # noqa: F401
 
-def init_storage_metrics(registry: "MetricsRegistry") -> None:
+def init_storage_metrics(registry: MetricsRegistry) -> None:
     core = registry._core_reg  # type: ignore[attr-defined]
     core('csv_files_created', Counter, 'g6_csv_files_created_total', 'CSV files created')
     core('csv_records_written', Counter, 'g6_csv_records_written_total', 'CSV records written')

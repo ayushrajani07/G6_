@@ -26,6 +26,19 @@
       },
       "required": ["interval_seconds"]
     },
+    "greeks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "estimate_iv": { "type": "boolean", "default": false },
+        "risk_free_rate": { "type": "number", "default": 0.05 },
+        "iv_max_iterations": { "type": "integer", "minimum": 1, "default": 100 },
+        "iv_min": { "type": "number", "minimum": 0.0, "default": 0.01 },
+        "iv_max": { "type": "number", "minimum": 0.0, "default": 5.0 },
+        "iv_precision": { "type": "number", "minimum": 0.0, "default": 1e-5 }
+      }
+    },
     "storage": {
       "type": "object",
       "additionalProperties": false,

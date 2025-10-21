@@ -10,28 +10,29 @@ so they can be integrated incrementally without a massive refactor in one step.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Iterable
 import os
+from typing import Any
+
 try:
     from src.utils.env_flags import is_truthy_env
 except Exception:  # pragma: no cover
     def is_truthy_env(name: str, default: str | None = None) -> bool:
         raw = os.environ.get(name, default or '')
         return str(raw).lower() in ('1','true','yes','on')
-import json
-import time
 import datetime as _dt
+import json
 import logging
-from pathlib import Path
+import time
 
 logger = logging.getLogger(__name__)
 
 from typing import Any as _Any
+
 try:  # error handler optional during early extraction
     import src.error_handling as _eh
-    _geh_mod_i: _Any = getattr(_eh, 'get_error_handler')
-    _ec_mod_i: _Any = getattr(_eh, 'ErrorCategory')
-    _es_mod_i: _Any = getattr(_eh, 'ErrorSeverity')
+    _geh_mod_i: _Any = _eh.get_error_handler
+    _ec_mod_i: _Any = _eh.ErrorCategory
+    _es_mod_i: _Any = _eh.ErrorSeverity
 except Exception:  # pragma: no cover
     def _geh_mod_f():
         class _EH:
@@ -50,7 +51,7 @@ ErrorSeverity: _Any = locals().get('_es_mod_i') or locals().get('_es_mod_f')
 
 
 def _utc_now_iso() -> str:
-    return _dt.datetime.now(_dt.timezone.utc).isoformat().replace('+00:00','Z')
+    return _dt.datetime.now(_dt.UTC).isoformat().replace('+00:00','Z')
 
 
 def write_runtime_status(
@@ -59,12 +60,12 @@ def write_runtime_status(
     cycle: int,
     elapsed: float,
     interval: float,
-    index_params: Dict[str, Any],
+    index_params: dict[str, Any],
     providers: Any,
     csv_sink: Any,
     influx_sink: Any,
     metrics: Any,
-    readiness_ok: Optional[bool],
+    readiness_ok: bool | None,
     readiness_reason: str,
     health_monitor: Any,
 ) -> None:
@@ -173,7 +174,7 @@ def write_runtime_status(
                     # Try provider.get_ltp with an instrument tuple pattern the mock supports
                     try:
                         # Map index to canonical instrument tuple used elsewhere
-                        idx_map: Dict[str, tuple[str, str]] = {
+                        idx_map: dict[str, tuple[str, str]] = {
                             'NIFTY': ('NSE', 'NIFTY 50'),
                             'BANKNIFTY': ('NSE', 'NIFTY BANK'),
                             'FINNIFTY': ('NSE', 'NIFTY FIN SERVICE'),
@@ -207,7 +208,7 @@ def write_runtime_status(
                 try:
                     prim2 = getattr(providers, 'primary_provider', None)
                     if prim2 and hasattr(prim2, 'get_quote'):
-                        idx_map2: Dict[str, tuple[str, str]] = {
+                        idx_map2: dict[str, tuple[str, str]] = {
                             'NIFTY': ('NSE', 'NIFTY 50'),
                             'BANKNIFTY': ('NSE', 'NIFTY BANK'),
                             'FINNIFTY': ('NSE', 'NIFTY FIN SERVICE'),
@@ -280,7 +281,7 @@ def write_runtime_status(
     except Exception:
         pass
 
-    provider_info: Dict[str, Any] = {"name": None, "auth": {"valid": None, "expiry": None}, "latency_ms": None}
+    provider_info: dict[str, Any] = {"name": None, "auth": {"valid": None, "expiry": None}, "latency_ms": None}
     try:
         provider_info["name"] = type(providers.primary_provider).__name__ if providers and providers.primary_provider else None
         provider_info["latency_ms"] = getattr(metrics, '_api_latency_ema', None) if metrics else None
@@ -321,7 +322,7 @@ def write_runtime_status(
         # Derive human string + band window (env) for UI exposure
         try:
             if isinstance(option_detail_mode, (int, float)):
-                _mode_map: Dict[int, str] = {0: 'full', 1: 'band', 2: 'agg'}
+                _mode_map: dict[int, str] = {0: 'full', 1: 'band', 2: 'agg'}
                 option_detail_mode_str = _mode_map.get(int(option_detail_mode))
         except Exception:
             option_detail_mode_str = None

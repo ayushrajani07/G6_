@@ -6,12 +6,13 @@
 """
 from __future__ import annotations
 
-# ...original code moved from pipeline.py...
-from dataclasses import dataclass
-from typing import Protocol, Any, Dict, List, Optional, Iterable, Tuple
 import datetime
 import logging
-from src.utils.expiry_service import build_expiry_service
+from collections.abc import Iterable
+
+# ...original code moved from pipeline.py...
+from dataclasses import dataclass
+from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -20,15 +21,15 @@ class ExpiryWorkItem:
     index: str
     expiry_rule: str
     expiry_date: datetime.date | datetime.datetime | Any
-    strikes: List[float]
+    strikes: list[float]
     index_price: float
     atm_strike: float
 
 @dataclass
 class EnrichedExpiry:
     work: ExpiryWorkItem
-    instruments: List[Dict[str, Any]]
-    enriched: Dict[str, Dict[str, Any]]
+    instruments: list[dict[str, Any]]
+    enriched: dict[str, dict[str, Any]]
 
 @dataclass
 class PersistOutcome:
@@ -43,10 +44,10 @@ class ExpiryResolver(Protocol):
     def resolve(self, wi: ExpiryWorkItem) -> ExpiryWorkItem: ...
 
 class InstrumentFetcher(Protocol):
-    def fetch(self, wi: ExpiryWorkItem) -> List[Dict[str, Any]]: ...
+    def fetch(self, wi: ExpiryWorkItem) -> list[dict[str, Any]]: ...
 
 class QuoteEnricher(Protocol):
-    def enrich(self, wi: ExpiryWorkItem, instruments: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]: ...
+    def enrich(self, wi: ExpiryWorkItem, instruments: list[dict[str, Any]]) -> dict[str, dict[str, Any]]: ...
 
 class AnalyticsBlock(Protocol):
     def apply(self, ee: EnrichedExpiry) -> None: ...
@@ -62,16 +63,16 @@ class ProvidersAdapter:
         expiry_date = self.providers.resolve_expiry(wi.index, wi.expiry_rule)
         wi.expiry_date = expiry_date
         return wi
-    def fetch(self, wi: ExpiryWorkItem) -> List[Dict[str, Any]]:
+    def fetch(self, wi: ExpiryWorkItem) -> list[dict[str, Any]]:
         instruments = self.providers.get_option_instruments(wi.index, wi.expiry_date, wi.strikes)
         if not isinstance(instruments, list):
             return []
         return [i for i in instruments if isinstance(i, dict)]
-    def enrich(self, wi: ExpiryWorkItem, instruments: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
+    def enrich(self, wi: ExpiryWorkItem, instruments: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
         enriched = self.providers.enrich_with_quotes(instruments)
         if not isinstance(enriched, dict):
             return {}
-        out: Dict[str, Dict[str, Any]] = {}
+        out: dict[str, dict[str, Any]] = {}
         for k, v in enriched.items():
             if isinstance(v, dict):
                 out[str(k)] = v
@@ -88,7 +89,7 @@ class CollectorPipeline:
         self.enricher = enricher
         self.analytics = list(analytics)
         self.persistence = persistence
-    def run_expiry(self, wi: ExpiryWorkItem) -> Tuple[Optional[EnrichedExpiry], Optional[PersistOutcome]]:
+    def run_expiry(self, wi: ExpiryWorkItem) -> tuple[EnrichedExpiry | None, PersistOutcome | None]:
         try:
             wi = self.resolver.resolve(wi)
             instruments = self.fetcher.fetch(wi)
@@ -124,20 +125,19 @@ def build_default_pipeline(
     iv_precision: float = 1e-5,
 ) -> CollectorPipeline:  # noqa: D401
     adapter = ProvidersAdapter(providers, metrics=metrics)
-    analytics: List[AnalyticsBlock] = [NoOpAnalytics()]
+    analytics: list[AnalyticsBlock] = [NoOpAnalytics()]
 
     class CsvPersistAdapter(PersistenceBlock):
         def __init__(self, csv_sink: Any, influx_sink: Any | None = None, metrics: Any | None = None) -> None:  # noqa: D401
             self.csv = csv_sink
 
         def persist(self, ee: EnrichedExpiry) -> PersistOutcome:  # noqa: D401
-            from datetime import timezone
             try:
                 metrics_payload = self.csv.write_options_data(
                     ee.work.index,
                     ee.work.expiry_date,
                     ee.enriched,
-                    datetime.datetime.now(timezone.utc),
+                    datetime.datetime.now(datetime.UTC),
                     index_price=ee.work.index_price,
                     index_ohlc={},
                     suppress_overview=True,

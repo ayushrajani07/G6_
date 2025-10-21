@@ -5,36 +5,41 @@ Parses prometheus_rules.yml and prometheus_alerts.yml (top-level keys assumed Pr
 Computes a stable content hash per rule expression for drift detection.
 """
 from __future__ import annotations
-import yaml, hashlib
-from pathlib import Path
+
 import datetime as dt
+import hashlib
+from pathlib import Path
+from typing import Any
+
+import yaml  # type: ignore[import-untyped]
 
 ROOT = Path(__file__).resolve().parent.parent
 RULE_FILES = [ROOT / 'prometheus_rules.yml', ROOT / 'prometheus_alerts.yml']
 OUT = ROOT / 'docs' / 'RULES_CATALOG.md'
+
+# No module-level state needed
 
 
 def rule_hash(expr: str) -> str:
     return hashlib.sha256(expr.encode('utf-8')).hexdigest()[:12]
 
 
-def load_groups():
-    groups = []
+def load_groups() -> list[dict[str, Any]]:
+    groups: list[dict[str, Any]] = []
     for f in RULE_FILES:
         if not f.exists():
             continue
-        data = yaml.safe_load(f.read_text(encoding='utf-8')) or {}
-        for g in data.get('groups', []):
-            groups.append({
-                'source': f.name,
-                'name': g.get('name'),
-                'interval': g.get('interval'),
-                'rules': g.get('rules', [])
-            })
+        data: dict[str, Any] = yaml.safe_load(f.read_text(encoding='utf-8')) or {}
+        groups.extend({
+            'source': f.name,
+            'name': g.get('name'),
+            'interval': g.get('interval'),
+            'rules': g.get('rules', []),
+        } for g in data.get('groups', []))
     return groups
 
 
-def main():
+def main() -> None:
     groups = load_groups()
     ts = dt.datetime.now(dt.UTC).isoformat(timespec='seconds').replace('+00:00','Z')
     lines = ["# Prometheus Rules & Alerts Catalog", f"Generated: {ts}", ""]
@@ -52,7 +57,7 @@ def main():
             elif alert:
                 lines.append(f"### Alert: {alert}")
             else:
-                lines.append(f"### Rule (untyped)")
+                lines.append("### Rule (untyped)")
             lines.append("````promql")
             lines.append(expr)
             lines.append("````")

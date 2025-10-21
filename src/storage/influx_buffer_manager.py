@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 InfluxBufferManager: batches points and flushes periodically or when batch_size is hit.
 Includes retry with exponential backoff and integrates with a circuit breaker via callback.
@@ -8,20 +7,21 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Any, Callable, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 
 class InfluxBufferManager:
     def __init__(
         self,
-        write_fn: Callable[[List[Any]], None],
+        write_fn: Callable[[list[Any]], None],
         batch_size: int = 500,
         flush_interval: float = 1.0,
         max_queue_size: int = 10_000,
         max_retries: int = 3,
         backoff_base: float = 0.25,
-        on_success: Optional[Callable[[int], None]] = None,
-        on_failure: Optional[Callable[[Exception], None]] = None,
+        on_success: Callable[[int], None] | None = None,
+        on_failure: Callable[[Exception], None] | None = None,
     ) -> None:
         self._write_fn = write_fn
         self._batch_size = max(1, int(batch_size))
@@ -29,7 +29,7 @@ class InfluxBufferManager:
         self._max_queue = max(100, int(max_queue_size))
         self._max_retries = max(0, int(max_retries))
         self._backoff_base = float(backoff_base)
-        self._buf: List[Any] = []
+        self._buf: list[Any] = []
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._last_flush = time.time()
@@ -47,7 +47,7 @@ class InfluxBufferManager:
             if len(self._buf) >= self._batch_size:
                 self._flush_locked()
 
-    def add_many(self, points: List[Any]) -> None:
+    def add_many(self, points: list[Any]) -> None:
         with self._lock:
             if len(points) >= self._max_queue:
                 points = points[-self._max_queue :]
@@ -75,7 +75,7 @@ class InfluxBufferManager:
         # send outside lock
         self._send(to_send)
 
-    def _send(self, points: List[Any]) -> None:
+    def _send(self, points: list[Any]) -> None:
         # retry with backoff
         for attempt in range(self._max_retries + 1):
             try:

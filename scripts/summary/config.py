@@ -4,9 +4,9 @@ Consolidates scattered os.getenv calls so tests and future refactors can overrid
 behavior via a single object. Keep lightweight; no external dependencies.
 """
 from __future__ import annotations
+
 import os
 from dataclasses import dataclass
-from typing import List
 
 try:  # local optional import (avoid hard dependency if moved)
     from src.utils.deprecations import emit_deprecation  # type: ignore
@@ -16,7 +16,7 @@ except Exception:  # pragma: no cover - defensive: fallback no-op
 
 _BOOL_TRUE = {"1","true","yes","on"}
 
-def _b(val: str | None, default: bool=False) -> bool:
+def _b(val: str | None, default: bool = False) -> bool:
     if val is None:
         return default
     return val.lower() in _BOOL_TRUE
@@ -36,7 +36,7 @@ class SummaryConfig:
     panels_sse_url: str | None
 
     @classmethod
-    def load(cls) -> "SummaryConfig":
+    def load(cls) -> SummaryConfig:
         # Auto-enable logic (Phase 7 G1):
         #  - Rewrite path is unconditional; ignore G6_SUMMARY_REWRITE value.
         #  - SSE publisher auto-enables when either:
@@ -61,7 +61,9 @@ class SummaryConfig:
             panels_sse_url=raw_panels_url,
         )
 
-        # Legacy summary flags removed: G6_SUMMARY_REWRITE, G6_SSE_ENABLED, G6_SUMMARY_RESYNC_HTTP, G6_SUMMARY_PLAIN_DIFF.
+    # Legacy summary flags removed:
+    #   G6_SUMMARY_REWRITE, G6_SSE_ENABLED,
+    #   G6_SUMMARY_RESYNC_HTTP, G6_SUMMARY_PLAIN_DIFF.
         # Any export of those env vars is now silently ignored (no warning to avoid noise post-removal window).
         return cfg
 

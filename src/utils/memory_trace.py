@@ -14,9 +14,9 @@ Safe to import even if tracemalloc not available; no-ops when disabled.
 """
 from __future__ import annotations
 
-import os
 import logging
-from typing import Any, Optional
+import os
+from typing import Any
 
 logger = logging.getLogger(__name__)
 try:
@@ -32,7 +32,7 @@ except Exception:  # pragma: no cover
 
 
 class MemoryTracer:
-    def __init__(self, topn: Optional[int] = None, snapshot_dir: Optional[str] = None, write_snapshots: Optional[bool] = None):
+    def __init__(self, topn: int | None = None, snapshot_dir: str | None = None, write_snapshots: bool | None = None):
         from src.utils.env_flags import is_truthy_env  # type: ignore
         self.enabled = is_truthy_env('G6_ENABLE_TRACEMALLOC') and bool(tracemalloc)
         self.topn = int(os.environ.get('G6_TRACEMALLOC_TOPN', str(topn if topn is not None else 10)) or '10')

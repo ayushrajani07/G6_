@@ -3,18 +3,24 @@ global:
   evaluation_interval: 15s
 
 rule_files:
-  - prometheus_rules.yml
-  - prometheus_alerts.yml
+  - "C:/Users/ASUS/Documents/G6/qq/g6_reorganized/prometheus_rules.yml"
+  - "C:/Users/ASUS/Documents/G6/qq/g6_reorganized/prometheus_alerts.yml"
+  - "C:/Users/ASUS/Documents/G6/qq/g6_reorganized/prometheus_recording_rules_generated.sanitized.yml"
 
 scrape_configs:
   - job_name: 'g6_platform'
     static_configs:
-      - targets: ['localhost:9108']
+      - targets: ['127.0.0.1:9108']
+
+  - job_name: 'g6_overlays'
+    scrape_interval: 30s
+    static_configs:
+      - targets: ['127.0.0.1:9109']
 
 alerting:
   alertmanagers:
     - static_configs:
-        - targets: ['localhost:9093']
+        - targets: ['127.0.0.1:9093']
 
   # Example: add node exporter later
   # - job_name: 'node'

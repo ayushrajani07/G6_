@@ -1,4 +1,4 @@
-import os, json, time, urllib.request
+import os, json, time, urllib.request, socket
 from src.adaptive import severity
 from src.adaptive import logic
 from src.metrics import get_metrics  # facade import
@@ -9,12 +9,24 @@ def _reset():
     if hasattr(severity,'_TREND_BUF'): severity._TREND_BUF.clear()  # type: ignore
 
 
+def _pick_free_port() -> int:
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        s.bind(('127.0.0.1', 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return s.getsockname()[1]
+    finally:
+        try:
+            s.close()
+        except Exception:
+            pass
+
 def test_theme_endpoint_and_trend(monkeypatch):
     _reset()
     # Enable HTTP server
     monkeypatch.setenv('G6_CATALOG_HTTP','1')
     # Use a unique port each run to avoid stale server reuse
-    port = '9391'
+    port = str(_pick_free_port())
     monkeypatch.setenv('G6_CATALOG_HTTP_PORT', port)
     monkeypatch.setenv('G6_ADAPTIVE_ALERT_SEVERITY','1')
     monkeypatch.setenv('G6_ADAPTIVE_CONTROLLER','1')

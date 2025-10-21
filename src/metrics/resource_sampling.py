@@ -3,10 +3,10 @@
 Behavior preserved; functions swallow exceptions to mirror original resilience.
 """
 from __future__ import annotations
-import os
+
+import logging
 import threading
 import time
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def start_resource_sampler(metrics, sampler_interval: int, fancy: bool) -> threa
                         metrics.network_bytes_transferred.inc(d_sent + d_recv)
                     except Exception:
                         pass
-                    setattr(metrics, '_prev_net_bytes', (net.bytes_sent, net.bytes_recv))
+                    metrics._prev_net_bytes = net.bytes_sent, net.bytes_recv
                 except Exception:
                     pass
                 # Disk ops delta

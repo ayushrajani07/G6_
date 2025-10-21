@@ -1,33 +1,33 @@
 {
   "panel": "indices_panel",
   "version": 1,
-  "generated_at": 1760161030,
-  "updated_at": "2025-10-11T05:37:10Z",
+  "generated_at": 1760885040,
+  "updated_at": "2025-10-19T14:44:00Z",
   "data": {
     "items": [
       {
         "index": "NIFTY",
         "status": "ok",
-        "dq_score": 77.56,
-        "age": 5
+        "dq_score": 94.47,
+        "age": 3
       },
       {
         "index": "BANKNIFTY",
         "status": "ok",
-        "dq_score": 77.65,
-        "age": 0
+        "dq_score": 93.53,
+        "age": 4
       },
       {
         "index": "FINNIFTY",
         "status": "ok",
-        "dq_score": 75.91,
-        "age": 3
+        "dq_score": 94.19,
+        "age": 5
       },
       {
         "index": "SENSEX",
         "status": "ok",
-        "dq_score": 78.61,
-        "age": 0
+        "dq_score": 93.06,
+        "age": 4
       }
     ],
     "count": 4
@@ -35,6 +35,6 @@
   "meta": {
     "source": "summary",
     "schema": "v1",
-    "hash": "f5bb0eb313d8"
+    "hash": "18d449371155"
   }
 }

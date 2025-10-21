@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Human-friendly multi-line log formatting helpers.
 
 Purpose: Provide an optional, low-noise aligned block for critical one-shot
@@ -13,12 +12,14 @@ Design Goals:
 - Optional ANSI dim styling (disabled by default to keep logs copy/paste safe)
 """
 from __future__ import annotations
-from typing import Mapping, Iterable, Tuple, Any
+
 import logging
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 __all__ = ["emit_human_summary"]
 
-def _coerce_pairs(fields: Mapping[str, Any] | Iterable[Tuple[str, Any]]):
+def _coerce_pairs(fields: Mapping[str, Any] | Iterable[tuple[str, Any]]):
     if isinstance(fields, dict):
         return list(fields.items())
     try:
@@ -26,7 +27,7 @@ def _coerce_pairs(fields: Mapping[str, Any] | Iterable[Tuple[str, Any]]):
     except Exception:
         return []
 
-def emit_human_summary(title: str, fields: Mapping[str, Any] | Iterable[Tuple[str, Any]], logger: logging.Logger | None = None, *, level: int = logging.INFO, prefix: str = "  ") -> None:
+def emit_human_summary(title: str, fields: Mapping[str, Any] | Iterable[tuple[str, Any]], logger: logging.Logger | None = None, *, level: int = logging.INFO, prefix: str = "  ") -> None:
     """Emit a human-readable aligned block.
 
     Example:

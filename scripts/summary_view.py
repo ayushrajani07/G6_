@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """DEPRECATED summary_view shim.
 
 This file will be removed after the deprecation window (see DEPRECATIONS.md).
@@ -26,12 +27,9 @@ except Exception:  # pragma: no cover
     pass
 # pyright: reportGeneralTypeIssues=false, reportUnknownMemberType=false, reportMissingImports=false
 
-import argparse
 import json
 import os
 import sys
-import time
-import re
 from dataclasses import dataclass
 
 # Ensure the project root is on sys.path using centralized helper
@@ -46,10 +44,11 @@ except Exception:
         sys.path.insert(0, _proj_root)
     from src.utils.path_utils import ensure_sys_path
     ensure_sys_path()
-from typing import Any, Dict, List, Optional, Tuple, Protocol, Callable
-from datetime import datetime, timezone, timedelta
+from datetime import UTC, datetime, timedelta, timezone
+from typing import Any, Protocol
+
 from scripts.summary.derive import fmt_hms_from_dt  # narrow import; other helpers unused here
-    
+
 # Optional psutil for local resource collection helpers that still reference it
 try:
     import psutil  # optional dependency
@@ -58,8 +57,8 @@ except Exception:  # pragma: no cover
 
 # Centralized metrics adapter (optional)
 class _MetricsAdapterLike(Protocol):  # minimal surface used here
-    def get_cpu_percent(self) -> Optional[float]: ...
-    def get_memory_usage_mb(self) -> Optional[float]: ...
+    def get_cpu_percent(self) -> float | None: ...
+    def get_memory_usage_mb(self) -> float | None: ...
 
 try:
     from src.utils.metrics_adapter import get_metrics_adapter  # runtime import; returns adapter
@@ -68,14 +67,16 @@ except Exception:  # pragma: no cover
 
 # Import sizing helpers now provided by modular env
 try:
-    from scripts.summary.env import effective_panel_width, panel_height, _env_true as _env_true_env, _env_min_col_width as _env_min_col_width_env  # runtime import
+    from scripts.summary.env import _env_min_col_width as _env_min_col_width_env
+    from scripts.summary.env import _env_true as _env_true_env
+    from scripts.summary.env import effective_panel_width, panel_height  # runtime import
 except Exception:  # pragma: no cover
     effective_panel_width = lambda name: None  # noqa: E731
     panel_height = lambda name: None  # noqa: E731
     _env_true_env = lambda name: False  # noqa: E731
     _env_min_col_width_env = lambda: 30  # noqa: E731
 
-def _env_int(name: str, default: Optional[int] = None) -> Optional[int]:
+def _env_int(name: str, default: int | None = None) -> int | None:
     try:
         v = os.getenv(name)
         if v is None or v.strip() == "":
@@ -85,7 +86,7 @@ def _env_int(name: str, default: Optional[int] = None) -> Optional[int]:
         return default
 
 # Minimal output helper used by modular app
-def _get_output_lazy():
+def _get_output_lazy() -> Any:
     class _O:
         def info(self, msg: str, **kw: Any) -> None:
             try:
@@ -105,7 +106,7 @@ def _env_clip_len() -> int:
         return 60
 
 
-def clip(text: Any, max_len: Optional[int] = None) -> str:
+def clip(text: Any, max_len: int | None = None) -> str:
     s = str(text)
     if max_len is None:
         max_len = _env_clip_len()
@@ -148,7 +149,7 @@ def ist_now() -> datetime:
         return datetime.now(timezone(timedelta(hours=5, minutes=30)))
 
 
-def is_market_hours_ist(dt: Optional[datetime] = None) -> bool:
+def is_market_hours_ist(dt: datetime | None = None) -> bool:
     """Return True if now (IST) is within regular trading hours Mon-Fri 09:15–15:30.
 
     Simple approximation; ignores holidays.
@@ -163,7 +164,7 @@ def is_market_hours_ist(dt: Optional[datetime] = None) -> bool:
     return start <= hm <= end
 
 
-def next_market_open_ist(dt: Optional[datetime] = None) -> Optional[datetime]:
+def next_market_open_ist(dt: datetime | None = None) -> datetime | None:
     d = dt or ist_now()
     # If within hours, return None
     if is_market_hours_ist(d):
@@ -180,9 +181,9 @@ def next_market_open_ist(dt: Optional[datetime] = None) -> Optional[datetime]:
 class StatusCache:
     path: str
     last_mtime: float = 0.0
-    payload: Dict[str, Any] | None = None
+    payload: dict[str, Any] | None = None
 
-    def refresh(self) -> Dict[str, Any] | None:
+    def refresh(self) -> dict[str, Any] | None:
         # Use centralized StatusReader for consistent IO; preserve previous
         # behavior: on partial writes or decode errors, keep last payload.
         try:
@@ -207,9 +208,15 @@ class StatusCache:
                 # If empty dict while we have previous payload, treat as transient
                 # and keep last payload unchanged.
                 return self.payload
-            # Fallback to direct read if reader unavailable
-            with open(self.path, "r", encoding="utf-8") as f:
-                self.payload = json.load(f)
+            # Fallback: use cached JSON reader when available, else direct read
+            try:
+                from pathlib import Path as _Path
+
+                from src.utils.csv_cache import read_json_cached as _read_json_cached
+                self.payload = _read_json_cached(_Path(self.path))
+            except Exception:
+                with open(self.path, encoding="utf-8") as f:
+                    self.payload = json.load(f)
             self.last_mtime = st.st_mtime
         except Exception:
             # Do not crash on partial writes
@@ -217,18 +224,27 @@ class StatusCache:
         return self.payload
 
 
-def derive_market_summary(status: Dict[str, Any] | None) -> Tuple[str, str]:  # backward compat shim
+def derive_market_summary(status: dict[str, Any] | None) -> tuple[str, str]:  # backward compat shim
     from scripts.summary.derive import derive_market_summary as _dms  # type: ignore
-    return _dms(status)
+    try:
+        res = _dms(status)
+        if isinstance(res, tuple) and len(res) == 2 and all(isinstance(x, str) for x in res):
+            return res  # type: ignore[return-value]
+    except Exception:
+        pass
+    return ("", "")
 
 ## Removed legacy line estimation helpers (migrated to modular panels & layout)
 
 
-def derive_indices(status: Dict[str, Any] | None) -> List[str]:
+def derive_indices(status: dict[str, Any] | None) -> list[str]:
     """Delegate to centralized derive. Kept for backward compatibility."""
     try:
         from scripts.summary.derive import derive_indices as _derive_indices
-        return _derive_indices(status)
+        res = _derive_indices(status)
+        if isinstance(res, list):
+            return [str(x) for x in res]
+        return []
     except Exception:
         # Fallback to local minimal logic if import fails
         if not status:
@@ -254,7 +270,7 @@ def _use_panels_json() -> bool:
     """
     try:
         from scripts.summary.data_source import _use_panels_json as _use
-        return _use()
+        return bool(_use())
     except Exception:
         return False
 
@@ -263,11 +279,11 @@ def _panels_dir() -> str:
     return os.getenv("G6_PANELS_DIR", os.path.join("data", "panels"))
 
 
-def _read_json_with_retries(path: str, retries: int = 3, delay: float = 0.05) -> Optional[Any]:
+def _read_json_with_retries(path: str, retries: int = 3, delay: float = 0.05) -> Any | None:
     """Read JSON file with a brief retry loop to mitigate transient partial reads."""
     for attempt in range(max(1, retries)):
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             if attempt == retries - 1:
@@ -280,7 +296,7 @@ def _read_json_with_retries(path: str, retries: int = 3, delay: float = 0.05) ->
     return None
 
 
-def _read_panel_json(name: str) -> Optional[Any]:
+def _read_panel_json(name: str) -> Any | None:
     """Delegate to centralized data_source._read_panel_json to avoid duplication."""
     try:
         from scripts.summary.data_source import _read_panel_json as _read
@@ -316,8 +332,8 @@ _DERIVE_WARNED = {"health": False, "provider": False}
 ## Removed derive_health / derive_provider legacy shims (callers must update imports)
 
 
-def collect_resources() -> Dict[str, Any]:
-    out: Dict[str, Any] = {"cpu": None, "rss": None}
+def collect_resources() -> dict[str, Any]:
+    out: dict[str, Any] = {"cpu": None, "rss": None}
     # Prefer centralized metrics adapter if available
     try:
         if get_metrics_adapter is not None:
@@ -349,7 +365,7 @@ These have been removed to avoid duplication since the single source of truth li
 """
 
 
-def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_contrast: bool = False, loop_for_footer: Optional[Dict[str, Any]] = None) -> Any:
+def indices_panel(status: dict[str, Any] | None, *, compact: bool = False, low_contrast: bool = False, loop_for_footer: dict[str, Any] | None = None) -> Any:
     """Legacy wrapper delegating to modular indices panel.
 
     Kept for backward compatibility with imports from scripts.summary_view.
@@ -358,25 +374,25 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
     return _indices_panel(status, compact=compact, low_contrast=low_contrast, loop_for_footer=loop_for_footer)
 
 
-def analytics_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_contrast: bool = False) -> Any:
+def analytics_panel(status: dict[str, Any] | None, *, compact: bool = False, low_contrast: bool = False) -> Any:
     """Legacy wrapper delegating to modular analytics panel."""
     from scripts.summary.panels.analytics import analytics_panel as _analytics_panel
     return _analytics_panel(status, compact=compact, low_contrast=low_contrast)
 
 
-def alerts_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_contrast: bool = False) -> Any:
+def alerts_panel(status: dict[str, Any] | None, *, compact: bool = False, low_contrast: bool = False) -> Any:
     """Legacy wrapper delegating to modular alerts panel."""
     from scripts.summary.panels.alerts import alerts_panel as _alerts_panel
     return _alerts_panel(status, compact=compact, low_contrast=low_contrast)
 
 
-def links_panel(status_file: str, metrics_url: Optional[str], *, low_contrast: bool = False) -> Any:
+def links_panel(status_file: str, metrics_url: str | None, *, low_contrast: bool = False) -> Any:
     """Legacy wrapper delegating to modular links panel."""
     from scripts.summary.panels.links import links_panel as _links_panel
     return _links_panel(status_file, metrics_url, low_contrast=low_contrast)
 
 
-def build_layout(status: Dict[str, Any] | None, status_file: str, metrics_url: Optional[str], rolling: Optional[Dict[str, Any]] = None, *, compact: bool = False, low_contrast: bool = False) -> Any:
+def build_layout(status: dict[str, Any] | None, status_file: str, metrics_url: str | None, rolling: dict[str, Any] | None = None, *, compact: bool = False, low_contrast: bool = False) -> Any:
     """
     Legacy shim retained temporarily for callers importing from scripts.summary_view.
     Delegates to the modular implementation in scripts.summary.layout.
@@ -385,7 +401,7 @@ def build_layout(status: Dict[str, Any] | None, status_file: str, metrics_url: O
     return _build_layout(status, status_file, metrics_url, rolling=rolling, compact=compact, low_contrast=low_contrast)
 
 
-def plain_fallback(status: Dict[str, Any] | None, status_file: str, metrics_url: Optional[str]) -> str:
+def plain_fallback(status: dict[str, Any] | None, status_file: str, metrics_url: str | None) -> str:
     # Unified path: leverage model assembler as single derivation source.
     # Curated layout short-circuit retained. Legacy raw fallbacks reduced to
     # only adaptive/detail lines (provider/resources now always sourced via model).
@@ -397,7 +413,7 @@ def plain_fallback(status: Dict[str, Any] | None, status_file: str, metrics_url:
                 from src.summary.curated_layout import CuratedLayout, collect_state
                 st = collect_state(status)
                 renderer = CuratedLayout()
-                return renderer.render(st)
+                return str(renderer.render(st))
             except Exception:
                 pass
         # Assemble model snapshot (preferred stable representation)
@@ -436,14 +452,14 @@ def plain_fallback(status: Dict[str, Any] | None, status_file: str, metrics_url:
         # Fallback: derive from raw status 'adaptive_alerts' list if model had none OR model reported zero but raw has items
         if adaptive_line is None or (adaptive_line is None and isinstance(status, dict) and status.get('adaptive_alerts')):
             try:
-                raw_alerts: List[Dict[str, Any]] = []
+                raw_alerts: list[dict[str, Any]] = []
                 if isinstance(status, dict):
                     ra = status.get('adaptive_alerts')
                     if isinstance(ra, list):
                         raw_alerts = [a for a in ra if isinstance(a, dict)]
                 if raw_alerts:
                     total_alerts = len(raw_alerts)
-                    counts: Dict[str,int] = {}
+                    counts: dict[str,int] = {}
                     for a in raw_alerts:
                         t = a.get('type') if isinstance(a, dict) else None
                         if isinstance(t, str):
@@ -503,8 +519,8 @@ def plain_fallback(status: Dict[str, Any] | None, status_file: str, metrics_url:
                     detail_line = core
             except Exception:
                 pass
-        lines: List[str] = [
-            f"G6 Unified | IST {fmt_hms_from_dt(datetime.now(timezone.utc))}",
+        lines: list[str] = [
+            f"G6 Unified | IST {fmt_hms_from_dt(datetime.now(UTC))}",
             f"Indices: {indices_names}",
             *( [dq_line] if dq_line else [] ),
             f"Market: {model.market_status}",
@@ -525,10 +541,14 @@ def plain_fallback(status: Dict[str, Any] | None, status_file: str, metrics_url:
             return "G6 Unified (fallback)"
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     # Delegate to modular app
     from scripts.summary.app import run as _run
-    return _run(argv)
+    res = _run(argv)
+    try:
+        return int(res)
+    except Exception:
+        return 0
 
 
 if __name__ == "__main__":

@@ -16,25 +16,25 @@ does not need divergent paths.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict, Tuple, Any
 import threading
+from dataclasses import dataclass
+from typing import Any
 
 try:  # Optional dependency
-    from prometheus_client import Histogram, Counter, Gauge  # type: ignore
+    from prometheus_client import Counter, Gauge, Histogram  # type: ignore
 except Exception:  # pragma: no cover - fallback when lib absent
     Histogram = Counter = Gauge = None  # type: ignore
 
 _lock = threading.Lock()
 
 # Internal stores for test inspection
-_hist_store: Dict[Tuple[str, Tuple[Tuple[str,str], ...]], list] = {}
-_counter_store: Dict[Tuple[str, Tuple[Tuple[str,str], ...]], float] = {}
-_gauge_store: Dict[str, float] = {}
+_hist_store: dict[tuple[str, tuple[tuple[str,str], ...]], list] = {}
+_counter_store: dict[tuple[str, tuple[tuple[str,str], ...]], float] = {}
+_gauge_store: dict[str, float] = {}
 _churn_streak: int = 0  # internal consecutive high-churn cycles tracker
 
 
-def _norm_labels(labels: Dict[str,str] | None) -> Tuple[Tuple[str,str], ...]:
+def _norm_labels(labels: dict[str,str] | None) -> tuple[tuple[str,str], ...]:
     if not labels:
         return tuple()
     return tuple(sorted(labels.items()))
@@ -44,9 +44,9 @@ def _norm_labels(labels: Dict[str,str] | None) -> Tuple[Tuple[str,str], ...]:
 class _HistWrap:
     name: str
     prom: Any | None
-    labels_kv: Dict[str,str] | None = None
+    labels_kv: dict[str,str] | None = None
 
-    def labels(self, **lbls: str) -> "_HistWrap":  # prometheus style
+    def labels(self, **lbls: str) -> _HistWrap:  # prometheus style
         return _HistWrap(self.name, self.prom, lbls)
 
     def observe(self, value: float) -> None:
@@ -67,9 +67,9 @@ class _HistWrap:
 class _CounterWrap:
     name: str
     prom: Any | None
-    labels_kv: Dict[str,str] | None = None
+    labels_kv: dict[str,str] | None = None
 
-    def labels(self, **lbls: str) -> "_CounterWrap":
+    def labels(self, **lbls: str) -> _CounterWrap:
         return _CounterWrap(self.name, self.prom, lbls)
 
     def inc(self, value: float = 1.0) -> None:
@@ -101,7 +101,7 @@ class _GaugeWrap:
                 pass
 
 
-def _make_prom_hist(name: str, doc: str, labels: tuple[str,...] = tuple()):
+def _make_prom_hist(name: str, doc: str, labels: tuple[str, ...] = tuple()) -> Any | None:
     if Histogram is None:
         return None
     try:
@@ -110,7 +110,7 @@ def _make_prom_hist(name: str, doc: str, labels: tuple[str,...] = tuple()):
         return None
 
 
-def _make_prom_counter(name: str, doc: str, labels: tuple[str,...] = tuple()):
+def _make_prom_counter(name: str, doc: str, labels: tuple[str, ...] = tuple()) -> Any | None:
     if Counter is None:
         return None
     try:
@@ -119,7 +119,7 @@ def _make_prom_counter(name: str, doc: str, labels: tuple[str,...] = tuple()):
         return None
 
 
-def _make_prom_gauge(name: str, doc: str):
+def _make_prom_gauge(name: str, doc: str) -> Any | None:
     if Gauge is None:
         return None
     try:
@@ -181,7 +181,7 @@ panel_file_updates_last_gauge = _GaugeWrap(
 )
 
 # Test support: allow resetting in-memory stores between tests to avoid leakage
-def _reset_in_memory():  # pragma: no cover - simple clearing
+def _reset_in_memory() -> None:  # pragma: no cover - simple clearing
     global _hist_store, _counter_store, _gauge_store, _churn_streak
     with _lock:
         _hist_store = {}

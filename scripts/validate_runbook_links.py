@@ -11,15 +11,24 @@ Then filters links containing the provided --base-domain (unless --all-links pas
 Exit code is non-zero if any failing links are found (suitable for CI gating).
 """
 from __future__ import annotations
-import argparse, json, re, sys, pathlib, urllib.request, urllib.error, ssl, time
-from typing import Iterable, List, Tuple
+
+import argparse
+import json
+import pathlib
+import re
+import ssl
+import sys
+import time
+import urllib.error
+import urllib.request
+from collections.abc import Iterable
 
 LINK_RE = re.compile(r"\[[^\]]+\]\((https?://[^)]+)\)")
 
 # Some dashboards may have self-signed endpoints in test; allow disabling cert verification.
 CTX = ssl.create_default_context()
 
-def extract_links(dashboard_json: dict) -> Iterable[Tuple[str,str]]:
+def extract_links(dashboard_json: dict) -> Iterable[tuple[str,str]]:
     panels = dashboard_json.get('panels') or []
     for p in panels:
         pid = str(p.get('id','?'))
@@ -41,7 +50,7 @@ def extract_links(dashboard_json: dict) -> Iterable[Tuple[str,str]]:
         if url:
             yield ("top", url)
 
-def check_url(url: str, timeout: float = 5.0) -> Tuple[bool,int|None,str|None]:
+def check_url(url: str, timeout: float = 5.0) -> tuple[bool,int|None,str|None]:
     req = urllib.request.Request(url, method='HEAD')
     try:
         with urllib.request.urlopen(req, timeout=timeout, context=CTX) as resp:
@@ -58,7 +67,7 @@ def check_url(url: str, timeout: float = 5.0) -> Tuple[bool,int|None,str|None]:
     except Exception as e:  # noqa: BLE001
         return False, None, str(e)
 
-def main():
+def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument('--dash-dir', default='grafana/dashboards', help='Directory containing dashboard JSON files')
     ap.add_argument('--base-domain', default='', help='Filter only links containing this substring (domain)')
@@ -74,9 +83,9 @@ def main():
     dash_path = pathlib.Path(args.dash_dir)
     if not dash_path.is_dir():
         print(f"Dashboard directory not found: {dash_path}", file=sys.stderr)
-        return 2
+    return 2
 
-    failures: List[str] = []
+    failures: list[str] = []
     checked = 0
     start = time.time()
     for file in sorted(dash_path.glob('*.json')):
@@ -104,7 +113,7 @@ def main():
         print(f"Runbook link validation FAILED ({len(failures)} failures) in {duration:.2f}s")
         for f in failures:
             print(f" - {f}")
-        return 1
+    return 1
     print(f"Runbook link validation OK ({checked} links checked) in {duration:.2f}s")
     return 0
 

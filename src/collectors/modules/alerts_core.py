@@ -35,10 +35,12 @@ Future Enhancements:
   * Parity harness extension of flattened metrics
 """
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Any, Dict, List, Set, Mapping
+
 import json
 import os
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any
 
 __all__ = ["aggregate_alerts", "AlertSummary", "derive_severity_map"]
 
@@ -46,11 +48,11 @@ __all__ = ["aggregate_alerts", "AlertSummary", "derive_severity_map"]
 @dataclass
 class AlertSummary:
     total: int
-    categories: Dict[str, int]
-    index_triggers: Dict[str, List[str]]
-    severities: Dict[str, str]
+    categories: dict[str, int]
+    index_triggers: dict[str, list[str]]
+    severities: dict[str, str]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             'alerts_total': self.total,
             'alerts': dict(self.categories),
@@ -59,7 +61,7 @@ class AlertSummary:
         }
 
 
-def derive_severity_map(categories: Mapping[str, int]) -> Dict[str, str]:
+def derive_severity_map(categories: Mapping[str, int]) -> dict[str, str]:
     """Return a mapping category -> severity (info|warning|critical).
 
     Default heuristic (W4-03):
@@ -72,7 +74,7 @@ def derive_severity_map(categories: Mapping[str, int]) -> Dict[str, str]:
     Override via env G6_ALERT_SEVERITY_MAP supplying JSON object {category: severity}.
     Unknown severities ignored (must be one of info|warning|critical).
     """
-    default: Dict[str, str] = {}
+    default: dict[str, str] = {}
     for cat in categories.keys():
         if cat in ('index_failure', 'index_empty'):
             default[cat] = 'critical'
@@ -106,11 +108,11 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
-def aggregate_alerts(indices_struct: List[Dict[str, Any]], *, strike_cov_min: float | None = None, field_cov_min: float | None = None) -> AlertSummary:
+def aggregate_alerts(indices_struct: list[dict[str, Any]], *, strike_cov_min: float | None = None, field_cov_min: float | None = None) -> AlertSummary:
     strike_min = strike_cov_min if strike_cov_min is not None else _env_float('G6_ALERT_STRIKE_COV_MIN', 0.6)
     field_min = field_cov_min if field_cov_min is not None else _env_float('G6_ALERT_FIELD_COV_MIN', 0.5)
 
-    counts: Dict[str, int] = {
+    counts: dict[str, int] = {
         'index_failure': 0,
         'index_empty': 0,
         'expiry_empty': 0,
@@ -123,7 +125,7 @@ def aggregate_alerts(indices_struct: List[Dict[str, Any]], *, strike_cov_min: fl
         'stale_quote': 0,
         'wide_spread': 0,
     }
-    triggers: Dict[str, Set[str]] = {k: set() for k in counts.keys()}
+    triggers: dict[str, set[str]] = {k: set() for k in counts.keys()}
 
     for idx in indices_struct:
         index_symbol = idx.get('index') or 'UNKNOWN'

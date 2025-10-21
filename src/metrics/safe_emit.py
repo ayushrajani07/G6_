@@ -15,22 +15,24 @@ custom `emitter` keyword arg can override for grouping (e.g., when many small
 lambdas share semantics).
 """
 from __future__ import annotations
+
 import functools
 import logging
-from typing import Any, Callable, Optional
+from collections.abc import Callable
+
 from . import generated as m
 
 _log = logging.getLogger("g6.metrics.safe_emit")
 _seen_first_failure: set[str] = set()
 
-def _emitter_name(func: Callable, override: Optional[str]) -> str:
+def _emitter_name(func: Callable, override: str | None) -> str:
     if override:
         return override
     mod = getattr(func, "__module__", "unknown")
     name = getattr(func, "__qualname__", getattr(func, "__name__", "<lambda>"))
     return f"{mod}:{name}"
 
-def safe_emit(_func: Optional[Callable] = None, *, emitter: Optional[str] = None) -> Callable:
+def safe_emit(_func: Callable | None = None, *, emitter: str | None = None) -> Callable:
     """Decorator making a metric emission site resilient.
 
     Usage:

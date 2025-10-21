@@ -13,13 +13,18 @@ Usage:
 """
 from __future__ import annotations
 
-import argparse, base64, hashlib, hmac, json, os, sys
+import argparse
+import base64
+import hashlib
+import hmac
+import json
+import os
+import sys
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any
 
 try:  # optional dependency
   from nacl import signing  # type: ignore
-  from nacl import exceptions as nacl_exceptions  # type: ignore
   HAVE_NACL = True
 except Exception:  # pragma: no cover
   HAVE_NACL = False
@@ -29,7 +34,7 @@ def read_bytes(path: Path) -> bytes:
   return path.read_bytes()
 
 
-def sign_ed25519(priv_b64: str, data: bytes) -> Dict[str, Any]:
+def sign_ed25519(priv_b64: str, data: bytes) -> dict[str, Any]:
   if not HAVE_NACL:
     raise RuntimeError('PyNaCl not available')
   key_raw = base64.b64decode(priv_b64)
@@ -42,7 +47,7 @@ def sign_ed25519(priv_b64: str, data: bytes) -> Dict[str, Any]:
   }
 
 
-def sign_hmac(secret: str, data: bytes) -> Dict[str, Any]:
+def sign_hmac(secret: str, data: bytes) -> dict[str, Any]:
   mac = hmac.new(secret.encode('utf-8'), data, hashlib.sha256).digest()
   return {
     'algorithm': 'hmac-sha256',
@@ -77,9 +82,10 @@ def parse_args() -> argparse.Namespace:
   return ap.parse_args()
 
 
-def choose_algorithm(args) -> str:
-  if args.algorithm != 'auto':
-    return args.algorithm
+def choose_algorithm(args: argparse.Namespace) -> str:
+  algo = str(args.algorithm)
+  if algo != 'auto':
+    return algo
   if os.getenv('G6_SIGN_KEY') and HAVE_NACL:
     return 'ed25519'
   if os.getenv('G6_SIGN_SECRET'):

@@ -108,6 +108,12 @@ for stub in (orl, bench, em, g6_cli):
 
 # Provide a hook to indicate sitecustomize executed (debug aid)
 os.environ.setdefault('G6_SITECUSTOMIZE_BOOTSTRAPPED','1')
+# Ensure Influx is optional under pytest to avoid hard dependency in unit tests
+try:
+    if ('PYTEST_CURRENT_TEST' in os.environ) or ('PYTEST_ADDOPTS' in os.environ) or ('PYTEST_XDIST_WORKER' in os.environ):
+        os.environ.setdefault('G6_INFLUX_OPTIONAL','1')
+except Exception:
+    pass
 
 # ---------------------------------------------------------------------------
 # Global logging & print silencing (hard whitelist)
@@ -183,6 +189,9 @@ try:
                 pass
             # Heuristic: if first arg appears to be JSON (tests expect JSON), allow
             if args and isinstance(args[0], str) and args[0].startswith('{') and args[0].rstrip().endswith('}'):
+                return _orig_print(*args, **kwargs)
+            # Allow structured error export marker used by tests
+            if args and isinstance(args[0], str) and args[0].startswith('pipeline.structured_errors'):
                 return _orig_print(*args, **kwargs)
             return  # suppressed
         except Exception:

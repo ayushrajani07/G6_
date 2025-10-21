@@ -1,24 +1,35 @@
 from __future__ import annotations
+
+import asyncio
+import csv
 import os
+import pathlib
 import time
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.exceptions import RequestValidationError
+import zlib
+from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
-from fastapi.responses import JSONResponse, HTMLResponse, PlainTextResponse
+from datetime import date, datetime
+from pathlib import Path
+from typing import Any, cast
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
-from .metrics_cache import MetricsCache
-import pathlib
-from pathlib import Path
-from src.error_handling import get_error_handler, ErrorCategory, ErrorSeverity
+
+from src.error_handling import ErrorCategory, ErrorSeverity, get_error_handler
 from src.types.dashboard_types import (
-    UnifiedSourceProtocol,
     MemorySnapshot,
-    UnifiedStatusResponse,
     UnifiedIndicesResponse,
+    UnifiedSourceProtocol,
     UnifiedSourceStatusResponse,
+    UnifiedStatusResponse,
 )
-from typing import TYPE_CHECKING, Any, Mapping, AsyncIterator, Optional, cast
+
+from .metrics_cache import MetricsCache
+
 
 def _load_unified_source() -> UnifiedSourceProtocol | None:
     """Attempt to import unified data source, return None if unavailable.
@@ -55,6 +66,91 @@ SECONDARY_REFRESH = int(os.environ.get('G6_DASHBOARD_SECONDARY_REFRESH_SEC', '12
 # Align metrics cache polling with core refresh cadence to reduce staleness/flicker
 cache = MetricsCache(METRICS_ENDPOINT, interval=float(max(1, CORE_REFRESH)), timeout=1.5)
 
+# In-process CSV cache: path -> (mtime_ns, rows_full)
+# rows_full contain parsed fields (ts, tp/avg_tp, ce/pe, index_price, ivs, greeks) so we can slice/trim per request
+_CSV_CACHE: dict[Path, tuple[int, list[dict[str, Any]]]] = {}
+
+def _load_csv_rows_full(path: Path) -> list[dict[str, Any]]:
+    try:
+        st = path.stat()
+        mtime_ns = int(getattr(st, 'st_mtime_ns', int(st.st_mtime * 1e9)))
+    except Exception:
+        mtime_ns = 0
+    cached = _CSV_CACHE.get(path)
+    if cached and cached[0] == mtime_ns:
+        return cached[1]
+    rows: list[dict[str, Any]] = []
+    try:
+        with path.open('r', newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            fns = list(reader.fieldnames or [])
+            have_ce = 'ce' in fns; have_pe = 'pe' in fns
+            have_idx = 'index_price' in fns
+            have_iv = ('ce_iv' in fns) or ('pe_iv' in fns)
+            have_greeks = any(c in fns for c in (
+                'ce_delta','pe_delta','ce_theta','pe_theta','ce_vega','pe_vega','ce_gamma','pe_gamma','ce_rho','pe_rho'
+            ))
+            for r in reader:
+                ts_s = _parse_time_any(str(r.get('timestamp', '')).strip())
+                ts_ms = _parse_time_epoch_ms(str(r.get('timestamp', '')).strip())
+                obj: dict[str, Any] = {'time': ts_ms, 'ts': ts_ms, 'time_str': ts_s}
+                for col in ('tp','avg_tp'):
+                    val = r.get(col)
+                    if val is None or val == '':
+                        obj[col] = None
+                    else:
+                        try:
+                            obj[col] = float(val)
+                        except Exception:
+                            obj[col] = None
+                if have_ce:
+                    try:
+                        obj['ce'] = float(str(r.get('ce')))
+                    except Exception:
+                        obj['ce'] = None
+                if have_pe:
+                    try:
+                        obj['pe'] = float(str(r.get('pe')))
+                    except Exception:
+                        obj['pe'] = None
+                if have_idx:
+                    try:
+                        obj['index_price'] = float(str(r.get('index_price')))
+                    except Exception:
+                        obj['index_price'] = None
+                if have_iv:
+                    for col in ('ce_iv','pe_iv'):
+                        v = r.get(col)
+                        if v is None or v == '': obj[col] = None
+                        else:
+                            try: obj[col] = float(str(v))
+                            except Exception: obj[col] = None
+                if have_greeks:
+                    for col in ('ce_delta','pe_delta','ce_theta','pe_theta','ce_vega','pe_vega','ce_gamma','pe_gamma','ce_rho','pe_rho'):
+                        v = r.get(col)
+                        if v is None or v == '': obj[col] = None
+                        else:
+                            try: obj[col] = float(str(v))
+                            except Exception: obj[col] = None
+                rows.append(obj)
+        # Sort once and cache
+        try:
+            def _ts_key_val(rv: Any) -> int:
+                try:
+                    if rv is None:
+                        return -1
+                    return int(rv)
+                except Exception:
+                    return -1
+            rows.sort(key=lambda r: _ts_key_val(r.get('ts')))
+        except Exception:
+            # Defensive: ignore sort errors
+            pass
+    except Exception:
+        rows = []
+    _CSV_CACHE[path] = (mtime_ns, rows)
+    return rows
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -88,6 +184,53 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="G6 Dashboard", version="0.1.0", lifespan=lifespan)
+
+# Compression for JSON payloads (saves bandwidth and speeds Grafana Infinity)
+try:
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
+except Exception:
+    # Defensive: if middleware import fails in minimal envs, continue without gzip
+    pass
+
+# Back-pressure: limit concurrent requests to expensive endpoints
+_MAX_CONCURRENCY = int(os.environ.get("G6_LIVE_API_MAX_CONCURRENCY", "4"))
+_SEM = asyncio.Semaphore(max(1, _MAX_CONCURRENCY))
+
+# Lightweight observability
+_OBS: dict[str, Any] = {
+    "live_csv": {"count": 0, "errors": 0, "too_many": 0, "dur_ms_sum": 0.0, "dur_ms_max": 0.0, "in_flight": 0},
+    "overlay": {"count": 0, "errors": 0, "too_many": 0, "dur_ms_sum": 0.0, "dur_ms_max": 0.0, "in_flight": 0},
+}
+
+def _obs_begin(kind: str) -> float:
+    try:
+        _OBS[kind]["count"] += 1
+        _OBS[kind]["in_flight"] += 1
+    except Exception:
+        pass
+    return time.perf_counter()
+
+def _obs_end(kind: str, t0: float, *, ok: bool) -> None:
+    try:
+        dt_ms = (time.perf_counter() - t0) * 1000.0
+        _OBS[kind]["dur_ms_sum"] += dt_ms
+        if dt_ms > _OBS[kind]["dur_ms_max"]:
+            _OBS[kind]["dur_ms_max"] = dt_ms
+        if not ok:
+            _OBS[kind]["errors"] += 1
+    except Exception:
+        pass
+    finally:
+        try:
+            _OBS[kind]["in_flight"] = max(0, int(_OBS[kind]["in_flight"]) - 1)
+        except Exception:
+            pass
+
+def _obs_too_many(kind: str) -> None:
+    try:
+        _OBS[kind]["too_many"] += 1
+    except Exception:
+        pass
 
 templates = Jinja2Templates(directory=os.path.join(os.path.dirname(__file__), 'templates'))
 app.mount('/static', StaticFiles(directory=os.path.join(os.path.dirname(__file__), 'static')), name='static')
@@ -309,12 +452,20 @@ async def footer_fragment(request: Request) -> HTMLResponse:
     panels_dir = os.getenv('G6_PANELS_DIR', 'data/panels')
     panel_path = os.path.join(panels_dir, 'footer_enveloped.json')
     try:
-        import json  # local import to keep module import surface minimal
-        if os.path.exists(panel_path):
-            with open(panel_path, 'r', encoding='utf-8') as f:
-                obj = json.load(f)
-            if isinstance(obj, dict) and obj.get('kind') == 'footer' and isinstance(obj.get('footer'), dict):
-                footer_panel = obj
+        # Prefer cached JSON reader when available to minimize repeated disk I/O
+        try:
+            from pathlib import Path as _Path
+
+            from src.utils.csv_cache import read_json_cached as _read_json_cached
+            obj = _read_json_cached(_Path(panel_path)) if os.path.exists(panel_path) else None
+        except Exception:
+            obj = None
+            import json  # fallback local import to keep import surface minimal
+            if os.path.exists(panel_path):
+                with open(panel_path, encoding='utf-8') as f:
+                    obj = json.load(f)
+        if isinstance(obj, dict) and obj.get('kind') == 'footer' and isinstance(obj.get('footer'), dict):
+            footer_panel = obj
     except Exception as e:  # non-fatal; log via error handler quietly
         get_error_handler().handle_error(
             e,
@@ -347,12 +498,20 @@ async def storage_fragment(request: Request) -> HTMLResponse:
     panels_dir = os.getenv('G6_PANELS_DIR', 'data/panels')
     panel_path = os.path.join(panels_dir, 'storage_enveloped.json')
     try:
-        import json
-        if os.path.exists(panel_path):
-            with open(panel_path, 'r', encoding='utf-8') as f:
-                obj = json.load(f)
-            if isinstance(obj, dict) and obj.get('kind') == 'storage' and isinstance(obj.get('storage'), dict):
-                storage_panel = obj
+        # Prefer cached JSON reader when available to minimize repeated disk I/O
+        try:
+            from pathlib import Path as _Path
+
+            from src.utils.csv_cache import read_json_cached as _read_json_cached
+            obj = _read_json_cached(_Path(panel_path)) if os.path.exists(panel_path) else None
+        except Exception:
+            obj = None
+            import json
+            if os.path.exists(panel_path):
+                with open(panel_path, encoding='utf-8') as f:
+                    obj = json.load(f)
+        if isinstance(obj, dict) and obj.get('kind') == 'storage' and isinstance(obj.get('storage'), dict):
+            storage_panel = obj
     except Exception as e:  # pragma: no cover - defensive; should not break rendering
         get_error_handler().handle_error(
             e,
@@ -586,6 +745,38 @@ async def api_memory_gc(request: Request) -> JSONResponse:
         )
         raise HTTPException(status_code=500, detail=f'memory gc error: {e}')
 
+# --------------------------- Unified Cache Stats (JSON) ---------------------------
+@app.get('/api/unified/cache-stats')
+async def api_unified_cache_stats(reset: bool = False) -> JSONResponse:
+    """Return UnifiedDataSource cache statistics.
+
+    If reset=true, counters are zeroed after snapshot is taken.
+    """
+    if _unified is None:
+        raise HTTPException(status_code=503, detail='unified source unavailable')
+    try:
+        # Unwrap to get the underlying object if it's a Protocol reference
+        ds = _unified  # type: ignore[assignment]
+        # Safely probe for get_cache_stats availability
+        getter = getattr(ds, 'get_cache_stats', None)
+        if not callable(getter):
+            return JSONResponse({'error': 'cache stats not available'}, status_code=404)
+        stats = getter(reset=reset)
+        if not isinstance(stats, dict):
+            stats = {}
+        return JSONResponse(stats)
+    except Exception as e:
+        get_error_handler().handle_error(
+            e,
+            category=ErrorCategory.RESOURCE,
+            severity=ErrorSeverity.LOW,
+            component="web.dashboard.app",
+            function_name="api_unified_cache_stats",
+            message="Error fetching cache stats",
+            should_log=False,
+        )
+        raise HTTPException(status_code=500, detail=f'unified cache-stats error: {e}')
+
 # --------------------------- DEBUG ENDPOINTS (ONE-TIME DIAGNOSTIC BLOCK) ---------------------------
 # DEBUG_CLEANUP_BEGIN: temporary debug/observability endpoints. Enabled only when
 # G6_DASHBOARD_DEBUG=1 to keep production surface minimal.
@@ -727,3 +918,551 @@ async def weekday_overlays_page(request: Request) -> HTMLResponse:
         'meta_json': meta_json,
         'meta_path': str(meta_path),
     })
+
+# --------------------------- JSON API: Weekday Overlay Curves ---------------------------
+def _weekday_name_for(d: date) -> str:
+    return ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"][d.weekday()]
+
+def _parse_time_any(s: str) -> str:
+    """Best-effort parse of CSV timestamp to ISO 8601 string.
+
+    Accepts common forms like 'YYYY-MM-DD HH:MM:SS' or 'DD-MM-YYYY HH:MM:SS'.
+    Returns original string if parsing fails, which Infinity can still treat as a string.
+    """
+    s = (s or '').strip()
+    if not s:
+        return s
+    # Try ISO-ish quickly
+    try:
+        # Handle "YYYY-MM-DD HH:MM:SS" or already-ISO
+        if 'T' not in s and ' ' in s:
+            iso = s.replace(' ', 'T')
+        else:
+            iso = s
+        dt = datetime.fromisoformat(iso)
+        # If no timezone info, append 'Z' to help Grafana/Infinity parse reliably
+        return (dt.isoformat() + ('Z' if dt.tzinfo is None else ''))
+    except Exception:
+        pass
+    # Try day-first common format
+    for fmt in ('%d-%m-%Y %H:%M:%S', '%Y-%m-%d %H:%M:%S'):
+        try:
+            dt = datetime.strptime(s, fmt)
+            return dt.isoformat() + 'Z'
+        except Exception:
+            continue
+    return s
+
+def _parse_time_epoch_ms(s: str) -> int | None:
+    """Parse time and return epoch milliseconds. Assumes local timezone for naive times.
+
+    Returns None if parsing fails.
+    """
+    try:
+        raw = (s or '').strip()
+        if not raw:
+            return None
+        # Normalize to ISO-ish first
+        iso = raw.replace(' ', 'T') if ('T' not in raw and ' ' in raw) else raw
+        dt = None
+        try:
+            dt = datetime.fromisoformat(iso)
+        except Exception:
+            pass
+        if dt is None:
+            for fmt in ('%d-%m-%Y %H:%M:%S', '%Y-%m-%d %H:%M:%S'):
+                try:
+                    dt = datetime.strptime(raw, fmt)
+                    break
+                except Exception:
+                    continue
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            # Treat naive as local time
+            dt = dt.replace(tzinfo=datetime.now().astimezone().tzinfo)  # local-ok
+        return int(dt.timestamp() * 1000)
+    except Exception:
+        return None
+
+def _find_overlay_csv(root: Path, weekday: str, index: str, expiry_tag: str, offset: str) -> Path | None:
+    """Locate overlay CSV in new structure first, then legacy (<Weekday>/<index>_<expiry>_<offset>.csv).
+
+    New: <root>/<INDEX>/<EXPIRY_TAG>/<OFFSET>/<Weekday>.csv with ATM->0 fallback.
+    Legacy: <root>/<Weekday>/<index>_<expiry_tag>_<offset>.csv with ATM->0 and +offset variants.
+    """
+    candidates: list[Path] = []
+    # Final layout (preferred): <root>/<Weekday>/<INDEX>/<EXPIRY_TAG>/<OFFSET>.csv
+    candidates.append(root / weekday / index / expiry_tag / f"{offset}.csv")
+    if offset.upper() == 'ATM':
+        candidates.append(root / weekday / index / expiry_tag / "0.csv")
+    # Previous layout
+    candidates.append(root / index / expiry_tag / offset / f"{weekday}.csv")
+    if offset.upper() == 'ATM':
+        candidates.append(root / index / expiry_tag / '0' / f"{weekday}.csv")
+    # Legacy flat layout
+    day_dir = root / weekday
+    candidates.append(day_dir / f"{index}_{expiry_tag}_{offset}.csv")
+    if offset.upper() == 'ATM':
+        candidates.append(day_dir / f"{index}_{expiry_tag}_0.csv")
+    if offset and offset[0].isdigit():
+        candidates.append(day_dir / f"{index}_{expiry_tag}_+{offset}.csv")
+    for p in candidates:
+        if p.exists():
+            return p
+    return None
+
+def _norm_offset_folder(offset: str) -> str:
+    v = (offset or '').strip()
+    if not v:
+        return v
+    up = v.upper()
+    if up == 'ATM':
+        return '0'
+    # already signed +N or -N
+    if up.startswith('+') or up.startswith('-'):
+        return v
+    # digits -> +digits
+    if up.isdigit():
+        return f"+{v}"
+    return v
+
+def _find_live_csv(root: Path, index: str, expiry_tag: str, offset: str, day: date) -> Path | None:
+    """Locate live CSV for today's date under data/g6_data.
+
+    Layout: <root>/<INDEX>/<expiry_tag>/<offset>/<YYYY-MM-DD>.csv with ATM->0 and unsigned +N normalization.
+    """
+    idx = (index or '').upper().strip()
+    off = _norm_offset_folder(offset)
+    ymd = day.strftime('%Y-%m-%d')
+    p = root / idx / expiry_tag / off / f"{ymd}.csv"
+    if p.exists():
+        return p
+    # Fallbacks: ATM alias -> 0 (handled), try raw offset if normalization added '+'
+    if off.startswith('+') and off[1:].isdigit():
+        raw = off[1:]
+        q = root / idx / expiry_tag / raw / f"{ymd}.csv"
+        if q.exists():
+            return q
+    # Try lower-case expiry dir (defensive)
+    q2 = root / idx / expiry_tag.lower() / off / f"{ymd}.csv"
+    if q2.exists():
+        return q2
+    return None
+
+def _parse_bool_flag(v: str | None, default: bool = True) -> bool:
+    if v is None:
+        return default
+    s = str(v).strip().lower()
+    if s in ("1", "true", "t", "yes", "y", "on"):  # common truthy tokens
+        return True
+    if s in ("0", "false", "f", "no", "n", "off"):
+        return False
+    return default
+
+
+@app.get('/api/live_csv')
+async def api_live_csv(
+    request: Request,
+    index: str,
+    expiry_tag: str,
+    offset: str,
+    date_str: str | None = None,
+    limit: int | None = None,
+    from_ms: int | None = None,
+    to_ms: int | None = None,
+    no_cache: str | None = None,
+    include_avg: str | None = None,
+    include_ce: str | None = None,
+    include_pe: str | None = None,
+    include_index: str | None = None,
+    index_pct: str | None = None,
+    include_iv: str | None = None,
+    include_greeks: str | None = None,
+    include_analytics: str | None = None,
+    indices: str | None = None,
+) -> JSONResponse:
+    """Return today's live CSV as JSON rows for Infinity.
+
+    Query params:
+      - index: e.g., NIFTY
+      - expiry_tag: e.g., this_week/this_month
+      - offset: e.g., 0, ATM, +100
+      - date_str: optional YYYY-MM-DD (defaults to today)
+      - limit: optional positive integer to cap rows from start
+    Returns array of objects with: time, tp, avg_tp (and optionally ce, pe if present).
+    """
+    # Clean, unified implementation using cached rows and concurrency/back-pressure
+    t0 = _obs_begin("live_csv")
+    acquired = False
+    try:
+        try:
+            await asyncio.wait_for(_SEM.acquire(), timeout=0.002)
+            acquired = True
+        except Exception:
+            _obs_too_many("live_csv")
+            return JSONResponse({"error": "too_many_requests", "retry_after": 1}, status_code=429, headers={"Retry-After": "1"})
+
+        base = _project_root() / 'data' / 'g6_data'
+        day = datetime.strptime(date_str, '%Y-%m-%d').date() if (date_str and date_str.strip()) else datetime.now().date()  # local-ok
+
+        # Determine multi-index selection if provided
+        idx_list: list[str] | None = None
+        if indices and str(indices).strip():
+            idx_list = [s.strip().upper() for s in str(indices).split(',') if s.strip()]
+        elif ',' in index:
+            idx_list = [s.strip().upper() for s in index.split(',') if s.strip()]
+
+        # Flags
+        disable_cache = _parse_bool_flag(no_cache, False)
+        inc_avg = _parse_bool_flag(include_avg, True)
+        inc_ce = _parse_bool_flag(include_ce, True)
+        inc_pe = _parse_bool_flag(include_pe, True)
+        inc_index = _parse_bool_flag(include_index, True)
+        inc_index_pct = _parse_bool_flag(index_pct, False)
+        inc_analytics = _parse_bool_flag(include_analytics, False)
+        inc_iv = _parse_bool_flag(include_iv, inc_analytics)
+        inc_greeks = _parse_bool_flag(include_greeks, inc_analytics)
+
+        def _find_with_fallback(_idx: str) -> Path | None:
+            p = _find_live_csv(base, _idx, expiry_tag, offset, day)
+            if p:
+                return p
+            if not date_str:
+                from datetime import timedelta
+                for delta in (1, 2, 3):
+                    fallback = day - timedelta(days=delta)
+                    q = _find_live_csv(base, _idx, expiry_tag, offset, fallback)
+                    if q:
+                        return q
+            return None
+
+        def _build_rows_for(_idx: str) -> tuple[list[dict[str, Any]], Path | None]:
+            _path = _find_with_fallback(_idx)
+            if not _path:
+                raise HTTPException(status_code=404, detail=f"live csv not found for {_idx} {expiry_tag} {offset} {day}")
+            rows_full = _load_csv_rows_full(_path)
+            keep_keys = {'time','ts','time_str','tp'}
+            if inc_avg: keep_keys.add('avg_tp')
+            if inc_ce: keep_keys.add('ce')
+            if inc_pe: keep_keys.add('pe')
+            if inc_index: keep_keys.add('index_price')
+            if inc_iv: keep_keys.update({'ce_iv','pe_iv'})
+            if inc_greeks: keep_keys.update({'ce_delta','pe_delta','ce_theta','pe_theta','ce_vega','pe_vega','ce_gamma','pe_gamma','ce_rho','pe_rho'})
+
+            rows_sel = [{k: r.get(k, None) for k in keep_keys} for r in rows_full]
+            # Time range filter
+            if from_ms is not None or to_ms is not None:
+                fms = from_ms if isinstance(from_ms, int) else None
+                tms = to_ms if isinstance(to_ms, int) else None
+                def _in_range(v: Any) -> bool:
+                    try:
+                        if v is None:
+                            return False
+                        x = int(v)
+                    except Exception:
+                        return False
+                    if fms is not None and x < fms:
+                        return False
+                    if tms is not None and x > tms:
+                        return False
+                    return True
+                rows_sel = [r for r in rows_sel if _in_range(r.get('ts'))]
+
+            # Derive index_pct if requested
+            if inc_index_pct:
+                try:
+                    base_val: float | None = None
+                    for r in rows_sel:
+                        v = r.get('index_price')
+                        if isinstance(v, (int, float)):
+                            base_val = float(v)
+                            break
+                    if base_val and base_val != 0.0:
+                        for r in rows_sel:
+                            v = r.get('index_price')
+                            if isinstance(v, (int, float)):
+                                r['index_pct'] = (float(v) / base_val - 1.0) * 100.0
+                            else:
+                                r['index_pct'] = None
+                    else:
+                        for r in rows_sel:
+                            r['index_pct'] = None
+                except Exception:
+                    for r in rows_sel:
+                        r['index_pct'] = None
+
+            # Limit after filtering (keep most recent N rows)
+            if isinstance(limit, int) and limit > 0 and len(rows_sel) > limit:
+                rows_sel = rows_sel[-limit:]
+            return rows_sel, _path
+
+        headers: dict[str, str] = {}
+
+        if idx_list:
+            groups: dict[str, list[dict[str, Any]]] = {}
+            etag_hasher = zlib.crc32(b"")
+            lm_ns = 0
+            for idx_name in idx_list:
+                rows_i, pth = _build_rows_for(idx_name)
+                groups[idx_name] = rows_i
+                if pth and pth.exists():
+                    st = pth.stat()
+                    for part in (str(pth).encode('utf-8'), str(st.st_mtime_ns).encode('ascii'), str(st.st_size).encode('ascii')):
+                        etag_hasher = zlib.crc32(part, etag_hasher)
+                    lm_ns = max(lm_ns, int(st.st_mtime_ns))
+            etag_key = f"W/\"multi-{etag_hasher:x}-{limit}-{from_ms}-{to_ms}\""
+            headers["Cache-Control"] = "public, max-age=15, must-revalidate"
+            headers["ETag"] = etag_key
+            if lm_ns:
+                try:
+                    lm = time.gmtime(lm_ns / 1_000_000_000)
+                    headers["Last-Modified"] = time.strftime('%a, %d %b %Y %H:%M:%S GMT', lm)
+                except Exception:
+                    pass
+            inm = request.headers.get('if-none-match') if isinstance(request, Request) else None
+            if (not disable_cache) and inm and inm == etag_key:
+                _obs_end("live_csv", t0, ok=True)
+                return JSONResponse(None, status_code=304, headers=headers)
+            _obs_end("live_csv", t0, ok=True)
+            return JSONResponse({"indices": groups}, headers=headers)
+        else:
+            rows, pth = _build_rows_for(index.upper())
+            etag_src = f"{index}|{expiry_tag}|{offset}|{date_str}|{limit}|{from_ms}|{to_ms}|{include_avg}|{include_ce}|{include_pe}|{include_index}|{index_pct}|{include_iv}|{include_greeks}|{include_analytics}".encode()
+            h = zlib.crc32(etag_src)
+            if pth and pth.exists():
+                st = pth.stat()
+                h = zlib.crc32(str(st.st_mtime_ns).encode('ascii'), h)
+                h = zlib.crc32(str(st.st_size).encode('ascii'), h)
+                try:
+                    lm = time.gmtime(st.st_mtime_ns / 1_000_000_000)
+                    headers["Last-Modified"] = time.strftime('%a, %d %b %Y %H:%M:%S GMT', lm)
+                except Exception:
+                    pass
+            headers["Cache-Control"] = "public, max-age=15, must-revalidate"
+            headers["ETag"] = f"W/\"{h:x}\""
+            inm = request.headers.get('if-none-match') if isinstance(request, Request) else None
+            if (not disable_cache) and inm and inm == headers["ETag"]:
+                _obs_end("live_csv", t0, ok=True)
+                return JSONResponse(None, status_code=304, headers=headers)
+            _obs_end("live_csv", t0, ok=True)
+            return JSONResponse(rows, headers=headers)
+    except HTTPException:
+        _obs_end("live_csv", t0, ok=False)
+        raise
+    except Exception as e:
+        get_error_handler().handle_error(
+            e,
+            category=ErrorCategory.FILE_IO,
+            severity=ErrorSeverity.LOW,
+            component="web.dashboard.app",
+            function_name="api_live_csv",
+            message="Failed serving live CSV JSON",
+            should_log=False,
+        )
+        _obs_end("live_csv", t0, ok=False)
+        raise HTTPException(status_code=500, detail='live csv endpoint error')
+    finally:
+        if acquired:
+            try:
+                _SEM.release()
+            except Exception:
+                pass
+
+@app.get('/api/overlay')
+async def api_overlay(request: Request, index: str, expiry_tag: str, offset: str, weekday: str | None = None, limit: int | None = None, no_cache: str | None = None) -> JSONResponse:
+    """Return static weekday overlay curves as an array of objects for Grafana JSON API/Infinity.
+
+    Query params:
+      - index: e.g., NIFTY
+      - expiry_tag: e.g., this_week
+      - offset: e.g., ATM or 0 or +100
+      - weekday: optional (Monday..Sunday). Defaults to today's weekday (server time).
+      - limit: optional max rows (positive integer)
+    """
+    t0 = _obs_begin("overlay")
+    acquired = False
+    try:
+        # Concurrency guard
+        try:
+            await asyncio.wait_for(_SEM.acquire(), timeout=0.001)
+            acquired = True
+        except Exception:
+            _obs_too_many("overlay")
+            return JSONResponse({"error": "too_many_requests", "retry_after": 1}, status_code=429, headers={"Retry-After": "1"})
+
+        base = _project_root() / 'data' / 'weekday_master'
+        disable_cache = _parse_bool_flag(no_cache, False)
+
+        if not weekday:
+            from datetime import datetime
+            weekday = _weekday_name_for(datetime.now().date())  # local-ok
+        # Normalize weekday capitalization
+        weekday = str(weekday).capitalize()
+        path = _find_overlay_csv(base, weekday, index, expiry_tag, offset)
+        if not path:
+            # As a last attempt, try uppercase index
+            path = _find_overlay_csv(base, weekday, index.upper(), expiry_tag, offset)
+        if not path:
+            raise HTTPException(status_code=404, detail=f"overlay file not found for {weekday} {index} {expiry_tag} {offset}")
+
+        rows: list[dict[str, Any]] = []
+        with path.open('r', newline='', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for r in reader:
+                ts = _parse_time_any(str(r.get('timestamp', '')).strip())
+                obj: dict[str, Any] = {'time': ts}
+                # Safe float conversions; leave None if missing
+                for col in ('tp_mean','tp_ema','avg_tp_mean','avg_tp_ema'):
+                    val = r.get(col)
+                    if val is None or val == '':
+                        obj[col] = None
+                    else:
+                        try:
+                            obj[col] = float(val)
+                        except Exception:
+                            obj[col] = None
+                rows.append(obj)
+
+        if isinstance(limit, int) and limit > 0:
+            rows = rows[:limit]
+
+        # Caching headers (15s)
+        headers: dict[str, str] = {"Cache-Control": "public, max-age=15, must-revalidate"}
+        try:
+            if path and path.exists():
+                st = path.stat()
+                lm = time.gmtime(st.st_mtime_ns / 1_000_000_000)
+                headers["Last-Modified"] = time.strftime('%a, %d %b %Y %H:%M:%S GMT', lm)
+                etag_src = f"{index}|{expiry_tag}|{offset}|{weekday}|{limit}|{st.st_mtime_ns}|{st.st_size}".encode()
+                etag = zlib.crc32(etag_src)
+                headers["ETag"] = f"W/\"{etag:x}\""
+                inm = request.headers.get('if-none-match') if isinstance(request, Request) else None
+                if (not disable_cache) and inm and inm == headers["ETag"]:
+                    _obs_end("overlay", t0, ok=True)
+                    return JSONResponse(None, status_code=304, headers=headers)
+        except Exception:
+            pass
+
+        resp = JSONResponse(rows, headers=headers)
+        _obs_end("overlay", t0, ok=True)
+        return resp
+    except HTTPException:
+        _obs_end("overlay", t0, ok=False)
+        raise
+    except Exception as e:
+        get_error_handler().handle_error(
+            e,
+            category=ErrorCategory.FILE_IO,
+            severity=ErrorSeverity.LOW,
+            component="web.dashboard.app",
+            function_name="api_overlay",
+            message="Failed serving overlay JSON",
+            should_log=False,
+        )
+        _obs_end("overlay", t0, ok=False)
+        raise HTTPException(status_code=500, detail='overlay endpoint error')
+    finally:
+        if acquired:
+            try:
+                _SEM.release()
+            except Exception:
+                pass
+
+
+# --------------------------- JSON API: Sync Check ---------------------------
+def _norm_expiry(s: str | None) -> str:
+    return (s or '').strip()
+
+def _norm_offset(s: str | None) -> str:
+    v = (s or '').strip()
+    if not v:
+        return v
+    up = v.upper()
+    if up == 'ATM':
+        return '0'
+    # normalize +ve integers to +N
+    try:
+        if up.startswith('+') or up.startswith('-'):
+            int(up)
+            return up
+        # if purely digits, prefix with '+'
+        if up.isdigit():
+            return f"+{up}"
+    except Exception:
+        pass
+    return v
+
+
+@app.get('/api/sync_check')
+async def api_sync_check(
+    expiry_tag_global: str,
+    offset_global: str,
+    expiry_tag_1: str, offset_1: str,
+    expiry_tag_2: str, offset_2: str,
+    expiry_tag_3: str, offset_3: str,
+    expiry_tag_4: str, offset_4: str,
+) -> JSONResponse:
+    try:
+        eg = _norm_expiry(expiry_tag_global)
+        og = _norm_offset(offset_global)
+        panels: list[dict[str, Any]] = []
+        all_match = True
+        for i, (et, off) in enumerate([
+            (expiry_tag_1, offset_1), (expiry_tag_2, offset_2), (expiry_tag_3, offset_3), (expiry_tag_4, offset_4)
+        ], start=1):
+            em = _norm_expiry(et)
+            om = _norm_offset(off)
+            match = (em == eg) and (om == og)
+            panels.append({
+                'panel': i,
+                'expiry_tag': em,
+                'offset': om,
+                'match': 1 if match else 0,
+            })
+            if not match:
+                all_match = False
+        result = [{
+            'all_synced_int': 1 if all_match else 0,
+            'all_synced_text': 'ALL SYNCED' if all_match else 'OUT OF SYNC',
+            'details': panels,
+        }]
+        return JSONResponse(result)
+    except Exception as e:
+        get_error_handler().handle_error(
+            e,
+            category=ErrorCategory.CONFIGURATION,
+            severity=ErrorSeverity.LOW,
+            component="web.dashboard.app",
+            function_name="api_sync_check",
+            message="Failed serving sync check JSON",
+            should_log=False,
+        )
+        raise HTTPException(status_code=500, detail='sync check error')
+
+
+# --------------------------- API Observability Snapshot ---------------------------
+@app.get('/api/_stats')
+async def api_stats() -> JSONResponse:
+    """Return simple counters and timing for API endpoints.
+
+    Includes counts, errors, 429s, avg/max durations, in-flight, and concurrency limit.
+    """
+    out = {}
+    try:
+        for k, v in _OBS.items():
+            cnt = float(v.get("count", 0))
+            dur_sum = float(v.get("dur_ms_sum", 0.0))
+            avg_ms = (dur_sum / cnt) if cnt > 0 else 0.0
+            out[k] = {
+                "count": int(v.get("count", 0)),
+                "errors": int(v.get("errors", 0)),
+                "too_many": int(v.get("too_many", 0)),
+                "in_flight": int(v.get("in_flight", 0)),
+                "avg_ms": round(avg_ms, 2),
+                "max_ms": round(float(v.get("dur_ms_max", 0.0)), 2),
+            }
+    except Exception:
+        pass
+    out["concurrency_limit"] = max(1, _MAX_CONCURRENCY)
+    return JSONResponse(out)

@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import ast
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, List, Tuple
 
 CENTRAL_FUNCS = {
     'handle_ui_error', 'handle_data_error', 'handle_api_error', 'handle_critical_error',
@@ -25,7 +25,7 @@ CENTRAL_FUNCS = {
 class TryExceptVisitor(ast.NodeVisitor):
     def __init__(self, filename: str) -> None:
         self.filename = filename
-        self.suspicious: List[Tuple[int, str]] = []
+        self.suspicious: list[tuple[int, str]] = []
 
     def visit_Try(self, node: ast.Try) -> None:  # noqa: N802
         for handler in node.handlers:
@@ -61,7 +61,7 @@ def iter_py_files(paths: Iterable[str]) -> Iterable[Path]:
                 yield f
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     rc = 0
     for file in iter_py_files(argv[1:]):
         try:

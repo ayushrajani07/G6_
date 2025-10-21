@@ -17,8 +17,11 @@ expiry_rec(dict), human_row(optional tuple), plus any intermediate flags.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple, Callable, TYPE_CHECKING
-import os, datetime, logging
+import datetime
+import logging
+import os
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 # Phase 0 settings integration with TYPE_CHECKING guard to avoid duplicate definitions
 if TYPE_CHECKING:  # pragma: no cover
@@ -51,16 +54,14 @@ def get_collector_settings(force_reload: bool = False) -> Any:  # pragma: no cov
     except Exception:
         return None
 
-from src.utils.exceptions import (
-    ResolveExpiryError,
-    NoInstrumentsError,
-    NoQuotesError,
-)
 from src.error_handling import handle_collector_error
+from src.utils.exceptions import (
+    NoInstrumentsError,
+)
 
 logger = logging.getLogger(__name__)
 
-def _coerce_mapping(obj: Any) -> Dict[str, Any]:  # pragma: no cover
+def _coerce_mapping(obj: Any) -> dict[str, Any]:  # pragma: no cover
     try:
         if not isinstance(obj, dict):
             obj = dict(obj)
@@ -76,19 +77,19 @@ def _coerce_mapping(obj: Any) -> Dict[str, Any]:  # pragma: no cover
     return out
 
 def apply_basic_filters(
-    enriched_data: Dict[str, Dict[str, Any]] | Dict[str, Any] | None,
+    enriched_data: dict[str, dict[str, Any]] | dict[str, Any] | None,
     settings: Any,
     index_symbol: str,
     expiry_rule: str,
     logger: logging.Logger,
-) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Any]]:
+) -> tuple[dict[str, dict[str, Any]], dict[str, Any]]:
     """Apply basic volume / OI / percentile filters using CollectorSettings.
 
     Behavior preserved relative to legacy inline logic. Returns (filtered_data, meta).
     Meta keys: before, after, min_volume, min_oi, volume_percentile, applied(bool), pct_cutoff(optional).
     Swallows all exceptions and returns original data on failure.
     """
-    meta: Dict[str, Any] = {
+    meta: dict[str, Any] = {
         'before': len(enriched_data or {}) if enriched_data else 0,
         'after': len(enriched_data or {}) if enriched_data else 0,
         'min_volume': 0,
@@ -112,7 +113,7 @@ def apply_basic_filters(
         vol_pct = 0.0
     meta.update({'min_volume': min_vol, 'min_oi': min_oi, 'volume_percentile': vol_pct})
     # Safe local mutable reference; guarantee dict after guard above
-    data: Dict[str, Dict[str, Any]] = {k: v for k, v in enriched_data.items()}  # shallow copy
+    data: dict[str, dict[str, Any]] = {k: v for k, v in enriched_data.items()}  # shallow copy
     try:
         if (min_vol > 0 or min_oi > 0) and data:
             pre_cnt = len(data)
@@ -152,8 +153,8 @@ def process_expiry(
     expiry_rule: str,
     atm_strike: float,
     concise_mode: bool,
-    precomputed_strikes: List[float],
-    expiry_universe_map: Optional[Dict[Any, Any]],
+    precomputed_strikes: list[float],
+    expiry_universe_map: dict[Any, Any] | None,
     allow_per_option_metrics: bool,
     local_compute_greeks: bool,
     local_estimate_iv: bool,
@@ -161,19 +162,19 @@ def process_expiry(
     risk_free_rate: float,
     per_index_ts: datetime.datetime,
     index_price: float,
-    index_ohlc: Dict[str, Any],
+    index_ohlc: dict[str, Any],
     metrics: Any,
-    mem_flags: Dict[str, Any],
+    mem_flags: dict[str, Any],
     dq_checker: Any,
     dq_enabled: bool,
-    snapshots_accum: List[Any],
+    snapshots_accum: list[Any],
     build_snapshots: bool,
     allowed_expiry_dates: set,
-    pcr_snapshot: Dict[str, Any],
+    pcr_snapshot: dict[str, Any],
     aggregation_state: Any,
     collector_settings: Any = None,
     **legacy_kwargs: Any,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     # Lazy & resilient imports to avoid circular dependency and tolerate removed optional modules.
     try:
         from src.collectors.unified_collectors import _trace  # retain trace wrapper for consistency
@@ -185,18 +186,24 @@ def process_expiry(
                 pass
     # Core helpers (must succeed) – if these fail, we allow exception to bubble to caller fallback.
     from src.collectors.modules.expiry_helpers import (
-        resolve_expiry as _resolve_expiry,
-        fetch_option_instruments as _fetch_option_instruments,
         enrich_quotes as _enrich_quotes,
+    )
+    from src.collectors.modules.expiry_helpers import (
+        fetch_option_instruments as _fetch_option_instruments,
+    )
+    from src.collectors.modules.expiry_helpers import (
+        resolve_expiry as _resolve_expiry,
     )
     # ------------------------------------------------------------------
     # Coverage metrics integration (single definition to satisfy mypy)
     # ------------------------------------------------------------------
-    _cov_metrics_raw: Optional[Callable[..., Any]] = None
-    _field_cov_metrics_raw: Optional[Callable[..., Any]] = None
+    _cov_metrics_raw: Callable[..., Any] | None = None
+    _field_cov_metrics_raw: Callable[..., Any] | None = None
     try:  # pragma: no cover
         from src.collectors.modules.coverage_eval import (
             coverage_metrics as _cov_metrics_raw_import,
+        )
+        from src.collectors.modules.coverage_eval import (
             field_coverage_metrics as _field_cov_metrics_raw_import,
         )
         _cov_metrics_raw = _cov_metrics_raw_import
@@ -227,11 +234,11 @@ def process_expiry(
     try:
         from src.collectors.helpers.status_reducer import compute_expiry_status as _compute_expiry_status
     except Exception:  # pragma: no cover
-        def _compute_expiry_status(expiry_rec: Dict[str, Any]) -> str:
+        def _compute_expiry_status(expiry_rec: dict[str, Any]) -> str:
             return 'empty'
         logger.debug('status_reducer_import_failed (using fallback compute_expiry_status)')
     # Data quality bridge optional wrappers (single stable signatures for mypy)
-    def _run_option_quality(dq: Any, options_data: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
+    def _run_option_quality(dq: Any, options_data: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         try:
             from src.collectors.modules.data_quality_bridge import run_option_quality as _impl
         except Exception:
@@ -252,7 +259,7 @@ def process_expiry(
             return {}, []
         return {}, []
 
-    def _run_expiry_consistency(dq: Any, options_data: Dict[str, Any], index_price: float | None, expiry_rule: str | None) -> List[Any]:
+    def _run_expiry_consistency(dq: Any, options_data: dict[str, Any], index_price: float | None, expiry_rule: str | None) -> list[Any]:
         try:
             from src.collectors.modules.data_quality_bridge import run_expiry_consistency as _impl
         except Exception:
@@ -269,7 +276,7 @@ def process_expiry(
         _trace('expiry_process_start', index=index_symbol, rule=expiry_rule)
     except Exception:
         pass
-    outcome: Dict[str, Any] = {'success': False}
+    outcome: dict[str, Any] = {'success': False}
     # Test-only debug flag to emit compact stage counts when enabled
     def _truthy_env(name: str) -> bool:
         try:
@@ -291,9 +298,9 @@ def process_expiry(
         'field_coverage': None,
     # synthetic_fallback flag removed
     }
-    enriched_data: Optional[Dict[str, Dict[str, Any]]] = None
-    prevent_report: Optional[Dict[str, Any]] = None
-    clamp_meta: Optional[Any] = None
+    enriched_data: dict[str, dict[str, Any]] | None = None
+    prevent_report: dict[str, Any] | None = None
+    clamp_meta: Any | None = None
     try:
         with ctx.time_phase('resolve_expiry'):
             expiry_date = _resolve_expiry(index_symbol, expiry_rule, ctx.providers, metrics, concise_mode)
@@ -541,7 +548,7 @@ def process_expiry(
         # A20: RecoveryStrategy integration (flag gated)
         try:
             if collector_settings is not None and hasattr(collector_settings, 'recovery_strategy_legacy'):
-                use_recovery_strategy = bool(getattr(collector_settings, 'recovery_strategy_legacy'))
+                use_recovery_strategy = bool(collector_settings.recovery_strategy_legacy)
             else:
                 from src.utils.env_flags import is_truthy_env
                 use_recovery_strategy = is_truthy_env('G6_RECOVERY_STRATEGY_LEGACY')
@@ -638,7 +645,21 @@ def process_expiry(
         with ctx.time_phase('greeks_compute'):
             try:
                 from src.collectors.modules.greeks_compute import run_greeks_compute
-                run_greeks_compute(ctx, enriched_data, index_symbol, expiry_rule, expiry_date, per_index_ts, greeks_calculator, risk_free_rate, local_compute_greeks, allow_per_option_metrics, None, mem_flags)
+                run_greeks_compute(
+                    ctx,
+                    enriched_data,
+                    index_symbol,
+                    expiry_rule,
+                    expiry_date,
+                    per_index_ts,
+                    greeks_calculator,
+                    risk_free_rate,
+                    local_compute_greeks,
+                    allow_per_option_metrics,
+                    None,
+                    mem_flags,
+                    index_price,
+                )
             except Exception:
                 logger.debug('greeks_compute_module_failed', exc_info=True)
         collection_time = per_index_ts
@@ -723,13 +744,13 @@ def process_expiry(
             logger.debug(f"Collected {len(enriched_data)} options for {index_symbol} {expiry_rule}")
         try:
             if precomputed_strikes:
-                diffs_tmp = [b-a for a,b in zip(precomputed_strikes, precomputed_strikes[1:]) if b>a]
+                diffs_tmp = [b-a for a,b in zip(precomputed_strikes, precomputed_strikes[1:], strict=False) if b>a]
                 step_val = min(diffs_tmp) if diffs_tmp else None
             else:
                 step_val = None
             try:
                 from src.collectors.modules.status_finalize_core import finalize_expiry
-                int_strikes: List[int] = []
+                int_strikes: list[int] = []
                 for s in (precomputed_strikes or []):
                     try:
                         int_strikes.append(int(s))

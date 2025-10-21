@@ -26,10 +26,11 @@ This keeps implementation side-effect free beyond context mutation and metrics.
 """
 from __future__ import annotations
 
-from typing import Any, Dict
-import os
-from src.utils.env_flags import is_truthy_env  # type: ignore
 import math
+import os
+from typing import Any
+
+from src.utils.env_flags import is_truthy_env  # type: ignore
 
 try:  # optional event dispatch (graceful if events module absent)
     from src.events.event_log import dispatch as emit_event  # type: ignore
@@ -124,7 +125,7 @@ def update_strike_scaling(ctx: Any, elapsed: float, interval: float) -> None:
 
         # Apply scaled depths if changed
         if changed:
-            baseline_map: Dict[str, Dict[str,int]] = ctx.flag('adaptive_baseline', {}) or {}
+            baseline_map: dict[str, dict[str,int]] = ctx.flag('adaptive_baseline', {}) or {}
             for idx, params in ctx.index_params.items():  # type: ignore[union-attr]
                 if not params.get('enable', True):
                     continue

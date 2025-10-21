@@ -7,8 +7,8 @@ structures; business logic should populate them from runtime state.
 Scope kept intentionally light; extend incrementally as fields stabilize.
 """
 from __future__ import annotations
+
 from dataclasses import dataclass, field
-from typing import List, Dict, Optional
 
 __all__ = [
     "AlertEntry",
@@ -21,8 +21,8 @@ class AlertEntry:
     code: str
     message: str
     severity: str  # INFO/WARN/CRITICAL etc.
-    index: Optional[str] = None
-    meta: Dict[str, object] = field(default_factory=dict)
+    index: str | None = None
+    meta: dict[str, object] = field(default_factory=dict)
 
 @dataclass(frozen=True)
 class IndexHealth:
@@ -33,17 +33,17 @@ class IndexHealth:
     options_last_cycle: int | None = None
     atm_strike: float | None = None
     iv_repr: float | None = None
-    meta: Dict[str, object] = field(default_factory=dict)
+    meta: dict[str, object] = field(default_factory=dict)
 
 @dataclass(frozen=True)
 class SummarySnapshot:
     generated_epoch: float
     cycle: int | None
-    alerts: List[AlertEntry]
-    indices: List[IndexHealth]
-    meta: Dict[str, object] = field(default_factory=dict)
+    alerts: list[AlertEntry]
+    indices: list[IndexHealth]
+    meta: dict[str, object] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, object]:
+    def to_dict(self) -> dict[str, object]:
         return {
             "generated": self.generated_epoch,
             "cycle": self.cycle,

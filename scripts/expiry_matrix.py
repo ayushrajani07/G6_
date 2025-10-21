@@ -15,10 +15,11 @@ from __future__ import annotations
 import datetime as _dt
 import os
 
+from src.collectors.providers_interface import Providers
 from src.config.loader import load_config  # canonical loader
+
 # Provider initialization: prefer orchestrator components if available; fallback to legacy unified_main init_providers.
 from src.orchestrator.components import init_providers  # type: ignore
-from src.collectors.providers_interface import Providers
 
 INDICES = ["NIFTY", "BANKNIFTY", "FINNIFTY", "SENSEX", "MIDCPNIFTY"]
 RULES = ["this_week", "next_week", "this_month", "next_month"]
@@ -57,9 +58,9 @@ def main() -> None:
         rows.append(row)
 
     # Pretty print as a simple fixed-width table
-    col_widths = [max(len(str(cell)) for cell in col) for col in zip(header, *rows)]
+    col_widths = [max(len(str(cell)) for cell in col) for col in zip(header, *rows, strict=False)]
     def print_row(r):
-        print("  ".join(str(c).ljust(w) for c, w in zip(r, col_widths)))
+        print("  ".join(str(c).ljust(w) for c, w in zip(r, col_widths, strict=False)))
 
     print_row(header)
     print("  ".join("-" * w for w in col_widths))

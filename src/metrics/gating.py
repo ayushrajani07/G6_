@@ -18,16 +18,17 @@ Behavior:
 """
 from __future__ import annotations
 
-from typing import Optional, Set, Tuple, Any
+from typing import Any
+
 try:
     from src.orchestrator.gating_types import MetricsRegistryLike  # type: ignore
 except Exception:  # pragma: no cover
     class MetricsRegistryLike:  # type: ignore
         pass
-import os
 import logging
+import os
 
-from .groups import MetricGroup, ALWAYS_ON
+from .groups import ALWAYS_ON, MetricGroup
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +74,7 @@ def _warn_legacy_perf_cache(raw: str) -> None:
             pass
 
 
-def parse_filters() -> tuple[Optional[Set[str]], Set[str]]:
+def parse_filters() -> tuple[set[str] | None, set[str]]:
     """Parse enable/disable environment variables.
 
     Returns a tuple: (enabled_set_or_None, disabled_set)
@@ -88,7 +89,7 @@ def parse_filters() -> tuple[Optional[Set[str]], Set[str]]:
     disabled = {g.strip() for g in disable_env.split(',') if g.strip()}
     return enabled, disabled
 
-def configure_registry_groups(reg: MetricsRegistryLike | Any):  # pragma: no cover - simple wiring
+def configure_registry_groups(reg: MetricsRegistryLike | Any) -> tuple[set[str], set[str] | None, set[str]]:  # pragma: no cover - simple wiring
     """Attach group filtering predicate and capture enable/disable sets.
 
     Semantics (verified by tests in test_metric_groups_enable_disable.py):
@@ -167,16 +168,21 @@ def configure_registry_groups(reg: MetricsRegistryLike | Any):  # pragma: no cov
                 },
             )
             try:
-                setattr(reg, '_group_filters_structured_emitted', True)
+                reg._group_filters_structured_emitted = True
             except Exception:
                 pass
     except Exception:
         pass
     return CONTROLLED_GROUPS, enabled_set, disabled_set
 
-def apply_pruning(reg: MetricsRegistryLike | Any, controlled: set[str], enabled_set, disabled_set):  # pragma: no cover - deterministic small loop
+def apply_pruning(
+    reg: MetricsRegistryLike | Any,
+    controlled: set[str],
+    enabled_set: set[str] | None,
+    disabled_set: set[str],
+) -> None:  # pragma: no cover - deterministic small loop
     try:
-        always_on = getattr(reg, '_always_on_groups', set())
+        always_on: set[str] = set(getattr(reg, '_always_on_groups', set()))
         predicate = getattr(reg, '_group_allowed', lambda n: True)
         metric_groups = getattr(reg, '_metric_groups', {})
         # Access Prometheus client registry for unregistration attempts

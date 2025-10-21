@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Metrics Adapter Layer
 
 Goal: central point for creating/accessing on-demand metrics that were historically
@@ -17,9 +16,9 @@ Design:
 """
 from __future__ import annotations
 
-from typing import Any
-import os
 import logging
+import os
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +30,7 @@ class MetricsAdapter:
         if not self._reg:
             return None
         if hasattr(self._reg, 'empty_quote_fields_total'):
-            return getattr(self._reg, 'empty_quote_fields_total')
+            return self._reg.empty_quote_fields_total
         try:
             from prometheus_client import Counter  # type: ignore
             self._reg.empty_quote_fields_total = Counter(  # type: ignore[attr-defined]
@@ -201,7 +200,7 @@ class MetricsAdapter:
         churn_attr = 'shadow_hash_churn_ratio'
         rollback_attr = 'shadow_rollbacks_total'
         try:
-            from prometheus_client import Gauge, Counter  # type: ignore
+            from prometheus_client import Counter, Gauge  # type: ignore
         except Exception:
             return None, None
         if not hasattr(self._reg, churn_attr):

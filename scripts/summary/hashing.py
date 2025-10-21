@@ -18,8 +18,12 @@ Backward compatibility: Legacy `scripts.summary.rich_diff.compute_panel_hashes`
 will import and forward to this implementation until removed.
 """
 from __future__ import annotations
-from typing import Mapping, Any, Dict, Iterable
-import hashlib, json, math
+
+import hashlib
+import json
+import math
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 PANEL_KEYS = [
     "header","indices","analytics","alerts","links","perfstore","storage","resources"
@@ -106,8 +110,8 @@ def _sha(payload: Any) -> str:
         return "err"
 
 
-def compute_all_panel_hashes(status: Mapping[str, Any] | None, *, domain: Any | None = None) -> Dict[str,str]:
-    hashes: Dict[str,str] = {}
+def compute_all_panel_hashes(status: Mapping[str, Any] | None, *, domain: Any | None = None) -> dict[str,str]:
+    hashes: dict[str,str] = {}
     # indices list reused by multiple panels
     indices: list[str] = []
     try:
@@ -162,11 +166,15 @@ def compute_all_panel_hashes(status: Mapping[str, Any] | None, *, domain: Any | 
     hashes["perfstore"] = _sha(perf_obj)
 
     # storage
+    storage_obj: dict[str, Any | None] | None
     if domain is not None and getattr(domain, 'storage', None) is not None:
+        lag_v: Any | None = getattr(domain.storage, 'lag', None)
+        qd_v: Any | None = getattr(domain.storage, 'queue_depth', None)
+        age_v: Any | None = getattr(domain.storage, 'last_flush_age_sec', None)
         storage_obj = {
-            "lag": getattr(domain.storage, 'lag', None),
-            "queue_depth": getattr(domain.storage, 'queue_depth', None),
-            "last_flush_age_sec": getattr(domain.storage, 'last_flush_age_sec', None),
+            "lag": lag_v if isinstance(lag_v, (int, float)) else None,
+            "queue_depth": int(qd_v) if isinstance(qd_v, (int, float)) else None,
+            "last_flush_age_sec": float(age_v) if isinstance(age_v, (int, float)) else None,
         }
     else:
         storage_obj = status.get("storage") if isinstance(status, Mapping) else None

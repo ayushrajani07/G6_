@@ -1,3 +1,5 @@
 line-length = 120
-extend-select = ["B", "W", "I", "UP", "F", "E"]
+
+[lint]
+extend-select = ["B", "W", "I", "UP", "F", "E", "PERF"]
 ignore = ["E203"]

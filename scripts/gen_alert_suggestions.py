@@ -26,6 +26,8 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import Any
+
 import yaml  # type: ignore
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -47,7 +49,7 @@ BUS_P95_RATIO_WARN = 1.30     # bus variability slightly higher tolerance
 BUS_P95_RATIO_CRIT = 1.60
 
 
-def build_doc() -> dict:
+def build_doc() -> dict[str, Any]:
     # Expressions replicate those used in dashboard auto panels.
     success_ratio_expr_5m = (
         "1 - (clamp_min(sum(rate(g6_cs_ingest_failures_total[5m])),0) / clamp_min(sum(rate(g6_cs_ingest_rows_total[5m])),1))"
@@ -171,7 +173,7 @@ def build_doc() -> dict:
     }
 
 
-def main(argv):
+def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="Generate suggested efficiency alert rules")
     ap.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     ap.add_argument("--check", action="store_true", help="Check mode (exit 9 on drift)")

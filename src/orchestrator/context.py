@@ -8,9 +8,9 @@ Initial scope is intentionally minimal; it will expand as refactor proceeds.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
 import time
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(slots=True)
@@ -22,15 +22,15 @@ class RuntimeContext:
     csv_sink: Any | None = None
     influx_sink: Any | None = None
     health_monitor: Any | None = None
-    flags: Dict[str, Any] = field(default_factory=dict)
+    flags: dict[str, Any] = field(default_factory=dict)
     start_time: float = field(default_factory=time.time)
     # Cooperative shutdown signal toggled by external handlers (e.g., signal handlers)
     shutdown: bool = False
     # Optional runtime status file path (if status snapshots enabled)
-    runtime_status_file: Optional[str] = None
+    runtime_status_file: str | None = None
     # Extracted loop state (populated progressively during refactor)
-    index_params: Optional[Dict[str, Any]] = None
-    readiness_ok: Optional[bool] = None
+    index_params: dict[str, Any] | None = None
+    readiness_ok: bool | None = None
     readiness_reason: str = ""
     cycle_count: int = 0
     # Cardinality / per-option metrics gating
@@ -39,7 +39,7 @@ class RuntimeContext:
     # Cardinality guard last toggle timestamp (epoch seconds) for hysteresis evaluation
     cardinality_last_toggle: float | None = None
     # Per-index last successful collection timestamps (used for per-index data gap gauges)
-    last_index_success_times: Dict[str, float] = field(default_factory=dict)
+    last_index_success_times: dict[str, float] = field(default_factory=dict)
     # Last cycle start timestamp (set by run_cycle; exposed explicitly to allow tests without monkeypatching slots)
     _last_cycle_start: float | None = None
 

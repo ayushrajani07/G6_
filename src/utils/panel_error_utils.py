@@ -1,16 +1,17 @@
 from __future__ import annotations
+
 """
 Centralized panel error handling utilities.
 
 Use these from panel modules to report errors via the central handler and return
 user-friendly fallbacks without duplicating try/except logic everywhere.
 """
-from typing import Any, Callable, Optional
+import importlib
 import logging
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from src.error_handling import handle_ui_error
-from typing import TYPE_CHECKING
-import importlib
 
 # Runtime Panel class (or None if rich unavailable)
 RichPanel: Any
@@ -65,7 +66,7 @@ def safe_panel_execute(
     func: Callable[..., Any],
     *args,
     component: str = "panel",
-    panel_name: Optional[str] = None,
+    panel_name: str | None = None,
     default_return: Any = None,
     error_msg: str = "Panel operation failed",
     **kwargs,

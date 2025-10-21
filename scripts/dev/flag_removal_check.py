@@ -29,9 +29,12 @@ Planned Enhancements:
 """
 from __future__ import annotations
 
-import argparse, json, os, sys, re
-from dataclasses import dataclass, asdict
-from typing import List, Set, Iterable
+import argparse
+import json
+import os
+import sys
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass
 
 TEXT_EXT = {'.py','.md','.rst','.txt','.yml','.yaml','.sh','.ps1','.bat','.json','.ini','.toml','.cfg'}
 ALLOW_DEFAULT = {
@@ -51,14 +54,14 @@ class FlagFinding:
 @dataclass
 class FlagReport:
     flag: str
-    findings: List[FlagFinding]
+    findings: list[FlagFinding]
     allowed: bool
 
 @dataclass
 class Summary:
-    reports: List[FlagReport]
-    flags: List[str]
-    fail_flags: List[str]
+    reports: list[FlagReport]
+    flags: list[str]
+    fail_flags: list[str]
 
 
 def iter_files(root: str) -> Iterable[str]:
@@ -73,10 +76,10 @@ def iter_files(root: str) -> Iterable[str]:
                 yield os.path.join(dirpath, fn)
 
 
-def scan_file(path: str, flags: Set[str]) -> List[FlagFinding]:
-    out: List[FlagFinding] = []
+def scan_file(path: str, flags: set[str]) -> list[FlagFinding]:
+    out: list[FlagFinding] = []
     try:
-        with open(path,'r',encoding='utf-8',errors='ignore') as f:
+        with open(path,encoding='utf-8',errors='ignore') as f:
             for i, line in enumerate(f, start=1):
                 for fl in flags:
                     if fl in line:
@@ -86,15 +89,15 @@ def scan_file(path: str, flags: Set[str]) -> List[FlagFinding]:
     return out
 
 
-def build_reports(root: str, flags: List[str], allow: Set[str], strict: bool) -> Summary:
+def build_reports(root: str, flags: list[str], allow: set[str], strict: bool) -> Summary:
     flag_set = set(flags)
     by_flag = {f: [] for f in flags}
     for fp in iter_files(root):
         rel = os.path.relpath(fp, root)
         for finding in scan_file(fp, flag_set):
             by_flag[finding.flag].append(finding)
-    reports: List[FlagReport] = []
-    fail_flags: List[str] = []
+    reports: list[FlagReport] = []
+    fail_flags: list[str] = []
     for fl in flags:
         findings = by_flag.get(fl, [])
         # Determine if all findings are in allow list
@@ -111,7 +114,7 @@ def build_reports(root: str, flags: List[str], allow: Set[str], strict: bool) ->
     return Summary(reports=reports, flags=flags, fail_flags=fail_flags)
 
 
-def main(argv: List[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description='Check repository for lingering deprecated flag references.')
     ap.add_argument('--flag', action='append', dest='flags', required=True, help='Flag (env var) to check; can repeat.')
     ap.add_argument('--root', default='.', help='Repo root (default .)')
@@ -123,7 +126,7 @@ def main(argv: List[str] | None = None) -> int:
     if not flags:
         print('No flags provided', file=sys.stderr)
         return 2
-    allow: Set[str] = set(ALLOW_DEFAULT)
+    allow: set[str] = set(ALLOW_DEFAULT)
     for extra in ns.allow:
         allow.add(extra)
     summary = build_reports(ns.root, flags, allow, ns.strict)

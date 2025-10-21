@@ -11,20 +11,24 @@ Networking, concurrency, and actual streaming lifecycles are intentionally
 omitted until the interface stabilizes.
 """
 from __future__ import annotations
-from typing import Any, Mapping, Dict, List, Optional
+
+import logging
 import os
 import time
-import logging
+from collections.abc import Mapping
+from typing import Any
+
 try:
     from prometheus_client import Histogram  # type: ignore
 except Exception:  # pragma: no cover - optional
     Histogram = None  # type: ignore
 
-from .base import OutputPlugin, SummarySnapshot
-from scripts.summary.schema import SCHEMA_VERSION
-from scripts.summary.hashing import compute_all_panel_hashes, PANEL_KEYS
+from scripts.summary.domain import SummaryDomainSnapshot, build_domain_snapshot
+from scripts.summary.hashing import PANEL_KEYS, compute_all_panel_hashes
 from scripts.summary.panel_registry import build_all_panels, build_panels_subset
-from scripts.summary.domain import build_domain_snapshot, SummaryDomainSnapshot
+from scripts.summary.schema import SCHEMA_VERSION
+
+from .base import OutputPlugin, SummarySnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +42,8 @@ class SSEPublisher(OutputPlugin):
         self._diff_mode = diff
         # Structured diff mode (Phase 7): emit subset panel map under 'panel_diff' events
         self._structured = os.getenv("G6_SSE_STRUCTURED", "0").lower() in {"1","true","yes","on"}
-        self._last_hashes: Dict[str,str] | None = None
-        self._events: List[Dict[str, Any]] = []  # captured events (MVP, for inspection/tests)
+        self._last_hashes: dict[str,str] | None = None
+        self._events: list[dict[str, Any]] = []  # captured events (MVP, for inspection/tests)
         self._cycle = 0
         self._heartbeat_cycles = int(os.getenv("G6_SSE_HEARTBEAT_CYCLES", "5") or 5)
         self._since_change = 0
@@ -55,8 +59,19 @@ class SSEPublisher(OutputPlugin):
         self._h_emit_latency = None
         if self._perf_enabled and Histogram is not None:
             try:
-                self._h_diff_build = Histogram('g6_sse_pub_diff_build_seconds', 'Time to build diff/full snapshot panels', buckets=(0.0005,0.001,0.002,0.005,0.01,0.02,0.05,0.1,0.25,0.5))
-                self._h_emit_latency = Histogram('g6_sse_pub_emit_latency_seconds', 'Latency between enqueue timestamp tag and post-append (internal)', buckets=(0.0001,0.0005,0.001,0.002,0.005,0.01,0.02))
+                self._h_diff_build = Histogram(
+                    'g6_sse_pub_diff_build_seconds',
+                    'Time to build diff/full snapshot panels',
+                    buckets=(
+                        0.0005, 0.001, 0.002, 0.005, 0.01,
+                        0.02, 0.05, 0.1, 0.25, 0.5,
+                    ),
+                )
+                self._h_emit_latency = Histogram(
+                    'g6_sse_pub_emit_latency_seconds',
+                    'Latency between enqueue timestamp tag and post-append (internal)',
+                    buckets=(0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.02),
+                )
             except Exception:
                 pass
         # Instrumentation: how often we had to rebuild domain internally (should be 0 once loop passes domain)
@@ -64,7 +79,7 @@ class SSEPublisher(OutputPlugin):
 
     # Public accessor for tests
     @property
-    def events(self) -> List[Dict[str, Any]]:
+    def events(self) -> list[dict[str, Any]]:
         return list(self._events)
 
     def setup(self, context: Mapping[str, Any]) -> None:  # pragma: no cover - trivial
@@ -101,8 +116,12 @@ class SSEPublisher(OutputPlugin):
                 return
             finally:
                 if self._perf_enabled and self._h_diff_build is not None:
-                    try: self._h_diff_build.observe(max(0.0, time.perf_counter() - t0_hash))  # type: ignore[attr-defined]
-                    except Exception: pass
+                    try:
+                        self._h_diff_build.observe(
+                            max(0.0, time.perf_counter() - t0_hash)
+                        )  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
         self._cycle = snap.cycle
         if self._last_hashes is None:
             # Initial connect semantics: hello + full snapshot
@@ -126,7 +145,7 @@ class SSEPublisher(OutputPlugin):
             self._inject_meta(status)
             return
         # Diff mode path
-        changed: List[str] = [k for k,v in hashes.items() if self._last_hashes.get(k) != v]
+        changed: list[str] = [k for k,v in hashes.items() if self._last_hashes.get(k) != v]
         if not changed:
             self._since_change += 1
             if self._since_change >= self._heartbeat_cycles:
@@ -154,10 +173,11 @@ class SSEPublisher(OutputPlugin):
                 }
             })
         else:
-            updates = []
-            for k in changed:
-                if k in panels_subset_map:
-                    updates.append({"key": k, **panels_subset_map[k]})
+            updates = [
+                {"key": k, **panels_subset_map[k]}
+                for k in changed
+                if k in panels_subset_map
+            ]
             self._emit({
                 "event": "panel_update",
                 "data": {
@@ -176,7 +196,7 @@ class SSEPublisher(OutputPlugin):
         logger.debug("[sse] teardown events=%s", len(self._events))
 
     # --- internal helpers -------------------------------------------------
-    def _emit(self, evt: Dict[str, Any]) -> None:
+    def _emit(self, evt: dict[str, Any]) -> None:
         # Tag raw enqueue timestamp for downstream latency metrics (SSE HTTP layer)
         t_emit = time.time()
         try:
@@ -186,12 +206,22 @@ class SSEPublisher(OutputPlugin):
         self._events.append(evt)
         self._m_events_total += 1
         if self._perf_enabled and self._h_emit_latency is not None:
-            try: self._h_emit_latency.observe(max(0.0, time.time() - t_emit))  # type: ignore[attr-defined]
-            except Exception: pass
+            try:
+                self._h_emit_latency.observe(
+                    max(0.0, time.time() - t_emit)
+                )  # type: ignore[attr-defined]
+            except Exception:
+                pass
         if evt.get("event") == "error":
             self._m_errors += 1
 
-    def _build_full_snapshot(self, status: Mapping[str, Any] | None, hashes: Dict[str,str], *, domain: SummaryDomainSnapshot | None = None) -> Dict[str, Any]:
+    def _build_full_snapshot(
+        self,
+        status: Mapping[str, Any] | None,
+        hashes: dict[str, str],
+        *,
+        domain: SummaryDomainSnapshot | None = None,
+    ) -> dict[str, Any]:
         """Build a full snapshot payload using panel registry for line parity.
 
         We prefer an existing domain snapshot attached to SummarySnapshot (Phase 2+),
@@ -205,8 +235,8 @@ class SSEPublisher(OutputPlugin):
                 self._domain_rebuilds += 1
             except Exception:
                 domain = None
-        panels_map: Dict[str, Any] = {}
-        built_lines: Dict[str, Dict[str, Any]] = {}
+        panels_map: dict[str, Any] = {}
+        built_lines: dict[str, dict[str, Any]] = {}
         try:
             if domain is not None:
                 for p in build_all_panels(domain):
@@ -222,7 +252,14 @@ class SSEPublisher(OutputPlugin):
             }
         return {"cycle": self._cycle, "panels": panels_map}
 
-    def _build_subset(self, status: Mapping[str, Any] | None, hashes: Dict[str,str], keys: List[str], *, domain: SummaryDomainSnapshot | None = None) -> Dict[str, Dict[str, Any]]:
+    def _build_subset(
+        self,
+        status: Mapping[str, Any] | None,
+        hashes: dict[str, str],
+        keys: list[str],
+        *,
+        domain: SummaryDomainSnapshot | None = None,
+    ) -> dict[str, dict[str, Any]]:
         """Build only the changed panels (subset) using provided domain snapshot when available.
 
         Rebuild domain only if not supplied. This reduces per-cycle overhead
@@ -234,18 +271,26 @@ class SSEPublisher(OutputPlugin):
                 self._domain_rebuilds += 1
             except Exception:
                 domain = None
-        panels_map: Dict[str, Dict[str, Any]] = {}
+        panels_map: dict[str, dict[str, Any]] = {}
         if domain is not None:
             try:
                 subset_objs = build_panels_subset(domain, keys)
                 for p in subset_objs:
-                    panels_map[p.key] = {"hash": hashes.get(p.key), "title": p.title, "lines": p.lines}
+                    panels_map[p.key] = {
+                        "hash": hashes.get(p.key),
+                        "title": p.title,
+                        "lines": p.lines,
+                    }
             except Exception:
                 pass
         # Fallback for any missing keys (domain build failure or provider miss)
         for k in keys:
             if k not in panels_map:
-                panels_map[k] = {"hash": hashes.get(k), "title": k.capitalize(), "lines": self._render_panel_lines(k, status)}
+                panels_map[k] = {
+                    "hash": hashes.get(k),
+                    "title": k.capitalize(),
+                    "lines": self._render_panel_lines(k, status),
+                }
         return panels_map
 
     # --- metrics/meta helpers ---------------------------------------------
@@ -257,10 +302,18 @@ class SSEPublisher(OutputPlugin):
         try:
             if not isinstance(status, dict):  # pragma: no cover - defensive
                 return
-            meta_bucket = status.setdefault('panel_push_meta', {}) if isinstance(status.get('panel_push_meta'), dict) else status.setdefault('panel_push_meta', {})
+            meta_bucket = (
+                status.setdefault('panel_push_meta', {})
+                if isinstance(status.get('panel_push_meta'), dict)
+                else status.setdefault('panel_push_meta', {})
+            )
             if not isinstance(meta_bucket, dict):  # pragma: no cover - defensive
                 return
-            ssub = meta_bucket.setdefault('sse_publisher', {}) if isinstance(meta_bucket.get('sse_publisher'), dict) else meta_bucket.setdefault('sse_publisher', {})
+            ssub = (
+                meta_bucket.setdefault('sse_publisher', {})
+                if isinstance(meta_bucket.get('sse_publisher'), dict)
+                else meta_bucket.setdefault('sse_publisher', {})
+            )
             if not isinstance(ssub, dict):  # pragma: no cover - defensive
                 return
             ssub.update({
@@ -276,7 +329,7 @@ class SSEPublisher(OutputPlugin):
             pass
 
     # Accessor for tests / external inspection
-    def metrics_snapshot(self) -> Dict[str, int]:  # pragma: no cover - thin getter
+    def metrics_snapshot(self) -> dict[str, int]:  # pragma: no cover - thin getter
         return {
             'events_total': self._m_events_total,
             'full_snapshots': self._m_full_snapshots,
@@ -289,7 +342,7 @@ class SSEPublisher(OutputPlugin):
     def domain_rebuilds(self) -> int:  # pragma: no cover - simple accessor
         return self._domain_rebuilds
 
-    def _render_panel_lines(self, key: str, status: Mapping[str, Any] | None) -> List[str]:
+    def _render_panel_lines(self, key: str, status: Mapping[str, Any] | None) -> list[str]:
         if key == "indices" and status:
             try:
                 src = status.get("indices") or []
@@ -307,7 +360,7 @@ class SSEPublisher(OutputPlugin):
                 return ["error"]
         return ["…"]
 
-    def _extract_version(self, status: Mapping[str, Any] | None) -> Optional[str]:
+    def _extract_version(self, status: Mapping[str, Any] | None) -> str | None:
         try:
             if status and isinstance(status.get("app"), Mapping):
                 v = status["app"].get("version")

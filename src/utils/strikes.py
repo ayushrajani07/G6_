@@ -29,9 +29,7 @@ Future extensions (not implemented now):
 """
 from __future__ import annotations
 
-from typing import List
 import os
-import math
 
 __all__ = ["build_strikes"]
 
@@ -60,7 +58,7 @@ def build_strikes(
     step: float | None = None,
     min_strikes: int = 0,
     scale: float | None = None,
-) -> List[float]:
+) -> list[float]:
     """Return ascending strike list centered on ATM.
 
     Parameters
@@ -105,7 +103,7 @@ def build_strikes(
                 step = _DEF_WIDE_STEP if index_symbol.upper() in ("BANKNIFTY","SENSEX") else _DEF_NARROW_STEP
     if step <= 0:
         step = _DEF_NARROW_STEP
-    strikes: List[float] = []
+    strikes: list[float] = []
     for i in range(1, _n_itm + 1):
         strikes.append(float(atm - i*step))
     strikes.append(float(atm))

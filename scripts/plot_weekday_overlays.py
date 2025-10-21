@@ -20,31 +20,32 @@ Features:
 
 Usage:
   python scripts/plot_weekday_overlays.py --live-root data/g6_data \
-      --weekday-root data/weekday_master --index NIFTY --expiry-tag this_week --offset ATM \
+    --weekday-root data/weekday_master --index NIFTY --expiry-tag this_week --offset 0 \
       --date 2025-09-14 --output overlays.html
 
 Multiple indices:
-  python scripts/plot_weekday_overlays.py --index NIFTY --index BANKNIFTY --expiry-tag this_week --offset ATM
+    python scripts/plot_weekday_overlays.py --index NIFTY --index BANKNIFTY --expiry-tag this_week --offset 0
 
 Dependencies: plotly, pandas
 """
 from __future__ import annotations
+
 import argparse
 import json
-import math
-from pathlib import Path
-from datetime import datetime, date
-from typing import TYPE_CHECKING
+
 # Ensure repository root is on sys.path when running as a script
 import sys
+from datetime import date, datetime
+from pathlib import Path
 from pathlib import Path as _Path
+from typing import TYPE_CHECKING
+
 _ROOT = _Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+
 from src.utils.bootstrap import bootstrap
-import os
-import gc
 
 try:
     # Bootstrap (enable_metrics False to avoid starting server for a plotting script)
@@ -59,25 +60,24 @@ if TYPE_CHECKING:  # hinting only
     import pandas as pd  # noqa: F401
     import plotly.graph_objects as go  # noqa: F401
     import plotly.subplots as sp  # noqa: F401
-from typing import Optional
 
+from src.utils.assets import get_plotly_js_src
 from src.utils.overlay_plotting import (
-    env_int,
-    proc_mem_mb,
-    monitor_memory,
-    load_live_series,
-    load_overlay_series,
-    build_merged,
     add_traces,
-    load_config_json,
-    effective_window,
+    add_volatility_bands,
     annotate_alpha,
+    build_merged,
+    calculate_z_score,
+    effective_window,
+    env_int,
     export_figure_image,
     filter_overlay_by_density,
-    calculate_z_score,
-    add_volatility_bands,
+    load_config_json,
+    load_live_series,
+    load_overlay_series,
+    monitor_memory,
+    proc_mem_mb,
 )
-from src.utils.assets import get_plotly_js_src
 
 WEEKDAY_NAMES = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
 
@@ -96,7 +96,7 @@ _load_config_json = load_config_json
 _annotate_alpha = annotate_alpha
 _effective_window = effective_window
 
-def main():
+def main() -> None:
     ap = argparse.ArgumentParser(description="Plot weekday overlays (live vs mean & EMA).")
     ap.add_argument('--live-root', default='data/g6_data')
     ap.add_argument('--weekday-root', default='data/weekday_master')
@@ -180,7 +180,7 @@ def main():
     header_controls = f"<div class='header'><div class='title'>{page_title}</div><div class='controls'><button id='g6-theme-toggle' class='theme-toggle'>Toggle theme</button></div></div>"
 
     if layout_mode == 'by-index':
-        index_groups = {}
+        index_groups: dict[str, list[tuple[str, str]]] = {}
         for idx, exp, off in combos:
             index_groups.setdefault(idx, []).append((exp, off))
         # Enable secondary y for optional z-score
@@ -227,11 +227,14 @@ def main():
         html = fig.to_html(include_plotlyjs=False, full_html=False)
         html_body = header_controls + html
         # wrap minimal template
+        # Force default theme to dark unless overridden by cfg
+        if not client_cfg.get('theme'):
+            client_cfg['theme'] = 'dark'
         cfg_script = f"<script>window.G6 = window.G6 || {{}}; window.G6.overlay = window.G6.overlay || {{}}; window.G6.overlay.cfg = {json.dumps(client_cfg)};</script>"
         boot_script = """
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-    try{ if(window.G6 && G6.overlay){ G6.overlay.initTheme((G6.overlay.cfg && G6.overlay.cfg.theme) || 'light'); } }catch(_){ }
+    try{ if(window.G6 && G6.overlay){ G6.overlay.initTheme((G6.overlay.cfg && G6.overlay.cfg.theme) || 'dark'); } }catch(_){ }
     try{
         const btn = document.getElementById('g6-theme-toggle');
         if(btn && window.G6 && G6.overlay){ btn.addEventListener('click', function(){
@@ -294,7 +297,7 @@ document.addEventListener('DOMContentLoaded', function(){
                     pass
             fig_one.update_layout(
                 margin=dict(l=40, r=10, t=40, b=40),
-                height=height_per_panel,
+                height=max(height_per_panel, 520),
                 title=f"{idx} | {exp} | {off}",
                 hovermode='x unified',
                 template='plotly_white'
@@ -315,14 +318,29 @@ document.addEventListener('DOMContentLoaded', function(){
             filter_ui.append("<div>Offsets:" + ''.join([f"<label><input type='checkbox' class='f-off' value='{o}' checked> {o}</label>" for o in unique_off]) + "</div>")
             filter_ui.append("<a href='#' id='all-on'>All On</a> | <a href='#' id='all-off'>All Off</a>")
             filter_ui.append("</section>")
-            grid_css = f"""
+            grid_css = """
 <style>
-body {{ font-family: Arial, sans-serif; }}
-#filters label {{ margin-right: 12px; font-size: 13px; }}
-.panel-grid {{ display: grid; grid-template-columns: repeat({max_columns}, 1fr); grid-gap: 16px; }}
-.panel {{ border:1px solid #ddd; padding:4px; border-radius:4px; background:#fff; }}
-.panel h3 {{ font-size:14px; margin:4px 0 6px; font-weight:600; }}
+body { font-family: Arial, sans-serif; margin:0; }
+html, body { width:100%; height:100%; }
+#filters { padding:8px 12px; }
+#filters label { margin-right: 12px; font-size: 13px; }
+.sim-controls { padding: 4px 12px 8px; display:flex; align-items:center; gap:12px; font-size:13px; }
+.sim-controls input[type='range'] { width: 260px; }
+.sim-controls .tick { font-variant-numeric: tabular-nums; color:#666; }
+.panel-grid { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); grid-gap: 16px; padding: 8px 12px; }
+.panel { border:1px solid #ddd; padding:4px; border-radius:4px; background:#fff; width:100%; }
+.panel .plotly-graph-div { width:100% !important; }
+.panel h3 { font-size:14px; margin:4px 0 6px; font-weight:600; }
 </style>
+"""
+            # Simulation controls (time scrubber)
+            sim_controls = """
+<section class='sim-controls'>
+    <label><input type='checkbox' id='simulate-live'> Simulate live (reveal over time)</label>
+    <input type='range' id='time-scrub' min='0' max='100' step='1' value='100'>
+    <span class='tick'>0%</span>
+    <span class='tick' style='margin-left:auto'>100%</span>
+</section>
 """
             script = """
 <script>
@@ -334,30 +352,87 @@ function applyFilters(){
     const o=p.getAttribute('data-off');
     if(expSel.includes(e) && offSel.includes(o)) { p.style.display='block'; } else { p.style.display='none'; }
   });
+    // After show/hide, ask Plotly to resize visible graphs to avoid blank renders
+    setTimeout(()=>{
+        document.querySelectorAll('.panel').forEach(p=>{
+            if(p.style.display!=='none'){
+                const div=p.querySelector('.plotly-graph-div');
+                if(div && window.Plotly && Plotly.Plots){ try{ Plotly.Plots.resize(div); }catch(_){} }
+            }
+        });
+    }, 50);
 }
 document.querySelectorAll('.f-exp,.f-off').forEach(cb=>cb.addEventListener('change',applyFilters));
 document.getElementById('all-on').addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.f-exp,.f-off').forEach(c=>c.checked=true);applyFilters();});
 document.getElementById('all-off').addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.f-exp,.f-off').forEach(c=>c.checked=false);applyFilters();});
+
+// Time scrubber logic
+function applyScrub(){
+    const enabled = document.getElementById('simulate-live')?.checked;
+    const slider = document.getElementById('time-scrub');
+    const pct = slider ? (parseFloat(slider.value)||0) : 100;
+    const graphs = document.querySelectorAll('.plotly-graph-div');
+    graphs.forEach(div=>{
+        try{
+            const data = div.data || [];
+            if(!data.length) return;
+            if(!div._orig){
+                // store shallow copies of original arrays
+                div._orig = data.map(tr=>({ x: (tr.x||[]).slice(), y: (tr.y||[]).slice() }));
+            }
+            const orig = div._orig;
+            if(!enabled){
+                // restore original full series
+                orig.forEach((tr,i)=>{ Plotly.restyle(div, { x:[tr.x], y:[tr.y] }, [i]); });
+                return;
+            }
+            const xs = orig[0].x || [];
+            if(!xs.length) return;
+            const start = new Date(xs[0]).getTime();
+            const end = new Date(xs[xs.length-1]).getTime();
+            const cutoff = start + (Math.max(0, Math.min(100, pct))/100.0) * (end - start);
+            for(let i=0;i<orig.length;i++){
+                const xarr = orig[i].x; const yarr = orig[i].y;
+                const ynew = yarr.map((yv, idx)=>{
+                    const t = new Date(xarr[idx]).getTime();
+                    return (t <= cutoff) ? yv : null;
+                });
+                Plotly.restyle(div, { y:[ynew] }, [i]);
+            }
+            if(window.Plotly && Plotly.Plots){ try{ Plotly.Plots.resize(div); }catch(_){ } }
+        }catch(_){ }
+    });
+}
+document.addEventListener('DOMContentLoaded', function(){
+    const slider = document.getElementById('time-scrub');
+    const box = document.getElementById('simulate-live');
+    if(slider){ slider.addEventListener('input', applyScrub); }
+    if(box){ box.addEventListener('change', applyScrub); }
+});
 </script>
 """
             panel_divs = []
             for idx, exp, off, _div_id, div_html, _fig_ref in panels:
                 panel_divs.append(f"<div class='panel' data-exp='{exp}' data-off='{off}'>{div_html}</div>")
             container = "<div class='panel-grid'>" + ''.join(panel_divs) + "</div>"
+            if not client_cfg.get('theme'):
+                client_cfg['theme'] = 'dark'
             cfg_script = f"<script>window.G6 = window.G6 || {{}}; window.G6.overlay = window.G6.overlay || {{}}; window.G6.overlay.cfg = {json.dumps(client_cfg)};</script>"
             boot = """
 <script>
 document.addEventListener('DOMContentLoaded', function(){
-    try{ if(window.G6 && G6.overlay){ G6.overlay.initTheme((G6.overlay.cfg && G6.overlay.cfg.theme) || 'light'); } }catch(_){ }
+    try{ if(window.G6 && G6.overlay){ G6.overlay.initTheme((G6.overlay.cfg && G6.overlay.cfg.theme) || 'dark'); } }catch(_){ }
     try{
         document.querySelectorAll('.plotly-graph-div').forEach(div=>{ if(div.id){ G6.overlay.registerGraph(div.id, { layout: 'grid' }); }});
         if(G6.overlay && G6.overlay.cfg && G6.overlay.cfg.live){ G6.overlay.startPolling(G6.overlay.cfg.live); }
+        // Apply initial scrub state if any (ensures slider reflects current graph)
+        try{ applyScrub(); }catch(_){ }
     }catch(_){ }
 });
 </script>
 """
             # Important: load Plotly bundle before any inline Plotly.newPlot scripts inside panel divs
-            html_full = f"<html><head><meta charset='utf-8'><title>Weekday Overlays</title>{grid_css}{theme_css_tag}</head><body>{plotly_tag}{updates_js_tag}{cfg_script}{header_controls}{''.join(filter_ui)}{container}{script}{boot}</body></html>"
+            html_full = f"<html><head><meta charset='utf-8'><title>Weekday Overlays</title>{grid_css}{theme_css_tag}</head><body>{plotly_tag}{updates_js_tag}{cfg_script}{header_controls}{''.join(filter_ui)}{sim_controls}{container}{script}{boot}</body></html>"
             Path(args.output).write_text(html_full, encoding='utf-8')
         elif layout_mode == 'tabs':
             # Simple tabs: one panel visible at a time

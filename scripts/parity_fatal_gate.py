@@ -15,16 +15,21 @@ Exit Codes:
   1: Gate failed (threshold breach) or required data missing in strict mode.
 """
 from __future__ import annotations
-import argparse, json, os, sys, math
+
+import argparse
+import json
+import os
+from typing import Any
 
 
-def load_snapshot() -> dict:
+def load_snapshot() -> dict[str, Any]:
     path = os.getenv('G6_PARITY_SNAPSHOT_JSON')
     if not path or not os.path.exists(path):
         return {}
     try:
-        with open(path,'r',encoding='utf-8') as f:
-            return json.load(f)
+        with open(path,encoding='utf-8') as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
     except Exception:
         return {}
 

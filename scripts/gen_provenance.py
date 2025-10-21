@@ -24,13 +24,19 @@ If --auto discover is specified, attempts to infer standard artifact set in dist
 """
 from __future__ import annotations
 
-import argparse, hashlib, json, os, platform, subprocess, sys, datetime
+import argparse
+import datetime
+import hashlib
+import json
+import os
+import platform
+import subprocess
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any
 
 REPO = Path(__file__).resolve().parent.parent
 
-DEFAULT_THRESHOLDS = {
+DEFAULT_THRESHOLDS: dict[str, float] = {
     "diff_ratio_threshold": 0.85,
     "queue_latency_warn_s": 0.4,
     "queue_latency_crit_s": 0.75,
@@ -43,7 +49,7 @@ def sha256_file(p: Path) -> str:
             h.update(chunk)
     return h.hexdigest()
 
-def git(cmd: List[str]) -> str | None:
+def git(cmd: list[str]) -> str | None:
     try:
         r = subprocess.run(['git'] + cmd, cwd=REPO, capture_output=True, text=True, timeout=5)
         if r.returncode == 0:
@@ -52,24 +58,24 @@ def git(cmd: List[str]) -> str | None:
         return None
     return None
 
-def detect_source() -> dict:
+def detect_source() -> dict[str, Any]:
     commit = git(['rev-parse','HEAD']) or 'unknown'
     ref = os.getenv('GITHUB_REF') or git(['symbolic-ref','--short','HEAD']) or 'unknown'
     dirty = bool(git(['status','--porcelain']))
     return {"git_commit": commit, "git_ref": ref, "dirty": dirty}
 
-def detect_builder() -> dict:
+def detect_builder() -> dict[str, str]:
     ver = git(['describe','--tags','--always']) or os.getenv('G6_VERSION') or 'dev'
     return {"tool": "g6-release-automation", "version": ver}
 
-def detect_env() -> dict:
+def detect_env() -> dict[str, str]:
     return {
         "python_version": platform.python_version(),
         "platform": f"{platform.system()} {platform.release()} ({platform.machine()})",
         "ci": 'github-actions' if os.getenv('GITHUB_ACTIONS') else 'local'
     }
 
-def parse_artifact(spec: str) -> dict:
+def parse_artifact(spec: str) -> dict[str, Any]:
     # format path[:type]
     if ':' in spec:
         path, atype = spec.split(':',1)
@@ -86,7 +92,7 @@ def parse_artifact(spec: str) -> dict:
         'type': atype,
     }
 
-def auto_discover(version: str) -> List[dict]:
+def auto_discover(version: str) -> list[dict[str, Any]]:
     dist = REPO / 'dist'
     if not dist.exists():
         return []
@@ -96,7 +102,7 @@ def auto_discover(version: str) -> List[dict]:
         f'sbom_{version}.json',
         f'provenance_{version}.json',  # self (if regenerating)
     ]
-    out: List[dict] = []
+    out: list[dict] = []
     for pat in patterns:
         p = dist / pat
         if p.exists():
@@ -116,7 +122,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:  # pragma: no cover
     args = parse_args()
     version = args.version
-    artifacts: List[dict] = []
+    artifacts: list[dict[str, Any]] = []
     if args.artifact:
         for spec in args.artifact:
             artifacts.append(parse_artifact(spec))
@@ -134,7 +140,7 @@ def main() -> int:  # pragma: no cover
         seen[a['path']] = True
         final.append(a)
 
-    signing_block: Dict[str, Any] | None = None
+    signing_block: dict[str, Any] | None = None
     if args.with_signing_info:
         # Heuristic: find dashboards_<ver>.tar.gz and its .sig
         arc = next((a for a in final if a['name'] == f'dashboards_{version}.tar.gz'), None)
@@ -149,7 +155,7 @@ def main() -> int:  # pragma: no cover
                 }
     provenance = {
         'schema': 'g6.provenance.v0',
-        'generated_at_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        'generated_at_utc': datetime.datetime.now(datetime.UTC).isoformat(),
         'builder': detect_builder(),
         'source': detect_source(),
         'environment': detect_env(),

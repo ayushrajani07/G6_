@@ -16,13 +16,11 @@ Outputs a table of cycle events with columns:
 """
 from __future__ import annotations
 
-import os
 import argparse
-from typing import List
-from dataclasses import dataclass
+import os
 
-from src.orchestrator.context import RuntimeContext
 from src.orchestrator.adaptive_controller import evaluate_adaptive_controller
+from src.orchestrator.context import RuntimeContext
 
 
 class _MetricsStub:
@@ -58,7 +56,7 @@ class _MetricsStub:
         self.option_detail_mode = _Gauge()
 
 
-def parse_pattern(raw: str, cycles: int) -> List[int]:
+def parse_pattern(raw: str, cycles: int) -> list[int]:
     if not raw:
         return [0]*cycles
     parts = [p.strip() for p in raw.split(',') if p.strip()]

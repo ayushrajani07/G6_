@@ -21,16 +21,22 @@ Example:
 
 """
 from __future__ import annotations
-import argparse, json, sys, os, io
-from types import SimpleNamespace
+
+import argparse
+import io
+import json
+import os
+import sys
 from contextlib import redirect_stdout
-from typing import Any, Dict
+from typing import Any
 
 # Reuse bench_collectors main internals by importing module
 try:
     import scripts.bench_collectors as bench_mod  # type: ignore
 except Exception:  # fallback when scripts not on sys.path
-    import importlib.machinery, importlib.util, pathlib
+    import importlib.machinery
+    import importlib.util
+    import pathlib
     this_dir = pathlib.Path(__file__).resolve().parent
     project_root = this_dir.parent
     if str(project_root) not in sys.path:
@@ -45,7 +51,7 @@ except Exception:  # fallback when scripts not on sys.path
         raise
 
 
-def run_bench(indices: str, cycles: int, warmup: int) -> Dict[str, Any]:
+def run_bench(indices: str, cycles: int, warmup: int) -> dict[str, Any]:
     # Build argv simulation for bench_mod.main but capture its stdout JSON
     argv_backup = sys.argv[:]
     sys.argv = [sys.argv[0], '--indices', indices, '--cycles', str(cycles), '--warmup', str(warmup), '--json']
@@ -59,9 +65,9 @@ def run_bench(indices: str, cycles: int, warmup: int) -> Dict[str, Any]:
     return json.loads(out_txt)
 
 
-def emit_metrics(result: Dict[str, Any]):
+def emit_metrics(result: dict[str, Any]):
     try:
-        from prometheus_client import Gauge, Counter  # type: ignore
+        from prometheus_client import Gauge  # type: ignore
     except Exception:
         return
     legacy = result.get('legacy', {})

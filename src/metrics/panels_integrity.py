@@ -6,8 +6,8 @@ group metrics that track data freshness/consistency across panels.
 Pure refactor: metric names and semantics unchanged.
 """
 from __future__ import annotations
+
 from typing import Any
-from prometheus_client import Counter, Gauge  # type: ignore
 
 __all__ = ["init_panels_integrity_metrics"]
 

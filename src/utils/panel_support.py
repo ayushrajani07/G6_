@@ -4,14 +4,15 @@ Centralizes detection of whether an OutputRouter-like object supports
 transactional panel updates to reduce scattered hasattr chains.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, TypedDict
+
+from typing import Any, TypedDict
 
 REQUIRED_PANEL_METHODS = ("begin_panels_txn", "panel_update", "panel_append")
 
 class PanelSupportDiagnostics(TypedDict):
     supported: bool
-    missing: List[str]
-    present: List[str]
+    missing: list[str]
+    present: list[str]
     obj_type: str
 
 def supports_panels(router: Any) -> bool:
@@ -41,8 +42,8 @@ def panels_support_diagnostics(router: Any) -> PanelSupportDiagnostics:
             'present': [],
             'obj_type': 'None'
         }
-    present: List[str] = []
-    missing: List[str] = []
+    present: list[str] = []
+    missing: list[str] = []
     for name in REQUIRED_PANEL_METHODS:
         if hasattr(router, name):
             present.append(name)

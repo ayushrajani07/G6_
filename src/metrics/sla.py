@@ -5,9 +5,13 @@ Provides registration for cycle SLA breach metric previously defined in
 and ordering (early always-on phase) preserved.
 """
 from __future__ import annotations
-from typing import Any, Callable
-from prometheus_client import Counter, REGISTRY
-import logging, os
+
+import logging
+import os
+from collections.abc import Callable
+from typing import Any
+
+from prometheus_client import REGISTRY, Counter
 
 __all__ = ["init_sla_placeholders"]
 
@@ -45,7 +49,7 @@ def init_sla_placeholders(reg: Any, group_allowed: Callable[[str], bool]) -> Non
                 raise
             return
         if metric is not None:
-            setattr(reg, 'cycle_sla_breach', metric)
+            reg.cycle_sla_breach = metric
             try:
                 if group_allowed('sla_health'):
                     reg._metric_groups['cycle_sla_breach'] = 'sla_health'  # type: ignore[attr-defined]

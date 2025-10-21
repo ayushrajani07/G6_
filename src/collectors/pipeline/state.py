@@ -1,7 +1,9 @@
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
 import datetime as _dt
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
+
 
 @dataclass(slots=True)
 class ExpiryState:
@@ -16,16 +18,16 @@ class ExpiryState:
     settings: Any  # CollectorSettings (kept loose to avoid import cycle)
 
     # Derived / evolving fields
-    expiry_date: Optional[_dt.date] = None
-    strikes: List[Any] = field(default_factory=list)
-    instruments: List[Dict[str, Any]] = field(default_factory=list)
-    enriched: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    meta: Dict[str, Any] = field(default_factory=dict)
-    errors: List[str] = field(default_factory=list)
+    expiry_date: _dt.date | None = None
+    strikes: list[Any] = field(default_factory=list)
+    instruments: list[dict[str, Any]] = field(default_factory=list)
+    enriched: dict[str, dict[str, Any]] = field(default_factory=dict)
+    meta: dict[str, Any] = field(default_factory=dict)
+    errors: list[str] = field(default_factory=list)
     # Structured counterpart to legacy `errors` tokens; populated in parallel.
-    error_records: List["PhaseErrorRecord"] = field(default_factory=list)
+    error_records: list[PhaseErrorRecord] = field(default_factory=list)
 
-    def snapshot_core(self) -> Dict[str, Any]:
+    def snapshot_core(self) -> dict[str, Any]:
         """Return the structural subset used for parity diff in Phase 1."""
         return {
             'expiry_date': self.expiry_date,

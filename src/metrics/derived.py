@@ -5,8 +5,10 @@ MetricsRegistry.mark_index_cycle without altering behavior or metric naming.
 All exception swallowing, guards, and semantics preserved for resilience.
 """
 from __future__ import annotations
+
 import time
 from typing import Any
+
 
 # Type hint protocol (optional minimal) to satisfy static checkers without import cycle
 class _RegistryLike:  # pragma: no cover - structural only

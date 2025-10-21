@@ -7,7 +7,10 @@ Run:
 It imports key modules one by one printing timestamps so you can see where a hang occurs.
 """
 from __future__ import annotations
-import importlib, time, sys
+
+import importlib
+import sys
+import time
 
 MODULES = [
     'src.collectors.cycle_context',

@@ -1,42 +1,56 @@
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
-import logging
-from src.utils.panel_error_utils import centralized_panel_error_handler, safe_panel_execute
-from src.error_handling import handle_ui_error
 
-def get_collector_errors_for_stream():
+import logging
+from datetime import UTC
+from typing import Any
+
+from src.error_handling import handle_ui_error
+from src.utils.panel_error_utils import centralized_panel_error_handler
+
+
+def get_collector_errors_for_stream() -> list[dict[str, Any]]:
     """Get collector errors from centralized error handler for live stream."""
     try:
         from src.error_handling import get_error_handler
         handler = get_error_handler()
-        return handler.get_errors_for_indices_panel(count=10)
+        res = handler.get_errors_for_indices_panel(count=10)
+        out: list[dict[str, Any]] = []
+        if isinstance(res, list):
+            out = [dict(it) for it in res if isinstance(it, dict)]
+        return out
     except Exception as e:
         handle_ui_error(e, component="indices_panel", context={"op": "get_collector_errors"})
         logging.warning(f"Could not get collector errors: {e}")
         return []
 
 @centralized_panel_error_handler("indices_panel")
-def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_contrast: bool = False, loop_for_footer: Optional[Dict[str, Any]] = None) -> Any:
+def indices_panel(
+    status: dict[str, Any] | None,
+    *,
+    compact: bool = False,
+    low_contrast: bool = False,
+    loop_for_footer: dict[str, Any] | None = None,
+) -> Any:
     # Import helpers lazily to avoid circular import at module load time
     from scripts.summary.data_source import (
-        _use_panels_json,
-        _read_panel_json,
         _get_indices_metrics,
+        _read_panel_json,
+        _use_panels_json,
     )
     from scripts.summary.derive import (
-        fmt_hms,
         clip,
-        fmt_timedelta_secs,
         derive_cycle,
         derive_indices,
         estimate_next_run,
+        fmt_hms,
+        fmt_timedelta_secs,
     )
     # Guard rich imports (environment may run without rich for plain output tests)
     try:  # narrow scope; if unavailable let ImportError propagate to centralized handler
         from rich import box  # noqa: F401
+        from rich.console import Group  # noqa: F401
         from rich.panel import Panel  # noqa: F401
         from rich.table import Table  # noqa: F401
-        from rich.console import Group  # noqa: F401
     except Exception as _imp_err:  # pragma: no cover - defensive
         handle_ui_error(_imp_err, component="indices_panel", context={"op": "import_rich"})
         # Re-raise so centralized_panel_error_handler can surface fallback
@@ -44,7 +58,7 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
     # Prefer a rolling live stream if available under panels/indices_stream.json
     if _use_panels_json():
         pj_stream = _read_panel_json("indices_stream")
-        stream_items: List[Dict[str, Any]] = []
+        stream_items: list[dict[str, Any]] = []
         if isinstance(pj_stream, list):
             stream_items = pj_stream
         elif isinstance(pj_stream, dict) and isinstance(pj_stream.get("items"), list):
@@ -63,7 +77,7 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
                     try:
                         if isinstance(s, str) and s.strip():
                             enabled_set.add(s.strip().upper())
-                    except Exception:
+                    except Exception:  # noqa: PERF203 - continue on bad item without aborting filter
                         continue
                 # If still empty, attempt to read enabled symbols from normalized config via unified source
                 if not enabled_set:
@@ -82,14 +96,19 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
                     except Exception:
                         pass
                 if enabled_set:
-                    stream_items = [it for it in stream_items if isinstance(it, dict) and str(it.get('index', it.get('idx',''))).upper() in enabled_set]
+                    stream_items = [
+                        it
+                        for it in stream_items
+                        if isinstance(it, dict)
+                        and str(it.get('index', it.get('idx', ''))).upper() in enabled_set
+                    ]
             except Exception:
                 pass
             # Fetch recent collector errors and index them for quick lookup per index/cycle/time window
             collector_errors = get_collector_errors_for_stream()
             # Build indices for reasons: by (index, cycle) and by (index, recent-window)
-            errors_by_idx_cycle: Dict[tuple, List[str]] = {}
-            errors_by_idx: Dict[str, List[Dict[str, Any]]] = {}
+            errors_by_idx_cycle: dict[tuple, list[str]] = {}
+            errors_by_idx: dict[str, list[dict[str, Any]]] = {}
             try:
                 from scripts.summary.derive import parse_iso as _piso
                 for err in (collector_errors or []):
@@ -107,10 +126,10 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
                     except Exception:
                         continue
                 # Sort each list newest-first
-                for _idx_key, _arr in errors_by_idx.items():
+                for _arr in errors_by_idx.values():
                     try:
                         _arr.sort(key=lambda x: (x.get("dt") or ""), reverse=True)
-                    except Exception:
+                    except Exception:  # noqa: PERF203 - tolerate sort failure to keep panel resilient
                         pass
             except Exception:
                 errors_by_idx_cycle = {}
@@ -129,9 +148,10 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
             dq_warn = T.dq_warn
             dq_err = T.dq_error
             # Compute staleness of the stream: latest item timestamp age
-            latest_age_sec: Optional[float] = None
+            latest_age_sec: float | None = None
             try:
-                from datetime import datetime, timezone
+                from datetime import datetime
+
                 from scripts.summary.derive import parse_iso
                 latest_dt = None
                 for it in stream_items:
@@ -143,7 +163,7 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
                         if latest_dt is None or dt > latest_dt:
                             latest_dt = dt
                 if latest_dt is not None:
-                    latest_age_sec = (datetime.now(timezone.utc) - latest_dt).total_seconds()
+                    latest_age_sec = (datetime.now(UTC) - latest_dt).total_seconds()
             except Exception:
                 latest_age_sec = None
             tbl = Table(box=box.SIMPLE_HEAD)
@@ -160,7 +180,7 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
             recent = stream_items[:(max_rows * 2)]
             shown = 0
             # Group by cycle when present; otherwise by timestamp string
-            last_group_key: Optional[str] = None
+            last_group_key: str | None = None
             group_idx = 0
             for itm in recent:
                 if not isinstance(itm, dict):
@@ -201,7 +221,7 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
                 # Build precise description that explains low success/DQ
                 raw_desc = itm.get("description") or itm.get("desc") or ""
                 status_reason = itm.get("status_reason") or ""
-                desc_parts: List[str] = []
+                desc_parts: list[str] = []
                 # Track DQ degradation for visibility (without repeating numbers)
                 dq_degraded = False
                 try:
@@ -228,14 +248,18 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
                     from scripts.summary.derive import parse_iso as _piso
                     cyc_val = itm.get("cycle") if isinstance(itm.get("cycle"), int) else None
                     if isinstance(cyc_val, int):
-                        reasons = list(dict.fromkeys(errors_by_idx_cycle.get((idx, cyc_val), [])))  # unique preserve order
+                        reasons = list(
+                            dict.fromkeys(
+                                errors_by_idx_cycle.get((idx, cyc_val), [])
+                            )
+                        )  # unique preserve order
                         if reasons:
                             desc_parts.append("Errors: " + "; ".join(reasons[:2]))
                     # If still empty, try recent time window match (±90s)
                     if not desc_parts:
                         it_dt = _piso(raw_ts) if raw_ts else None
                         if it_dt is not None and idx in errors_by_idx:
-                            recent_descs: List[str] = []
+                            recent_descs: list[str] = []
                             for _e in errors_by_idx.get(idx, [])[:5]:
                                 _e_dt = _e.get("dt")
                                 try:
@@ -279,7 +303,7 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
                     try:
                         # Try recent errors again with preference for data_validation category (already in desc text)
                         if idx in errors_by_idx:
-                            candidates: List[str] = []
+                            candidates: list[str] = []
                             for _e in errors_by_idx.get(idx, [])[:5]:
                                 _txt = str(_e.get("desc") or "")
                                 if _txt.lower().startswith("data_validation"):
@@ -343,7 +367,7 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
             cy = derive_cycle(status)
             try:
                 # Determine latest cycle present in items
-                latest_cycle: Optional[int] = None
+                latest_cycle: int | None = None
                 for it in stream_items:
                     if isinstance(it, dict) and isinstance(it.get("cycle"), int):
                         c_val = it.get("cycle")
@@ -395,14 +419,14 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
                 pass
             # DQ summary chip by latest per index
             try:
-                latest: Dict[str, Dict[str, Any]] = {}
+                latest: dict[str, dict[str, Any]] = {}
                 for itm in stream_items:
                     if isinstance(itm, dict):
                         idx_name = str(itm.get("index", itm.get("idx", "")))
                         if idx_name:
                             latest[idx_name] = itm
                 g = y = r = 0
-                for _, it in latest.items():
+                for it in latest.values():
                     sc = it.get("dq_score")
                     if isinstance(sc, (int, float)):
                         if sc < dq_err:
@@ -417,11 +441,14 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
                 handle_ui_error(e, component="indices_panel", context={"op": "dq_summary"})
             # DQ legend
             footer.add_row(
-                "[dim]DQ% legend: ≥{:.0f}%, ≥{:.0f}%, <{:.0f}% | Issues > 0 shown in red[/dim]".format(
-                    dq_warn, dq_err, dq_err
-                )
+                f"[dim]DQ% legend: ≥{dq_warn:.0f}%, ≥{dq_err:.0f}%, <{dq_err:.0f}% | Issues > 0 shown in red[/dim]"
             )
-            return Panel(Group(tbl, footer), title="Indices", border_style=("white" if low_contrast else "white"), expand=True)
+            return Panel(
+                Group(tbl, footer),
+                title="Indices",
+                border_style=("white" if low_contrast else "white"),
+                expand=True,
+            )
     # Fallback to summary metrics table
     metrics = _get_indices_metrics()
     indices = derive_indices(status)
@@ -487,16 +514,16 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
         cycle_count = None
         if status and isinstance(status.get("loop"), dict):
             cycle_count = status["loop"].get("cycle")
-        
+
         # Calculate average legs per cycle
         avg_legs = None
         if legs_cumulative is not None and cycle_count is not None and cycle_count > 0:
             avg_legs = legs_cumulative / cycle_count
-        
+
         if metrics and name in metrics:
             # Try to get current cycle legs (if available from enhanced metrics)
             legs_current = metrics[name].get("legs")
-            
+
             # Format legs as: current_cycle_legs (average_per_cycle)
             if legs_current is not None and avg_legs is not None:
                 legs_display = f"{legs_current} ({avg_legs:.0f})"
@@ -506,9 +533,17 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
                 legs_display = f"— ({avg_legs:.0f})"
             else:
                 legs_display = "—"
-            
+
             fails = metrics[name].get("fails")
-            tbl.add_row(name, str(stat), dq_score_text, legs_display, ("—" if fails is None else str(fails)), str(ltp), age_str)
+            tbl.add_row(
+                name,
+                str(stat),
+                dq_score_text,
+                legs_display,
+                ("—" if fails is None else str(fails)),
+                str(ltp),
+                age_str,
+            )
         else:
             # For non-metrics fallback, show cumulative legs with average in brackets
             if legs_cumulative is not None and avg_legs is not None:
@@ -542,8 +577,11 @@ def indices_panel(status: Dict[str, Any] | None, *, compact: bool = False, low_c
     footer.add_row("[dim]" + clip(" | ".join(parts)) + "[/dim]")
     # DQ legend
     footer.add_row(
-        "[dim]DQ% legend: ≥{:.0f}%, ≥{:.0f}%, <{:.0f}% | Issues > 0 shown in red[/dim]".format(
-            dq_warn, dq_err, dq_err
-        )
+        f"[dim]DQ% legend: ≥{dq_warn:.0f}%, ≥{dq_err:.0f}%, <{dq_err:.0f}% | Issues > 0 shown in red[/dim]"
     )
-    return Panel(Group(tbl, footer), title="Indices", border_style=("white" if low_contrast else "white"), expand=True)
+    return Panel(
+        Group(tbl, footer),
+        title="Indices",
+        border_style=("white" if low_contrast else "white"),
+        expand=True,
+    )

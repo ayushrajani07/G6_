@@ -18,12 +18,15 @@ Usage:
 If batching disabled, it falls back to immediate increment.
 """
 from __future__ import annotations
+
+import atexit
+import logging
 import os
 import threading
 import time
-import atexit
-import logging
-from typing import Callable, Dict, Tuple, Any, TYPE_CHECKING, Protocol
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, Protocol
+
 
 class _GaugeLike(Protocol):  # minimal protocol for .set
     def set(self, value: float): ...  # noqa: D401
@@ -63,7 +66,7 @@ class MetricBatcher:
         self.flush_threshold = flush_threshold if (flush_threshold and flush_threshold > 0) else None
         self._lock = threading.RLock()
         # Map: (accessor id, callable, label tuple) -> count
-        self._counters: Dict[Tuple[int, CounterAccessor, Tuple[Any, ...]], float] = {}
+        self._counters: dict[tuple[int, CounterAccessor, tuple[Any, ...]], float] = {}
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         if self.enabled:

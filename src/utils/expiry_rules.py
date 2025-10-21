@@ -13,7 +13,7 @@ All functions are pure and easy to unit test.
 from __future__ import annotations
 
 import datetime as _dt
-from typing import Iterable, List
+from collections.abc import Iterable
 
 
 def normalize_rule(rule: str) -> str:
@@ -42,7 +42,7 @@ def select_expiry(expiries_iter: Iterable[_dt.date], rule: str, *, today: _dt.da
     """
     today = today or _dt.date.today()
     # Filter to dates >= today and sort ascending
-    expiries: List[_dt.date] = sorted(d for d in expiries_iter if isinstance(d, _dt.date) and d >= today)
+    expiries: list[_dt.date] = sorted(d for d in expiries_iter if isinstance(d, _dt.date) and d >= today)
     if not expiries:
         raise ValueError("no future expiries available")
 

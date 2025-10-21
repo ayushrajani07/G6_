@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Audit direct metrics usage across the repo.
 
@@ -16,9 +15,8 @@ from __future__ import annotations
 import os
 import re
 import sys
-from typing import List, Tuple
 
-PATTERNS: List[Tuple[str, str]] = [
+PATTERNS: list[tuple[str, str]] = [
     (r"from\s+src\.metrics\.metrics\s+import\s+", "LEGACY direct import from src.metrics.metrics (migrate to facade)"),
     (r"importlib\.import_module\(['\"]src\.metrics\.metrics['\"]\)", "LEGACY dynamic import of src.metrics.metrics"),
     (r"get_metrics_singleton\s*\(", "registry singleton access (writes/reads)"),
@@ -34,10 +32,10 @@ def should_scan(path: str) -> bool:
     return not (parts & EXCLUDE_DIRS)
 
 
-def scan_file(path: str) -> List[Tuple[int, str, str]]:
-    results: List[Tuple[int, str, str]] = []
+def scan_file(path: str) -> list[tuple[int, str, str]]:
+    results: list[tuple[int, str, str]] = []
     try:
-        with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+        with open(path, encoding='utf-8', errors='ignore') as f:
             text = f.read()
         for pat, desc in PATTERNS:
             for m in re.finditer(pat, text):
@@ -87,9 +85,11 @@ def main() -> int:
         print(f" - {desc}")
     print("\nGuidance:")
     print(" - Prefer facade imports: from src.metrics import get_metrics, setup_metrics_server")
-    print(" - Limit direct registry mutation to producer modules; readers should consume derived adapters where available")
-    print(" - Dynamic imports of 'src.metrics.metrics' are deprecated; use 'importlib.import_module(\"src.metrics\")' if indirection required")
-    print(" - Consider adding a CI guard to fail on newly introduced legacy imports after migration window closes")
+    print(" - Limit direct registry mutation to producer modules;")
+    print("   readers should consume derived adapters where available")
+    print(" - Dynamic imports of 'src.metrics.metrics' are deprecated;")
+    print("   use importlib.import_module('src.metrics') if indirection required")
+    print(" - Consider adding a CI guard to fail on newly introduced legacy imports")
     return 0
 
 

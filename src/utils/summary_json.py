@@ -12,8 +12,14 @@ Masking rules (simple regex heuristics): any key containing one of:
 Fields with value None are retained for explicitness.
 """
 from __future__ import annotations
-from typing import Mapping, Any, Iterable, Tuple
-import json, re, logging, time, hashlib
+
+import hashlib
+import json
+import logging
+import re
+import time
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 _SENSITIVE_PATTERN = re.compile(r"(token|secret|password|apikey|api_key|key)", re.IGNORECASE)
 
@@ -29,7 +35,7 @@ def _mask_key(k: str, v: Any) -> Any:
         pass
     return v
 
-def emit_summary_json(summary_type: str, fields: Mapping[str, Any] | Iterable[Tuple[str, Any]], *, logger_override=None) -> None:
+def emit_summary_json(summary_type: str, fields: Mapping[str, Any] | Iterable[tuple[str, Any]], *, logger_override=None) -> None:
     log = logger_override or logger
     start = time.time()
     try:

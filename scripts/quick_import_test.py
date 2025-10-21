@@ -5,7 +5,10 @@ warning unless G6_SUPPRESS_DEPRECATIONS is set. Exit codes mirror the new
 implementation (0 success, non-zero failure).
 """
 from __future__ import annotations
-import os, runpy, sys
+
+import os
+import runpy
+import sys
 
 if not os.getenv("G6_SUPPRESS_DEPRECATIONS"):
     try:

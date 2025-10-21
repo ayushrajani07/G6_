@@ -47,16 +47,17 @@ Non-goals (Phase 9 scope):
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple, Iterable, Callable
-import time
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed, Future
 import threading
-from math import inf
+import time
+from collections.abc import Callable, Iterable
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from typing import Any
+
 
 # Deliberately avoid binding sync enrichment at import time so tests that monkeypatch
 # src.collectors.modules.enrichment.enrich_quotes are reflected. We resolve lazily.
-def _sync_enrich_func() -> Callable[[str, str, Any, List[Dict[str, Any]], Any, Any], Dict[str, Any]] | None:  # pragma: no cover - trivial indirection
+def _sync_enrich_func() -> Callable[[str, str, Any, list[dict[str, Any]], Any, Any], dict[str, Any]] | None:  # pragma: no cover - trivial indirection
     try:
         from src.collectors.modules.enrichment import enrich_quotes
         return enrich_quotes
@@ -84,14 +85,14 @@ def _env_int(name: str, default: int) -> int:
 class EnrichmentExecutor:
     """Thin wrapper around ThreadPoolExecutor with lazy singleton pattern."""
     _lock = threading.Lock()
-    _shared: 'EnrichmentExecutor | None' = None
+    _shared: EnrichmentExecutor | None = None
 
     def __init__(self, max_workers: int):
         self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix='enrich')
         self.max_workers = max_workers
 
     @classmethod
-    def get_shared(cls) -> 'EnrichmentExecutor':
+    def get_shared(cls) -> EnrichmentExecutor:
         if cls._shared is None:
             with cls._lock:
                 if cls._shared is None:
@@ -106,7 +107,7 @@ class EnrichmentExecutor:
         self._executor.shutdown(wait=wait)
 
 
-def _chunk(seq: List[Any], size: int) -> Iterable[List[Any]]:
+def _chunk(seq: list[Any], size: int) -> Iterable[list[Any]]:
     if size <= 0:
         yield seq
         return
@@ -114,7 +115,7 @@ def _chunk(seq: List[Any], size: int) -> Iterable[List[Any]]:
         yield seq[i:i+size]
 
 
-def _call_provider(providers: Any, instruments: List[Dict[str, Any]]) -> Any:
+def _call_provider(providers: Any, instruments: list[dict[str, Any]]) -> Any:
     return providers.enrich_with_quotes(instruments)  # may raise
 
 
@@ -131,7 +132,7 @@ def enrich_quotes_async(
     index_symbol: str,
     expiry_rule: str,
     expiry_date: Any,
-    instruments: List[Dict[str, Any]],
+    instruments: list[dict[str, Any]],
     providers: Any,
     metrics: Any,
     *,
@@ -156,7 +157,7 @@ def enrich_quotes_async(
     if not _async_enabled() or not instruments:
         # Direct sync path (delegate identical to legacy enrichment)
         _sync = _sync_enrich_func()
-        result: Dict[str, Any] = _sync(index_symbol, expiry_rule, expiry_date, instruments, providers, metrics) if _sync else {}
+        result: dict[str, Any] = _sync(index_symbol, expiry_rule, expiry_date, instruments, providers, metrics) if _sync else {}
         if return_meta:
             meta = {
                 'mode': 'sync-direct',
@@ -176,8 +177,8 @@ def enrich_quotes_async(
     # Async path
     mode = 'async-single'
     has_error = False
-    futures: List[Future] = []
-    merged: Dict[str, Any] = {}
+    futures: list[Future] = []
+    merged: dict[str, Any] = {}
 
     # Single bulk call if no batching requested
     if not effective_batch:
@@ -204,7 +205,7 @@ def enrich_quotes_async(
         per_future_timeout = (timeout_ms / 1000.0) if timeout_ms else None
         for fut in as_completed(futures, timeout=(timeout_ms/1000.0) if timeout_ms else None):
             try:
-                part: Dict[str, Any] = fut.result(timeout=per_future_timeout)
+                part: dict[str, Any] = fut.result(timeout=per_future_timeout)
                 if part:
                     for sym, row in part.items():
                         if sym not in merged:

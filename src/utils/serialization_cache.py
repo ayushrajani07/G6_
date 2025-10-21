@@ -26,9 +26,12 @@ Thread Safety:
 """
 from __future__ import annotations
 
+import hashlib
+import json
+import os
+import threading
+import time
 from dataclasses import dataclass
-from typing import Dict, Tuple, Optional
-import os, json, hashlib, threading, time
 
 _LOCK = threading.Lock()
 
@@ -56,7 +59,7 @@ def _stable_hash(payload: dict, mode: str) -> str:
 
 @dataclass
 class _Entry:
-    key: Tuple[str, str]
+    key: tuple[str, str]
     data: bytes
     ts: float
 
@@ -65,13 +68,13 @@ class SerializationCache:
     def __init__(self, max_entries: int, hash_mode: str = 'sha256') -> None:
         self.max = max_entries
         self.hash_mode = hash_mode
-        self._data: Dict[Tuple[str,str], _Entry] = {}
-        self._order: list[Tuple[str,str]] = []  # simple LRU list (small sizes OK)
+        self._data: dict[tuple[str,str], _Entry] = {}
+        self._order: list[tuple[str,str]] = []  # simple LRU list (small sizes OK)
         self.hits = 0
         self.misses = 0
         self.evictions = 0
 
-    def _touch(self, k: Tuple[str,str]) -> None:
+    def _touch(self, k: tuple[str,str]) -> None:
         try:
             self._order.remove(k)
         except ValueError:
@@ -103,7 +106,7 @@ class SerializationCache:
         self._export_metrics(hit=False)
         return data
 
-    def _insert(self, k: Tuple[str,str], data: bytes) -> None:
+    def _insert(self, k: tuple[str,str], data: bytes) -> None:
         self._data[k] = _Entry(k, data, time.time())
         self._order.append(k)
         if len(self._data) > self.max:
@@ -113,7 +116,7 @@ class SerializationCache:
                 del self._data[old]
                 self.evictions += 1
 
-    def _export_metrics(self, *, hit: Optional[bool]) -> None:
+    def _export_metrics(self, *, hit: bool | None) -> None:
         m = get_metrics()
         if not m:
             return
@@ -123,7 +126,8 @@ class SerializationCache:
                 # Lazy registration: rely on registry _register if available else noop
                 reg = getattr(m, '_register', None)
                 if callable(reg):
-                    from prometheus_client import Counter as _C, Gauge as _G
+                    from prometheus_client import Counter as _C
+                    from prometheus_client import Gauge as _G
                     try:
                         m.serial_cache_hits = reg(_C, 'g6_serial_cache_hits_total', 'Serialization cache hits')  # type: ignore[attr-defined]
                         m.serial_cache_misses = reg(_C, 'g6_serial_cache_misses_total', 'Serialization cache misses')  # type: ignore[attr-defined]
@@ -155,7 +159,7 @@ class SerializationCache:
             pass
 
 
-_GLOBAL_CACHE: Optional[SerializationCache] = None
+_GLOBAL_CACHE: SerializationCache | None = None
 
 
 def get_serialization_cache() -> SerializationCache:

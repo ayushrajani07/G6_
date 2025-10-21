@@ -23,13 +23,12 @@ Exit codes:
   1 error during processing
 """
 from __future__ import annotations
+
 import argparse
 import csv
-import os
-import sys
 import logging
+import os
 from collections import Counter, defaultdict
-from typing import Iterable, List, Dict, Set, Tuple
 
 LOG = logging.getLogger("sanitize_csv_expiries")
 
@@ -50,12 +49,12 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def setup_logging(verbose: bool):
+def setup_logging(verbose: bool) -> None:
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(level=level, format='[%(levelname)s] %(message)s')
 
 
-def load_provider_allowed(index: str) -> List[str]:
+def load_provider_allowed(index: str) -> list[str]:
     """Attempt to load allowed expiry dates via provider facade.
     Returns empty list on failure (script will fallback to dominant mode for that index).
     """
@@ -69,9 +68,9 @@ def load_provider_allowed(index: str) -> List[str]:
         return []
 
 
-def discover_option_files(base_dir: str, index: str) -> List[str]:
+def discover_option_files(base_dir: str, index: str) -> list[str]:
     """Collect leaf CSV file paths for an index respecting expected directory layout."""
-    collected: List[str] = []
+    collected: list[str] = []
     root = os.path.join(base_dir, index)
     if not os.path.isdir(root):
         return collected
@@ -91,8 +90,8 @@ def discover_option_files(base_dir: str, index: str) -> List[str]:
     return collected
 
 
-def analyze_file(path: str) -> Tuple[List[List[str]], List[str], Counter]:
-    with open(path, 'r', newline='') as f:
+def analyze_file(path: str) -> tuple[list[list[str]], list[str], Counter]:
+    with open(path, newline='') as f:
         reader = csv.reader(f)
         try:
             header = next(reader)
@@ -104,14 +103,14 @@ def analyze_file(path: str) -> Tuple[List[List[str]], List[str], Counter]:
         exp_idx = header.index('expiry_date')
     except ValueError:
         return rows, header, Counter()  # no expiry_date column
-    freq = Counter()
+    freq: Counter = Counter()
     for r in rows:
         if len(r) > exp_idx:
             freq[r[exp_idx]] += 1
     return rows, header, freq
 
 
-def write_sanitized(path: str, header: List[str], rows: List[List[str]], kept_indices: List[int], dry_run: bool, no_backup: bool):
+def write_sanitized(path: str, header: list[str], rows: list[list[str]], kept_indices: list[int], dry_run: bool, no_backup: bool) -> None:
     if dry_run:
         return
     if not no_backup and not os.path.exists(path + '.bak'):
@@ -133,7 +132,7 @@ def write_sanitized(path: str, header: List[str], rows: List[List[str]], kept_in
     os.replace(tmp_path, path)
 
 
-def sanitize_file(path: str, allowed: Set[str] | None, dominant_mode: bool, dry_run: bool, no_backup: bool, min_rows: int) -> Dict[str, int]:
+def sanitize_file(path: str, allowed: set[str] | None, dominant_mode: bool, dry_run: bool, no_backup: bool, min_rows: int) -> dict[str, int]:
     stats = {"total": 0, "removed": 0, "kept": 0, "skipped": 0}
     try:
         rows, header, freq = analyze_file(path)
@@ -172,14 +171,14 @@ def sanitize_file(path: str, allowed: Set[str] | None, dominant_mode: bool, dry_
         return stats
 
 
-def main():
+def main() -> None:
     args = parse_args()
     setup_logging(args.verbose)
 
     indices = [i.strip() for i in (args.indices.split(',') if args.indices else DEFAULT_INDICES) if i.strip()]
 
-    provider_whitelists: Dict[str, Set[str]] = {}
-    specified_whitelist: Set[str] | None = None
+    provider_whitelists: dict[str, set[str]] = {}
+    specified_whitelist: set[str] | None = None
     if args.allowed and not args.dominant and not args.use_provider:
         specified_whitelist = {d.strip() for d in args.allowed.split(',') if d.strip()}
     if args.use_provider:
@@ -191,7 +190,7 @@ def main():
             else:
                 LOG.warning("No provider whitelist for %s; will fallback to dominant mode", idx)
 
-    grand = defaultdict(int)
+    grand: dict[str, int] = defaultdict(int)
     for idx in indices:
         files = discover_option_files(args.base_dir, idx)
         if not files:

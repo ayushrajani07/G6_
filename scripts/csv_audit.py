@@ -36,23 +36,28 @@ Environment overrides:
 Exit code is 0 unless an unexpected exception occurs.
 """
 from __future__ import annotations
-import os, sys, json, argparse, datetime as dt
+
+import argparse
+import datetime as dt
+import json
+import os
+import sys
 from pathlib import Path
-from typing import Dict, List, Tuple, Set
+from typing import TypedDict
 
 KNOWN_TAGS = {"this_week","this_month","next_week","next_month"}
 
 
-def _load_config_expiries(project_root: Path) -> Dict[str, Set[str]]:
+def _load_config_expiries(project_root: Path) -> dict[str, set[str]]:
     """Load configured logical expiries per index from config/g6_config.json.
 
     Returns mapping INDEX -> set(tags). Missing file or parse errors yield empty mapping.
     """
     cfg_path = project_root / 'config' / 'g6_config.json'
     try:
-        with open(cfg_path, 'r', encoding='utf-8') as f:
+        with open(cfg_path, encoding='utf-8') as f:
             raw = json.load(f)
-        out: Dict[str, Set[str]] = {}
+        out: dict[str, set[str]] = {}
         for k, v in (raw.get('indices') or {}).items():  # type: ignore
             tags = v.get('expiries') or []  # type: ignore
             if isinstance(tags, list):
@@ -62,8 +67,8 @@ def _load_config_expiries(project_root: Path) -> Dict[str, Set[str]]:
         return {}
 
 
-def discover_buckets(tag_dir: Path) -> List[Path]:
-    buckets: List[Path] = []
+def discover_buckets(tag_dir: Path) -> list[Path]:
+    buckets: list[Path] = []
     for p in tag_dir.iterdir():
         if not p.is_dir():
             continue
@@ -100,8 +105,15 @@ def filter_bucket(name: str, *, max_steps: int | None, step_size: int) -> bool:
     return steps <= max_steps + 1e-9
 
 
-def audit(root: Path, target_date: str, *, max_steps: int | None, step_size: int, per_index: Dict[str, int]) -> Dict[str, object]:
-    result: Dict[str, object] = {"root": str(root), "date": target_date, "indices": {}}
+class TagReport(TypedDict):
+    present: list[str]
+    missing: list[str]
+    empty: list[str]
+    meta: dict[str, object]
+
+
+def audit(root: Path, target_date: str, *, max_steps: int | None, step_size: int, per_index: dict[str, int]) -> dict[str, object]:
+    result: dict[str, object] = {"root": str(root), "date": target_date, "indices": {}}
     if not root.exists():
         return result
     # Attempt to derive project root (two levels up from data/g6_data or parent of root)
@@ -110,28 +122,28 @@ def audit(root: Path, target_date: str, *, max_steps: int | None, step_size: int
     for index_dir in sorted(p for p in root.iterdir() if p.is_dir()):
         index_name = index_dir.name
         idx_max_steps = per_index.get(index_name.upper(), max_steps)
-        idx_obj: Dict[str, object] = {}
+        idx_obj: dict[str, TagReport] = {}
         configured = cfg_expiries.get(index_name.upper())
         physical_tags = {p.name for p in index_dir.iterdir() if p.is_dir() and p.name in KNOWN_TAGS}
         for tag_dir in sorted(p for p in index_dir.iterdir() if p.is_dir() and p.name in KNOWN_TAGS):
             tag_name = tag_dir.name
-            tag_report = {"present": [], "missing": [], "empty": [], "meta": {}}  # type: ignore
+            tag_report: TagReport = {"present": [], "missing": [], "empty": [], "meta": {}}
             for bucket_dir in discover_buckets(tag_dir):
                 if not filter_bucket(bucket_dir.name, max_steps=idx_max_steps, step_size=step_size):
                     continue
                 csvs = [f for f in bucket_dir.glob('*.csv') if f.is_file()]
                 if not csvs:
-                    tag_report["empty"].append(bucket_dir.name)  # type: ignore[index]
+                    tag_report["empty"].append(bucket_dir.name)
                     continue
                 # Determine if target-date CSV exists (allow .vN suffix variations before .csv if any)
                 present = any(f.stem == target_date or f.name.startswith(target_date + '.') for f in csvs)
                 if present:
-                    tag_report["present"].append(bucket_dir.name)  # type: ignore[index]
+                    tag_report["present"].append(bucket_dir.name)
                 else:
-                    tag_report["missing"].append(bucket_dir.name)  # type: ignore[index]
+                    tag_report["missing"].append(bucket_dir.name)
             # Attach tag-level meta hints (only once per tag)
             try:  # best-effort
-                meta: Dict[str, object] = {}
+                meta: dict[str, object] = {}
                 if configured is not None:
                     meta['configured_for_index'] = tag_name in configured
                 if configured and tag_name not in configured:
@@ -142,7 +154,7 @@ def audit(root: Path, target_date: str, *, max_steps: int | None, step_size: int
                     meta['reason'] = 'no_config_but_historic'  # no explicit config; historic buckets define expectation
                 # If tag absent physically but configured, represent as synthetic entry
                 absent_tags = (configured - physical_tags) if configured else set()
-                tag_report['meta'] = meta  # type: ignore[index]
+                tag_report['meta'] = meta
                 # Add synthetic empty record for absent configured tags
                 for absent in sorted(absent_tags):
                     if absent not in idx_obj:
@@ -155,7 +167,7 @@ def audit(root: Path, target_date: str, *, max_steps: int | None, step_size: int
     return result
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="Audit CSV presence for a given date")
     ap.add_argument('--date', help='ISO date (YYYY-MM-DD); default today', default=None)
     ap.add_argument('--root', help='CSV root override; defaults to G6_CSV_BASE_DIR or data/g6_data', default=None)
@@ -169,7 +181,7 @@ def main(argv: List[str]) -> int:
     date_str = args.date or dt.date.today().isoformat()
     root = Path(args.root or os.environ.get('G6_CSV_BASE_DIR') or 'data/g6_data')
 
-    per_index: Dict[str, int] = {}
+    per_index: dict[str, int] = {}
     for item in args.index_max_steps:
         if '=' in item:
             k,v = item.split('=',1)

@@ -5,10 +5,13 @@ It is imported by metrics.core components to register deterministic baseline met
 bloated monolithic code.
 """
 from __future__ import annotations
-from prometheus_client import Counter, Gauge, Histogram
-from typing import Callable, Any
-import os  # required for strict mode flag evaluation
+
 import logging
+import os  # required for strict mode flag evaluation
+from collections.abc import Callable
+from typing import Any
+
+from prometheus_client import Counter, Gauge, Histogram
 
 __all__ = ["init_always_on_placeholders"]
 
@@ -83,7 +86,7 @@ def init_always_on_placeholders(reg: Any, group_allowed: Callable[[str], bool]) 
     try:
         if not hasattr(reg, 'iv_iterations_histogram'):
             hist = Histogram('g6_iv_iterations_histogram', 'Distribution of IV solver iterations', ['index','expiry'], buckets=[1,2,3,5,8,13,21])
-            setattr(reg, 'iv_iterations_histogram', hist)
+            reg.iv_iterations_histogram = hist
             if group_allowed('iv_estimation'):
                 try:
                     reg._metric_groups['iv_iterations_histogram'] = 'iv_estimation'  # type: ignore[attr-defined]

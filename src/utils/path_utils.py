@@ -11,7 +11,7 @@ from __future__ import annotations
 import os
 import sys
 from functools import lru_cache
-from typing import Optional, List
+
 
 @lru_cache(maxsize=1)
 def get_project_root() -> str:
@@ -82,14 +82,14 @@ def data_subdir(*parts: str, create: bool = True) -> str:
     return resolve_path(rel, create=create)
 
 
-def setup_project_paths(include_src: bool = True, include_scripts: bool = False) -> List[str]:
+def setup_project_paths(include_src: bool = True, include_scripts: bool = False) -> list[str]:
     """Standard path setup for scripts or applications.
 
     Adds project root and, optionally, src and scripts directories to sys.path.
 
     Returns list of added paths (in order of insertion).
     """
-    added: List[str] = []
+    added: list[str] = []
     root = get_project_root()
     if root not in sys.path:
         sys.path.insert(0, root)

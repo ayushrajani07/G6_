@@ -18,18 +18,22 @@ import os
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Any, Dict, Optional
+from typing import Any
 
 try:
     from .sse_http import (
-        get_publisher,
         _allow_event as _sse_allow_event,  # type: ignore
-        _write_event as _sse_write_event,  # type: ignore
-        _m_rate_limited_conn,
-        _m_forbidden_ua,
+    )
+    from .sse_http import (
         _ip_conn_window,
+        _m_forbidden_ua,
+        _m_rate_limited_conn,
+        get_publisher,
         initiate_sse_shutdown,  # re-export
     )  # type: ignore
+    from .sse_http import (
+        _write_event as _sse_write_event,  # type: ignore
+    )
 except Exception:  # pragma: no cover - defensive import race fallback
     def _sse_allow_event(_handler):  # type: ignore
         return True
@@ -44,7 +48,7 @@ except Exception:  # pragma: no cover - defensive import race fallback
 
 # New shared security / rate limiting helper (extracted from sse_http & prior inline copy)
 try:
-    from .sse_shared import load_security_config, enforce_auth_and_rate  # type: ignore
+    from .sse_shared import enforce_auth_and_rate, load_security_config  # type: ignore
 except Exception:  # pragma: no cover - if import fails we fallback to legacy inline path
     load_security_config = enforce_auth_and_rate = None  # type: ignore
 from .http_resync import get_last_snapshot
@@ -52,7 +56,7 @@ from .resync import get_resync_snapshot
 from .schema import SCHEMA_VERSION
 
 try:  # Optional dependency
-    from prometheus_client import generate_latest, CONTENT_TYPE_LATEST  # type: ignore
+    from prometheus_client import CONTENT_TYPE_LATEST, generate_latest  # type: ignore
 except Exception:  # pragma: no cover
     generate_latest = None  # type: ignore
     CONTENT_TYPE_LATEST = 'text/plain; version=0.0.4; charset=utf-8'
@@ -73,7 +77,7 @@ class UnifiedSummaryHandler(BaseHTTPRequestHandler):  # pragma: no cover - netwo
     server_version = "G6Summary/0.1"
     sys_version = ""
 
-    def log_message(self, format: str, *args) -> None:  # noqa: A003,D401
+    def log_message(self, format: str, *args: Any) -> None:  # noqa: A003,D401
         return  # Silence default stderr logging (noise in tests)
 
     def setup(self) -> None:  # type: ignore[override]
@@ -82,20 +86,21 @@ class UnifiedSummaryHandler(BaseHTTPRequestHandler):  # pragma: no cover - netwo
             raw = getattr(self, 'wfile', None)
             if raw is not None:
                 class _WritableWrapper:  # pragma: no cover - trivial
-                    def __init__(self, inner):
-                        self._inner = inner
-                        self.closed = getattr(inner, 'closed', False)
-                    def write(self, data):
+                    def __init__(self, inner: Any) -> None:
+                        self._inner: Any = inner
+                        self.closed: bool = bool(getattr(inner, 'closed', False))
+                    def write(self, data: bytes) -> int:
                         try:
-                            return self._inner.write(data)
+                            # Most streams: write(bytes) -> int
+                            return int(self._inner.write(data))  # type: ignore[no-any-return]
                         except Exception:
                             return 0
-                    def flush(self):
+                    def flush(self) -> None:
                         try:
                             self._inner.flush()
                         except Exception:
                             pass
-                    def close(self):
+                    def close(self) -> None:
                         try:
                             self.closed = True
                             close_fn = getattr(self._inner, 'close', None)
@@ -103,9 +108,9 @@ class UnifiedSummaryHandler(BaseHTTPRequestHandler):  # pragma: no cover - netwo
                                 close_fn()
                         except Exception:
                             pass
-                    def fileno(self):  # Some frameworks inspect fileno
+                    def fileno(self) -> int:  # Some frameworks inspect fileno
                         try:
-                            return self._inner.fileno()  # type: ignore[arg-type]
+                            return int(self._inner.fileno())  # type: ignore[no-any-return]
                         except Exception:
                             return -1
                 self.wfile = _WritableWrapper(raw)  # type: ignore
@@ -113,9 +118,12 @@ class UnifiedSummaryHandler(BaseHTTPRequestHandler):  # pragma: no cover - netwo
             pass
 
     # --- Auth / ACL / rate limiting (delegated to shared helper) ---
-    def _auth_and_acl(self) -> Optional[int]:
-        if load_security_config and enforce_auth_and_rate:
-            cfg = load_security_config()
+    def _auth_and_acl(self) -> int | None:
+        # Use explicit None checks to satisfy type checker and avoid truthy-function warnings
+        cfg_fn = load_security_config
+        enforce = enforce_auth_and_rate
+        if (cfg_fn is not None) and (enforce is not None):
+            cfg = cfg_fn()
             # Provide metrics mapping (only those used during rejection paths)
             metrics_map = {
                 'forbidden_ua': _m_forbidden_ua,
@@ -128,7 +136,7 @@ class UnifiedSummaryHandler(BaseHTTPRequestHandler):  # pragma: no cover - netwo
                 handlers_ref = getattr(_sseh, '_handlers', None)
             except Exception:
                 pass
-            code = enforce_auth_and_rate(
+            code = enforce(
                 self,
                 cfg,
                 ip_conn_window=_ip_conn_window,  # type: ignore
@@ -140,7 +148,7 @@ class UnifiedSummaryHandler(BaseHTTPRequestHandler):  # pragma: no cover - netwo
         return None
 
     # --- Basic response helpers ---
-    def _plain(self, code: int, body: str, *, headers: Optional[Dict[str, str]] = None) -> None:
+    def _plain(self, code: int, body: str, *, headers: dict[str, str] | None = None) -> None:
         self.send_response(code)
         self.send_header('Content-Type', 'text/plain')
         if headers:
@@ -152,7 +160,7 @@ class UnifiedSummaryHandler(BaseHTTPRequestHandler):  # pragma: no cover - netwo
         except Exception:
             pass
 
-    def _json(self, code: int, obj: Dict[str, Any]) -> None:
+    def _json(self, code: int, obj: dict[str, Any]) -> None:
         body = json.dumps(obj, separators=(',', ':')).encode('utf-8')
         self.send_response(code)
         self.send_header('Content-Type', 'application/json')
@@ -178,7 +186,7 @@ class UnifiedSummaryHandler(BaseHTTPRequestHandler):  # pragma: no cover - netwo
             pass
 
     # --- Handlers ---
-    def do_GET(self):  # noqa: N802
+    def do_GET(self) -> None:  # noqa: N802
         path = (self.path or '/').split('?', 1)[0].rstrip('/')
         if path == '':
             path = '/'
@@ -243,7 +251,7 @@ class UnifiedSummaryHandler(BaseHTTPRequestHandler):  # pragma: no cover - netwo
             snap = get_last_snapshot()
             cycle = getattr(snap, 'cycle', 0) if snap is not None else 0
             status_obj = getattr(snap, 'status', {}) if snap is not None else {}
-            panel_meta = {}
+            panel_meta: dict[str, Any] = {}
             try:
                 if isinstance(status_obj, dict):
                     panel_meta = status_obj.get('panel_push_meta', {}) or {}
@@ -252,7 +260,7 @@ class UnifiedSummaryHandler(BaseHTTPRequestHandler):  # pragma: no cover - netwo
             diff_stats = panel_meta.get('diff_stats', {}) if isinstance(panel_meta, dict) else {}
             timing_stats = panel_meta.get('timing', {}) if isinstance(panel_meta, dict) else {}
             # Import lightweight metrics snapshot to enrich fields used by tests
-            summary_metrics: Dict[str, Any] = {}
+            summary_metrics: dict[str, Any] = {}
             sse_state = {}
             try:
                 from .sse_state import get_sse_state  # type: ignore
@@ -292,7 +300,11 @@ class UnifiedSummaryHandler(BaseHTTPRequestHandler):  # pragma: no cover - netwo
                 'schema_version': SCHEMA_VERSION,
                 'diff': diff_stats,
                 'panel_updates_last': panel_updates_last,
-                'hit_ratio': (diff_stats.get('hit_ratio') if isinstance(diff_stats, dict) and 'hit_ratio' in diff_stats else hit_ratio_g),
+                'hit_ratio': (
+                    diff_stats.get('hit_ratio')
+                    if isinstance(diff_stats, dict) and 'hit_ratio' in diff_stats
+                    else hit_ratio_g
+                ),
                 'churn_ratio': churn_ratio,
                 'high_churn_streak': high_churn_streak,
                 'timing': timing_stats,
@@ -322,7 +334,7 @@ class UnifiedSummaryHandler(BaseHTTPRequestHandler):  # pragma: no cover - netwo
         self._json(404, {'error': 'not found'})
 
 
-def serve_unified_http(port: int = 9329, bind: str = '127.0.0.1', background: bool = True):
+def serve_unified_http(port: int = 9329, bind: str = '127.0.0.1', background: bool = True) -> ThreadingHTTPServer:
     try:
         srv = ThreadingHTTPServer((bind, port), UnifiedSummaryHandler)
     except Exception:

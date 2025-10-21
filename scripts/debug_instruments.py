@@ -13,8 +13,12 @@ Outputs:
   - Sample instruments
 """
 from __future__ import annotations
-import os, sys, json, datetime as dt
+
+import json
+import os
+import sys
 from collections import Counter
+from collections import Counter as TCounter
 
 # Allow running even if project root not on path
 if __name__ == '__main__':
@@ -40,7 +44,7 @@ for inst in universe:
         opt_like.append(inst)
 print(f"OPT_LIKE_COUNT={len(opt_like)}")
 
-ity_counter = Counter()
+ity_counter: TCounter[str] = Counter()
 expiries = set()
 for inst in opt_like:
     ity = (inst.get('instrument_type') or '').upper()
@@ -60,12 +64,13 @@ print(f"DISTINCT_EXPIRIES_TOTAL={len(expiries)}")
 print("DISTINCT_EXPIRIES_SAMPLE=", sorted(list(expiries))[:20])
 
 # Per-index expiry resolution alignment
-from types import SimpleNamespace
+from typing import Any
+
 class _DummyProviders:  # minimal facade for resolve_expiry
-    def __init__(self, primary):
+    def __init__(self, primary: Any) -> None:
         self.primary_provider = primary
-    def get_expiry_dates(self, index_symbol):  # not used directly here
-        return primary.get_expiry_dates(index_symbol)
+    def get_expiry_dates(self, index_symbol: str) -> Any:  # not used directly here
+        return self.primary_provider.get_expiry_dates(index_symbol)
 
 # Reuse provider as facade
 providers_facade = _DummyProviders(provider)

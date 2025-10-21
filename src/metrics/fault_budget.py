@@ -31,10 +31,11 @@ Resilience:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Deque, Optional
+import logging
+import os
+import time
 from collections import deque
-import time, os, logging
+from dataclasses import dataclass, field
 
 try:
     from prometheus_client import Gauge  # type: ignore
@@ -61,12 +62,12 @@ class FaultBudgetTracker:
     strict: bool
     debug: bool
     last_total: float = 0.0
-    breaches: Deque[float] = field(default_factory=deque)
+    breaches: deque[float] = field(default_factory=deque)
     exhausted: bool = False  # state machine edge detection
-    g_remaining: Optional[object] = None
-    g_window: Optional[object] = None
-    g_breaches: Optional[object] = None
-    g_consumed: Optional[object] = None
+    g_remaining: object | None = None
+    g_window: object | None = None
+    g_breaches: object | None = None
+    g_consumed: object | None = None
 
     def on_cycle(self, registry) -> None:
         """Observe current breach counter and update rolling metrics."""

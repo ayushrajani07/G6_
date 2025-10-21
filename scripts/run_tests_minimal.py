@@ -10,7 +10,11 @@ Effects:
   - Falls back to normal exit code from pytest.
 """
 from __future__ import annotations
-import os, sys, subprocess
+
+import os
+import subprocess
+import sys
+
 
 def main(argv: list[str] | None = None) -> int:
     if argv is None:

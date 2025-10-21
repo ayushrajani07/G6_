@@ -17,11 +17,16 @@ Outputs:
 NOTE: This avoids network layer—focuses solely on publisher process() costs.
 """
 from __future__ import annotations
-import argparse, random, time, statistics, json
-from typing import Dict, Any, List
 
-from scripts.summary.plugins.sse import SSEPublisher
+import argparse
+import json
+import random
+import statistics
+import time
+from typing import Any
+
 from scripts.summary.plugins.base import SummarySnapshot
+from scripts.summary.plugins.sse import SSEPublisher
 
 # Minimal synthetic panel status builder
 PANEL_KEYS = [
@@ -29,8 +34,8 @@ PANEL_KEYS = [
 ]
 
 
-def make_status(panel_pool: List[str], change_fraction: float, cycle: int) -> Dict[str, Any]:
-    status: Dict[str, Any] = {
+def make_status(panel_pool: list[str], change_fraction: float, cycle: int) -> dict[str, Any]:
+    status: dict[str, Any] = {
         'indices': ['NIFTY','BANKNIFTY'],
         'alerts': {'total': random.randint(0,10)},
         'panel_push_meta': {},
@@ -46,7 +51,7 @@ def run_bench(cycles: int, panel_count: int, change_ratio: float, structured: bo
     # Expand panel pool beyond baseline keys
     pool = PANEL_KEYS + [f"p{i}" for i in range(panel_count - len(PANEL_KEYS))] if panel_count > len(PANEL_KEYS) else PANEL_KEYS[:panel_count]
     pub = SSEPublisher(diff=True)  # Always enabled (legacy G6_SSE_ENABLED removed)
-    timings: List[float] = []
+    timings: list[float] = []
     start = time.time()
     for c in range(1, cycles+1):
         status = make_status(pool, change_ratio, c)

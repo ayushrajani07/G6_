@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Metrics package public interface.
 
 Phase 2 scaffold: Maintains backward compatibility with legacy monolithic
@@ -17,7 +16,12 @@ partitioned into smaller focused modules.
 
 from __future__ import annotations
 
-import logging as _logging, os as _os, warnings as _warnings, atexit as _atexit, time as _time
+import atexit as _atexit
+import logging as _logging
+import os as _os
+import time as _time
+import warnings as _warnings
+
 try:
 	from src.utils.env_flags import is_truthy_env as _is_truthy_env
 except Exception:  # pragma: no cover
@@ -127,6 +131,7 @@ _imp('after deprecation consolidation')
 # minimal placeholders prevents FileNotFoundError-based test failures.
 # ---------------------------------------------------------------------------
 import pathlib as _path
+
 try:  # pragma: no cover - best-effort
 	_docs_root = _path.Path('docs')
 	_docs_root.mkdir(parents=True, exist_ok=True)
@@ -165,23 +170,24 @@ _imp('import metrics module symbols (metrics.py)')
 # Mark facade import so metrics.py can suppress its own deep-import deprecation warning
 try:
 	import builtins as _bi
-	setattr(_bi, '_G6_METRICS_FACADE_IMPORT', True)
+	_bi._G6_METRICS_FACADE_IMPORT = True
 except Exception:
 	pass
 import os as __os  # type: ignore  # dedicated alias for context guard
+
 _prev_ctx = __os.getenv('G6_METRICS_IMPORT_CONTEXT')
 try:
 	__os.environ['G6_METRICS_IMPORT_CONTEXT'] = 'facade'
 	from .metrics import (
-	MetricsRegistry,
-	setup_metrics_server,
-	get_metrics_metadata,    # legacy metadata accessor
-	isolated_metrics_registry,  # context manager
-	register_build_info,  # legacy registration helper
-	get_init_trace,
-	prune_metrics_groups,
-	preview_prune_metrics_groups,
-	set_provider_mode,  # new facade re-export (was only in metrics module)
+		MetricsRegistry,
+		get_init_trace,
+		get_metrics_metadata,  # legacy metadata accessor
+		isolated_metrics_registry,  # context manager
+		preview_prune_metrics_groups,
+		prune_metrics_groups,
+		register_build_info,  # legacy registration helper
+		set_provider_mode,  # new facade re-export (was only in metrics module)
+		setup_metrics_server,
 	)
 finally:
 	if _prev_ctx is None:
@@ -201,7 +207,8 @@ def dump_metrics():
 		m = None
 	names: list[str] = []
 	try:
-		from prometheus_client import REGISTRY as _GLOBAL_REG, generate_latest
+		from prometheus_client import REGISTRY as _GLOBAL_REG
+		from prometheus_client import generate_latest
 	except Exception:
 		_GLOBAL_REG = None
 		generate_latest = None
@@ -265,8 +272,9 @@ def get_counter(name: str, documentation: str, labels: list[str] | None):
 # Dynamic facade wrappers (import metrics module at call time to survive reloads in tests)
 def get_metrics_singleton():
 	# Importing metrics module lazily; identity anchored by metrics._METRICS_SINGLETON
-	from . import _singleton as _anchor
 	import os as __os
+
+	from . import _singleton as _anchor
 	# Allow tests to force a brand new registry instance
 	if __os.getenv('G6_FORCE_NEW_REGISTRY'):
 		try:
@@ -295,7 +303,7 @@ def get_metrics_singleton():
 			if _force_legacy or not getattr(existing, '_group_filters_log_emitted', False):
 				__logging.getLogger('src.metrics').info('metrics.group_filters.loaded')
 				try:
-					setattr(existing, '_group_filters_log_emitted', True)
+					existing._group_filters_log_emitted = True
 				except Exception:
 					pass
 		except Exception:
@@ -310,7 +318,7 @@ def get_metrics_singleton():
 					try:
 						summary = _cc(existing)
 						if summary is not None:
-							setattr(existing, '_cardinality_guard_summary', summary)
+							existing._cardinality_guard_summary = summary
 					except Exception:
 						pass
 		except Exception:
@@ -320,7 +328,8 @@ def get_metrics_singleton():
 		try:  # pragma: no cover - defensive wrapper
 			already = getattr(existing, '_dump_marker_emitted', False)
 			if not already:
-				import os as __os, logging as __logging
+				import logging as __logging
+				import os as __os
 				logger = __logging.getLogger(__name__)
 				suppress = _is_truthy_env('G6_METRICS_SUPPRESS_AUTO_DUMPS')
 				want_introspection_dump = bool(__os.getenv('G6_METRICS_INTROSPECTION_DUMP','').strip())
@@ -338,7 +347,7 @@ def get_metrics_singleton():
 						trace = getattr(existing, '_init_trace', []) or []
 						logger.info("METRICS_INIT_TRACE: %s steps", len(trace))
 				try:
-					setattr(existing, '_dump_marker_emitted', True)
+					existing._dump_marker_emitted = True
 				except Exception:
 					pass
 		except Exception:
@@ -348,7 +357,8 @@ def get_metrics_singleton():
 	reg = _m.get_metrics_singleton()
 	# Eager introspection rebuild if flag now set and cache still None (reload scenario in tests)
 	try:
-		import os as __os, logging as __logging
+		import logging as __logging
+		import os as __os
 		if getattr(reg, '_metrics_introspection', None) is None:
 			if _is_truthy_env('G6_METRICS_EAGER_INTROSPECTION') or __os.getenv('G6_METRICS_INTROSPECTION_DUMP',''):
 				try:
@@ -363,7 +373,8 @@ def get_metrics_singleton():
 		pass
 	# Fallback structured gating log emission if tests reload facade after gating earlier
 	try:
-		import logging as __logging, os as __os
+		import logging as __logging
+		import os as __os
 		_logger = __logging.getLogger('src.metrics')
 		# Only emit if not already seen in recent logs: sentinel attribute on registry
 		if not getattr(reg, '_group_filters_log_emitted', False):
@@ -386,14 +397,16 @@ def get_metrics():  # type: ignore
 	# Must delegate to get_metrics_singleton to ensure identical object for tests
 	return get_metrics_singleton()
 _imp('import registry/groups/pruning/introspection modules')
-from .registry import get_registry
-from .groups import load_group_filters, GroupFilters
-from .pruning import prune_metrics_groups, preview_prune_metrics_groups  # re-export from extracted module
+from .groups import GroupFilters, load_group_filters
 from .introspection_dump import run_post_init_dumps  # optional utility (not in original public API)
+from .pruning import preview_prune_metrics_groups, prune_metrics_groups  # re-export from extracted module
+from .registry import get_registry
+
 _imp('post symbols imported')
 
 _imp('begin eager singleton exposure')
 from . import _singleton as _sing
+
 _disable_eager = _is_truthy_env('G6_METRICS_EAGER_DISABLE')
 _force_facade_registry = (
 	_is_truthy_env('G6_METRICS_FORCE_FACADE_REGISTRY')

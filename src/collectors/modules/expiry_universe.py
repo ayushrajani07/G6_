@@ -12,14 +12,15 @@ Future Enhancements (later phases):
 """
 from __future__ import annotations
 
-from typing import Iterable, Dict, Any, Tuple, List, cast
 import datetime as _dt
+from collections.abc import Iterable
+from typing import Any, cast
 
 # Re-use existing implementation to ensure byte-for-byte behavior
 from src.collectors.helpers.expiry_map import build_expiry_map as _legacy_build_expiry_map  # noqa: F401
 
 __all__ = ["build_expiry_map"]
 
-def build_expiry_map(instruments: Iterable[Dict[str, Any]]) -> Tuple[Dict[_dt.date, List[Dict[str, Any]]], Dict[str, Any]]:
+def build_expiry_map(instruments: Iterable[dict[str, Any]]) -> tuple[dict[_dt.date, list[dict[str, Any]]], dict[str, Any]]:
   res = _legacy_build_expiry_map(instruments)
-  return cast(Tuple[Dict[_dt.date, List[Dict[str, Any]]], Dict[str, Any]] , res)
+  return cast(tuple[dict[_dt.date, list[dict[str, Any]]], dict[str, Any]] , res)

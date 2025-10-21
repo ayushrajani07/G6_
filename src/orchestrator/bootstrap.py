@@ -16,31 +16,38 @@ Future planned responsibilities (see roadmap):
 """
 from __future__ import annotations
 
-from typing import Tuple, Any
 import logging
 import os
 import time
+from collections.abc import Callable
+from typing import Any
 
-from src.orchestrator.context import RuntimeContext
 from src.config.runtime_config import get_runtime_config
+from src.orchestrator.context import RuntimeContext
 from src.utils.build_info import auto_register_build_info
 
 logger = logging.getLogger(__name__)
 
 # Deliberate shallow imports to avoid circular dependencies
+# Use Optional[Callable] placeholders to avoid mypy redefinition/assignment errors.
+setup_metrics_server: Callable[..., Any] | None = None
 try:  # pragma: no cover - optional path if metrics not yet refactored
-    from src.metrics import setup_metrics_server  # facade import
+    from src.metrics import setup_metrics_server as _setup_metrics_server  # facade import
+    setup_metrics_server = _setup_metrics_server
 except Exception:  # pragma: no cover
     setup_metrics_server = None
 
 # Use canonical config loader (ConfigWrapper) to avoid depending on legacy unified_main.
+load_config_fn: Callable[[str], Any] | None = None
 try:
-    from src.config.loader import load_config
+    from src.config.loader import load_config as _load_config
+    load_config_fn = _load_config
 except Exception:  # pragma: no cover
     try:  # fallback to legacy if new path unavailable
-        from src.unified_main import load_config
+        from src.unified_main import load_config as _legacy_load_config
+        load_config_fn = _legacy_load_config
     except Exception:
-        load_config = None
+        load_config_fn = None
 
 
 def run_env_deprecation_scan(*, strict_mode_override: bool | None = None) -> None:
@@ -79,7 +86,7 @@ def bootstrap_runtime(config_path: str,
                       *,
                       reset_metrics: bool = False,
                       custom_registry: bool = False,
-                      enable_resource_sampler: bool = True) -> Tuple[RuntimeContext, Any | None]:
+                      enable_resource_sampler: bool = True) -> tuple[RuntimeContext, Any | None]:
     """Bootstrap core services and return (context, metrics).
 
     Parameters
@@ -93,12 +100,12 @@ def bootstrap_runtime(config_path: str,
     enable_resource_sampler : bool
         Launch resource sampler thread for utilization gauges.
     """
-    if load_config is None:
+    if load_config_fn is None:
         raise RuntimeError("load_config unavailable; import order issue")
-    raw_cfg = load_config(config_path)
+    raw_cfg = load_config_fn(config_path)
 
-    metrics = None
-    metrics_stop = lambda: None
+    metrics: Any | None = None
+    metrics_stop: Callable[[], None] = (lambda: None)
     if setup_metrics_server is not None:
         try:
             port = getattr(raw_cfg, 'get', lambda *a, **k: None)('metrics.port') if hasattr(raw_cfg, 'get') else None
@@ -133,7 +140,7 @@ def bootstrap_runtime(config_path: str,
     # Component initialization (now default ON). Set G6_DISABLE_COMPONENTS=1 to skip.
     if os.environ.get('G6_DISABLE_COMPONENTS','').lower() not in ('1','true','yes','on'):
         try:
-            from src.orchestrator.components import init_providers, init_storage, init_health, apply_circuit_breakers
+            from src.orchestrator.components import apply_circuit_breakers, init_health, init_providers, init_storage
             providers = init_providers(raw_cfg)
             csv_sink, influx_sink = init_storage(raw_cfg)
             apply_circuit_breakers(raw_cfg, providers)
@@ -146,7 +153,7 @@ def bootstrap_runtime(config_path: str,
             logger.exception("Component bootstrap (providers/storage/health) failed; proceeding with partial context")
             # If failure likely due to missing credentials and we are in premarket init window, emit guidance.
             try:
-                from src.utils.market_hours import is_premarket_window, get_next_market_open
+                from src.utils.market_hours import get_next_market_open, is_premarket_window
                 if is_premarket_window():
                     nxt = get_next_market_open()
                     logger.warning(
@@ -360,7 +367,7 @@ try:  # registration happens at import time (idempotent)
             except Exception:
                 pass
         return True
-    from src.observability.startup_summaries import register_or_note_summary, register_summary
+    from src.observability.startup_summaries import register_or_note_summary
     # Ensure callable registered for dispatcher emission + mark not yet emitted
     register_summary('env.deprecations', _emit_deprecated_env_summary)
     register_or_note_summary('env.deprecations', emitted=False)

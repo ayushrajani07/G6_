@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Create default configuration file for G6 Platform
 """
 
-import os
 import json
 import sys
 from pathlib import Path
+
 
 def main():
     """Create configuration file."""
@@ -43,16 +42,16 @@ def main():
             }
         }
     }
-    
+
     # Create config directory
     config_dir = Path("config")
     config_dir.mkdir(exist_ok=True)
-    
+
     # Write config file
     config_file = config_dir / "g6_config.json"
     with open(config_file, 'w') as f:
         json.dump(config, f, indent=2)
-    
+
     print(f"Configuration file created at: {config_file.absolute()}")
     return 0
 

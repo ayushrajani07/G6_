@@ -20,19 +20,17 @@ import os
 import random
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-import errno
-from typing import Dict, List
 
 DEFAULT_INDICES = ["NIFTY", "BANKNIFTY", "FINNIFTY", "SENSEX"]
 
 
 def utc_now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
 
-def build_base_status(indices: List[str], market_open: bool, analytics: bool) -> Dict:
+def build_base_status(indices: list[str], market_open: bool, analytics: bool) -> dict:
     now = utc_now_iso()
     status = {
         "app": {
@@ -84,7 +82,7 @@ def build_base_status(indices: List[str], market_open: bool, analytics: bool) ->
     return status
 
 
-def update_dynamics(state: Dict, indices: List[str], t: int, dt: float):
+def update_dynamics(state: dict, indices: list[str], t: int, dt: float) -> None:
     # Increment cycle and uptime
     state["loop"]["cycle"] += 1
     state["app"]["uptime_sec"] = state["app"].get("uptime_sec", 0) + dt
@@ -181,7 +179,7 @@ def _atomic_replace(src: Path, dst: Path, *, retries: int = 20, delay: float = 0
         raise last_err
 
 
-def write_status(path: Path, state: Dict):
+def write_status(path: Path, state: dict) -> None:
     tmp = path.with_suffix(path.suffix + ".tmp")
     path.parent.mkdir(parents=True, exist_ok=True)
     # Write and flush to disk before replace
@@ -197,7 +195,7 @@ def write_status(path: Path, state: Dict):
 
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description="Generate a runtime_status.json for demo/testing")
     p.add_argument("--status-file", default="data/runtime_status.json")
     p.add_argument("--indices", default=",".join(DEFAULT_INDICES))

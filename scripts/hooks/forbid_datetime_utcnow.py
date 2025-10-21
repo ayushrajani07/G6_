@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
-import sys, re, pathlib
+import pathlib
+import re
+import sys
+
 PATTERN = re.compile(r"datetime\\.utcnow\\s*\\(")
 IGNORES = {'.pre-commit-config.yaml'}
 
-def main():
+def main() -> int:
     bad = []
     for path in sys.argv[1:]:
         p = pathlib.Path(path)

@@ -33,20 +33,26 @@ The script performs a single scrape, parses lines for exact metric names (no lab
 and compares latest observed scalar values against thresholds.
 """
 from __future__ import annotations
-import argparse, sys, json, urllib.request, pathlib
-from typing import Optional, Dict, Any
+
+import argparse
+import json
+import pathlib
+import sys
+import urllib.request
+from typing import Any, cast
 
 
-def _read_metrics_text(url: Optional[str], path: Optional[str]) -> str:
+def _read_metrics_text(url: str | None, path: str | None) -> str:
     if url:
         with urllib.request.urlopen(url, timeout=2.5) as resp:  # pragma: no cover (network path)
-            return resp.read().decode('utf-8', errors='replace')
+            data = resp.read()
+            return cast(bytes, data).decode('utf-8', errors='replace')
     if path:
         return pathlib.Path(path).read_text(encoding='utf-8')
     raise ValueError("Either url or path must be provided")
 
 
-def _parse_value(metrics_text: str, metric_name: str) -> Optional[float]:
+def _parse_value(metrics_text: str, metric_name: str) -> float | None:
     # Simple line-based extraction; ignore HELP/TYPE lines; first match wins
     for line in metrics_text.splitlines():
         if not line:
@@ -69,7 +75,7 @@ def _parse_value(metrics_text: str, metric_name: str) -> Optional[float]:
     return None
 
 
-def evaluate(parity: Optional[float], fatal_ratio: Optional[float], *, min_parity: float, max_fatal: float) -> Dict[str, Any]:
+def evaluate(parity: float | None, fatal_ratio: float | None, *, min_parity: float, max_fatal: float) -> dict[str, Any]:
     status = 'pass'
     reasons = []
     if parity is None:
@@ -92,7 +98,10 @@ def evaluate(parity: Optional[float], fatal_ratio: Optional[float], *, min_parit
     }
 
 
-def main(argv=None):  # pragma: no cover (CLI wrapper)
+from collections.abc import Sequence
+
+
+def main(argv: Sequence[str] | None = None) -> int:  # pragma: no cover (CLI wrapper)
     ap = argparse.ArgumentParser()
     ap.add_argument('--metrics-url')
     ap.add_argument('--metrics-file')

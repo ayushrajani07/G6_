@@ -8,7 +8,9 @@ Rules:
 Exit non-zero on violations.
 """
 from __future__ import annotations
-import sys, re
+
+import re
+import sys
 from pathlib import Path
 
 FORBIDDEN_UTCNOW = 'datetime.utcnow('

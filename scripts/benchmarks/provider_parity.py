@@ -15,10 +15,14 @@ CLI:
     python -m scripts.benchmarks.provider_parity --sizes 50 200 500
 """
 from __future__ import annotations
-import time, json, os, math, statistics as stats
-from dataclasses import dataclass
-from typing import List, Dict, Any, Iterable
+
 import datetime as dt
+import json
+import os
+import time
+from collections.abc import Iterable
+from dataclasses import dataclass
+from typing import Any
 
 try:
     import psutil  # type: ignore

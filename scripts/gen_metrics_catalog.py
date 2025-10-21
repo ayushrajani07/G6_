@@ -4,7 +4,9 @@
 Adds cardinality guidance, example queries, and group gating env variable mapping.
 """
 from __future__ import annotations
-import os, sys
+
+import os
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -14,7 +16,7 @@ DOCS.mkdir(exist_ok=True)
 OUT = DOCS / 'METRICS_CATALOG.md'
 
 try:
-    from src.metrics.spec import METRIC_SPECS, GROUPED_METRIC_SPECS  # type: ignore
+    from src.metrics.spec import GROUPED_METRIC_SPECS, METRIC_SPECS  # type: ignore
 except Exception as e:  # pragma: no cover
     print(f"Failed to import specs: {e}", file=sys.stderr)
     sys.exit(1)
@@ -32,10 +34,14 @@ GROUP_GATING_ENVS = {
 }
 
 def cardinality_hint(label_count: int) -> str:
-    if label_count == 0: return 'low'
-    if label_count == 1: return 'low-moderate'
-    if label_count == 2: return 'moderate'
-    if label_count == 3: return 'high'
+    if label_count == 0:
+        return 'low'
+    if label_count == 1:
+        return 'low-moderate'
+    if label_count == 2:
+        return 'moderate'
+    if label_count == 3:
+        return 'high'
     return 'very_high'
 
 def build_example_query(name: str, metric_type: str, labels: list[str]) -> str:
@@ -88,7 +94,10 @@ lines = [' | '.join(col_names), ' | '.join(['---']*len(col_names))]
 for r in rows:
     desc = r['desc'].replace('|','\\|')
     example = r['example'].replace('|','\\|')
-    lines.append(f"{r['attr']} | {r['name']} | {r['type']} | {r['group']} | {r['labels']} | {r['card']} | {example} | {desc} | {r['conditional']}")
+    lines.append(
+        f"{r['attr']} | {r['name']} | {r['type']} | {r['group']} | {r['labels']} | {r['card']} | "
+        f"{example} | {desc} | {r['conditional']}"
+    )
 
 content = header + '\n'.join(lines) + '\n'
 OUT.write_text(content, encoding='utf-8')

@@ -213,3 +213,19 @@ These keys appear in internal preventive validation configuration merges (not ye
 | `max_zero_volume_ratio` | float | `0.90` | Threshold ratio of zero-volume strikes flagging anomaly. |
 | `reject_future_year` | int | `2050` | Upper bound year guard for expiries. |
 | `preventive_validation.*` | subtree | * | Placeholder wildcard if promoted to namespaced config later. |
+
+---
+## 16. Greeks and IV Estimation
+The Greeks/IV computation module is controlled via the `greeks` section in the config. Documented keys below; use conservative defaults in production.
+
+- Root (wildcard coverage): `greeks.*`
+
+| Path | Type | Default | Description |
+|------|------|---------|-------------|
+| `greeks.enabled` | bool | `false` | Toggle analytics to compute option Greeks/IV. |
+| `greeks.estimate_iv` | bool | `false` | Enable IV estimation (e.g., via root-finding) when direct IV not available. |
+| `greeks.risk_free_rate` | number | `0.05` | Annualized risk-free rate used in models (e.g., Black-Scholes). |
+| `greeks.iv_max_iterations` | integer | `100` | Maximum iterations for IV solver. |
+| `greeks.iv_min` | number | `0.01` | Lower bound for IV search. |
+| `greeks.iv_max` | number | `5.0` | Upper bound for IV search. |
+| `greeks.iv_precision` | number | `1e-5` | Target absolute precision for IV solver. |

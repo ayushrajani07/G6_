@@ -26,10 +26,13 @@ Metrics:
 """
 from __future__ import annotations
 
+import gzip
+import json
 import os
 import time
-from typing import Any, Dict, Optional, Iterable, TypedDict, List, cast, Sequence, Mapping
-import json, gzip
+from collections.abc import Iterable, Mapping, Sequence
+from typing import Any, TypedDict, cast
+
 
 # Lightweight metric interaction helpers (avoid repeated attr-defined ignores)
 def _set_metric(obj: Any, name: str, value: float | int) -> None:
@@ -65,7 +68,7 @@ def _observe_metric(obj: Any, name: str, value: float | int) -> None:
     except Exception:
         pass
 
-def _labels_set(obj: Any, metric_name: str, labels: Dict[str,str], value: float | int) -> None:
+def _labels_set(obj: Any, metric_name: str, labels: dict[str,str], value: float | int) -> None:
     try:
         m = getattr(obj, metric_name, None)
         if m is None:
@@ -89,14 +92,14 @@ class _RiskRow(TypedDict, total=False):
     theta: float
     rho: float
     count: int
-    notionals: Dict[str, float]
+    notionals: dict[str, float]
 
 class _RiskPayload(TypedDict):
-    meta: Dict[str, Any]
-    data: List[_RiskRow]
+    meta: dict[str, Any]
+    data: list[_RiskRow]
 
-_risk_cache: Optional[_RiskPayload | Dict[str, Any]] = None  # may hold legacy dict shape
-_last_build_ts: Optional[float] = None
+_risk_cache: _RiskPayload | dict[str, Any] | None = None  # may hold legacy dict shape
+_last_build_ts: float | None = None
 
 
 def _emit_per_index_notionals(metrics: Any, rows: Sequence[Mapping[str, Any]]) -> None:
@@ -105,8 +108,8 @@ def _emit_per_index_notionals(metrics: Any, rows: Sequence[Mapping[str, Any]]) -
     metrics is untyped (Any) due to dynamic runtime registration pattern. All exceptions swallowed.
     """
     try:
-        per_index_delta: Dict[str, float] = {}
-        per_index_vega: Dict[str, float] = {}
+        per_index_delta: dict[str, float] = {}
+        per_index_vega: dict[str, float] = {}
         for r in rows:
             idx = r.get('index')
             notionals = r.get('notionals') or {}
@@ -144,7 +147,7 @@ def _parse_buckets() -> list[float]:
     return sorted(set(out))
 
 
-def _iter_options(snapshot_source) -> Iterable[Dict[str, Any]]:
+def _iter_options(snapshot_source) -> Iterable[dict[str, Any]]:
     """Yield option snapshot dicts from either a list or a provider object.
 
     All non-dict rows are skipped defensively. Any provider errors are swallowed.
@@ -180,7 +183,7 @@ def _contract_multiplier(index: str) -> float:
         return 1.0
 
 
-def build_risk(snapshot_source) -> Optional[_RiskPayload]:
+def build_risk(snapshot_source) -> _RiskPayload | None:
     if os.environ.get('G6_RISK_AGG','').lower() not in ('1','true','yes','on'):
         return None
     start = time.time()
@@ -189,8 +192,8 @@ def build_risk(snapshot_source) -> Optional[_RiskPayload]:
     persist = os.environ.get('G6_RISK_AGG_PERSIST','').lower() in ('1','true','yes','on')
     compress = os.environ.get('G6_ANALYTICS_COMPRESS','').lower() in ('1','true','yes','on')
     persist_dir = os.environ.get('G6_ANALYTICS_DIR', 'data/analytics')
-    acc: Dict[tuple[str,str,str], Dict[str, float]] = {}
-    counts: Dict[tuple[str,str,str], int] = {}
+    acc: dict[tuple[str,str,str], dict[str, float]] = {}
+    counts: dict[tuple[str,str,str], int] = {}
     processed = 0
     for opt in _iter_options(snapshot_source):
         if processed >= max_options:
@@ -361,7 +364,7 @@ def build_risk(snapshot_source) -> Optional[_RiskPayload]:
                                 try:
                                     alerts_list = getattr(snapshot_source, 'adaptive_alerts', None)
                                     if alerts_list is None:
-                                        setattr(snapshot_source, 'adaptive_alerts', [alert])
+                                        snapshot_source.adaptive_alerts = [alert]
                                     else:
                                         if isinstance(alerts_list, list):
                                             alerts_list.append(alert)
@@ -379,7 +382,7 @@ def build_risk(snapshot_source) -> Optional[_RiskPayload]:
                         try:
                             alerts_list = getattr(snapshot_source, 'adaptive_alerts', None)
                             if alerts_list is None:
-                                setattr(snapshot_source, 'adaptive_alerts', [alert])
+                                snapshot_source.adaptive_alerts = [alert]
                             else:
                                 if isinstance(alerts_list, list):
                                     alerts_list.append(alert)
@@ -451,8 +454,8 @@ def build_risk(snapshot_source) -> Optional[_RiskPayload]:
                                 ['index']
                             )
                     if hasattr(m, 'risk_agg_notional_delta_index'):
-                        per_index_delta: Dict[str,float] = {}
-                        per_index_vega: Dict[str,float] = {}
+                        per_index_delta: dict[str,float] = {}
+                        per_index_vega: dict[str,float] = {}
                         for r in rows:
                             idx = r.get('index')
                             notionals = r.get('notionals') or {}
@@ -482,7 +485,7 @@ def build_risk(snapshot_source) -> Optional[_RiskPayload]:
                     if alert is not None:
                         alerts_list = getattr(snapshot_source, 'adaptive_alerts', None)
                         if alerts_list is None:
-                            setattr(snapshot_source, 'adaptive_alerts', [alert])
+                            snapshot_source.adaptive_alerts = [alert]
                         else:
                             if isinstance(alerts_list, list):
                                 alerts_list.append(alert)
@@ -497,7 +500,7 @@ def build_risk(snapshot_source) -> Optional[_RiskPayload]:
                 if alert is not None:
                     alerts_list = getattr(snapshot_source, 'adaptive_alerts', None)
                     if alerts_list is None:
-                        setattr(snapshot_source, 'adaptive_alerts', [alert])
+                        snapshot_source.adaptive_alerts = [alert]
                     else:
                         if isinstance(alerts_list, list):
                             alerts_list.append(alert)
@@ -526,7 +529,7 @@ def build_risk(snapshot_source) -> Optional[_RiskPayload]:
     return risk
 
 
-def get_latest_risk() -> Optional[_RiskPayload]:
+def get_latest_risk() -> _RiskPayload | None:
     cache = _risk_cache
     if not cache:
         return None

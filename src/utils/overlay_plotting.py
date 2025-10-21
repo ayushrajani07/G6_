@@ -10,12 +10,12 @@ These helpers are intentionally dependency-light and safe to import from scripts
 """
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Optional
-import os
-import json
 import gc
-from math import floor
+import json
+import os
+from datetime import UTC, date
+from pathlib import Path
+from typing import Any, cast
 
 try:
     import pandas as pd  # type: ignore
@@ -23,6 +23,11 @@ try:
 except Exception:  # pragma: no cover - scripts will raise a clearer message
     pd = None  # type: ignore
     go = None  # type: ignore
+
+# Lightweight aliases for type annotations (avoid importing heavy libs at type time)
+DataFrame = Any
+Figure = Any
+Series = Any
 
 try:
     import psutil  # type: ignore
@@ -46,7 +51,8 @@ def proc_mem_mb() -> float:
     if psutil is None:
         return -1.0
     try:
-        return psutil.Process(os.getpid()).memory_info().rss / (1024 * 1024)
+        rss_bytes: float = float(psutil.Process(os.getpid()).memory_info().rss)  # type: ignore[no-any-return]
+        return rss_bytes / float(1024 * 1024)
     except Exception:
         return -1.0
 
@@ -60,7 +66,7 @@ def monitor_memory(label: str, threshold_mb: int | None) -> None:
         gc.collect()
 
 
-def _round_time_to_tolerance(series, seconds: int):
+def _round_time_to_tolerance(series: Series, seconds: int) -> Series:
     """Round pandas datetime series down to nearest tolerance seconds and return HH:MM:SS strings.
 
     If seconds <= 0, returns the original HH:MM:SS.
@@ -82,12 +88,12 @@ def load_live_series(
     index: str,
     expiry_tag: str,
     offset: str,
-    trade_date,
+    trade_date: date,
     *,
-    chunk_size: Optional[int] = None,
-    mem_limit_mb: Optional[int] = None,
+    chunk_size: int | None = None,
+    mem_limit_mb: int | None = None,
     validate_header: bool = True,
-):
+) -> DataFrame:
     """Load live series CSV; returns DataFrame with derived columns or empty DataFrame.
 
     Columns ensured: timestamp (datetime), time_key (HH:MM:SS), tp_live, avg_tp_live.
@@ -110,7 +116,7 @@ def load_live_series(
             return pd.DataFrame()
     try:
         if chunk_size and daily_file.stat().st_size > 10 * 1024 * 1024:
-            parts = []
+            parts: list[DataFrame] = []
             for ch in pd.read_csv(daily_file, chunksize=chunk_size):
                 parts.append(ch)
                 monitor_memory(f"live_chunk_{index}_{expiry_tag}_{offset}", mem_limit_mb)
@@ -142,14 +148,35 @@ def load_overlay_series(
     expiry_tag: str,
     offset: str,
     *,
-    chunk_size: Optional[int] = None,
-    mem_limit_mb: Optional[int] = None,
+    chunk_size: int | None = None,
+    mem_limit_mb: int | None = None,
     validate_header: bool = True,
-):
-    """Load weekday master overlay; returns DataFrame with expected columns or empty."""
+) -> DataFrame:
+    """Load weekday master overlay; returns DataFrame with expected columns or empty.
+
+    Supports new layout (requested):
+      <weekday_root>/<INDEX>/<EXPIRY_TAG>/<OFFSET>/<WEEKDAY>.csv
+    With fallbacks to prior/legacy layouts.
+    """
     if pd is None:  # pragma: no cover
         raise RuntimeError("pandas not available")
-    f = weekday_root / weekday_name / f"{index}_{expiry_tag}_{offset}.csv"
+    # New requested structure: <root>/<INDEX>/<EXPIRY_TAG>/<OFFSET>/<WEEKDAY>.csv
+    f = weekday_root / index / expiry_tag / offset / f"{weekday_name.upper()}.csv"
+    # Final structure (previous generation in this repo): <root>/<Weekday>/<INDEX>/<EXPIRY_TAG>/<OFFSET>.csv
+    if not f.exists():
+        f = weekday_root / weekday_name / index / expiry_tag / f"{offset}.csv"
+    if not f.exists() and str(offset).upper() == 'ATM':
+        f = weekday_root / weekday_name / index / expiry_tag / "0.csv"
+    # Prior layout fallback: <root>/<INDEX>/<EXPIRY_TAG>/<OFFSET>/<Weekday>.csv
+    if not f.exists():
+        prev = weekday_root / index / expiry_tag / offset / f"{weekday_name}.csv"
+        if prev.exists():
+            f = prev
+    # Legacy flat fallback: <root>/<Weekday>/<index>_<expiry_tag>_<offset>.csv
+    if not f.exists():
+        legacy = weekday_root / weekday_name / f"{index}_{expiry_tag}_{offset}.csv"
+        if legacy.exists():
+            f = legacy
     if not f.exists():
         return pd.DataFrame()
     if validate_header:
@@ -165,7 +192,7 @@ def load_overlay_series(
             return pd.DataFrame()
     try:
         if chunk_size and f.stat().st_size > 25 * 1024 * 1024:
-            parts = []
+            parts: list[DataFrame] = []
             for ch in pd.read_csv(f, chunksize=chunk_size):
                 parts.append(ch)
                 monitor_memory(f"overlay_chunk_{index}_{expiry_tag}_{offset}", mem_limit_mb)
@@ -185,14 +212,36 @@ def load_overlay_series(
     for col in ['tp_mean', 'tp_ema', 'avg_tp_mean', 'avg_tp_ema']:
         if col not in df.columns:
             df[col] = None
+    # Map new single counter -> legacy naming for density filters
+    if 'counter' in df.columns and 'counter_tp' not in df.columns:
+        df['counter_tp'] = df['counter']
     return df
 
 
-def build_merged(live_df, overlay_df):
+def build_merged(live_df: DataFrame, overlay_df: DataFrame) -> DataFrame:
     if pd is None:  # pragma: no cover
         raise RuntimeError("pandas not available")
-    if live_df.empty:
-        return pd.DataFrame()
+    # If live is empty, fall back to overlay-only so static curves still render
+    if live_df is None or live_df.empty:
+        if overlay_df is None or overlay_df.empty:
+            return pd.DataFrame()
+        base = overlay_df.copy()
+        # Ensure required columns and reasonable x-axis
+        if 'timestamp' not in base.columns and 'time_key' in base.columns:
+            try:
+                base['timestamp'] = pd.to_datetime(base['time_key'])
+            except Exception:
+                base['timestamp'] = pd.NaT
+        if 'time_key' not in base.columns and 'timestamp' in base.columns:
+            base['time_key'] = base['timestamp']
+        # Create placeholder live columns (NaN) so add_traces can safely add them
+        for col in ['tp_live', 'avg_tp_live']:
+            if col not in base.columns:
+                base[col] = pd.NA
+        # Keep only necessary columns
+        keep = ['timestamp', 'time_key', 'tp_live', 'avg_tp_live', 'tp_mean', 'tp_ema', 'avg_tp_mean', 'avg_tp_ema']
+        return base[[c for c in keep if c in base.columns]].reset_index(drop=True)
+    # Normal path: merge overlay onto live timeline
     return live_df.merge(
         overlay_df[['time_key', 'tp_mean', 'tp_ema', 'avg_tp_mean', 'avg_tp_ema']],
         on='time_key',
@@ -200,7 +249,7 @@ def build_merged(live_df, overlay_df):
     )
 
 
-def filter_overlay_by_density(overlay_df, *, min_count: int | None = None, min_confidence: float | None = None):
+def filter_overlay_by_density(overlay_df: DataFrame, *, min_count: int | None = None, min_confidence: float | None = None) -> DataFrame:
     """Return a filtered copy of overlay_df using sample-count based criteria.
 
     - min_count: keep rows with counter_tp >= min_count
@@ -232,7 +281,7 @@ def filter_overlay_by_density(overlay_df, *, min_count: int | None = None, min_c
         return df
 
 
-def add_traces(fig, merged, title: str, show_deviation: bool, *, row: Optional[int] = None, col: Optional[int] = None):
+def add_traces(fig: Figure, merged: DataFrame, title: str, show_deviation: bool, *, row: int | None = None, col: int | None = None) -> None:
     """Add live/overlay traces into a figure; supports subplot row/col or single figure."""
     if go is None:  # pragma: no cover
         raise RuntimeError("plotly not available")
@@ -257,7 +306,7 @@ def add_traces(fig, merged, title: str, show_deviation: bool, *, row: Optional[i
         fig.add_trace(go.Scatter(x=x, y=dev, name=f"{title} dev(tp-live-mean)", line=dict(color='rgba(31,119,180,0.3)', dash='solid')), **kwargs)
 
 
-def calculate_z_score(df, value_col: str, mean_col: str, std_col: str | None = None):
+def calculate_z_score(df: DataFrame, value_col: str, mean_col: str, std_col: str | None = None) -> Any | None:
     """Return a Series with z-score of value_col against mean_col/std.
 
     If std_col not provided, estimate std via rolling window based on available EMA effective window length.
@@ -282,7 +331,7 @@ def calculate_z_score(df, value_col: str, mean_col: str, std_col: str | None = N
         return None
 
 
-def add_volatility_bands(fig, x, mean_series, std_series, *, k: float = 2.0, name_prefix: str = ""):
+def add_volatility_bands(fig: Figure, x: Series, mean_series: Series, std_series: Series, *, k: float = 2.0, name_prefix: str = "") -> None:
     """Add simple mean ± k*std bands as filled region. Safe no-op if inputs invalid."""
     if go is None:  # pragma: no cover
         raise RuntimeError("plotly not available")
@@ -295,12 +344,15 @@ def add_volatility_bands(fig, x, mean_series, std_series, *, k: float = 2.0, nam
         return
 
 
-def load_config_json(path: str | None) -> dict:
+def load_config_json(path: str | None) -> dict[str, Any]:
     if not path:
         return {}
     try:
-        with open(path, 'r') as f:
-            return json.load(f)
+        with open(path) as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                return cast(dict[str, Any], data)
+            return {}
     except Exception as e:
         print(f"[WARN] Could not load JSON config {path}: {e}")
         return {}
@@ -317,10 +369,10 @@ try:
     from src.utils.timeutils import ensure_utc_helpers  # type: ignore
     utc_now, isoformat_z = ensure_utc_helpers()  # type: ignore
 except Exception:  # pragma: no cover - fallback only
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     def utc_now():  # type: ignore
-        return datetime.now(timezone.utc)
+        return datetime.now(UTC)
 
     def isoformat_z(ts):  # type: ignore
         try:
@@ -329,7 +381,7 @@ except Exception:  # pragma: no cover - fallback only
             return str(ts)
 
 
-def annotate_alpha(fig, alpha: float, weekday_name: str, trade_date):
+def annotate_alpha(fig: Figure, alpha: float, weekday_name: str, trade_date: date) -> None:
     """Add EMA alpha/effective window annotation and embed metadata into layout meta."""
     if go is None:  # pragma: no cover
         raise RuntimeError("plotly not available")
@@ -355,7 +407,7 @@ _STATIC_EXPORT_AVAILABLE = True
 _STATIC_EXPORT_WARNED = False
 
 
-def export_figure_image(fig, path: Path, label: str) -> None:
+def export_figure_image(fig: Figure, path: Path, label: str) -> None:
     global _STATIC_EXPORT_AVAILABLE, _STATIC_EXPORT_WARNED
     if not _STATIC_EXPORT_AVAILABLE:
         return

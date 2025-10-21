@@ -1,13 +1,15 @@
 from __future__ import annotations
-import os
+
 import argparse
-import time
 import copy
 import json
+import os
+import time
 from collections import deque
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional, List, cast
-from urllib import request as urllib_request, error as urllib_error, parse as urllib_parse
+from typing import Any, cast
+from urllib import error as urllib_error
+from urllib import parse as urllib_parse
+from urllib import request as urllib_request
 
 # Ensure project root is on sys.path when executed directly as a script (python scripts/summary/app.py)
 try:
@@ -20,15 +22,21 @@ try:
 except Exception:
     pass
 
-from scripts.summary.layout import build_layout, refresh_layout
-from scripts.summary.env_config import load_summary_env
-from scripts.summary.derive import derive_cycle
-from scripts.summary.unified_loop import UnifiedLoop
-from scripts.summary.plugins.base import TerminalRenderer, PanelsWriter, OutputPlugin, SummarySnapshot
-from src.error_handling import handle_ui_error
-from typing import Protocol, Callable, Union
+from typing import Protocol
 
-def _load_status(path: str) -> Dict[str, Any] | None:
+from scripts.summary.derive import derive_cycle
+from scripts.summary.env_config import load_summary_env
+from scripts.summary.layout import build_layout, refresh_layout
+from scripts.summary.plugins.base import OutputPlugin, PanelsWriter, SummarySnapshot, TerminalRenderer
+from scripts.summary.unified_loop import UnifiedLoop
+from src.error_handling import handle_ui_error
+
+
+class _Logger(Protocol):
+    def info(self, msg: str, **kw: Any) -> None: ...
+    def error(self, msg: str, **kw: Any) -> None: ...
+
+def _load_status(path: str) -> dict[str, Any] | None:
     """Minimal status loader (legacy StatusCache removed)."""
     try:
         from src.utils.status_reader import get_status_reader  # optional optimized reader
@@ -39,7 +47,16 @@ def _load_status(path: str) -> Dict[str, Any] | None:
             reader = get_status_reader(path)
             data = reader.get_raw_status()
             return data if isinstance(data, dict) else None
-        with open(path, 'r', encoding='utf-8') as f:
+        # Fallback: use cached JSON reader when available
+        try:
+            from pathlib import Path as _Path
+
+            from src.utils.csv_cache import read_json_cached as _read_json_cached
+            obj = _read_json_cached(_Path(path))
+            return obj if isinstance(obj, dict) else None
+        except Exception:
+            pass
+        with open(path, encoding='utf-8') as f:
             data = json.load(f)
             return data if isinstance(data, dict) else None
     except Exception:
@@ -48,9 +65,11 @@ def _load_status(path: str) -> Dict[str, Any] | None:
 # Optional event bus for reactive refresh
 try:  # Optional event bus (guarded)
     from src.utils.file_watch_events import (
-        FileWatchEventBus as _FWBus,
-        STATUS_FILE_CHANGED,
         PANEL_FILE_CHANGED,
+        STATUS_FILE_CHANGED,
+    )
+    from src.utils.file_watch_events import (
+        FileWatchEventBus as _FWBus,
     )
     HAVE_FILE_WATCH_BUS = True
 except Exception:  # pragma: no cover
@@ -59,7 +78,7 @@ except Exception:  # pragma: no cover
     STATUS_FILE_CHANGED = "status_file_changed"
     PANEL_FILE_CHANGED = "panel_file_changed"
 
-def _get_output_lazy():
+def _get_output_lazy() -> _Logger:
     class _O:
         def info(self, msg: str, **kw: Any) -> None:
             try:
@@ -75,29 +94,78 @@ def _get_output_lazy():
     return _O()
 
 
-def compute_cadence_defaults() -> Dict[str, float]:
+def plain_fallback(status: dict[str, Any] | None, status_file: str, metrics_url: str) -> str:
+    """Minimal plain output string if Rich is unavailable.
+
+    Keeps behavior deterministic and avoids importing heavy machinery.
+    """
+    try:
+        keys = ", ".join(sorted(list((status or {}).keys())[:12]))
+    except Exception:
+        keys = ""
+    return f"G6 Summary (plain) | keys: {keys or '—'} | file: {status_file} | metrics: {metrics_url}"
+
+
+def compute_cadence_defaults() -> dict[str, float]:
     """Return effective refresh intervals using centralized SummaryEnv."""
     # Force reload so tests that monkeypatch os.environ see fresh values each call
     env = load_summary_env(force_reload=True)
     return {"meta": env.refresh_meta_sec, "res": env.refresh_res_sec}
 
 
-def run(argv: Optional[List[str]] = None) -> int:
-    
+def run(argv: list[str] | None = None) -> int:
+
     parser = argparse.ArgumentParser(description="G6 Summarizer View")
-    parser.add_argument("--status-file", default=os.getenv("G6_STATUS_FILE", "data/runtime_status.json"))
-    parser.add_argument("--metrics-url", default=os.getenv("G6_METRICS_URL", "http://127.0.0.1:9108/metrics"))
+    parser.add_argument(
+        "--status-file",
+        default=os.getenv("G6_STATUS_FILE", "data/runtime_status.json"),
+    )
+    parser.add_argument(
+        "--metrics-url",
+        default=os.getenv("G6_METRICS_URL", "http://127.0.0.1:9108/metrics"),
+    )
     parser.add_argument("--refresh", type=float, default=0.5, help="UI frame refresh seconds (visual)")
     parser.add_argument("--no-rich", action="store_true", help="Disable rich UI and print plain text")
     parser.add_argument("--compact", action="store_true", help="Compact layout with fewer details")
     parser.add_argument("--low-contrast", action="store_true", help="Use neutral borders/colors")
     # Phase 3: panels mode auto-detect (default 'auto'); explicit flag retained temporarily
-    parser.add_argument("--panels", choices=["auto", "on", "off"], default="auto", help="Prefer data/panels JSON (on/off/auto, default auto-detect)")
-    parser.add_argument("--panels-dir", help="Override panels directory (sets G6_PANELS_DIR for this process)")
-    parser.add_argument("--sse-url", default=os.getenv("G6_SUMMARY_SSE_URL"), help="Subscribe to SSE endpoint for live updates (e.g., http://127.0.0.1:9315/events)")
-    parser.add_argument("--no-write-panels", action="store_true", help="(Unified) Do not write panels JSON artifact")
-    parser.add_argument("--sse-types", default=os.getenv("G6_SUMMARY_SSE_TYPES", "panel_full,panel_diff"), help="Comma-separated event types to consume from SSE (default panel_full,panel_diff)")
-    parser.add_argument("--cycles", type=int, default=None, help="(Unified) Run only N cycles then exit (CI / deterministic testing)")
+    parser.add_argument(
+        "--panels",
+        choices=["auto", "on", "off"],
+        default="auto",
+        help="Prefer data/panels JSON (on/off/auto, default auto-detect)",
+    )
+    parser.add_argument(
+        "--panels-dir",
+        help="Override panels directory (sets G6_PANELS_DIR for this process)",
+    )
+    parser.add_argument(
+        "--sse-url",
+        default=os.getenv("G6_SUMMARY_SSE_URL"),
+        help=(
+            "Subscribe to SSE endpoint for live updates "
+            "(e.g., http://127.0.0.1:9315/events)"
+        ),
+    )
+    parser.add_argument(
+        "--no-write-panels",
+        action="store_true",
+        help="(Unified) Do not write panels JSON artifact",
+    )
+    parser.add_argument(
+        "--sse-types",
+        default=os.getenv("G6_SUMMARY_SSE_TYPES", "panel_full,panel_diff"),
+        help=(
+            "Comma-separated event types to consume from SSE "
+            "(default panel_full,panel_diff)"
+        ),
+    )
+    parser.add_argument(
+        "--cycles",
+        type=int,
+        default=None,
+        help="(Unified) Run only N cycles then exit (CI / deterministic testing)",
+    )
     args = parser.parse_args(argv)
 
     env = load_summary_env()
@@ -123,7 +191,11 @@ def run(argv: Optional[List[str]] = None) -> int:
     try:
         if env.unified_model_init_debug:
             from src.summary.unified.model import assemble_model_snapshot
-            model_snap, model_diag = assemble_model_snapshot(runtime_status=status, panels_dir=env.panels_dir, include_panels=True)
+            model_snap, model_diag = assemble_model_snapshot(
+                runtime_status=status,
+                panels_dir=env.panels_dir,
+                include_panels=True,
+            )
             debug_payload = {
                 'schema_version': model_snap.schema_version,
                 'cycle': {
@@ -154,7 +226,6 @@ def run(argv: Optional[List[str]] = None) -> int:
     # Rewrite flag (Phase 1): activates new domain + plain renderer path
     from scripts.summary.config import SummaryConfig
     cfg = SummaryConfig.load()
-    rewrite_active = cfg.rewrite_active
 
     # --- Unified loop (sole execution path) ---
     if True:
@@ -166,7 +237,7 @@ def run(argv: Optional[List[str]] = None) -> int:
         except Exception:
             write_panels = False
         # Plugin assembly: if rewrite flag + no-rich => PlainRenderer, else traditional TerminalRenderer
-        plugins: List[OutputPlugin] = []
+        plugins: list[OutputPlugin] = []
         # Always prefer PlainRenderer for --no-rich if available; rewrite gating removed
         if args.no_rich:
             try:
@@ -251,7 +322,11 @@ def run(argv: Optional[List[str]] = None) -> int:
             dossier_path = env.dossier_path
             if dossier_path:
                 from src.summary.unified.model import assemble_model_snapshot
-                model_snap, _diag = assemble_model_snapshot(runtime_status=status, panels_dir=env.panels_dir, include_panels=True)
+                model_snap, _diag = assemble_model_snapshot(
+                    runtime_status=status,
+                    panels_dir=env.panels_dir,
+                    include_panels=True,
+                )
                 os.makedirs(os.path.dirname(dossier_path), exist_ok=True)
                 tmp = dossier_path + ".tmp"
                 with open(tmp, 'w', encoding='utf-8') as f:
@@ -273,16 +348,33 @@ def run(argv: Optional[List[str]] = None) -> int:
         Live = None  # type: ignore
     import threading
 
+    class _StatusCache:
+        def __init__(self, path: str) -> None:
+            self._path = path
+            self._last_mtime: float = -1.0
+            self._last: dict[str, Any] | None = status if isinstance(status, dict) else None
+        def refresh(self) -> dict[str, Any] | None:
+            try:
+                st = os.stat(self._path)
+                mt = float(getattr(st, 'st_mtime', 0.0))
+            except Exception:
+                return self._last
+            if mt != self._last_mtime:
+                self._last = _load_status(self._path)
+                self._last_mtime = mt
+            return self._last
+
+    cache = _StatusCache(args.status_file)
+
     use_sse = bool(args.sse_url)
-    sse_stop: Optional[threading.Event] = None
-    sse_thread: Optional[threading.Thread] = None
+    sse_stop: threading.Event | None = None
+    sse_thread: threading.Thread | None = None
 
     # Pre-init references (assigned later when rich loop starts)
     bus = None
-    status_event: Optional[threading.Event] = None
-    stop_watcher: Optional[threading.Event] = None
-    callbacks_registered: bool = False
-    watcher_thread: Optional[threading.Thread] = None
+    status_event: threading.Event | None = None
+    stop_watcher: threading.Event | None = None
+    watcher_thread: threading.Thread | None = None
 
     # Enable ANSI VT processing on Windows and force terminal control sequences
     try:
@@ -297,7 +389,7 @@ def run(argv: Optional[List[str]] = None) -> int:
         pass
 
     window: deque[float] = deque(maxlen=120)
-    def compute_roll() -> Dict[str, Any]:
+    def compute_roll() -> dict[str, Any]:
         if not window:
             return {"avg": None, "p95": None}
         vals = list(window)
@@ -310,14 +402,21 @@ def run(argv: Optional[List[str]] = None) -> int:
     res_refresh = cad["res"]
     last_meta = 0.0
     last_res = 0.0
-    last_status: Dict[str, Any] | None = status
+    last_status: dict[str, Any] | None = status
     last_cycle_id: Any = None
     # Dossier writer state (rich loop)
-    _dossier_state: Dict[str, Any] = {
+    _dossier_state: dict[str, Any] = {
         'last_write': 0.0,
     }
 
-    layout = build_layout(status, args.status_file, args.metrics_url, rolling=compute_roll(), compact=bool(args.compact), low_contrast=bool(args.low_contrast))
+    layout = build_layout(
+        status,
+        args.status_file,
+        args.metrics_url,
+        rolling=compute_roll(),
+        compact=bool(args.compact),
+        low_contrast=bool(args.low_contrast),
+    )
 
     # Event-driven refresh wiring (optional, safe no-op if bus unavailable)
     status_event = threading.Event()
@@ -339,7 +438,6 @@ def run(argv: Optional[List[str]] = None) -> int:
             bus = _FWBus.instance()
             bus.subscribe(STATUS_FILE_CHANGED, _on_status_changed)
             bus.subscribe(PANEL_FILE_CHANGED, _on_panel_changed)
-            callbacks_registered = True
             def _watcher_loop() -> None:
                 try:
                     from src.data_access.unified_source import UnifiedDataSource
@@ -365,14 +463,14 @@ def run(argv: Optional[List[str]] = None) -> int:
 
     # SSE consumer (optional)
         sse_state_lock = threading.Lock()
-        sse_latest_status: Optional[Dict[str, Any]] = None
-        sse_last_timestamp: Optional[str] = None
+        sse_latest_status: dict[str, Any] | None = None
+        sse_last_timestamp: str | None = None
         sse_last_event_id = 0
         # Render generation counts local (UI composite signal increments for ANY accepted event affecting layout)
         sse_generation = 0
         sse_rendered_generation = 0
         # Panel snapshot baseline generation (from server) and need-full flag
-        sse_panel_generation: Optional[int] = None
+        sse_panel_generation: int | None = None
         sse_need_full: bool = False
         # Need-full episode tracking
         sse_need_full_active_prev: bool = False  # previous rendered need_full state
@@ -395,7 +493,7 @@ def run(argv: Optional[List[str]] = None) -> int:
         # Centralized panel+diff state store (replaces local counters/diff merge)
         from scripts.summary.sse_state import PanelStateStore
         panel_state_store = PanelStateStore()
-        type_filters: List[str] = []
+        type_filters: list[str] = []
         if args.sse_types:
             for part in str(args.sse_types).split(','):
                 p = part.strip()
@@ -433,7 +531,7 @@ def run(argv: Optional[List[str]] = None) -> int:
                 new_query = urllib_parse.urlencode(qs, doseq=True)
                 return urllib_parse.urlunparse(parsed_base._replace(query=new_query))
 
-            def _handle_payload(payload: Dict[str, Any]) -> None:
+            def _handle_payload(payload: dict[str, Any]) -> None:
                 nonlocal sse_latest_status, sse_last_timestamp, sse_generation, sse_panel_generation, sse_need_full
                 if not isinstance(payload, dict):
                     return
@@ -445,7 +543,11 @@ def run(argv: Optional[List[str]] = None) -> int:
                 # Extract server-side generation (present for panel_full/panel_diff)
                 try:
                     gen_val = payload.get('generation')
-                    gen_int = int(gen_val) if isinstance(gen_val, (int, float, str)) and str(gen_val).isdigit() else None
+                    gen_int = (
+                        int(gen_val)
+                        if isinstance(gen_val, (int, float, str)) and str(gen_val).isdigit()
+                        else None
+                    )
                 except Exception:
                     gen_int = None
                 if event_type == 'panel_full':
@@ -454,7 +556,16 @@ def run(argv: Optional[List[str]] = None) -> int:
                         return
                     snapshot = copy.deepcopy(status_obj)
                     panel_state_store.apply_panel_full(snapshot, gen_int)
-                    snap_status, srv_gen, ui_gen, need_full_flag, counters, _sev_counts_unused, _sev_state_unused, _followups_unused = panel_state_store.snapshot()
+                    (
+                        snap_status,
+                        srv_gen,
+                        ui_gen,
+                        need_full_flag,
+                        counters,
+                        _sev_counts_unused,
+                        _sev_state_unused,
+                        _followups_unused,
+                    ) = panel_state_store.snapshot()
                     with sse_state_lock:
                         sse_latest_status = snap_status
                         if ts:
@@ -505,7 +616,16 @@ def run(argv: Optional[List[str]] = None) -> int:
                         return
                     applied = panel_state_store.apply_panel_diff(diff_obj, gen_int)
                     if applied:
-                        snap_status2, srv_gen2, ui_gen2, need_full2, counters2, _sc2, _ss2, _fu2 = panel_state_store.snapshot()
+                        (
+                            snap_status2,
+                            srv_gen2,
+                            ui_gen2,
+                            need_full2,
+                            counters2,
+                            _sc2,
+                            _ss2,
+                            _fu2,
+                        ) = panel_state_store.snapshot()
                         with sse_state_lock:
                             sse_latest_status = snap_status2
                             if ts:
@@ -542,9 +662,9 @@ def run(argv: Optional[List[str]] = None) -> int:
                                             mfr_any.inc()
                                     except Exception:
                                         pass
-                            data_lines: List[str] = []
-                            event_label: Optional[str] = None
-                            event_id_local: Optional[int] = None
+                            data_lines: list[str] = []
+                            event_label: str | None = None
+                            event_id_local: int | None = None
                             for raw_line in resp:
                                 if sse_stop is not None and sse_stop.is_set():
                                     break
@@ -561,11 +681,16 @@ def run(argv: Optional[List[str]] = None) -> int:
                                         if isinstance(payload_obj, dict):
                                             if event_label and 'type' not in payload_obj:
                                                 payload_obj['type'] = event_label
-                                            event_id_val = payload_obj.get('id') or payload_obj.get('sequence') or event_id_local
+                                            event_id_val = (
+                                                payload_obj.get('id')
+                                                or payload_obj.get('sequence')
+                                                or event_id_local
+                                            )
                                             if isinstance(event_id_val, int):
                                                 sse_last_event_id = event_id_val
                                             _handle_payload(payload_obj)
-                                            # If we just received a panel_full while in recovery state, clear flag allowing future recoveries if problem reoccurs
+                                            # If we just received a panel_full while in recovery state,
+                                            # clear flag allowing future recoveries if problem reoccurs
                                             if payload_obj.get('type') == 'panel_full':
                                                 with sse_state_lock:
                                                     if sse_auto_full_recovery and sse_need_full is False:
@@ -610,7 +735,8 @@ def run(argv: Optional[List[str]] = None) -> int:
                 sse_thread = threading.Thread(target=_sse_consumer_loop, name="g6-summary-sse", daemon=True)
                 sse_thread.start()
 
-        # Use alternate screen to keep the frame static (no scroll). Default off on Windows to avoid flicker; env can force on.
+    # Use alternate screen to keep the frame static (no scroll).
+    # Default off on Windows to avoid flicker; env can force on.
         default_alt = "off" if os.name == "nt" else "on"
         use_alt_screen = env.alt_screen if env.alt_screen is not None else (default_alt == "on")
         fps = max(1, int(round(1.0 / max(0.1, args.refresh))))
@@ -627,7 +753,7 @@ def run(argv: Optional[List[str]] = None) -> int:
             redirect_stderr=False,
             auto_refresh=False,
         ) as live:
-            last_render_sig: Optional[str] = None
+            last_render_sig: str | None = None
             while True:
                 try:
                     now = time.time()
@@ -641,8 +767,14 @@ def run(argv: Optional[List[str]] = None) -> int:
                                 _dossier_int = 5.0
                             lw = _dossier_state.get('last_write', 0.0)
                             if now - float(lw) >= max(0.5, float(_dossier_int)):
-                                from src.summary.unified.model import assemble_model_snapshot as _assemble_model
-                                model_loop, _diag_loop = _assemble_model(runtime_status=last_status, panels_dir=env.panels_dir, include_panels=True)
+                                from src.summary.unified.model import (
+                                    assemble_model_snapshot as _assemble_model,
+                                )
+                                model_loop, _diag_loop = _assemble_model(
+                                    runtime_status=last_status,
+                                    panels_dir=env.panels_dir,
+                                    include_panels=True,
+                                )
                                 try:
                                     os.makedirs(os.path.dirname(_dossier_path), exist_ok=True)
                                 except Exception:
@@ -716,7 +848,6 @@ def run(argv: Optional[List[str]] = None) -> int:
                         interval = None
 
                     effective_status = dict(last_status or {}) if last_status else {}
-                    extras_followups: List[Dict[str, Any]] = []
                     # Severity & followups now provided by plugin; inline copies removed
                     with sse_state_lock:
                         pass
@@ -724,11 +855,18 @@ def run(argv: Optional[List[str]] = None) -> int:
                         panel_gen_val = sse_panel_generation
                     # Inject push meta block
                     if isinstance(effective_status, dict):
-                        meta_bucket = effective_status.setdefault('panel_push_meta', {}) if isinstance(effective_status.get('panel_push_meta'), dict) else effective_status.setdefault('panel_push_meta', {})
+                        meta_bucket = (
+                            effective_status.setdefault('panel_push_meta', {})
+                            if isinstance(effective_status.get('panel_push_meta'), dict)
+                            else effective_status.setdefault('panel_push_meta', {})
+                        )
                         if isinstance(meta_bucket, dict):
                             if need_full_flag:
                                 meta_bucket['need_full'] = True
-                                meta_bucket['need_full_reason'] = meta_bucket.get('need_full_reason') or 'snapshot_required'
+                                meta_bucket['need_full_reason'] = (
+                                    meta_bucket.get('need_full_reason')
+                                    or 'snapshot_required'
+                                )
                             else:
                                 meta_bucket.pop('need_full', None)
                                 meta_bucket.pop('need_full_reason', None)
@@ -738,7 +876,16 @@ def run(argv: Optional[List[str]] = None) -> int:
                             try:
                                 if use_sse:
                                     try:
-                                        _snap_status, _srv_gen, _ui_gen, _need_full, _counters, _sc_tmp, _ss_tmp, _fu_tmp = panel_state_store.snapshot()
+                                        (
+                                            _snap_status,
+                                            _srv_gen,
+                                            _ui_gen,
+                                            _need_full,
+                                            _counters,
+                                            _sc_tmp,
+                                            _ss_tmp,
+                                            _fu_tmp,
+                                        ) = panel_state_store.snapshot()
                                         meta_bucket['sse_events'] = dict(_counters)
                                     except Exception:
                                         pass
@@ -749,7 +896,8 @@ def run(argv: Optional[List[str]] = None) -> int:
                         try:
                             import importlib as _il_nf3
                             _reg_nf3 = getattr(_il_nf3.import_module('src.metrics'), 'registry', None)
-                            # Expect attributes created elsewhere via explicit registration; if absent, attempt simple helper usage.
+                            # Expect attributes created elsewhere via explicit registration;
+                            # if absent, attempt simple helper usage.
                             if _m_need_full_active is None:
                                 _m_need_full_active = getattr(_reg_nf3, 'events_need_full_active', None)
                             if _m_need_full_episodes is None:
@@ -758,18 +906,32 @@ def run(argv: Optional[List[str]] = None) -> int:
                             _reg_fn = getattr(_reg_nf3, '_register', None)
                             if _m_need_full_active is None and callable(_reg_fn):
                                 try:
-                                    _m_need_full_active = _reg_fn('events', 'events_need_full_active', 'gauge', 'Client currently in need_full state (1 active / 0 normal)')
+                                    _m_need_full_active = _reg_fn(
+                                        'events',
+                                        'events_need_full_active',
+                                        'gauge',
+                                        'Client currently in need_full state (1 active / 0 normal)',
+                                    )
                                 except Exception:
                                     _m_need_full_active = None
                             if _m_need_full_episodes is None and callable(_reg_fn):
                                 try:
-                                    _m_need_full_episodes = _reg_fn('events', 'events_need_full_episodes_total', 'counter', 'Distinct need_full episodes (false->true transitions)')
+                                    _m_need_full_episodes = _reg_fn(
+                                        'events',
+                                        'events_need_full_episodes_total',
+                                        'counter',
+                                        'Distinct need_full episodes (false->true transitions)',
+                                    )
                                 except Exception:
                                     _m_need_full_episodes = None
                             # Set gauge value
                             if _m_need_full_active is not None:
                                 try:
-                                    getattr(_m_need_full_active, 'set', lambda *_a, **_k: None)(1 if need_full_flag else 0)
+                                    getattr(
+                                        _m_need_full_active,
+                                        'set',
+                                        lambda *_a, **_k: None,
+                                    )(1 if need_full_flag else 0)
                                 except Exception:
                                     pass
                             # Increment episodes counter on transition to active
@@ -800,8 +962,9 @@ def run(argv: Optional[List[str]] = None) -> int:
                     except Exception:
                         pass
 
-                    # Build in-memory panels mapping (provider/resources/loop/indices/adaptive_alerts) for optional model assembly
-                    in_memory_panels: Dict[str, Any] = {}
+                    # Build in-mem panels mapping (provider/resources/loop/indices/adaptive_alerts)
+                    # for optional model assembly
+                    in_memory_panels: dict[str, Any] = {}
                     try:
                         if isinstance(effective_status, dict):
                             prov_panel = effective_status.get('provider')
@@ -825,7 +988,7 @@ def run(argv: Optional[List[str]] = None) -> int:
                             if 'adaptive_alerts' not in in_memory_panels:
                                 adaptive_stream = effective_status.get('adaptive_stream')
                                 if isinstance(adaptive_stream, dict):
-                                    synth: Dict[str, Any] = {}
+                                    synth: dict[str, Any] = {}
                                     sc = adaptive_stream.get('severity_counts')
                                     if isinstance(sc, dict):
                                         synth['severity_counts'] = sc
@@ -839,25 +1002,49 @@ def run(argv: Optional[List[str]] = None) -> int:
 
                     # Optional unified model build (lightweight) using in-memory panels to avoid FS reads
                     try:
-                        if env.rich_diff_demo_enabled:  # repurpose existing flag for model build demo gating (temporary)
-                            from src.summary.unified.model import assemble_model_snapshot as _assemble_model_live
-                            model_live, _diag_live = _assemble_model_live(runtime_status=effective_status, panels_dir=env.panels_dir, include_panels=True, in_memory_panels=in_memory_panels)
+                        if env.rich_diff_demo_enabled:  # repurpose flag for model build demo gating (temporary)
+                            from src.summary.unified.model import (
+                                assemble_model_snapshot as _assemble_model_live,
+                            )
+                            model_live, _diag_live = _assemble_model_live(
+                                runtime_status=effective_status,
+                                panels_dir=env.panels_dir,
+                                include_panels=True,
+                                in_memory_panels=in_memory_panels,
+                            )
                             # Attach a minimal subset into panel_push_meta (avoid heavy duplication)
-                            meta_bucket_live = effective_status.setdefault('panel_push_meta', {}) if isinstance(effective_status.get('panel_push_meta'), dict) else effective_status.setdefault('panel_push_meta', {})
+                            meta_bucket_live = (
+                                effective_status.setdefault('panel_push_meta', {})
+                                if isinstance(effective_status.get('panel_push_meta'), dict)
+                                else effective_status.setdefault('panel_push_meta', {})
+                            )
                             if isinstance(meta_bucket_live, dict):
-                                model_meta: Dict[str, Any] = {
+                                model_meta: dict[str, Any] = {
                                     'cycle': model_live.cycle.number,
                                     'schema_version': model_live.schema_version,
-                                    'dq': {'g': model_live.dq.green,'w': model_live.dq.warn,'e': model_live.dq.error},
+                                    'dq': {
+                                        'g': model_live.dq.green,
+                                        'w': model_live.dq.warn,
+                                        'e': model_live.dq.error,
+                                    },
                                 }
                                 meta_bucket_live['unified_model'] = model_meta
                     except Exception:
                         pass
 
-                    refresh_layout(layout, effective_status, args.status_file, args.metrics_url, rolling=compute_roll(), compact=bool(args.compact), low_contrast=bool(args.low_contrast))
+                    refresh_layout(
+                        layout,
+                        effective_status,
+                        args.status_file,
+                        args.metrics_url,
+                        rolling=compute_roll(),
+                        compact=bool(args.compact),
+                        low_contrast=bool(args.low_contrast),
+                    )
                     # Stable subset signature (default anti-flicker): cycle, indices set, alerts count, severity counts
                     try:
-                        from scripts.summary.derive import derive_cycle as _dc, derive_indices as _dinds
+                        from scripts.summary.derive import derive_cycle as _dc
+                        from scripts.summary.derive import derive_indices as _dinds
                         cy2 = _dc(effective_status)
                         cycle_val = cy2.get('cycle') or cy2.get('count')
                         if isinstance(cycle_val, (int,float)):
@@ -875,8 +1062,15 @@ def run(argv: Optional[List[str]] = None) -> int:
                             if isinstance(alerts_val, list):
                                 alerts_total = len(alerts_val)
                         sev_counts = None
-                        adaptive_stream = effective_status.get('adaptive_stream') if isinstance(effective_status, dict) else None
-                        if isinstance(adaptive_stream, dict) and isinstance(adaptive_stream.get('severity_counts'), dict):
+                        adaptive_stream = (
+                            effective_status.get('adaptive_stream')
+                            if isinstance(effective_status, dict)
+                            else None
+                        )
+                        if (
+                            isinstance(adaptive_stream, dict)
+                            and isinstance(adaptive_stream.get('severity_counts'), dict)
+                        ):
                             sev = adaptive_stream['severity_counts']
                             sev_counts = f"sc={sev.get('info',0)}-{sev.get('warn',0)}-{sev.get('critical',0)}"
                         parts = [cycle_part, f"idx={indices_part}"]
@@ -910,7 +1104,7 @@ def run(argv: Optional[List[str]] = None) -> int:
                         except Exception:
                             pass
                     time.sleep(max(0.1, args.refresh))
-                except KeyboardInterrupt:
+                except KeyboardInterrupt:  # noqa: PERF203 - intentional try/except inside loop for graceful exit
                     raise
                 except Exception as e:
                     # Soft-fail: print a short notice and back off, then continue
@@ -929,6 +1123,6 @@ def run(argv: Optional[List[str]] = None) -> int:
                     time.sleep(max(0.05, back_ms / 1000.0))
     # Normal termination path (loop returns via KeyboardInterrupt handled inside loop)
     return 0
- 
+
 if __name__ == "__main__":
     raise SystemExit(run())

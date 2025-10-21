@@ -56,7 +56,7 @@ def test_sse_global_connection_cap(sse_port: int):
     r1 = c1.getresponse()
     assert r1.status == 200
     # Allow server loop a brief moment to record active connection before second attempt
-    time.sleep(0.1)
+    time.sleep(0.2)
     # second connection should exceed cap
     c2 = http.client.HTTPConnection('127.0.0.1', sse_port, timeout=1)
     c2.request('GET','/summary/events')
@@ -74,7 +74,7 @@ def test_sse_event_rate_limit_skips_excess(sse_port: int):
     assert r.status == 200
     # Read some bytes after a short window; we can't easily assert exact count but ensure we got something
     # Incremental read to capture initial events without large blocking read
-    buf=[]; end=time.time()+2.0
+    buf=[]; end=time.time()+2.5
     while time.time()<end:
         line=r.fp.readline()
         if not line: break

@@ -22,8 +22,12 @@ Usage:
 Safe no-op on errors or if disabled.
 """
 from __future__ import annotations
-from typing import Any, Dict
-import os, json, time, logging
+
+import json
+import logging
+import os
+import time
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +47,7 @@ def _min_total() -> int:
     except Exception:
         return 3
 
-def maybe_emit_alert_parity_anomaly(parity: Dict[str, Any]) -> bool:
+def maybe_emit_alert_parity_anomaly(parity: dict[str, Any]) -> bool:
     """Emit structured anomaly event if weighted diff exceeds threshold.
 
     Returns True if event emitted, else False.

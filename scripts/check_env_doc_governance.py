@@ -4,7 +4,10 @@ Fast version of tests/test_env_doc_coverage.py (no baseline regen, minimal outpu
 Exits non-zero on first governance violation.
 """
 from __future__ import annotations
-import re, sys, os, subprocess, pathlib
+
+import pathlib
+import re
+import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DOC_FILE = ROOT / 'docs' / 'env_dict.md'
@@ -16,8 +19,8 @@ ALLOWLIST = {'G6_DISABLE_PER_OPTION_METRICS','G6_MEMORY_TIER_OVERRIDE','G6_TRACE
 SCAN_DIRS = [ROOT / 'src', ROOT / 'scripts', ROOT / 'tests']
 PATTERN = re.compile(r'G6_[A-Z0-9_]+')
 
-def collect_tokens():
-    found=set()
+def collect_tokens() -> set[str]:
+    found: set[str] = set()
     for base in SCAN_DIRS:
         if not base.exists():
             continue
@@ -36,7 +39,7 @@ def collect_tokens():
                 found.add(m)
     return found
 
-def main():
+def main() -> int:
     if not DOC_FILE.exists():
         print(f"ERROR: Missing documentation file {DOC_FILE}", file=sys.stderr)
         return 1

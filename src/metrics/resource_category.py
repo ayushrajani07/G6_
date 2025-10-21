@@ -3,9 +3,11 @@
 Refactor only.
 """
 from __future__ import annotations
+
 from prometheus_client import Counter, Gauge
 
-def init_resource_metrics(registry: "MetricsRegistry") -> None:
+
+def init_resource_metrics(registry: MetricsRegistry) -> None:
     core = registry._core_reg  # type: ignore[attr-defined]
     core('memory_usage_mb', Gauge, 'g6_memory_usage_mb', 'Resident memory usage in MB')
     core('cpu_usage_percent', Gauge, 'g6_cpu_usage_percent', 'Process CPU utilization percent')

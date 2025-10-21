@@ -27,10 +27,10 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from src.utils.retry import call_with_retry
 from src.error_handling import handle_provider_error  # type: ignore
+from src.utils.retry import call_with_retry
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def _is_auth_error(e: BaseException) -> bool:
     return any(k in msg for k in ("auth", "token", "unauthorized", "forbidden", "expired"))
 
 
-def fetch_instruments(provider: 'KiteProvider', exchange: str, force_refresh: bool = False) -> list[dict[str, Any]]:
+def fetch_instruments(provider: KiteProvider, exchange: str, force_refresh: bool = False) -> list[dict[str, Any]]:
     exch = exchange or "NFO"
     ttl = getattr(provider._settings, 'instrument_cache_ttl', 600.0)
     now = time.time()
@@ -70,7 +70,8 @@ def fetch_instruments(provider: 'KiteProvider', exchange: str, force_refresh: bo
             if provider._api_rl:
                 provider._api_rl()
             from src.broker.kite_provider import _timed_call  # local import to avoid cycle at module import
-            return _timed_call(lambda: provider.kite.instruments(), getattr(provider._settings, 'kite_timeout_sec', 5.0))  # type: ignore[arg-type]
+            timeout = getattr(provider._settings, 'kite_instruments_timeout_sec', None) or getattr(provider._settings, 'kite_timeout_sec', 5.0)
+            return _timed_call(lambda: provider.kite.instruments(), timeout)  # type: ignore[arg-type]
 
         raw = call_with_retry(_fetch)
         if isinstance(raw, list) and not raw:

@@ -3,8 +3,10 @@ Provides richer formatting if enabled, otherwise falls back gracefully.
 This is intentionally lightweight until full implementation is supplied.
 """
 from __future__ import annotations
-from typing import Any, Dict, Optional
-from .color import colorize, FG_GREEN, FG_YELLOW, FG_RED, FG_CYAN, FG_BRIGHT_BLACK, status_color
+
+from typing import Any
+
+from .color import colorize, status_color
 
 BOX_TOP = "+" + "-"*78 + "+"
 BOX_BOTTOM = BOX_TOP
@@ -12,8 +14,8 @@ BOX_BOTTOM = BOX_TOP
 def build_live_panel(*, cycle: int, cycle_time: float, success_rate: float | None,
                      options_processed: int, per_min: float | None, api_success: float | None,
                      api_latency_ms: float | None, memory_mb: float | None, cpu_pct: float | None,
-                     indices: Dict[str, Dict[str, Any]] | None = None, concise: bool = True,
-                     market_data: Optional[Dict[str, Any]] = None, system_alerts: Optional[list[str]] = None) -> str:
+                     indices: dict[str, dict[str, Any]] | None = None, concise: bool = True,
+                     market_data: dict[str, Any] | None = None, system_alerts: list[str] | None = None) -> str:
     def fmt(v):
         if v is None: return 'NA'
         if isinstance(v, float): return f"{v:.2f}"

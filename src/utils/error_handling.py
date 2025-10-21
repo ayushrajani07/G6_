@@ -6,10 +6,11 @@ be refactored to use these helpers over time.
 """
 from __future__ import annotations
 
+import logging
+from collections.abc import Callable
 from enum import Enum
 from functools import wraps
-import logging
-from typing import Callable, TypeVar, ParamSpec, Any, Optional
+from typing import ParamSpec, TypeVar
 
 __all__ = [
     "ErrorSeverity",
@@ -44,7 +45,7 @@ def handle_error(e: Exception, *, severity: ErrorSeverity = ErrorSeverity.ERROR,
     if reraise:
         raise
 
-def safe_operation(*, severity: ErrorSeverity = ErrorSeverity.WARNING, reraise: bool = False) -> Callable[[Callable[P, T]], Callable[P, Optional[T]]]:
+def safe_operation(*, severity: ErrorSeverity = ErrorSeverity.WARNING, reraise: bool = False) -> Callable[[Callable[P, T]], Callable[P, T | None]]:
     """Decorator converting exceptions into logged events.
 
     Parameters
@@ -54,9 +55,9 @@ def safe_operation(*, severity: ErrorSeverity = ErrorSeverity.WARNING, reraise: 
     reraise : bool
         If True, exception is re-raised after logging.
     """
-    def decorator(func: Callable[P, T]) -> Callable[P, Optional[T]]:
+    def decorator(func: Callable[P, T]) -> Callable[P, T | None]:
         @wraps(func)
-        def wrapper(*args: P.args, **kwargs: P.kwargs) -> Optional[T]:
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> T | None:
             try:
                 return func(*args, **kwargs)
             except Exception as e:  # noqa: BLE001

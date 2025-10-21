@@ -4,9 +4,12 @@ Separates adaptive controller and band rejection metrics from placeholders/group
 without changing metric names, labels, or grouping semantics.
 """
 from __future__ import annotations
-from typing import Any, Callable
-from prometheus_client import Counter, Gauge
+
 import logging
+from collections.abc import Callable
+from typing import Any
+
+from prometheus_client import Counter, Gauge
 
 __all__ = [
     "init_adaptive_placeholders",

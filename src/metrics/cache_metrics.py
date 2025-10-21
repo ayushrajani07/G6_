@@ -6,8 +6,8 @@ metrics (root symbol cache performance indicators).
 Pure refactor: names, labels, group tagging, ordering unchanged.
 """
 from __future__ import annotations
+
 from typing import Any
-from prometheus_client import Counter, Gauge  # type: ignore
 
 __all__ = ["init_cache_metrics"]
 

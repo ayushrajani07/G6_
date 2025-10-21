@@ -39,9 +39,11 @@ Limitations:
 """
 from __future__ import annotations
 
+import os
+import threading
+import time
 from dataclasses import dataclass
-import os, threading, time
-from typing import List, Dict, Set, Callable, Optional, Any
+from typing import Any
 
 try:  # optional – present in Phase 1
     from .rate_limit import build_default_rate_limiter
@@ -66,22 +68,22 @@ def _batch_window_ms() -> int:
 
 @dataclass
 class _Request:
-    symbols: List[str]
+    symbols: list[str]
     event: threading.Event
     # Ack event to allow distributor to release requests sequentially ensuring deterministic append order in tests
     ack: threading.Event
-    result: Optional[Dict[str, Any]] = None
-    error: Optional[BaseException] = None
+    result: dict[str, Any] | None = None
+    error: BaseException | None = None
 
 
 class QuoteBatcher:
     def __init__(self):
         self._lock = threading.Lock()
-        self._pending: List[_Request] = []
-        self._symbols: Set[str] = set()
+        self._pending: list[_Request] = []
+        self._symbols: set[str] = set()
         self._batch_active = False
 
-    def fetch(self, provider: Any, symbols: List[str]) -> Dict[str, Any]:
+    def fetch(self, provider: Any, symbols: list[str]) -> dict[str, Any]:
         """Join (or start) a batch for the given formatted symbols.
 
         Returns dict subset containing only the requested symbols.
@@ -150,7 +152,7 @@ class QuoteBatcher:
                 r.error = e
                 r.event.set()
 
-    def _perform_fetch(self, provider: Any, symbols: List[str]) -> Dict[str, Any]:
+    def _perform_fetch(self, provider: Any, symbols: list[str]) -> dict[str, Any]:
         kite = getattr(provider, 'kite', None)
         if kite is None:
             raise RuntimeError('kite_client_missing')
@@ -161,7 +163,7 @@ class QuoteBatcher:
             if limiter is None:
                 try:
                     limiter = build_default_rate_limiter()
-                    setattr(provider, '_g6_quote_rate_limiter', limiter)
+                    provider._g6_quote_rate_limiter = limiter
                 except Exception:
                     limiter = None
         timeout = getattr(getattr(provider, '_settings', None), 'kite_timeout_sec', 5.0)
@@ -189,7 +191,7 @@ class QuoteBatcher:
                         pass
             raise
 
-_BATCHER_SINGLETON: Optional[QuoteBatcher] = None
+_BATCHER_SINGLETON: QuoteBatcher | None = None
 _BATCHER_LOCK = threading.Lock()
 
 def get_batcher() -> QuoteBatcher:

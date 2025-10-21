@@ -13,11 +13,11 @@ Usage:
   python scripts/list_missing_env_vars.py [--show-extras]
 """
 from __future__ import annotations
+
 import argparse
 import json
 import pathlib
 import re
-import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 CATALOG_JSON = ROOT / 'tools' / 'env_vars.json'
@@ -103,7 +103,7 @@ def _is_ignored(name: str) -> bool:
             return True
     return False
 
-def compute(members: set[str], catalog: set[str]):
+def compute(members: set[str], catalog: set[str]) -> tuple[list[str], list[str]]:
     missing = sorted([
         n for n in members
         if n not in catalog

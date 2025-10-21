@@ -23,10 +23,7 @@ phase; relative ordering vs other analytic groups unchanged.
 """
 from __future__ import annotations
 
-import os
 from typing import Any
-
-from prometheus_client import Gauge, Histogram  # type: ignore
 
 
 def init_vol_surface_metrics(reg: Any) -> None:  # pragma: no cover - deprecated shim

@@ -8,10 +8,10 @@ Assumes a prior run:  python -m mypy . > mypy_full.txt 2>&1
 """
 from __future__ import annotations
 
-from pathlib import Path
-import re
 import json
+import re
 from collections import Counter, defaultdict
+from pathlib import Path
 
 MYPY_OUTPUT_PATH = Path("mypy_full.txt")
 INVENTORY_PATH = Path("mypy_inventory.json")
@@ -38,7 +38,7 @@ for raw in MYPY_OUTPUT_PATH.read_text(errors="ignore").splitlines():
         per_file_codes[file][code] += 1
 
 TOP_N = 40
-print("Top files by error count (first {}):".format(TOP_N))
+print(f"Top files by error count (first {TOP_N}):")
 for file, count in per_file_counts.most_common(TOP_N):
     print(f"{count:4d}  {file}")
 

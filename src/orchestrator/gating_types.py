@@ -8,7 +8,9 @@ surface) so that legacy dynamic objects can satisfy them without
 modification. Future waves can refine as stability increases.
 """
 from __future__ import annotations
-from typing import Protocol, Any, runtime_checkable, TypedDict, Optional, Callable
+
+from typing import Any, Protocol, TypedDict, runtime_checkable
+
 
 class ProviderLike(Protocol):  # minimal surface used in readiness probe
     def get_ltp(self, symbol: str) -> Any: ...  # returns price-like (int/float/str)

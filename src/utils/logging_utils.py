@@ -1,8 +1,9 @@
 """Unified logging utilities for G6 Platform."""
 from __future__ import annotations
-import logging, os, sys
-from datetime import datetime
-from typing import Optional
+
+import logging
+import os
+import sys
 
 DEFAULT_FORMAT = '%(asctime)s - %(threadName)s - %(name)s - %(levelname)s - %(message)s'
 # Minimal console format (message only) used for cleaner terminal output.
@@ -12,7 +13,7 @@ SUPPRESSED_LOGGERS = [
     'urllib3', 'requests', 'kiteconnect.connection'
 ]
 
-def setup_logging(level: str = 'INFO', log_file: Optional[str] = None, fmt: str = DEFAULT_FORMAT) -> logging.Logger:
+def setup_logging(level: str = 'INFO', log_file: str | None = None, fmt: str = DEFAULT_FORMAT) -> logging.Logger:
     """Configure root logging.
 
     Console handler: by default uses minimal message-only format to satisfy

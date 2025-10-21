@@ -13,7 +13,10 @@ Env Vars:
   G6_ENV_CATALOG_ALLOW_PREFIXES=CSV of prefixes to ignore during comparison
 """
 from __future__ import annotations
-import os, re, json, sys
+
+import json
+import os
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -61,7 +64,7 @@ def scan_vars() -> set[str]:
                     found.add(m.group(1))
     return found
 
-def main():
+def main() -> int:
     catalog = load_catalog()
     code_vars = scan_vars()
     allow_prefixes = [p.strip() for p in os.getenv('G6_ENV_CATALOG_ALLOW_PREFIXES', '').split(',') if p.strip()]

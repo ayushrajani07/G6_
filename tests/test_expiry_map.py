@@ -20,7 +20,7 @@ def test_build_expiry_map_basic():
 
 def test_build_expiry_map_invalid_and_mixed():
     today = dt.date.today()
-    bad = dt.datetime.now()  # datetime (should normalize)
+    bad = dt.datetime.now()  # local-ok  # datetime (should normalize)
     insts = [
         {'instrument_token': 1, 'expiry': today},
         {'instrument_token': 2, 'exp': bad},  # datetime path

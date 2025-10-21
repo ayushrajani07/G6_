@@ -6,12 +6,21 @@ avoid tight coupling and hidden threads.
 """
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional, List, Dict
-import os, logging, threading, time, json
-from urllib import request as _rq, error as _er, parse as _parse
+import json
+import logging
+import os
+import threading
+import time
+from collections.abc import Mapping
+from datetime import UTC
+from typing import Any, Callable
+from urllib import error as _er
+from urllib import parse as _parse
+from urllib import request as _rq
+
+from scripts.summary.sse_state import PanelStateStore
 
 from .base import OutputPlugin, SummarySnapshot
-from scripts.summary.sse_state import PanelStateStore
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +31,7 @@ class SSEPanelsIngestor(OutputPlugin):  # pragma: no cover - network IO side eff
         self._url = os.getenv("G6_PANELS_SSE_URL")
         self._types = os.getenv("G6_PANELS_SSE_TYPES", "panel_full,panel_diff")
         self._stop = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._store = PanelStateStore()
         self._debug = os.getenv("G6_PANELS_SSE_DEBUG", "").lower() in {"1","true","yes","on"}
         self._last_event_id: int = 0
@@ -37,12 +46,29 @@ class SSEPanelsIngestor(OutputPlugin):  # pragma: no cover - network IO side eff
         if not self._metrics_enabled or self._m_events is not None:
             return
         try:
-            from prometheus_client import Counter, Histogram, Gauge
-            self._m_events = Counter("g6_sse_ingestor_events_total", "SSE panel events processed", ["type"])  # type: ignore[attr-defined]
-            self._m_errors = Counter("g6_sse_ingestor_errors_total", "SSE ingest errors")  # type: ignore[attr-defined]
-            self._m_latency = Histogram("g6_sse_ingestor_apply_seconds", "Latency applying SSE event", buckets=[0.001,0.002,0.005,0.01,0.025,0.05,0.1,0.25,0.5])  # type: ignore[attr-defined]
-            self._m_hb_stale = Gauge("g6_sse_heartbeat_stale_seconds", "Seconds since last SSE event (panels ingestor)")  # type: ignore[attr-defined]
-            self._m_hb_health = Gauge("g6_sse_heartbeat_health", "Heartbeat health state (enum: 0=init,1=ok,2=warn,3=stale)")  # type: ignore[attr-defined]
+            from prometheus_client import Counter, Gauge, Histogram
+            self._m_events = Counter(
+                "g6_sse_ingestor_events_total",
+                "SSE panel events processed",
+                ["type"],
+            )  # type: ignore[attr-defined]
+            self._m_errors = Counter(
+                "g6_sse_ingestor_errors_total",
+                "SSE ingest errors",
+            )  # type: ignore[attr-defined]
+            self._m_latency = Histogram(
+                "g6_sse_ingestor_apply_seconds",
+                "Latency applying SSE event",
+                buckets=[0.001, 0.002, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5],
+            )  # type: ignore[attr-defined]
+            self._m_hb_stale = Gauge(
+                "g6_sse_heartbeat_stale_seconds",
+                "Seconds since last SSE event (panels ingestor)",
+            )  # type: ignore[attr-defined]
+            self._m_hb_health = Gauge(
+                "g6_sse_heartbeat_health",
+                "Heartbeat health state (enum: 0=init,1=ok,2=warn,3=stale)",
+            )  # type: ignore[attr-defined]
         except Exception:
             self._metrics_enabled = False
 
@@ -92,7 +118,10 @@ class SSEPanelsIngestor(OutputPlugin):  # pragma: no cover - network IO side eff
             except Exception:
                 pass
         if isinstance(status, dict):
-            meta = status.setdefault('panel_push_meta', {}) if isinstance(status.get('panel_push_meta'), dict) else status.setdefault('panel_push_meta', {})
+            meta = status.get('panel_push_meta')
+            if not isinstance(meta, dict):
+                meta = {}
+                status['panel_push_meta'] = meta
             if isinstance(meta, dict):
                 meta['sse_events'] = counters
                 if overlay_enabled:
@@ -186,9 +215,9 @@ class SSEPanelsIngestor(OutputPlugin):  # pragma: no cover - network IO side eff
                     req.add_header('Last-Event-ID', str(self._last_event_id))
                 with _rq.urlopen(req, timeout=float(os.getenv('G6_PANELS_SSE_TIMEOUT','45'))) as resp:
                     backoff = 1.0
-                    data_lines: List[str] = []
-                    event_label: Optional[str] = None
-                    event_id_local: Optional[int] = None
+                    data_lines: list[str] = []
+                    event_label: str | None = None
+                    event_id_local: int | None = None
                     for raw in resp:
                         if self._stop.is_set():
                             break
@@ -228,7 +257,7 @@ class SSEPanelsIngestor(OutputPlugin):  # pragma: no cover - network IO side eff
                 break
             backoff = min(backoff * 2.0, 30.0)
 
-    def _build_url(self, types: List[str]) -> str:
+    def _build_url(self, types: list[str]) -> str:
         try:
             parsed = _parse.urlparse(self._url or '')
         except Exception:
@@ -241,7 +270,7 @@ class SSEPanelsIngestor(OutputPlugin):  # pragma: no cover - network IO side eff
         new_query = _parse.urlencode(qs, doseq=True)
         return _parse.urlunparse(parsed._replace(query=new_query))
 
-    def _dispatch_event(self, label: Optional[str], data_block: str, event_id_local: Optional[int]) -> None:
+    def _dispatch_event(self, label: str | None, data_block: str, event_id_local: int | None) -> None:
         try:
             payload = json.loads(data_block)
         except Exception:
@@ -263,7 +292,16 @@ class SSEPanelsIngestor(OutputPlugin):  # pragma: no cover - network IO side eff
         # If so, treat the entire payload as inner for recognized event types.
         if inner is None:
             # Heuristic: if payload already contains keys typical for an inner block, reuse it.
-            if isinstance(payload, dict) and any(k in payload for k in ('status','diff','counts','alert','alert_type','severity','index')):
+            likely_keys = (
+                'status',
+                'diff',
+                'counts',
+                'alert',
+                'alert_type',
+                'severity',
+                'index',
+            )
+            if isinstance(payload, dict) and any(k in payload for k in likely_keys):
                 inner = payload  # type: ignore[assignment]
         if inner is None:
             # As a last resort, if there is no explicit type but root keys look like a full or diff, infer.
@@ -276,7 +314,11 @@ class SSEPanelsIngestor(OutputPlugin):  # pragma: no cover - network IO side eff
                     inner = payload
         if inner is None:
             if self._debug:
-                logger.debug("SSEPanelsIngestor ignored event (no inner) type=%s keys=%s", ev_type, list(payload.keys()) if isinstance(payload, dict) else '?')
+                logger.debug(
+                    "SSEPanelsIngestor ignored event (no inner) type=%s keys=%s",
+                    ev_type,
+                    list(payload.keys()) if isinstance(payload, dict) else '?',
+                )
             return
         try:
             gen_val = payload.get('generation')
@@ -292,9 +334,15 @@ class SSEPanelsIngestor(OutputPlugin):  # pragma: no cover - network IO side eff
                 elif isinstance(inner.get('panel_full'), dict):
                     status_obj = inner.get('panel_full')
             if status_obj:
-                self._apply_metrics('panel_full', lambda: self._store.apply_panel_full(status_obj, gen_int))
+                self._apply_metrics(
+                    'panel_full',
+                    lambda: self._store.apply_panel_full(status_obj, gen_int),
+                )
             elif self._debug:
-                logger.debug("panel_full missing status object keys=%s", list(inner.keys()) if isinstance(inner, dict) else '?')
+                logger.debug(
+                    "panel_full missing status object keys=%s",
+                    list(inner.keys()) if isinstance(inner, dict) else '?',
+                )
         elif ev_type == 'panel_diff':
             diff_obj = None
             if isinstance(inner, dict):
@@ -303,9 +351,15 @@ class SSEPanelsIngestor(OutputPlugin):  # pragma: no cover - network IO side eff
                 elif isinstance(inner.get('panel_diff'), dict):
                     diff_obj = inner.get('panel_diff')
             if diff_obj:
-                self._apply_metrics('panel_diff', lambda: self._store.apply_panel_diff(diff_obj, gen_int))
+                self._apply_metrics(
+                    'panel_diff',
+                    lambda: self._store.apply_panel_diff(diff_obj, gen_int),
+                )
             elif self._debug:
-                logger.debug("panel_diff missing diff object keys=%s", list(inner.keys()) if isinstance(inner, dict) else '?')
+                logger.debug(
+                    "panel_diff missing diff object keys=%s",
+                    list(inner.keys()) if isinstance(inner, dict) else '?',
+                )
         elif ev_type == 'severity_state':
             # counts + specific alert type state
             counts_obj = inner.get('counts') if isinstance(inner.get('counts'), dict) else None
@@ -339,14 +393,14 @@ class SSEPanelsIngestor(OutputPlugin):  # pragma: no cover - network IO side eff
             ts_epoch = inner.get('ts')
             if isinstance(ts_epoch, (int, float)):
                 try:
-                    from datetime import datetime, timezone
-                    ts_iso = datetime.fromtimestamp(ts_epoch, tz=timezone.utc).isoformat()
+                    from datetime import datetime
+                    ts_iso = datetime.fromtimestamp(ts_epoch, tz=UTC).isoformat()
                 except Exception:
-                    from datetime import datetime, timezone
-                    ts_iso = datetime.now(timezone.utc).isoformat()
+                    from datetime import datetime
+                    ts_iso = datetime.now(UTC).isoformat()
             else:
-                from datetime import datetime, timezone
-                ts_iso = datetime.now(timezone.utc).isoformat()
+                from datetime import datetime
+                ts_iso = datetime.now(UTC).isoformat()
             message = inner.get('message')
             if isinstance(inner_alert, dict):
                 inner_msg = inner_alert.get('message')
@@ -371,22 +425,32 @@ class SSEPanelsIngestor(OutputPlugin):  # pragma: no cover - network IO side eff
                 pass
         else:
             if self._debug:
-                logger.debug("Unhandled SSE event type=%s keys=%s", ev_type, list(inner.keys()) if isinstance(inner, dict) else '?')
+                logger.debug(
+                    "Unhandled SSE event type=%s keys=%s",
+                    ev_type,
+                    list(inner.keys()) if isinstance(inner, dict) else '?',
+                )
 
-    def _apply_metrics(self, ev_type: str, fn) -> None:
+    def _apply_metrics(self, ev_type: str, fn: Callable[[], Any]) -> None:
         start = time.time()
         try:
             fn()
             if self._metrics_enabled and self._m_events is not None:
-                try: self._m_events.labels(ev_type).inc()  # type: ignore[attr-defined]
-                except Exception: pass
+                try:
+                    self._m_events.labels(ev_type).inc()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
         except Exception:
             if self._metrics_enabled and self._m_errors is not None:
-                try: self._m_errors.inc()  # type: ignore[attr-defined]
-                except Exception: pass
+                try:
+                    self._m_errors.inc()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
         finally:
             if self._metrics_enabled and self._m_latency is not None:
-                try: self._m_latency.observe(time.time() - start)  # type: ignore[attr-defined]
-                except Exception: pass
+                try:
+                    self._m_latency.observe(time.time() - start)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
 
 __all__ = ["SSEPanelsIngestor"]

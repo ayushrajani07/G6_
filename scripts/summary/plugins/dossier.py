@@ -1,24 +1,28 @@
-from __future__ import annotations
 """Minimal DossierWriter plugin.
 
 Purpose: Periodically write a unified model snapshot JSON file using
 `assemble_model_snapshot` (status + optional panels). Activates automatically when a dossier path env var is provided.
 
 Env Variables:
-  G6_SUMMARY_DOSSIER_PATH            = output file path (required to enable plugin)
+    G6_SUMMARY_DOSSIER_PATH            = output file path (required to enable plugin)
     G6_SUMMARY_DOSSIER_INTERVAL_SEC    = min seconds between writes (default 5)
 
 Behavior:
-  - On each process() call (each loop cycle), checks elapsed since last write.
-  - If interval elapsed, assembles snapshot and atomically writes JSON.
-  - Best-effort; errors are logged and swallowed (won't break loop).
-  - Writes via atomic replace if possible; fallback to simple write on failure.
+    - On each process() call (each loop cycle), checks elapsed since last write.
+    - If interval elapsed, assembles snapshot and atomically writes JSON.
+    - Best-effort; errors are logged and swallowed (won't break loop).
+    - Writes via atomic replace if possible; fallback to simple write on failure.
 
 Out of Scope (later phases): SSE merge, derivations registry, compression, diffing.
 """
-from dataclasses import asdict
-from typing import Mapping, Any
-import os, time, json, tempfile
+from __future__ import annotations
+
+import json
+import os
+import tempfile
+import time
+from collections.abc import Mapping
+from typing import Any
 
 from .base import OutputPlugin, SummarySnapshot
 
@@ -64,8 +68,14 @@ class DossierWriter(OutputPlugin):
         if model_snap is None:
             try:
                 from src.summary.unified.model import assemble_model_snapshot
-                runtime_status = dict(snap.status) if isinstance(snap.status, Mapping) else None
-                model_snap, diag = assemble_model_snapshot(runtime_status=runtime_status, panels_dir=self._panels_dir, include_panels=True)
+                runtime_status = (
+                    dict(snap.status) if isinstance(snap.status, Mapping) else None
+                )
+                model_snap, diag = assemble_model_snapshot(
+                    runtime_status=runtime_status,
+                    panels_dir=self._panels_dir,
+                    include_panels=True,
+                )
                 diag_warnings = list(diag.get('warnings', [])) if isinstance(diag.get('warnings'), list) else []
             except Exception:
                 model_snap = None

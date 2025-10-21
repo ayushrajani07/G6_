@@ -1,12 +1,13 @@
 from __future__ import annotations
+
 """Environment adapter for collectors.
 
 Provides consistent helpers to parse environment variables with sane defaults
 and shared truthy semantics. Centralizes behavior to simplify testing and
 future governance (e.g., lint for direct os.getenv usage).
 """
-from typing import Any, Callable
 import os
+from collections.abc import Callable
 
 _TRUTHY = {"1","true","yes","on","y"}
 

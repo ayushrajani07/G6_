@@ -12,14 +12,21 @@ Environment:
   G6_SBOM_INCLUDE_HASH=1 to attempt hashing installed package distributions (best-effort, may be slow)
 """
 from __future__ import annotations
-import argparse, json, os, sys, hashlib, importlib, pkgutil
-from typing import Dict, Any, List
+
+import argparse
+import hashlib
+import importlib
+import importlib.util
+import json
+import os
+import sys
+from typing import Any
 
 
-def _read_requirements(path: str) -> List[str]:
-    out: List[str] = []
+def _read_requirements(path: str) -> list[str]:
+    out: list[str] = []
     try:
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith('#'):
@@ -33,7 +40,7 @@ def _read_requirements(path: str) -> List[str]:
     return out
 
 
-def _hash_dist(dist) -> str | None:  # type: ignore
+def _hash_dist(dist: object) -> str | None:
     if not dist:
         return None
     try:
@@ -63,8 +70,8 @@ def _hash_dist(dist) -> str | None:  # type: ignore
         return None
 
 
-def build_minimal_sbom(requirements: List[str], include_hash: bool) -> Dict[str, Any]:
-    components: List[Dict[str, Any]] = []
+def build_minimal_sbom(requirements: list[str], include_hash: bool) -> dict[str, Any]:
+    components: list[dict[str, Any]] = []
     seen = set()
     for req in requirements:
         pkg = req.split('==')[0].split('>=')[0].split('<=')[0].strip()
@@ -74,12 +81,14 @@ def build_minimal_sbom(requirements: List[str], include_hash: bool) -> Dict[str,
         version = None
         try:
             spec = importlib.util.find_spec(pkg)
-            if spec and spec.loader:
+            if spec is not None and spec.loader is not None:
                 mod = importlib.import_module(pkg)
-                version = getattr(mod, '__version__', None)
+                ver = getattr(mod, '__version__', None)
+                if isinstance(ver, str):
+                    version = ver
         except Exception:
             pass
-        comp: Dict[str, Any] = {
+        comp: dict[str, Any] = {
             'name': pkg,
             'version': version,
             'purl': f'pkg:pypi/{pkg}@{version}' if version else f'pkg:pypi/{pkg}'
@@ -110,7 +119,7 @@ def build_minimal_sbom(requirements: List[str], include_hash: bool) -> Dict[str,
     }
 
 
-def main(argv=None) -> int:
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser()
     p.add_argument('--requirements', default='requirements.txt')
     p.add_argument('--output', '-o', default='sbom.json')

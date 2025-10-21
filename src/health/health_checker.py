@@ -5,31 +5,31 @@ health/health_checker.py
 Runs health checks for system components and records results in Prometheus metrics.
 Supports per-index checks automatically from index_registry.
 """
-import time
-import logging
-from typing import Callable, Optional, Dict, Any, cast
 import importlib
+import logging
+import time
+from collections.abc import Callable
+from typing import Any, cast
 
-def _load_list_indices() -> Callable[[], Dict[str, Any]]:
+
+def _load_list_indices() -> Callable[[], dict[str, Any]]:
     try:  # attempt dynamic import; avoids static unresolved import error
         module = importlib.import_module("src.utils.index_registry")
         fn = getattr(module, "list_indices", None)
         if callable(fn):
-            return cast(Callable[[], Dict[str, Any]], fn)
+            return cast(Callable[[], dict[str, Any]], fn)
     except Exception:
         pass
-    def _fallback() -> Dict[str, Any]:
+    def _fallback() -> dict[str, Any]:
         return {}
     return _fallback
 
 list_indices = _load_list_indices()
 
 # Add this before launching the subprocess
-import sys
-import os
-from src.metrics import setup_metrics_server, MetricsRegistry  # facade import
+from src.metrics import MetricsRegistry, setup_metrics_server  # facade import
 
-_METRICS_SINGLETON: Optional[MetricsRegistry] = None
+_METRICS_SINGLETON: MetricsRegistry | None = None
 
 def metrics_init() -> MetricsRegistry:
     global _METRICS_SINGLETON
@@ -40,7 +40,7 @@ def metrics_init() -> MetricsRegistry:
 
 logger = logging.getLogger(__name__)
 
-def check_component(name: str, check_fn: Callable[[], bool], index: Optional[str] = None) -> None:
+def check_component(name: str, check_fn: Callable[[], bool], index: str | None = None) -> None:
     """
     Run a health check for a given component and record metrics.
 
@@ -57,7 +57,7 @@ def check_component(name: str, check_fn: Callable[[], bool], index: Optional[str
         try:
             from prometheus_client import Gauge  # local import to avoid hard dep at module load
             status_metric = Gauge('g6_health_check_status', 'Health check status', ['component', 'index'])
-            setattr(metrics, 'health_check_status', status_metric)
+            metrics.health_check_status = status_metric
         except Exception:
             status_metric = None
     duration_metric = getattr(metrics, 'health_check_duration', None)
@@ -65,7 +65,7 @@ def check_component(name: str, check_fn: Callable[[], bool], index: Optional[str
         try:
             from prometheus_client import Gauge
             duration_metric = Gauge('g6_health_check_duration_seconds', 'Health check duration', ['component', 'index'])
-            setattr(metrics, 'health_check_duration', duration_metric)
+            metrics.health_check_duration = duration_metric
         except Exception:
             duration_metric = None
 

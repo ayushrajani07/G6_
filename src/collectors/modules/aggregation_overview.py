@@ -12,8 +12,9 @@ Public API:
         -> (representative_day_width, snapshot_base_time)
 """
 from __future__ import annotations
-from typing import Any, Dict, Tuple
+
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +24,11 @@ __all__ = ["emit_overview_aggregation"]
 def emit_overview_aggregation(
     ctx: Any,
     index_symbol: str,
-    pcr_snapshot: Dict[str, Any] | None,
+    pcr_snapshot: dict[str, Any] | None,
     aggregation_state: Any,
     per_index_ts: Any,
     expected_expiries: Any,
-) -> Tuple[int, Any]:
+) -> tuple[int, Any]:
     representative_day_width = getattr(aggregation_state, 'representative_day_width', 0)
     snapshot_base_time = getattr(aggregation_state, 'snapshot_base_time', None) or per_index_ts
     try:

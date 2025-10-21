@@ -10,10 +10,12 @@ Public API:
                        local_compute_greeks, allow_per_option_metrics, mp_manager, mem_flags)
 """
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Any, Protocol, MutableMapping, Mapping, Callable, cast
-import logging
+
 import importlib
+import logging
+from collections.abc import Callable, Mapping, MutableMapping
+from dataclasses import dataclass
+from typing import Any, Protocol, cast
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +64,7 @@ def run_greeks_compute(
     allow_per_option_metrics: bool,
     mp_manager: Any,
     mem_flags: Any,
+    index_price: float | None = None,
 ) -> None:
     """Compute greeks for an expiry, mutating ``enriched_data`` in place.
 
@@ -77,8 +80,8 @@ def run_greeks_compute(
         expiry_rule=expiry_rule,
         expiry_date=expiry_date,
         collection_time=per_index_ts,
-        # TODO: integrate actual upstream index price once available; sentinel always None for now
-        index_price=None,
+        # Use provided upstream index price when available
+        index_price=index_price,
         risk_free_rate=risk_free_rate,
         compute_greeks=local_compute_greeks,
         allow_per_option_metrics=allow_per_option_metrics,

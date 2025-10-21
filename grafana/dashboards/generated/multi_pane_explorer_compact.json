@@ -12,87 +12,14 @@
     "list": []
   },
   "g6_meta": {
-    "alerts_count": 0,
-    "alerts_panel": false,
-    "band_pct": 20.0,
+    "band_pct": 25,
     "compact": true,
-    "description": "Compact variant of multi-pane explorer (reduced height, no cumulative panel)",
-    "enriched": true,
+    "description": "",
     "explorer": true,
     "families": [
-      "system"
+      "core"
     ],
-    "generator_version": "phaseDEF-1c",
-    "metric_kinds": {
-      "avg_tp": "gauge",
-      "avg_tp_ema": "gauge",
-      "avg_tp_mean": "gauge",
-      "g6_api_calls_total": "counter",
-      "g6_api_response_latency_ms": "histogram",
-      "g6_api_response_time_ms": "gauge",
-      "g6_api_success_rate_percent": "gauge",
-      "g6_build_config_hash_info": "gauge",
-      "g6_bus_events_dropped_total": "counter",
-      "g6_bus_events_published_total": "counter",
-      "g6_bus_publish_latency_ms": "histogram",
-      "g6_bus_queue_retained_events": "gauge",
-      "g6_bus_subscriber_lag_events": "gauge",
-      "g6_cardinality_guard_allowed_growth_percent": "gauge",
-      "g6_cardinality_guard_growth_percent": "gauge",
-      "g6_cardinality_guard_last_run_epoch": "gauge",
-      "g6_cardinality_guard_new_groups_total": "gauge",
-      "g6_cardinality_guard_offenders_total": "gauge",
-      "g6_cardinality_series_total": "gauge",
-      "g6_cs_ingest_backlog_rows": "gauge",
-      "g6_cs_ingest_backpressure_flag": "gauge",
-      "g6_cs_ingest_bytes_total": "counter",
-      "g6_cs_ingest_failures_total": "counter",
-      "g6_cs_ingest_latency_ms": "histogram",
-      "g6_cs_ingest_retries_total": "counter",
-      "g6_cs_ingest_rows_total": "counter",
-      "g6_emission_failure_once_total": "counter",
-      "g6_emission_failures_total": "counter",
-      "g6_empty_quote_fields_total": "counter",
-      "g6_expiry_resolve_fail_total": "counter",
-      "g6_index_zero_price_fallback_total": "counter",
-      "g6_metric_duplicates_total": "counter",
-      "g6_metrics_batch_adaptive_target": "gauge",
-      "g6_metrics_batch_flush_duration_ms": "histogram",
-      "g6_metrics_batch_flush_increments": "gauge",
-      "g6_metrics_batch_queue_depth": "gauge",
-      "g6_metrics_spec_hash_info": "gauge",
-      "g6_option_contracts_active": "gauge",
-      "g6_option_contracts_new_total": "counter",
-      "g6_option_iv_mean": "gauge",
-      "g6_option_open_interest": "gauge",
-      "g6_option_spread_bps_mean": "gauge",
-      "g6_option_volume_24h": "gauge",
-      "g6_panel_diff_bytes_last": "gauge",
-      "g6_panel_diff_bytes_total": "counter",
-      "g6_panel_diff_truncated_total": "counter",
-      "g6_panel_diff_writes_total": "counter",
-      "g6_provider_failover_total": "counter",
-      "g6_provider_mode": "gauge",
-      "g6_quote_avg_price_fallback_total": "counter",
-      "g6_quote_enriched_total": "counter",
-      "g6_quote_missing_volume_oi_total": "counter",
-      "g6_sse_flush_seconds": "histogram",
-      "g6_sse_trace_stages_total": "counter",
-      "g6_stale_active": "gauge",
-      "g6_stale_cycles_total": "counter",
-      "g6_stale_system_active": "gauge",
-      "g6_stale_system_cycles_total": "counter",
-      "g6_stream_append_total": "counter",
-      "g6_stream_conflict_total": "counter",
-      "g6_stream_skipped_total": "counter",
-      "g6_stream_state_persist_errors_total": "counter",
-      "tp": "gauge",
-      "tp_ema": "gauge",
-      "tp_mean": "gauge"
-    },
-    "placeholder_panels": false,
-    "spec_hash": "0533405d11f9f66e",
-    "ultra": false
+    "spec_hash": "b1fb37bf991f1a94"
   },
   "panels": [
     {
@@ -104,89 +31,11 @@
         "defaults": {
           "unit": "short"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "C"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "semi-dark-yellow",
-                  "mode": "fixed"
-                }
-              },
-              {
-                "id": "custom.lineWidth",
-                "value": 2
-              },
-              {
-                "id": "custom.lineStyle",
-                "value": {
-                  "dash": [
-                    6,
-                    3
-                  ],
-                  "fill": "dash"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "D"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "red",
-                  "mode": "fixed"
-                }
-              },
-              {
-                "id": "custom.lineWidth",
-                "value": 1
-              },
-              {
-                "id": "custom.lineStyle",
-                "value": {
-                  "dash": [
-                    2,
-                    2
-                  ],
-                  "fill": "dash"
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "E"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "green",
-                  "mode": "fixed"
-                }
-              },
-              {
-                "id": "custom.lineWidth",
-                "value": 3
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "g6_meta": {
         "group": "explorer",
-        "panel_uuid": "dbc4e63ae180ddfa",
+        "panel_uuid": "4da7268b0de023ce",
         "source": "explorer_template"
       },
       "gridPos": {
@@ -195,7 +44,7 @@
         "x": 0,
         "y": 0
       },
-      "id": 3687114298,
+      "id": 1302800011,
       "repeat": "metric",
       "repeatDirection": "h",
       "targets": [
@@ -208,15 +57,15 @@
           "refId": "B"
         },
         {
-          "expr": "(($overlay == 'fast') or ($overlay == 'ultra')) * sum(rate($metric[30s]))",
+          "expr": "sum(rate($metric[30s])) and ($overlay == 'fast')",
           "refId": "C"
         },
         {
-          "expr": "($overlay == 'ultra') * sum(rate($metric[15s]))",
+          "expr": "sum(rate($metric[15s])) and ($overlay == 'ultra')",
           "refId": "D"
         },
         {
-          "expr": "($overlay == 'ultra') * avg_over_time(sum(rate($metric[30s]))[2m:30s])",
+          "expr": "avg_over_time($metric[5m])",
           "refId": "E"
         }
       ],
@@ -268,209 +117,31 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ratio"
-        },
-        "overrides": []
-      },
-      "g6_meta": {
-        "group": "explorer",
-        "panel_uuid": "2a15e09248db9d09",
-        "source": "explorer_template"
-      },
-      "gridPos": {
-        "h": 6,
-        "w": 12,
-        "x": 0,
-        "y": 6
-      },
-      "id": 706076818,
-      "repeat": "metric",
-      "repeatDirection": "h",
-      "targets": [
-        {
-          "expr": "(sum(rate($metric[5m])) / clamp_min(sum(rate($metric[30m])),1))",
-          "refId": "A"
-        }
-      ],
-      "title": "$metric rate ratio 5m/30m",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "PROM"
-      },
-      "fieldConfig": {
-        "defaults": {
           "unit": "short"
         },
         "overrides": [
           {
             "matcher": {
-              "id": "byFrameRefID",
-              "options": "C"
-            },
-            "properties": [
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "green",
-                      "value": 0
-                    },
-                    {
-                      "color": "green",
-                      "value": 0.8
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 1.2
-                    },
-                    {
-                      "color": "red",
-                      "value": 1.2000001
-                    }
-                  ]
-                }
-              },
-              {
-                "id": "unit",
-                "value": "ratio"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "D"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "percentunit"
-              },
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "red",
-                      "value": -999
-                    },
-                    {
-                      "color": "red",
-                      "value": -0.2
-                    },
-                    {
-                      "color": "yellow",
-                      "value": -0.05
-                    },
-                    {
-                      "color": "green",
-                      "value": 0.05
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 0.2
-                    },
-                    {
-                      "color": "red",
-                      "value": 0.200000001
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "E"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "ratio"
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "F"
-            },
-            "properties": [
-              {
-                "id": "unit",
-                "value": "short"
-              }
-            ]
-          },
-          {
-            "matcher": {
               "id": "byRegexp",
               "options": ".*D$"
             },
-            "properties": [
-              {
-                "id": "thresholds",
-                "value": {
-                  "mode": "absolute",
-                  "steps": [
-                    {
-                      "color": "red",
-                      "value": -999
-                    },
-                    {
-                      "color": "red",
-                      "value": -0.2
-                    },
-                    {
-                      "color": "yellow",
-                      "value": -0.05
-                    },
-                    {
-                      "color": "green",
-                      "value": 0.05
-                    },
-                    {
-                      "color": "yellow",
-                      "value": 0.2
-                    },
-                    {
-                      "color": "red",
-                      "value": 0.200000001
-                    }
-                  ]
-                }
-              },
-              {
-                "id": "unit",
-                "value": "percentunit"
-              }
-            ]
+            "properties": []
           }
         ]
       },
       "g6_meta": {
         "explorer_kind": "histogram_summary",
         "group": "explorer",
-        "panel_uuid": "76da4e6b8f473bc0",
+        "panel_uuid": "4296de04dec47498",
         "source": "explorer_template"
       },
       "gridPos": {
-        "h": 6,
-        "w": 24,
+        "h": 8,
+        "w": 12,
         "x": 0,
-        "y": 12
+        "y": 8
       },
-      "id": 1994018411,
-      "options": {
-        "showHeader": true
-      },
+      "id": 1117183492,
       "repeat": "metric_hist",
       "repeatDirection": "h",
       "targets": [
@@ -487,12 +158,12 @@
           "refId": "C"
         },
         {
-          "expr": "(($metric_hist:$q_5m - $metric_hist:$q_30m) / clamp_min($metric_hist:$q_30m, 0.001))",
+          "expr": "($metric_hist:$q_5m - $metric_hist:$q_30m) / clamp_min($metric_hist:$q_30m, 0.000001)",
           "refId": "D"
         }
       ],
-      "title": "$metric_hist $q summary (5m vs 30m)",
-      "type": "table"
+      "title": "Histogram Summary",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -501,103 +172,44 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "ms"
+          "unit": "short"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "C"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "orange",
-                  "mode": "fixed"
-                }
-              },
-              {
-                "id": "custom.lineStyle",
-                "value": {
-                  "dash": [
-                    4,
-                    4
-                  ],
-                  "fill": "dash"
-                }
-              },
-              {
-                "id": "custom.lineWidth",
-                "value": 1
-              }
-            ]
-          },
-          {
-            "matcher": {
-              "id": "byFrameRefID",
-              "options": "D"
-            },
-            "properties": [
-              {
-                "id": "color",
-                "value": {
-                  "fixedColor": "orange",
-                  "mode": "fixed"
-                }
-              },
-              {
-                "id": "custom.lineStyle",
-                "value": {
-                  "dash": [
-                    4,
-                    4
-                  ],
-                  "fill": "dash"
-                }
-              },
-              {
-                "id": "custom.lineWidth",
-                "value": 1
-              }
-            ]
-          }
-        ]
+        "overrides": []
       },
       "g6_meta": {
         "explorer_kind": "histogram_window",
         "group": "explorer",
-        "panel_uuid": "6821199b608fd442",
+        "panel_uuid": "3380bfdf59ff618f",
         "source": "explorer_template"
       },
       "gridPos": {
-        "h": 6,
-        "w": 24,
-        "x": 0,
-        "y": 18
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
       },
-      "id": 1746999707,
+      "id": 864075743,
       "repeat": "metric_hist",
       "repeatDirection": "h",
       "targets": [
         {
-          "expr": "$metric_hist:$q_5m",
+          "expr": "$q_5m",
           "refId": "A"
         },
         {
-          "expr": "$metric_hist:$q_30m",
+          "expr": "$q_30m",
           "refId": "B"
         },
         {
-          "expr": "($metric_hist:$q_30m) * (1 - 0.200000)",
+          "expr": "$q_30m * (1 - 0.250000)",
           "refId": "C"
         },
         {
-          "expr": "($metric_hist:$q_30m) * (1 + 0.200000)",
+          "expr": "$q_30m * (1 + 0.250000)",
           "refId": "D"
         }
       ],
-      "title": "$metric_hist $q 5m vs 30m",
+      "title": "Histogram Window",
       "type": "timeseries"
     },
     {
@@ -614,26 +226,23 @@
       "g6_meta": {
         "explorer_kind": "alerts_context",
         "group": "explorer",
-        "panel_uuid": "1c729662b6062213",
+        "panel_uuid": "50d4a7abcf847ce0",
         "source": "explorer_template"
       },
       "gridPos": {
-        "h": 6,
-        "w": 24,
+        "h": 8,
+        "w": 12,
         "x": 0,
-        "y": 24
+        "y": 16
       },
-      "id": 477271650,
-      "options": {
-        "showHeader": true
-      },
+      "id": 1356113835,
       "targets": [
         {
           "expr": "ALERTS{alertstate='firing'}",
           "refId": "A"
         }
       ],
-      "title": "Active Alerts (firing)",
+      "title": "Alerts Context",
       "type": "table"
     }
   ],
@@ -641,7 +250,6 @@
   "schemaVersion": 39,
   "tags": [
     "explorer",
-    "experimental",
     "compact",
     "g6",
     "generated"
@@ -649,835 +257,34 @@
   "templating": {
     "list": [
       {
-        "current": {
-          "text": "avg_tp",
-          "value": "avg_tp"
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PROM"
         },
-        "includeAll": false,
         "label": "Metric",
         "multi": true,
         "name": "metric",
-        "options": [
-          {
-            "selected": true,
-            "text": "avg_tp",
-            "value": "avg_tp"
-          },
-          {
-            "selected": false,
-            "text": "avg_tp_ema",
-            "value": "avg_tp_ema"
-          },
-          {
-            "selected": false,
-            "text": "avg_tp_mean",
-            "value": "avg_tp_mean"
-          },
-          {
-            "selected": false,
-            "text": "g6_api_calls_total",
-            "value": "g6_api_calls_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_api_response_latency_ms",
-            "value": "g6_api_response_latency_ms"
-          },
-          {
-            "selected": false,
-            "text": "g6_api_response_time_ms",
-            "value": "g6_api_response_time_ms"
-          },
-          {
-            "selected": false,
-            "text": "g6_api_success_rate_percent",
-            "value": "g6_api_success_rate_percent"
-          },
-          {
-            "selected": false,
-            "text": "g6_build_config_hash_info",
-            "value": "g6_build_config_hash_info"
-          },
-          {
-            "selected": false,
-            "text": "g6_bus_events_dropped_total",
-            "value": "g6_bus_events_dropped_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_bus_events_published_total",
-            "value": "g6_bus_events_published_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_bus_publish_latency_ms",
-            "value": "g6_bus_publish_latency_ms"
-          },
-          {
-            "selected": false,
-            "text": "g6_bus_queue_retained_events",
-            "value": "g6_bus_queue_retained_events"
-          },
-          {
-            "selected": false,
-            "text": "g6_bus_subscriber_lag_events",
-            "value": "g6_bus_subscriber_lag_events"
-          },
-          {
-            "selected": false,
-            "text": "g6_cardinality_guard_allowed_growth_percent",
-            "value": "g6_cardinality_guard_allowed_growth_percent"
-          },
-          {
-            "selected": false,
-            "text": "g6_cardinality_guard_growth_percent",
-            "value": "g6_cardinality_guard_growth_percent"
-          },
-          {
-            "selected": false,
-            "text": "g6_cardinality_guard_last_run_epoch",
-            "value": "g6_cardinality_guard_last_run_epoch"
-          },
-          {
-            "selected": false,
-            "text": "g6_cardinality_guard_new_groups_total",
-            "value": "g6_cardinality_guard_new_groups_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_cardinality_guard_offenders_total",
-            "value": "g6_cardinality_guard_offenders_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_cardinality_series_total",
-            "value": "g6_cardinality_series_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_cs_ingest_backlog_rows",
-            "value": "g6_cs_ingest_backlog_rows"
-          },
-          {
-            "selected": false,
-            "text": "g6_cs_ingest_backpressure_flag",
-            "value": "g6_cs_ingest_backpressure_flag"
-          },
-          {
-            "selected": false,
-            "text": "g6_cs_ingest_bytes_total",
-            "value": "g6_cs_ingest_bytes_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_cs_ingest_failures_total",
-            "value": "g6_cs_ingest_failures_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_cs_ingest_latency_ms",
-            "value": "g6_cs_ingest_latency_ms"
-          },
-          {
-            "selected": false,
-            "text": "g6_cs_ingest_retries_total",
-            "value": "g6_cs_ingest_retries_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_cs_ingest_rows_total",
-            "value": "g6_cs_ingest_rows_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_emission_failure_once_total",
-            "value": "g6_emission_failure_once_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_emission_failures_total",
-            "value": "g6_emission_failures_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_empty_quote_fields_total",
-            "value": "g6_empty_quote_fields_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_expiry_resolve_fail_total",
-            "value": "g6_expiry_resolve_fail_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_index_zero_price_fallback_total",
-            "value": "g6_index_zero_price_fallback_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_metric_duplicates_total",
-            "value": "g6_metric_duplicates_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_metrics_batch_adaptive_target",
-            "value": "g6_metrics_batch_adaptive_target"
-          },
-          {
-            "selected": false,
-            "text": "g6_metrics_batch_flush_duration_ms",
-            "value": "g6_metrics_batch_flush_duration_ms"
-          },
-          {
-            "selected": false,
-            "text": "g6_metrics_batch_flush_increments",
-            "value": "g6_metrics_batch_flush_increments"
-          },
-          {
-            "selected": false,
-            "text": "g6_metrics_batch_queue_depth",
-            "value": "g6_metrics_batch_queue_depth"
-          },
-          {
-            "selected": false,
-            "text": "g6_metrics_spec_hash_info",
-            "value": "g6_metrics_spec_hash_info"
-          },
-          {
-            "selected": false,
-            "text": "g6_option_contracts_active",
-            "value": "g6_option_contracts_active"
-          },
-          {
-            "selected": false,
-            "text": "g6_option_contracts_new_total",
-            "value": "g6_option_contracts_new_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_option_iv_mean",
-            "value": "g6_option_iv_mean"
-          },
-          {
-            "selected": false,
-            "text": "g6_option_open_interest",
-            "value": "g6_option_open_interest"
-          },
-          {
-            "selected": false,
-            "text": "g6_option_spread_bps_mean",
-            "value": "g6_option_spread_bps_mean"
-          },
-          {
-            "selected": false,
-            "text": "g6_option_volume_24h",
-            "value": "g6_option_volume_24h"
-          },
-          {
-            "selected": false,
-            "text": "g6_panel_diff_bytes_last",
-            "value": "g6_panel_diff_bytes_last"
-          },
-          {
-            "selected": false,
-            "text": "g6_panel_diff_bytes_total",
-            "value": "g6_panel_diff_bytes_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_panel_diff_truncated_total",
-            "value": "g6_panel_diff_truncated_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_panel_diff_writes_total",
-            "value": "g6_panel_diff_writes_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_provider_failover_total",
-            "value": "g6_provider_failover_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_provider_mode",
-            "value": "g6_provider_mode"
-          },
-          {
-            "selected": false,
-            "text": "g6_quote_avg_price_fallback_total",
-            "value": "g6_quote_avg_price_fallback_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_quote_enriched_total",
-            "value": "g6_quote_enriched_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_quote_missing_volume_oi_total",
-            "value": "g6_quote_missing_volume_oi_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_sse_flush_seconds",
-            "value": "g6_sse_flush_seconds"
-          },
-          {
-            "selected": false,
-            "text": "g6_sse_trace_stages_total",
-            "value": "g6_sse_trace_stages_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_stale_active",
-            "value": "g6_stale_active"
-          },
-          {
-            "selected": false,
-            "text": "g6_stale_cycles_total",
-            "value": "g6_stale_cycles_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_stale_system_active",
-            "value": "g6_stale_system_active"
-          },
-          {
-            "selected": false,
-            "text": "g6_stale_system_cycles_total",
-            "value": "g6_stale_system_cycles_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_stream_append_total",
-            "value": "g6_stream_append_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_stream_conflict_total",
-            "value": "g6_stream_conflict_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_stream_skipped_total",
-            "value": "g6_stream_skipped_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_stream_state_persist_errors_total",
-            "value": "g6_stream_state_persist_errors_total"
-          },
-          {
-            "selected": false,
-            "text": "tp",
-            "value": "tp"
-          },
-          {
-            "selected": false,
-            "text": "tp_ema",
-            "value": "tp_ema"
-          },
-          {
-            "selected": false,
-            "text": "tp_mean",
-            "value": "tp_mean"
-          }
-        ],
-        "query": "avg_tp,avg_tp_ema,avg_tp_mean,g6_api_calls_total,g6_api_response_latency_ms,g6_api_response_time_ms,g6_api_success_rate_percent,g6_build_config_hash_info,g6_bus_events_dropped_total,g6_bus_events_published_total,g6_bus_publish_latency_ms,g6_bus_queue_retained_events,g6_bus_subscriber_lag_events,g6_cardinality_guard_allowed_growth_percent,g6_cardinality_guard_growth_percent,g6_cardinality_guard_last_run_epoch,g6_cardinality_guard_new_groups_total,g6_cardinality_guard_offenders_total,g6_cardinality_series_total,g6_cs_ingest_backlog_rows,g6_cs_ingest_backpressure_flag,g6_cs_ingest_bytes_total,g6_cs_ingest_failures_total,g6_cs_ingest_latency_ms,g6_cs_ingest_retries_total,g6_cs_ingest_rows_total,g6_emission_failure_once_total,g6_emission_failures_total,g6_empty_quote_fields_total,g6_expiry_resolve_fail_total,g6_index_zero_price_fallback_total,g6_metric_duplicates_total,g6_metrics_batch_adaptive_target,g6_metrics_batch_flush_duration_ms,g6_metrics_batch_flush_increments,g6_metrics_batch_queue_depth,g6_metrics_spec_hash_info,g6_option_contracts_active,g6_option_contracts_new_total,g6_option_iv_mean,g6_option_open_interest,g6_option_spread_bps_mean,g6_option_volume_24h,g6_panel_diff_bytes_last,g6_panel_diff_bytes_total,g6_panel_diff_truncated_total,g6_panel_diff_writes_total,g6_provider_failover_total,g6_provider_mode,g6_quote_avg_price_fallback_total,g6_quote_enriched_total,g6_quote_missing_volume_oi_total,g6_sse_flush_seconds,g6_sse_trace_stages_total,g6_stale_active,g6_stale_cycles_total,g6_stale_system_active,g6_stale_system_cycles_total,g6_stream_append_total,g6_stream_conflict_total,g6_stream_skipped_total,g6_stream_state_persist_errors_total,tp,tp_ema,tp_mean",
-        "type": "custom"
+        "query": "label_values(up, job)",
+        "type": "query"
       },
       {
-        "current": {
-          "text": "g6_api_calls_total",
-          "value": "g6_api_calls_total"
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PROM"
         },
-        "includeAll": false,
-        "label": "Metric (rate)",
-        "multi": true,
-        "name": "metric_rate",
-        "options": [
-          {
-            "selected": true,
-            "text": "g6_api_calls_total",
-            "value": "g6_api_calls_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_bus_events_dropped_total",
-            "value": "g6_bus_events_dropped_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_bus_events_published_total",
-            "value": "g6_bus_events_published_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_cardinality_guard_new_groups_total",
-            "value": "g6_cardinality_guard_new_groups_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_cardinality_guard_offenders_total",
-            "value": "g6_cardinality_guard_offenders_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_cardinality_series_total",
-            "value": "g6_cardinality_series_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_cs_ingest_bytes_total",
-            "value": "g6_cs_ingest_bytes_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_cs_ingest_failures_total",
-            "value": "g6_cs_ingest_failures_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_cs_ingest_retries_total",
-            "value": "g6_cs_ingest_retries_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_cs_ingest_rows_total",
-            "value": "g6_cs_ingest_rows_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_emission_failure_once_total",
-            "value": "g6_emission_failure_once_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_emission_failures_total",
-            "value": "g6_emission_failures_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_empty_quote_fields_total",
-            "value": "g6_empty_quote_fields_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_expiry_resolve_fail_total",
-            "value": "g6_expiry_resolve_fail_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_index_zero_price_fallback_total",
-            "value": "g6_index_zero_price_fallback_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_metric_duplicates_total",
-            "value": "g6_metric_duplicates_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_option_contracts_new_total",
-            "value": "g6_option_contracts_new_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_panel_diff_bytes_total",
-            "value": "g6_panel_diff_bytes_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_panel_diff_truncated_total",
-            "value": "g6_panel_diff_truncated_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_panel_diff_writes_total",
-            "value": "g6_panel_diff_writes_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_provider_failover_total",
-            "value": "g6_provider_failover_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_quote_avg_price_fallback_total",
-            "value": "g6_quote_avg_price_fallback_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_quote_enriched_total",
-            "value": "g6_quote_enriched_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_quote_missing_volume_oi_total",
-            "value": "g6_quote_missing_volume_oi_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_sse_trace_stages_total",
-            "value": "g6_sse_trace_stages_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_stale_cycles_total",
-            "value": "g6_stale_cycles_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_stale_system_cycles_total",
-            "value": "g6_stale_system_cycles_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_stream_append_total",
-            "value": "g6_stream_append_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_stream_conflict_total",
-            "value": "g6_stream_conflict_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_stream_skipped_total",
-            "value": "g6_stream_skipped_total"
-          },
-          {
-            "selected": false,
-            "text": "g6_stream_state_persist_errors_total",
-            "value": "g6_stream_state_persist_errors_total"
-          }
-        ],
-        "query": "g6_api_calls_total,g6_bus_events_dropped_total,g6_bus_events_published_total,g6_cardinality_guard_new_groups_total,g6_cardinality_guard_offenders_total,g6_cardinality_series_total,g6_cs_ingest_bytes_total,g6_cs_ingest_failures_total,g6_cs_ingest_retries_total,g6_cs_ingest_rows_total,g6_emission_failure_once_total,g6_emission_failures_total,g6_empty_quote_fields_total,g6_expiry_resolve_fail_total,g6_index_zero_price_fallback_total,g6_metric_duplicates_total,g6_option_contracts_new_total,g6_panel_diff_bytes_total,g6_panel_diff_truncated_total,g6_panel_diff_writes_total,g6_provider_failover_total,g6_quote_avg_price_fallback_total,g6_quote_enriched_total,g6_quote_missing_volume_oi_total,g6_sse_trace_stages_total,g6_stale_cycles_total,g6_stale_system_cycles_total,g6_stream_append_total,g6_stream_conflict_total,g6_stream_skipped_total,g6_stream_state_persist_errors_total",
-        "type": "custom"
-      },
-      {
-        "current": {
-          "text": "tp",
-          "value": "tp"
-        },
-        "includeAll": false,
-        "label": "Metric (gauge)",
-        "multi": true,
-        "name": "metric_gauge",
-        "options": [
-          {
-            "selected": true,
-            "text": "tp",
-            "value": "tp"
-          },
-          {
-            "selected": false,
-            "text": "avg_tp",
-            "value": "avg_tp"
-          },
-          {
-            "selected": false,
-            "text": "tp_mean",
-            "value": "tp_mean"
-          },
-          {
-            "selected": false,
-            "text": "tp_ema",
-            "value": "tp_ema"
-          },
-          {
-            "selected": false,
-            "text": "avg_tp_mean",
-            "value": "avg_tp_mean"
-          },
-          {
-            "selected": false,
-            "text": "avg_tp_ema",
-            "value": "avg_tp_ema"
-          },
-          {
-            "selected": false,
-            "text": "g6_api_response_latency_ms",
-            "value": "g6_api_response_latency_ms"
-          },
-          {
-            "selected": false,
-            "text": "g6_api_response_time_ms",
-            "value": "g6_api_response_time_ms"
-          },
-          {
-            "selected": false,
-            "text": "g6_api_success_rate_percent",
-            "value": "g6_api_success_rate_percent"
-          },
-          {
-            "selected": false,
-            "text": "g6_build_config_hash_info",
-            "value": "g6_build_config_hash_info"
-          },
-          {
-            "selected": false,
-            "text": "g6_bus_publish_latency_ms",
-            "value": "g6_bus_publish_latency_ms"
-          },
-          {
-            "selected": false,
-            "text": "g6_bus_queue_retained_events",
-            "value": "g6_bus_queue_retained_events"
-          },
-          {
-            "selected": false,
-            "text": "g6_bus_subscriber_lag_events",
-            "value": "g6_bus_subscriber_lag_events"
-          },
-          {
-            "selected": false,
-            "text": "g6_cardinality_guard_allowed_growth_percent",
-            "value": "g6_cardinality_guard_allowed_growth_percent"
-          },
-          {
-            "selected": false,
-            "text": "g6_cardinality_guard_growth_percent",
-            "value": "g6_cardinality_guard_growth_percent"
-          },
-          {
-            "selected": false,
-            "text": "g6_cardinality_guard_last_run_epoch",
-            "value": "g6_cardinality_guard_last_run_epoch"
-          },
-          {
-            "selected": false,
-            "text": "g6_cs_ingest_backlog_rows",
-            "value": "g6_cs_ingest_backlog_rows"
-          },
-          {
-            "selected": false,
-            "text": "g6_cs_ingest_backpressure_flag",
-            "value": "g6_cs_ingest_backpressure_flag"
-          },
-          {
-            "selected": false,
-            "text": "g6_cs_ingest_latency_ms",
-            "value": "g6_cs_ingest_latency_ms"
-          },
-          {
-            "selected": false,
-            "text": "g6_metrics_batch_adaptive_target",
-            "value": "g6_metrics_batch_adaptive_target"
-          },
-          {
-            "selected": false,
-            "text": "g6_metrics_batch_flush_duration_ms",
-            "value": "g6_metrics_batch_flush_duration_ms"
-          },
-          {
-            "selected": false,
-            "text": "g6_metrics_batch_flush_increments",
-            "value": "g6_metrics_batch_flush_increments"
-          },
-          {
-            "selected": false,
-            "text": "g6_metrics_batch_queue_depth",
-            "value": "g6_metrics_batch_queue_depth"
-          },
-          {
-            "selected": false,
-            "text": "g6_metrics_spec_hash_info",
-            "value": "g6_metrics_spec_hash_info"
-          },
-          {
-            "selected": false,
-            "text": "g6_option_contracts_active",
-            "value": "g6_option_contracts_active"
-          },
-          {
-            "selected": false,
-            "text": "g6_option_iv_mean",
-            "value": "g6_option_iv_mean"
-          },
-          {
-            "selected": false,
-            "text": "g6_option_open_interest",
-            "value": "g6_option_open_interest"
-          },
-          {
-            "selected": false,
-            "text": "g6_option_spread_bps_mean",
-            "value": "g6_option_spread_bps_mean"
-          },
-          {
-            "selected": false,
-            "text": "g6_option_volume_24h",
-            "value": "g6_option_volume_24h"
-          },
-          {
-            "selected": false,
-            "text": "g6_panel_diff_bytes_last",
-            "value": "g6_panel_diff_bytes_last"
-          },
-          {
-            "selected": false,
-            "text": "g6_provider_mode",
-            "value": "g6_provider_mode"
-          },
-          {
-            "selected": false,
-            "text": "g6_sse_flush_seconds",
-            "value": "g6_sse_flush_seconds"
-          },
-          {
-            "selected": false,
-            "text": "g6_stale_active",
-            "value": "g6_stale_active"
-          },
-          {
-            "selected": false,
-            "text": "g6_stale_system_active",
-            "value": "g6_stale_system_active"
-          }
-        ],
-        "query": "tp,avg_tp,tp_mean,tp_ema,avg_tp_mean,avg_tp_ema,g6_api_response_latency_ms,g6_api_response_time_ms,g6_api_success_rate_percent,g6_build_config_hash_info,g6_bus_publish_latency_ms,g6_bus_queue_retained_events,g6_bus_subscriber_lag_events,g6_cardinality_guard_allowed_growth_percent,g6_cardinality_guard_growth_percent,g6_cardinality_guard_last_run_epoch,g6_cs_ingest_backlog_rows,g6_cs_ingest_backpressure_flag,g6_cs_ingest_latency_ms,g6_metrics_batch_adaptive_target,g6_metrics_batch_flush_duration_ms,g6_metrics_batch_flush_increments,g6_metrics_batch_queue_depth,g6_metrics_spec_hash_info,g6_option_contracts_active,g6_option_iv_mean,g6_option_open_interest,g6_option_spread_bps_mean,g6_option_volume_24h,g6_panel_diff_bytes_last,g6_provider_mode,g6_sse_flush_seconds,g6_stale_active,g6_stale_system_active",
-        "type": "custom"
-      },
-      {
-        "current": {
-          "text": "NIFTY",
-          "value": "NIFTY"
-        },
-        "includeAll": false,
-        "label": "Index",
-        "multi": false,
-        "name": "index",
-        "options": [
-          {
-            "selected": true,
-            "text": "NIFTY",
-            "value": "NIFTY"
-          },
-          {
-            "selected": false,
-            "text": "BANKNIFTY",
-            "value": "BANKNIFTY"
-          },
-          {
-            "selected": false,
-            "text": "SENSEX",
-            "value": "SENSEX"
-          },
-          {
-            "selected": false,
-            "text": "FINNIFTY",
-            "value": "FINNIFTY"
-          }
-        ],
-        "query": "NIFTY,BANKNIFTY,SENSEX,FINNIFTY",
-        "type": "custom"
-      },
-      {
-        "current": {
-          "text": "this week",
-          "value": "this_week"
-        },
-        "includeAll": false,
-        "label": "Expiry",
-        "multi": false,
-        "name": "expiry_tag",
-        "options": [
-          {
-            "selected": true,
-            "text": "this week",
-            "value": "this_week"
-          },
-          {
-            "selected": false,
-            "text": "next week",
-            "value": "next_week"
-          },
-          {
-            "selected": false,
-            "text": "month",
-            "value": "month"
-          },
-          {
-            "selected": false,
-            "text": "this month",
-            "value": "this_month"
-          },
-          {
-            "selected": false,
-            "text": "next month",
-            "value": "next_month"
-          }
-        ],
-        "query": "this_week,next_week,month,this_month,next_month",
-        "type": "custom"
-      },
-      {
-        "current": {
-          "text": "g6_api_response_latency_ms",
-          "value": "g6_api_response_latency_ms"
-        },
-        "includeAll": false,
         "label": "Histogram Metric",
         "multi": true,
         "name": "metric_hist",
-        "options": [
-          {
-            "selected": false,
-            "text": "g6_api_response_latency_ms",
-            "value": "g6_api_response_latency_ms"
-          },
-          {
-            "selected": false,
-            "text": "g6_bus_publish_latency_ms",
-            "value": "g6_bus_publish_latency_ms"
-          },
-          {
-            "selected": false,
-            "text": "g6_cs_ingest_latency_ms",
-            "value": "g6_cs_ingest_latency_ms"
-          },
-          {
-            "selected": false,
-            "text": "g6_metrics_batch_flush_duration_ms",
-            "value": "g6_metrics_batch_flush_duration_ms"
-          },
-          {
-            "selected": false,
-            "text": "g6_sse_flush_seconds",
-            "value": "g6_sse_flush_seconds"
-          }
-        ],
-        "query": "g6_api_response_latency_ms,g6_bus_publish_latency_ms,g6_cs_ingest_latency_ms,g6_metrics_batch_flush_duration_ms,g6_sse_flush_seconds",
-        "type": "custom"
+        "query": "label_values(up, job)",
+        "type": "query"
       },
       {
         "current": {
           "text": "off",
           "value": "off"
         },
-        "includeAll": false,
         "label": "Overlay",
-        "multi": false,
         "name": "overlay",
-        "options": [
-          {
-            "selected": true,
-            "text": "off",
-            "value": "off"
-          },
-          {
-            "selected": false,
-            "text": "fast",
-            "value": "fast"
-          },
-          {
-            "selected": false,
-            "text": "ultra",
-            "value": "ultra"
-          }
-        ],
         "query": "off,fast,ultra",
         "type": "custom"
       },
@@ -1486,18 +293,9 @@
           "text": "p95",
           "value": "p95"
         },
-        "includeAll": false,
         "label": "Quantile",
-        "multi": false,
         "name": "q",
-        "options": [
-          {
-            "selected": true,
-            "text": "p95",
-            "value": "p95"
-          }
-        ],
-        "query": "p95",
+        "query": "p50,p90,p95,p99",
         "type": "custom"
       }
     ]

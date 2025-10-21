@@ -28,8 +28,14 @@ Insert updated tables between marker comments in CLEANUP_FINAL_REPORT.md:
 If markers absent, append at end.
 """
 from __future__ import annotations
-import json, os, re, subprocess, sys
+
+import json
+import os
+import re
+import subprocess
+import sys
 from pathlib import Path
+from typing import Any, Optional, Tuple
 
 ROOT = Path(__file__).resolve().parents[2]
 REPORT = ROOT / 'docs' / 'CLEANUP_FINAL_REPORT.md'
@@ -40,7 +46,7 @@ DEAD_CODE = ROOT / 'tools' / 'dead_code_report.json'
 COVERAGE_XML = ROOT / 'coverage.xml'
 COVERAGE_BASE = ROOT / 'tools' / 'coverage_baseline.json'
 
-def load_json(path: Path):
+def load_json(path: Path) -> Any | None:
     if not path.exists():
         return None
     try:
@@ -48,7 +54,7 @@ def load_json(path: Path):
     except Exception:
         return None
 
-def count_py_modules():
+def count_py_modules() -> int:
     base = ROOT / 'src'
     count = 0
     for p in base.rglob('*.py'):
@@ -58,13 +64,13 @@ def count_py_modules():
         count += 1
     return count
 
-def count_scripts():
+def count_scripts() -> int:
     base = ROOT / 'scripts'
     if not base.exists():
         return 0
     return sum(1 for p in base.rglob('*.py') if 'archive' not in p.parts)
 
-def classify_docs():
+def classify_docs() -> tuple[int, int]:
     docs_dir = ROOT / 'docs'
     canonical = 0
     stubs = 0
@@ -79,7 +85,7 @@ def classify_docs():
             canonical += 1
     return canonical, stubs
 
-def archived_removed(current_inv: dict, base_inv: dict | None):
+def archived_removed(current_inv: dict[str, Any], base_inv: dict[str, Any] | None) -> int:
     # Use tags first
     tagged = sum(1 for e in current_inv.get('inventory', []) if any(t in ('candidate-remove','archived') for t in e.get('tags', [])))
     if not base_inv:
@@ -89,7 +95,7 @@ def archived_removed(current_inv: dict, base_inv: dict | None):
     removed = base_paths - curr_paths
     return tagged + len(removed)
 
-def parse_coverage():
+def parse_coverage() -> float | None:
     if not COVERAGE_XML.exists():
         return None
     import re
@@ -102,14 +108,14 @@ def parse_coverage():
         return None
     return None
 
-def run_module(mod: str):
+def run_module(mod: str) -> subprocess.CompletedProcess[str] | None:
     try:
         proc = subprocess.run([sys.executable, '-m', mod], cwd=ROOT, capture_output=True, text=True, timeout=60)
         return proc
-    except Exception as e:  # pragma: no cover
+    except Exception:  # pragma: no cover
         return None
 
-def orphan_count():
+def orphan_count() -> int | None:
     proc = run_module('scripts.cleanup.orphan_tests')
     if not proc:
         return None
@@ -125,7 +131,7 @@ def orphan_count():
     except Exception:
         return None
 
-def env_missing_count():
+def env_missing_count() -> int | None:
     proc = run_module('scripts.cleanup.env_catalog_check')
     if not proc:
         return None
@@ -137,7 +143,7 @@ def env_missing_count():
             return len([p for p in parts.split(',') if p.strip()])
     return 0
 
-def docs_index_missing_count():
+def docs_index_missing_count() -> int | None:
     proc = run_module('scripts.cleanup.doc_index_check')
     if not proc:
         return None
@@ -146,10 +152,11 @@ def docs_index_missing_count():
         return len([p for p in seg.split(',') if p.strip()])
     return 0
 
-def ensure_inventory_baseline(cur: dict):
+def ensure_inventory_baseline(cur: dict[str, Any]) -> dict[str, Any]:
     """Create a baseline snapshot if missing to enable real deltas later."""
     if INV_BASELINE.exists():
-        return load_json(INV_BASELINE)
+        data = load_json(INV_BASELINE)
+        return data if isinstance(data, dict) else cur
     try:
         INV_BASELINE.write_text(json.dumps(cur, indent=2), encoding='utf-8')
         print('[final-report] created inventory baseline snapshot')
@@ -157,7 +164,7 @@ def ensure_inventory_baseline(cur: dict):
         pass
     return cur
 
-def build_inventory_table(cur: dict, base: dict | None):
+def build_inventory_table(cur: dict[str, Any], base: dict[str, Any] | None) -> str:
     if base is None:
         base = cur
     before_py = count_py_modules()
@@ -178,7 +185,7 @@ def build_inventory_table(cur: dict, base: dict | None):
         lines.append(f"| {r[0]} | {r[1]} | {r[2]} | {r[3]} | {r[4]} |")
     return "\n".join(lines)
 
-def build_gates_table():
+def build_gates_table() -> str:
     cov_current = parse_coverage()
     cov_base = load_json(COVERAGE_BASE)
     cov_baseline_val = cov_base.get('line_coverage_pct') if cov_base else None
@@ -187,7 +194,7 @@ def build_gates_table():
     orphan = orphan_count()
     env_miss = env_missing_count()
     docs_miss = docs_index_missing_count()
-    def fmt(v):
+    def fmt(v: int | float | None) -> int | float | str:
         return 'TBD' if v is None else v
     # Pass/fail logic
     cov_pass = 'TBD'
@@ -218,12 +225,12 @@ def build_gates_table():
     lines.append(f"| Docs Index Missing | 0 | {fmt(docs_miss)} | {fmt(docs_miss)} | {docs_pass} | required set |")
     return "\n".join(lines)
 
-def update_report(inv_table: str, gates_table: str):
+def update_report(inv_table: str, gates_table: str) -> bool:
     if not REPORT.exists():
         print('[final-report] report file missing')
         return False
     text = REPORT.read_text(encoding='utf-8')
-    def replace_block(start_marker, end_marker, new_content):
+    def replace_block(start_marker: str, end_marker: str, new_content: str) -> str:
         if start_marker in text and end_marker in text:
             pattern = re.compile(re.escape(start_marker) + '.*?' + re.escape(end_marker), re.DOTALL)
             return pattern.sub(start_marker + '\n' + new_content + '\n' + end_marker, text)
@@ -238,7 +245,7 @@ def update_report(inv_table: str, gates_table: str):
         print('[final-report] no changes applied')
     return True
 
-def main():
+def main() -> int:
     current_inv = load_json(INV_CURRENT) or {'inventory': []}
     baseline = load_json(INV_BASELINE)
     if baseline is None:

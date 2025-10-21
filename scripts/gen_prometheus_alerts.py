@@ -23,24 +23,31 @@ Exit codes:
  2 no alerts found (still writes empty structure unless --strict-empty)
 """
 from __future__ import annotations
-import yaml, argparse, sys, pathlib, datetime as dt, json, hashlib
-from typing import Any, Dict, List
+
+import argparse
+import datetime as dt
+import hashlib
+import pathlib
+import sys
+from typing import Any
+
+import yaml
 
 SPEC_DEFAULT = 'metrics/spec/base.yml'
 DEFAULT_OUT = 'prometheus/g6_generated_alerts.yml'
 
 
 def load_spec(path: str) -> dict:
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, encoding='utf-8') as f:
         return yaml.safe_load(f)
 
 
-def build_groups(spec: dict) -> List[Dict[str, Any]]:
+def build_groups(spec: dict) -> list[dict[str, Any]]:
     families = spec.get('families', {}) or {}
-    groups: List[Dict[str, Any]] = []
+    groups: list[dict[str, Any]] = []
     for fam_name, fam in families.items():
         metrics = fam.get('metrics') or []
-        fam_rules: List[Dict[str, Any]] = []
+        fam_rules: list[dict[str, Any]] = []
         for m in metrics:
             alerts = m.get('alerts') or []
             for a in alerts:
@@ -48,7 +55,7 @@ def build_groups(spec: dict) -> List[Dict[str, Any]]:
                 expr = a.get('expr')
                 if not name or not expr:
                     continue
-                rule: Dict[str, Any] = {
+                rule: dict[str, Any] = {
                     'alert': name,
                     'expr': expr.strip(),
                 }
@@ -58,7 +65,7 @@ def build_groups(spec: dict) -> List[Dict[str, Any]]:
                 extra_labels = a.get('labels') or {}
                 labels.update(extra_labels)
                 rule['labels'] = labels
-                annotations: Dict[str, Any] = {}
+                annotations: dict[str, Any] = {}
                 if a.get('summary'): annotations['summary'] = a['summary']
                 if a.get('description'): annotations['description'] = a['description']
                 if annotations: rule['annotations'] = annotations
@@ -76,7 +83,7 @@ def compute_spec_hash(spec_path: str) -> str | None:
         return None
 
 
-def write_alerts(out_path: str, groups: List[Dict[str, Any]], spec_path: str) -> None:
+def write_alerts(out_path: str, groups: list[dict[str, Any]], spec_path: str) -> None:
     prov = {
         'schema': 'g6.alerts.provenance.v0',
     'generated_at_utc': dt.datetime.now(dt.UTC).replace(microsecond=0).isoformat().replace('+00:00','Z'),

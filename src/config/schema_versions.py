@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Schema version definitions and helpers for the G6 configuration system.
 
@@ -7,8 +6,9 @@ Non-invasive and optional: existing code can continue to use ConfigWrapper.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 
 class SchemaVersion(Enum):
@@ -19,11 +19,11 @@ class SchemaVersion(Enum):
     V1_3 = 4
 
     @classmethod
-    def latest(cls) -> "SchemaVersion":
+    def latest(cls) -> SchemaVersion:
         return cls.V1_3
 
     @classmethod
-    def from_string(cls, version_str: str) -> "SchemaVersion":
+    def from_string(cls, version_str: str) -> SchemaVersion:
         v = (version_str or "").strip().lower()
         mapping = {
             "1.0": cls.V1_0,
@@ -35,8 +35,8 @@ class SchemaVersion(Enum):
 
 
 # Migration registry: target version -> function
-MigrationFunc = Callable[[Dict[str, Any]], Dict[str, Any]]
-MIGRATIONS: Dict[SchemaVersion, MigrationFunc] = {}
+MigrationFunc = Callable[[dict[str, Any]], dict[str, Any]]
+MIGRATIONS: dict[SchemaVersion, MigrationFunc] = {}
 
 
 def register_migration(target_version: SchemaVersion):
@@ -46,7 +46,7 @@ def register_migration(target_version: SchemaVersion):
     return deco
 
 
-def get_config_version(cfg: Dict[str, Any]) -> SchemaVersion:
+def get_config_version(cfg: dict[str, Any]) -> SchemaVersion:
     if not isinstance(cfg, dict):
         return SchemaVersion.UNVERSIONED
     ver = cfg.get("schema_version")
@@ -62,7 +62,7 @@ def get_config_version(cfg: Dict[str, Any]) -> SchemaVersion:
     return SchemaVersion.V1_0
 
 
-def get_required_migrations(cfg: Dict[str, Any], target: Optional[SchemaVersion] = None) -> List[SchemaVersion]:
+def get_required_migrations(cfg: dict[str, Any], target: SchemaVersion | None = None) -> list[SchemaVersion]:
     tgt = target or SchemaVersion.latest()
     cur = get_config_version(cfg)
     if cur.value >= tgt.value:

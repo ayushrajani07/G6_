@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
+
 
 @dataclass
 class Instrument:
     tradingsymbol: str
     instrument_token: int
     segment: str
-    expiry: Optional[str]          # YYYY-MM-DD
-    strike: Optional[float]
-    instrument_type: Optional[str] # CE/PE/FUT/etc.
+    expiry: str | None          # YYYY-MM-DD
+    strike: float | None
+    instrument_type: str | None # CE/PE/FUT/etc.
 
 @dataclass
 class QuoteSnapshot:
@@ -18,10 +18,10 @@ class QuoteSnapshot:
     symbol_display: str
     instrument_token: int
     last_price: float
-    volume: Optional[int]
-    oi: Optional[int]
-    oi_open: Optional[int]
-    iv: Optional[float]
-    net_change: Optional[float]
-    day_change: Optional[float]
-    average_price: Optional[float]
+    volume: int | None
+    oi: int | None
+    oi_open: int | None
+    iv: float | None
+    net_change: float | None
+    day_change: float | None
+    average_price: float | None

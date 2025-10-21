@@ -71,7 +71,7 @@ The plotting script accepts optional flags for live updates, theming, and statis
 python scripts/plot_weekday_overlays.py \
   --live-root data/g6_data \
   --weekday-root data/weekday_master \
-  --index NIFTY --expiry-tag this_week --offset ATM \
+  --index NIFTY --expiry-tag this_week --offset 0 \
   --layout grid \
   --live-endpoint http://127.0.0.1:9109/live --live-interval-ms 1000 \
   --theme dark --enable-zscore --enable-bands --bands-multiplier 2.0 \

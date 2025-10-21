@@ -24,7 +24,6 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from typing import Optional
 
 try:
     from src.collectors.env_adapter import get_str as _env_get_str  # type: ignore
@@ -104,7 +103,7 @@ _TAG_COLORS = {
 
 
 class ColorFormatter(logging.Formatter):
-    def __init__(self, fmt: str, datefmt: Optional[str] = None, use_color: bool = True, theme: str = 'default'):
+    def __init__(self, fmt: str, datefmt: str | None = None, use_color: bool = True, theme: str = 'default'):
         super().__init__(fmt=fmt, datefmt=datefmt)
         self.use_color = use_color
         self.theme = theme if theme in _THEMES else 'default'
@@ -204,4 +203,4 @@ def enable_color_logging(format: str = _DEF_FORMAT) -> None:
 
 
 __all__ = ["enable_color_logging", "ColorFormatter"]
-    
+

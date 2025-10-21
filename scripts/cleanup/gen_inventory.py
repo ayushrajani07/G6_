@@ -7,8 +7,12 @@ Classification heuristics are intentionally conservative (favor false negatives)
 Refine over time; avoid deleting based solely on this output.
 """
 from __future__ import annotations
-import os, json, sys, hashlib, re, ast
+
+import ast
+import hashlib
+import json
 from pathlib import Path
+from typing import Any, Iterator
 
 ROOT = Path(__file__).resolve().parents[2]
 OUTPUT_DIR = ROOT / 'tools'
@@ -53,7 +57,7 @@ def _excluded(p: Path) -> bool:
             return True
     return False
 
-def discover_files():
+def discover_files() -> Iterator[Path]:
     for p in ROOT.rglob('*'):
         if not p.is_file():
             continue
@@ -87,8 +91,8 @@ def classify(path: Path, rel: str) -> list[str]:
         tags.append('infra')
     return tags
 
-def build_import_graph(py_files: list[Path]) -> dict[str,set[str]]:
-    graph: dict[str,set[str]] = {}
+def build_import_graph(py_files: list[Path]) -> dict[str, set[str]]:
+    graph: dict[str, set[str]] = {}
     for pf in py_files:
         rel = pf.as_posix()
         if not rel.endswith('.py'): continue
@@ -109,10 +113,10 @@ def build_import_graph(py_files: list[Path]) -> dict[str,set[str]]:
 
 def main() -> int:
     files = list(discover_files())
-    inventory = []
+    inventory: list[dict[str, Any]] = []
     py_files = [p for p in files if p.suffix == '.py']
     graph = build_import_graph(py_files)
-    tag_counts: dict[str,int] = {}
+    tag_counts: dict[str, int] = {}
     candidate_count = 0
     for p in files:
         try:
@@ -122,7 +126,7 @@ def main() -> int:
             continue
         tags = classify(p, rel)
         size = p.stat().st_size if p.exists() else 0
-        entry = {
+        entry: dict[str, Any] = {
             'path': rel,
             'size': size,
             'hash': sha256(p),
@@ -134,12 +138,18 @@ def main() -> int:
             inbound = sum(1 for mods in graph.values() if module_name in mods)
             entry['import_inbound'] = inbound
             if 'test' not in tags and 'core' not in tags and inbound == 0:
-                entry.setdefault('tags', []).append('candidate-remove')
+                # ensure list[str] and append tag
+                tlist = entry.setdefault('tags', [])
+                if isinstance(tlist, list):
+                    tlist.append('candidate-remove')
+                else:
+                    entry['tags'] = ['candidate-remove']
                 candidate_count += 1
         for t in entry['tags']:
-            tag_counts[t] = tag_counts.get(t, 0) + 1
+            if isinstance(t, str):
+                tag_counts[t] = tag_counts.get(t, 0) + 1
         inventory.append(entry)
-    payload = {'inventory': inventory, 'summary': {'total': len(inventory), 'tags': tag_counts, 'candidate_remove': candidate_count}}
+    payload: dict[str, Any] = {'inventory': inventory, 'summary': {'total': len(inventory), 'tags': tag_counts, 'candidate_remove': candidate_count}}
     with OUT_FILE.open('w', encoding='utf-8') as f:
         json.dump(payload, f, indent=2)
     print(f"[cleanup] wrote {OUT_FILE} entries={len(inventory)} candidates={candidate_count}")

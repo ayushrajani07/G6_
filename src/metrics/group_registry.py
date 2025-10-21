@@ -12,8 +12,9 @@ keep this module minimal to avoid drift.
 """
 from __future__ import annotations
 
+import logging
+import os
 from typing import Any
-import logging, os
 
 try:  # pragma: no cover - defensive import guard
     from .spec import GROUPED_METRIC_SPECS  # type: ignore

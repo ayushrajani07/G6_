@@ -15,8 +15,16 @@ We treat 'full' as replacement, 'diff' as deep merge via merge_panel_diff.
 Unknown panels are stored under their given name.
 """
 from __future__ import annotations
-from typing import Any, Dict, Optional, Mapping
-import threading, time, json, os, logging, io, http.client, urllib.parse
+
+import http.client
+import io
+import json
+import logging
+import os
+import threading
+import time
+import urllib.parse
+from typing import Any
 
 from .sse import merge_panel_diff
 
@@ -36,20 +44,21 @@ class PanelStateStore:
     """
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._panels: Dict[str, Any] = {}
+        self._panels: dict[str, Any] = {}
         self._gen = 0  # generation counter (increment on any update)
         # Hold registry reference (lazy fetched) for unified metrics
         self._metrics_ref = None  # populated on first use
 
-    def _metrics(self):  # pragma: no cover - trivial accessor
-        if self._metrics_ref is not None:
-            return self._metrics_ref
-        try:
-            from src.metrics import get_metrics  # type: ignore
-            self._metrics_ref = get_metrics()
-        except Exception:  # noqa: BLE001
-            self._metrics_ref = None
-        return self._metrics_ref
+    def _metrics(self) -> object | None:  # pragma: no cover - trivial accessor
+        ref = self._metrics_ref
+        if ref is None:
+            try:
+                from src.metrics import get_metrics as _get_metrics  # type: ignore
+                ref = _get_metrics()
+            except Exception:  # noqa: BLE001
+                ref = None
+            self._metrics_ref = ref
+        return ref
 
     def apply_full(self, panel: str, payload: Any) -> None:
         with self._lock:
@@ -77,10 +86,10 @@ class PanelStateStore:
             except Exception:  # noqa: BLE001
                 pass
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         with self._lock:
             # Return shallow copies of dict-valued panels to reduce accidental mutations
-            out: Dict[str, Any] = {}
+            out: dict[str, Any] = {}
             for k, v in self._panels.items():
                 if isinstance(v, dict):
                     out[k] = dict(v)
@@ -113,15 +122,16 @@ class SSEClient(threading.Thread):  # pragma: no cover - network/UI side effects
         # Metrics registry ref (lazy)
         self._metrics_ref = None
 
-    def _metrics(self):  # pragma: no cover
-        if self._metrics_ref is not None:
-            return self._metrics_ref
-        try:
-            from src.metrics import get_metrics  # type: ignore
-            self._metrics_ref = get_metrics()
-        except Exception:  # noqa: BLE001
-            self._metrics_ref = None
-        return self._metrics_ref
+    def _metrics(self) -> object | None:  # pragma: no cover
+        ref = self._metrics_ref
+        if ref is None:
+            try:
+                from src.metrics import get_metrics as _get_metrics  # type: ignore
+                ref = _get_metrics()
+            except Exception:  # noqa: BLE001
+                ref = None
+            self._metrics_ref = ref
+        return ref
 
     def _next_backoff(self) -> float:
         # Exponential backoff with decorrelated jitter (based on AWS architecture blog variant)
@@ -188,7 +198,7 @@ class SSEClient(threading.Thread):  # pragma: no cover - network/UI side effects
                 # Successful connection -> reset backoff attempt counter
                 self._attempt = 0
                 buf = io.TextIOWrapper(resp, encoding='utf-8')  # type: ignore[arg-type]
-                event_data_lines = []
+                event_data_lines: list[str] = []
                 for line in buf:
                     if self._stop.is_set():
                         break

@@ -23,8 +23,13 @@ Exit Codes:
   0 success; non-zero on first failure encountered.
 """
 from __future__ import annotations
-import argparse, os, sys, subprocess, importlib.util, pathlib, shutil
-from typing import List
+
+import argparse
+import importlib.util
+import pathlib
+import shutil
+import subprocess
+import sys
 
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 
@@ -66,7 +71,7 @@ def check_summary_app() -> bool:
         return False
 
 
-def run_pytest(args: List[str]) -> int:
+def run_pytest(args: list[str]) -> int:
     cmd = [sys.executable, '-m', 'pytest'] + args
     print(f"[maintenance] running: {' '.join(cmd)}")
     try:

@@ -85,11 +85,11 @@ utils.strikes.build_strikes to avoid divergence. Only meta & caching are new.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Any, Callable, Protocol, List, Tuple, Optional
 import os
-from collections import OrderedDict
 import threading
+from collections import OrderedDict
+from dataclasses import dataclass
+from typing import Any, Protocol
 
 try:  # canonical generator (Phase 2 centralization)
     # Import may fail in stripped-down environments (tests / minimal builds).
@@ -117,7 +117,7 @@ class StrikeStepPolicy(Protocol):  # pragma: no cover - interface only
 
 @dataclass
 class StrikeUniverseResult:
-    strikes: List[float]
+    strikes: list[float]
     meta: dict
 
 
@@ -125,10 +125,10 @@ class StrikeUniverseResult:
 class _LRUStrikeCache:
     def __init__(self, capacity: int = 256) -> None:
         self.capacity = max(16, capacity)
-        self._data: OrderedDict[Tuple[Any, ...], List[float]] = OrderedDict()
+        self._data: OrderedDict[tuple[Any, ...], list[float]] = OrderedDict()
         self._lock = threading.Lock()
 
-    def get(self, key: Tuple[Any, ...]) -> Optional[List[float]]:
+    def get(self, key: tuple[Any, ...]) -> list[float] | None:
         with self._lock:
             val = self._data.get(key)
             if val is not None:
@@ -136,7 +136,7 @@ class _LRUStrikeCache:
                 self._data.move_to_end(key)
             return val
 
-    def put(self, key: Tuple[Any, ...], value: List[float]) -> None:
+    def put(self, key: tuple[Any, ...], value: list[float]) -> None:
         with self._lock:
             if key in self._data:
                 self._data.move_to_end(key)
@@ -157,10 +157,10 @@ class _LRUStrikeCache:
 # Singleton module-level cache (can be replaced / cleared in tests)
 _CACHE_DISABLED = os.environ.get("G6_DISABLE_STRIKE_CACHE", "0").lower() in ("1", "true", "yes", "on")
 _CACHE_CAPACITY = int(os.environ.get("G6_STRIKE_UNIVERSE_CACHE_SIZE", "256") or "256")
-_STRIKE_CACHE: Optional[_LRUStrikeCache] = None if _CACHE_DISABLED else _LRUStrikeCache(_CACHE_CAPACITY)
+_STRIKE_CACHE: _LRUStrikeCache | None = None if _CACHE_DISABLED else _LRUStrikeCache(_CACHE_CAPACITY)
 
 
-def _resolve_step(index_symbol: str, atm: float, explicit_step: float | None, policy: StrikeStepPolicy | None) -> Tuple[float, str]:
+def _resolve_step(index_symbol: str, atm: float, explicit_step: float | None, policy: StrikeStepPolicy | None) -> tuple[float, str]:
     # 1. explicit
     if explicit_step is not None and explicit_step > 0:
         return float(explicit_step), "explicit"
@@ -193,7 +193,7 @@ def _resolve_step(index_symbol: str, atm: float, explicit_step: float | None, po
     return (100.0 if index_symbol.upper() in ("BANKNIFTY", "SENSEX") else 50.0), "heuristic"
 
 
-def _apply_scale(itm: int, otm: int, scale: float | None) -> Tuple[int, int]:
+def _apply_scale(itm: int, otm: int, scale: float | None) -> tuple[int, int]:
     if not scale or scale <= 0:
         return itm, otm
     _itm = max(1, int(round(itm * scale))) if itm > 0 else 0
@@ -235,7 +235,7 @@ def build_strike_universe(
     scaled_itm, scaled_otm = _apply_scale(int(n_itm or 0), int(n_otm or 0), scale)
 
     # Determine cache instance
-    cache_inst: Optional[_LRUStrikeCache] = None
+    cache_inst: _LRUStrikeCache | None = None
     if cache and _STRIKE_CACHE is not None:
         cache_inst = _STRIKE_CACHE if cache is True else cache if isinstance(cache, _LRUStrikeCache) else None
 
@@ -292,7 +292,7 @@ def build_strike_universe(
     return StrikeUniverseResult(strikes, meta)
 
 
-def _generate_strikes(atm: float, itm: int, otm: int, index_symbol: str, step: float) -> List[float]:
+def _generate_strikes(atm: float, itm: int, otm: int, index_symbol: str, step: float) -> list[float]:
     # Use canonical generator if present for parity.
     if _base_build_strikes is not None:
         # Defensive: upstream may return any iterable; coerce explicitly.
@@ -304,7 +304,7 @@ def _generate_strikes(atm: float, itm: int, otm: int, index_symbol: str, step: f
     # Fallback simplified generation
     if atm <= 0:
         return []
-    arr: List[float] = []
+    arr: list[float] = []
     for i in range(1, itm + 1):
         arr.append(float(atm - i * step))
     arr.append(float(atm))

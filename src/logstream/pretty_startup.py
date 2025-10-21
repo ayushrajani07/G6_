@@ -6,10 +6,14 @@ Relies on minimal console formatter (message only) so we can output rich
 multi-line panels without noisy prefixes.
 """
 from __future__ import annotations
-import os, datetime
-from typing import Iterable, Dict, Any
-from src.utils.color import colorize, FG_GREEN, FG_RED, FG_YELLOW, FG_MAGENTA, BOLD
+
+import datetime
+import os
 import sys
+from collections.abc import Iterable
+from typing import Any
+
+from src.utils.color import FG_GREEN, FG_MAGENTA, FG_RED, FG_YELLOW, colorize
 
 BORDER_H = "═"
 BORDER_V = "║"
@@ -69,6 +73,7 @@ def pad(text: str, width: int) -> str:
 
 # Basic ANSI stripper for width calculation
 import re
+
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
 
 def strip_ansi(s: str) -> str:
@@ -85,8 +90,8 @@ def build_section(title: str, lines: Iterable[str], inner_width: int) -> list[st
 
 def build_startup_panel(*, version: str, indices: Iterable[str], interval: int, concise: bool,
                         provider_readiness: str, readiness_ok: bool,
-                        components: Dict[str, str], checks: Dict[str, str],
-                        metrics_meta: Dict[str, Any] | None = None) -> str:
+                        components: dict[str, str], checks: dict[str, str],
+                        metrics_meta: dict[str, Any] | None = None) -> str:
     """Return a rich multi-line panel summarizing startup state."""
     indices_list = ', '.join(indices) if indices else 'NONE'
     now_disp = datetime.datetime.now().strftime('%d-%b-%Y %H:%M:%S')  # local-ok

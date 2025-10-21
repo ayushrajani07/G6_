@@ -26,7 +26,9 @@ This helper is intentionally side-effect free to support straightforward unit te
 and potential reuse by WebSocket / SSE ingestion code paths.
 """
 from __future__ import annotations
-from typing import Any, Mapping, MutableMapping, Dict
+
+from collections.abc import Mapping
+from typing import Any
 
 __all__ = ["merge_panel_diff"]
 
@@ -37,8 +39,8 @@ def _is_remove_sentinel(obj: Any) -> bool:
     return isinstance(obj, Mapping) and obj.get("__remove__") is True and len(obj) == 1
 
 
-def _merge_dict(base: Dict[str, Any], patch: Mapping[str, Any]) -> Dict[str, Any]:
-    out: Dict[str, Any] = dict(base)  # shallow copy
+def _merge_dict(base: dict[str, Any], patch: Mapping[str, Any]) -> dict[str, Any]:
+    out: dict[str, Any] = dict(base)  # shallow copy
     for k, v in patch.items():
         if _is_remove_sentinel(v):
             out.pop(k, None)
@@ -51,7 +53,7 @@ def _merge_dict(base: Dict[str, Any], patch: Mapping[str, Any]) -> Dict[str, Any
     return out
 
 
-def merge_panel_diff(existing_panels: Mapping[str, Any] | None, event: Mapping[str, Any]) -> Dict[str, Any]:
+def merge_panel_diff(existing_panels: Mapping[str, Any] | None, event: Mapping[str, Any]) -> dict[str, Any]:
     """Apply a panel diff/full event and return new panels mapping.
 
     existing_panels: current in-memory panels mapping (panel -> payload)
@@ -74,7 +76,7 @@ def merge_panel_diff(existing_panels: Mapping[str, Any] | None, event: Mapping[s
     # diff op: data must be a mapping
     if not isinstance(data, Mapping):
         raise ValueError("diff op requires mapping payload in data")
-    current_payload: Dict[str, Any] = {}
+    current_payload: dict[str, Any] = {}
     if isinstance(existing_panels, Mapping):
         cur = existing_panels.get(panel)
         if isinstance(cur, Mapping):

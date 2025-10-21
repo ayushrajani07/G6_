@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Direct data collection script for G6 Platform.
 Bypasses the main loop to force immediate data collection.
 """
 
+import datetime
+import logging
 import os
 import sys
-import logging
-import datetime
-from typing import Any, Dict, Optional
+from typing import Any
+
 try:  # Optional dependency
     from dotenv import load_dotenv  # type: ignore
 except ImportError:  # pragma: no cover - optional path
     def load_dotenv(*_a, **_k):  # type: ignore
         print("[direct_collect] Warning: python-dotenv not installed; proceeding with system environment only")
 from src.utils.logging_utils import setup_logging
-from src.utils.path_utils import ensure_sys_path, resolve_path, data_subdir
+from src.utils.path_utils import data_subdir, ensure_sys_path
 
 # Ensure sys.path only once (idempotent)
 ensure_sys_path()
@@ -25,7 +25,7 @@ setup_logging(level="DEBUG", log_file="logs/direct_collect.log")
 logger = logging.getLogger("g6.direct_collect")
 
 
-def normalize_instrument(instrument: Any) -> Optional[Dict[str, Any]]:
+def normalize_instrument(instrument: Any) -> dict[str, Any] | None:
     """Return a plain dict representation of an instrument entry.
 
     Supports:
@@ -49,9 +49,9 @@ def normalize_instrument(instrument: Any) -> Optional[Dict[str, Any]]:
             pass
 
     # Generic object with __dict__
-    if hasattr(instrument, "__dict__") and isinstance(getattr(instrument, "__dict__"), dict):
+    if hasattr(instrument, "__dict__") and isinstance(instrument.__dict__, dict):
         # Shallow copy
-        return dict(getattr(instrument, "__dict__"))
+        return dict(instrument.__dict__)
 
     # Last resort: pick known attributes
     candidate_fields = [
@@ -72,11 +72,11 @@ def main():
     load_dotenv()
     logger.info("===== G6 DIRECT DATA COLLECTOR =====")
     logger.info("Environment variables loaded from .env file")
-    
+
     # Import required modules
     from src.broker.kite_provider import kite_provider_factory
     from src.storage.csv_sink import CsvSink
-    
+
     # Initialize Kite provider directly
     try:
         logger.info("Initializing Kite provider...")
@@ -97,26 +97,26 @@ def main():
         except Exception:
             pass
         return 1
-    
+
     # Initialize CSV sink
     csv_dir = data_subdir('g6_direct_data')
     csv_sink = CsvSink(base_dir=csv_dir)
     logger.info(f"CSV sink initialized with base_dir: {csv_sink.base_dir}")
-    
+
     # Get current timestamp
     now = datetime.datetime.now()  # local-ok
     logger.info(f"Current timestamp: {now}")
-    
+
     # Collect NIFTY data
     try:
         index_symbol = "NIFTY"
         logger.info(f"Collecting data for {index_symbol}...")
-        
+
         # Get current index price
         instruments = [("NSE", "NIFTY 50")]
         ltp_data = kite_provider.get_ltp(instruments)
         logger.info(f"LTP data: {ltp_data}")
-        
+
         # Extract LTP and calculate ATM strike
         ltp = 0
         if isinstance(ltp_data, dict):
@@ -124,33 +124,33 @@ def main():
                 ltp = data.get('last_price', 0)
         else:
             logger.error(f"LTP data is not a dict: {type(ltp_data)}")
-        
+
         # Round to nearest 50
         atm_strike = round(ltp / 50) * 50
         logger.info(f"{index_symbol} current price: {ltp}, ATM strike: {atm_strike}")
-        
+
         # Calculate strikes to collect
         strikes = []
         for i in range(1, 6):  # 5 strikes on each side
             strikes.append(atm_strike - (i * 50))  # ITM strikes
-        
+
         strikes.append(atm_strike)  # ATM strike
-        
+
         for i in range(1, 6):
             strikes.append(atm_strike + (i * 50))  # OTM strikes
-        
+
         strikes.sort()
         logger.info(f"Collecting data for strikes: {strikes}")
-        
+
         # Get this week's expiry
         expiry_dates = kite_provider.get_expiry_dates(index_symbol)
         logger.info(f"Available expiry dates: {expiry_dates}")
-        
+
         # Use first expiry if available
         if expiry_dates:
             expiry_date = expiry_dates[0]
             logger.info(f"Using expiry date: {expiry_date}")
-            
+
             # Get option instruments
             raw_instruments = kite_provider.option_instruments(index_symbol, expiry_date, strikes)
             logger.info(f"Found {len(raw_instruments)} option instruments (raw)")
@@ -158,7 +158,7 @@ def main():
             if raw_instruments:
                 logger.debug(f"Sample raw instrument: {raw_instruments[0]}")
 
-                options_data: Dict[str, Dict[str, Any]] = {}
+                options_data: dict[str, dict[str, Any]] = {}
                 skipped = 0
                 for inst in raw_instruments:
                     norm = normalize_instrument(inst)
@@ -188,11 +188,11 @@ def main():
                         quote_payload_any = quotes.get(q_key)
                         if not isinstance(quote_payload_any, dict):
                             continue
-                        quote_payload: Dict[str, Any] = quote_payload_any  # explicit type
+                        quote_payload: dict[str, Any] = quote_payload_any  # explicit type
                         sym_entry_any = options_data.get(sym, {})
                         if not isinstance(sym_entry_any, dict):
                             continue
-                        sym_entry: Dict[str, Any] = sym_entry_any  # explicit type
+                        sym_entry: dict[str, Any] = sym_entry_any  # explicit type
                         for field in ("last_price", "volume", "oi", "depth"):
                             if field in quote_payload:
                                 sym_entry[field] = quote_payload[field]
@@ -212,7 +212,7 @@ def main():
                         try:
                             file_size = os.path.getsize(expected_file)
                             logger.info(f"Data file OK (size={file_size} bytes)")
-                            with open(expected_file, "r") as fh:
+                            with open(expected_file) as fh:
                                 preview = fh.readlines()[:5]
                             logger.debug(f"File preview (first 5 lines): {preview}")
                         except Exception as read_err:
@@ -241,12 +241,12 @@ def main():
                                     pass
                 else:
                     logger.warning("No normalized option data to write (all instruments skipped?)")
-                
+
             else:
                 logger.warning(f"No instruments found for {index_symbol} with expiry {expiry_date}")
         else:
             logger.warning(f"No expiry dates found for {index_symbol}")
-    
+
     except Exception as e:
         logger.error(f"Error collecting data: {e}", exc_info=True)
         try:
@@ -254,7 +254,7 @@ def main():
             handle_collector_error(e, component="direct_collect.run", context={"stage": "collect"})
         except Exception:
             pass
-    
+
     logger.info("===== DIRECT COLLECTION COMPLETED =====")
     return 0
 

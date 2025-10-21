@@ -11,7 +11,9 @@ Enhancements (2025-10-02):
 """
 from __future__ import annotations
 
-import os, warnings, logging
+import logging
+import os
+import warnings
 
 logger = logging.getLogger(__name__)
 _EMITTED: set[str] = set()
@@ -61,7 +63,7 @@ def _normalize_suppression_env() -> None:
             stacklevel=2,
         )
         logger.warning(
-            "deprecations.suppress_legacy_mapped legacy=%s mapped_value=%s", 
+            "deprecations.suppress_legacy_mapped legacy=%s mapped_value=%s",
             ",".join(legacy_set),
             os.environ.get("G6_SUPPRESS_DEPRECATIONS","0")
         )

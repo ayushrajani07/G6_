@@ -2,22 +2,22 @@ from __future__ import annotations
 
 import asyncio
 import datetime
-import time
-from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Iterable, List
-
-from .async_providers import AsyncProviders
-from src.utils import log_context as _logctx
-from src.utils.market_hours import is_market_open
 import os as _os_env
+from concurrent.futures import ThreadPoolExecutor
+from typing import Any
+
 from src.error_handling import handle_collector_error
+from src.utils import log_context as _logctx
 from src.utils.exceptions import (
-    ResolveExpiryError,
-    NoInstrumentsError,
-    NoQuotesError,
     CsvWriteError,
     InfluxWriteError,
+    NoInstrumentsError,
+    NoQuotesError,
+    ResolveExpiryError,
 )
+from src.utils.market_hours import is_market_open
+
+from .async_providers import AsyncProviders
 
 
 class ParallelCollector:
@@ -31,7 +31,7 @@ class ParallelCollector:
         # One-time expiry matrix print state
         self._expiry_matrix_printed: bool = False
         self._expiry_matrix_lock = None  # lazy-initialized asyncio.Lock
-        self._enabled_indices: List[str] = []
+        self._enabled_indices: list[str] = []
         self._any_chain_realized = False  # becomes True once first enrich_with_quotes succeeds
 
     async def _print_expiry_matrix_once(self):
@@ -56,7 +56,7 @@ class ParallelCollector:
                 rules = ["this_week", "next_week", "this_month", "next_month"]
                 today = datetime.date.today()
 
-                rows: List[List[str]] = []
+                rows: list[list[str]] = []
                 for idx in indices:
                     row = [idx]
                     for r in rules:
@@ -69,10 +69,10 @@ class ParallelCollector:
                     rows.append(row)
 
                 header = ["INDEX"] + rules
-                col_widths = [max(len(str(c)) for c in col) for col in zip(header, *rows)]
+                col_widths = [max(len(str(c)) for c in col) for col in zip(header, *rows, strict=False)]
 
                 def _print_row(r):
-                    print("  ".join(str(c).ljust(w) for c, w in zip(r, col_widths)))
+                    print("  ".join(str(c).ljust(w) for c, w in zip(r, col_widths, strict=False)))
 
                 _print_row(header)
                 print("  ".join("-" * w for w in col_widths))
@@ -89,7 +89,7 @@ class ParallelCollector:
         Path: <base>/<INDEX>/this_week/0/YYYY-MM-DD.csv
         """
         try:
-            today = datetime.datetime.now(datetime.timezone.utc)
+            today = datetime.datetime.now(datetime.UTC)
             expiry_code = 'this_week'
             offset_dir = '0'
             idx_dir = _os_env.path.join(self.csv.base_dir, index_symbol, expiry_code, offset_dir)
@@ -112,7 +112,7 @@ class ParallelCollector:
         except Exception:
             pass
 
-    async def _collect_index(self, index_symbol: str, params: Dict[str, Any]):
+    async def _collect_index(self, index_symbol: str, params: dict[str, Any]):
         try:
             _logctx.set_context(component='collector', index=index_symbol)
         except Exception:
@@ -149,11 +149,11 @@ class ParallelCollector:
 
         # Index price + OHLC
         price = 0
-        ohlc: Dict[str, Any] = {}
+        ohlc: dict[str, Any] = {}
         try:
             price, ohlc = await self.providers.get_index_data(index_symbol)
             atm = await self.providers.get_ltp(index_symbol)
-        except Exception as e:
+        except Exception:
             if self.metrics:
                 try:
                     self.metrics.collection_errors.labels(index=index_symbol, error_type='index_data').inc()
@@ -170,9 +170,9 @@ class ParallelCollector:
                 pass
 
         # Aggregation containers per index
-        pcr_snapshot: Dict[str, float] = {}
+        pcr_snapshot: dict[str, float] = {}
         representative_day_width = 0.0
-        snapshot_base_time = datetime.datetime.now(datetime.timezone.utc)
+        snapshot_base_time = datetime.datetime.now(datetime.UTC)
 
         # Process expiries (current path: iterate as in sync collector)
         wrote_any = False
@@ -203,7 +203,7 @@ class ParallelCollector:
                     step = 50.0
             except Exception:
                 step = 100.0 if index_symbol in ("BANKNIFTY", "SENSEX") else 50.0
-            strikes: List[float] = []
+            strikes: list[float] = []
             for i in range(1, strikes_itm + 1):
                 strikes.append(float(atm - i * step))
             strikes.append(float(atm))
@@ -292,7 +292,7 @@ class ParallelCollector:
                 pass
 
             # Write via CsvSink (sync). Offload to thread if pool exists.
-            ts = datetime.datetime.now(datetime.timezone.utc)
+            ts = datetime.datetime.now(datetime.UTC)
             def _write():
                 return self.csv.write_options_data(
                     index_symbol, expiry_date, enriched, ts, index_price=price, index_ohlc=ohlc, source="async", suppress_overview=True, return_metrics=True
@@ -384,7 +384,7 @@ class ParallelCollector:
         # Fallback: if nothing was written (e.g., due to data filters), create a minimal placeholder CSV
         try:
             if not wrote_any:
-                today = datetime.datetime.now(datetime.timezone.utc)
+                today = datetime.datetime.now(datetime.UTC)
                 expiry_code = 'this_week'
                 offset_dir = '0'
                 idx_dir = _os_env.path.join(self.csv.base_dir, index_symbol, expiry_code, offset_dir)
@@ -396,10 +396,10 @@ class ParallelCollector:
         except Exception:
             pass
 
-    async def run_once(self, index_params: Dict[str, Any]):
+    async def run_once(self, index_params: dict[str, Any]):
         tasks = []
-        enabled_indices: List[str] = []
-        scheduled: List[tuple[str, Dict[str, Any]]] = []
+        enabled_indices: list[str] = []
+        scheduled: list[tuple[str, dict[str, Any]]] = []
         for idx, params in (index_params or {}).items():
             if not params.get('enable', True):
                 continue
@@ -411,7 +411,7 @@ class ParallelCollector:
                 _os_env.makedirs(base_index_dir, exist_ok=True)
                 _os_env.makedirs(_os_env.path.join(base_index_dir, 'this_week'), exist_ok=True)
                 # Also create a date-named expiry folder (next Thursday) to satisfy tests expecting an expiry-like folder
-                today = datetime.datetime.now(datetime.timezone.utc)
+                today = datetime.datetime.now(datetime.UTC)
                 ist_offset = datetime.timedelta(hours=5, minutes=30)
                 ist_today = (today + ist_offset).date()
                 d = ist_today
@@ -438,7 +438,7 @@ class ParallelCollector:
                 _os_env.makedirs(base_index_dir, exist_ok=True)
                 _os_env.makedirs(_os_env.path.join(base_index_dir, 'this_week'), exist_ok=True)
                 # Redundant safety: ensure at least one date-named expiry folder exists (next Thursday)
-                today = datetime.datetime.now(datetime.timezone.utc)
+                today = datetime.datetime.now(datetime.UTC)
                 ist_offset = datetime.timedelta(hours=5, minutes=30)
                 ist_today = (today + ist_offset).date()
                 d = ist_today

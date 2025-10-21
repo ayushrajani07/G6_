@@ -8,14 +8,20 @@ Planned enhancements (separate todos): auth, IP allow list, rate limiting,
 non-blocking queue handoff, graceful shutdown, metrics integration.
 """
 from __future__ import annotations
-import threading, time, signal, hashlib, socket
-from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
-from typing import List, Dict, Any, Optional
-import os
+
+import hashlib
 import json
 import logging
+import os
+import signal
+import socket
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
+from typing import Any
+
 try:
-    from prometheus_client import Gauge, Counter, Histogram  # type: ignore
+    from prometheus_client import Counter, Gauge, Histogram  # type: ignore
 except Exception:  # pragma: no cover - dependency optional
     Gauge = Counter = None  # type: ignore
 
@@ -26,7 +32,7 @@ _lock = threading.RLock()
 _shutdown = False
 _shutdown_lock = threading.RLock()
 _active_connections = 0
-_rl_state = {}
+_rl_state: dict[str, Any] = {}
 _metrics_registered = False
 _m_active: Any = None
 _m_connects: Any = None
@@ -48,29 +54,29 @@ _handlers = set()  # type: ignore[var-annotated]
 _force_bye_close = False  # when set via initiate_sse_shutdown, handlers exit ASAP after sending bye
 
 
-def set_publisher(publisher) -> None:  # duck-typed SSEPublisher
+def set_publisher(publisher: Any) -> None:  # duck-typed SSEPublisher
     with _lock:
         global _publisher_ref
         _publisher_ref = publisher
         _maybe_register_metrics()
 
 
-def get_publisher():
+def get_publisher() -> Any:
     with _lock:
         return _publisher_ref
 
 
-_ip_conn_window = {}  # ip -> list[timestamps] for connection attempts
+_ip_conn_window: dict[str, list[float]] = {}  # ip -> list[timestamps] for connection attempts
 
 # Early stub exports so that modules importing these symbols (e.g., unified_http)
 # during partial import states always find them. They will be redefined with full
 # implementations later in the file. This guards against edge cases where another
 # module performs a from-import before this module finishes executing (rare but
 # observed under certain test collection interleavings / tooling reloads).
-def _allow_event(handler) -> bool:  # type: ignore[unused-arg]
+def _allow_event(handler: Any) -> bool:  # type: ignore[unused-arg]
     return True
 
-def _write_event(handler, evt: Dict[str, Any]) -> None:  # type: ignore[unused-arg]
+def _write_event(handler: Any, evt: dict[str, Any]) -> None:  # type: ignore[unused-arg]
     try:
         # Minimal best-effort framing (mirrors later full implementation fallback)
         import json as _json
@@ -97,13 +103,18 @@ def _maybe_register_metrics() -> None:
     Ensures all expected counters/histograms exist; if some missing on a subsequent call
     (e.g., partial earlier failure) they are created.
     """
-    global _metrics_registered, _m_active, _m_connects, _m_disconnects, _m_rejected_conn, _m_events_sent, _m_events_dropped, _m_security_dropped, _m_auth_fail, _m_forbidden_ip, _m_rate_limited_conn, _m_forbidden_ua, _h_event_size, _h_event_latency, _h_conn_duration
+    global _metrics_registered, _m_active, _m_connects, _m_disconnects, _m_rejected_conn
+    global _m_events_sent, _m_events_dropped, _m_security_dropped, _m_auth_fail
+    global _m_forbidden_ip, _m_rate_limited_conn, _m_forbidden_ua
+    global _h_event_size, _h_event_latency, _h_conn_duration
     if Gauge is None or Counter is None:
         return
     try:
         from prometheus_client import REGISTRY  # type: ignore
-        def _get_or_create(ctor, name: str, doc: str):
-            # Always consult live registry; ignore cached globals which may reference old registries.
+
+        def _get_or_create(ctor: Any, name: str, doc: str) -> Any:
+            # Always consult live registry; ignore cached globals which may
+            # reference old registries.
             try:
                 existing = REGISTRY._names_to_collectors.get(name)  # type: ignore[attr-defined]
                 if existing is not None:
@@ -120,23 +131,99 @@ def _maybe_register_metrics() -> None:
                     return None
             except Exception:
                 return None
-        # Recreate/ensure every metric family each invocation (cheap) so registry resets during tests don't orphan metrics.
-        _m_active = _get_or_create(Gauge, 'g6_sse_http_active_connections', 'Active SSE HTTP connections')
-        _m_connects = _get_or_create(Counter, 'g6_sse_http_connections_total', 'Total accepted SSE HTTP connections')
-        _m_disconnects = _get_or_create(Counter, 'g6_sse_http_disconnects_total', 'Total SSE HTTP disconnects')
-        _m_rejected_conn = _get_or_create(Counter, 'g6_sse_http_rejected_connections_total', 'Rejected SSE connections (cap/auth/ip)')
-        _m_events_sent = _get_or_create(Counter, 'g6_sse_http_events_sent_total', 'Total SSE events written')
-        _m_events_dropped = _get_or_create(Counter, 'g6_sse_http_events_dropped_total', 'Events dropped by rate limiter')
-        _m_security_dropped = _get_or_create(Counter, 'g6_sse_http_security_events_dropped_total', 'Events dropped for security/sanitization reasons')
-        _m_auth_fail = _get_or_create(Counter, 'g6_sse_http_auth_fail_total', 'Authentication failures (bad/missing token)')
-        _m_forbidden_ip = _get_or_create(Counter, 'g6_sse_http_forbidden_ip_total', 'Rejected connections due to IP allow list')
-        _m_rate_limited_conn = _get_or_create(Counter, 'g6_sse_http_rate_limited_total', 'Connections rejected due to per-IP rate limiting')
-        _m_forbidden_ua = _get_or_create(Counter, 'g6_sse_http_forbidden_ua_total', 'Rejected connections due to User-Agent allow list')
+
+        # Recreate/ensure every metric family each invocation (cheap) so registry
+        # resets during tests don't orphan metrics.
+        _m_active = _get_or_create(
+            Gauge,
+            'g6_sse_http_active_connections',
+            'Active SSE HTTP connections',
+        )
+        _m_connects = _get_or_create(
+            Counter,
+            'g6_sse_http_connections_total',
+            'Total accepted SSE HTTP connections',
+        )
+        _m_disconnects = _get_or_create(
+            Counter,
+            'g6_sse_http_disconnects_total',
+            'Total SSE HTTP disconnects',
+        )
+        _m_rejected_conn = _get_or_create(
+            Counter,
+            'g6_sse_http_rejected_connections_total',
+            'Rejected SSE connections (cap/auth/ip)',
+        )
+        _m_events_sent = _get_or_create(
+            Counter,
+            'g6_sse_http_events_sent_total',
+            'Total SSE events written',
+        )
+        _m_events_dropped = _get_or_create(
+            Counter,
+            'g6_sse_http_events_dropped_total',
+            'Events dropped by rate limiter',
+        )
+        _m_security_dropped = _get_or_create(
+            Counter,
+            'g6_sse_http_security_events_dropped_total',
+            'Events dropped for security/sanitization reasons',
+        )
+        _m_auth_fail = _get_or_create(
+            Counter,
+            'g6_sse_http_auth_fail_total',
+            'Authentication failures (bad/missing token)',
+        )
+        _m_forbidden_ip = _get_or_create(
+            Counter,
+            'g6_sse_http_forbidden_ip_total',
+            'Rejected connections due to IP allow list',
+        )
+        _m_rate_limited_conn = _get_or_create(
+            Counter,
+            'g6_sse_http_rate_limited_total',
+            'Connections rejected due to per-IP rate limiting',
+        )
+        _m_forbidden_ua = _get_or_create(
+            Counter,
+            'g6_sse_http_forbidden_ua_total',
+            'Rejected connections due to User-Agent allow list',
+        )
         _H = Histogram  # type: ignore[name-defined]
         if _H is not None:
-            _h_event_size = _get_or_create(_H, 'g6_sse_http_event_size_bytes', 'Size of SSE events in bytes')
-            _h_event_latency = _get_or_create(_H, 'g6_sse_http_event_queue_latency_seconds', 'Latency between event enqueue and write')
-            _h_conn_duration = _get_or_create(_H, 'g6_sse_http_connection_duration_seconds', 'SSE connection lifetime (seconds)')
+            _h_event_size = _get_or_create(
+                _H,
+                'g6_sse_http_event_size_bytes',
+                'Size of SSE events in bytes',
+            )
+            _h_event_latency = _get_or_create(
+                _H,
+                'g6_sse_http_event_queue_latency_seconds',
+                'Latency between event enqueue and write',
+            )
+            _h_conn_duration = _get_or_create(
+                _H,
+                'g6_sse_http_connection_duration_seconds',
+                'SSE connection lifetime (seconds)',
+            )
+        # Initialize essential families with zero samples so they appear in
+        # /metrics exposition
+        try:
+            if _m_active is not None and hasattr(_m_active, 'set'):
+                try:
+                    _m_active.set(0)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+        except Exception:
+            pass
+        try:
+            if _m_connects is not None and hasattr(_m_connects, 'inc'):
+                try:
+                    _m_connects.inc(0)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
+        except Exception:
+            pass
         _metrics_registered = True
     except Exception:
         pass
@@ -146,7 +233,7 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
     server_version = "G6SSE/0.1"
     sys_version = ""
 
-    def log_message(self, format: str, *args) -> None:  # noqa: A003
+    def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
         return
 
     def _parse_path(self, raw: str) -> str:
@@ -159,7 +246,7 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
             p = '/' + p
         return p.rstrip('/')
 
-    def _send_plain(self, code: int, body: str, *, headers: Optional[Dict[str,str]] = None) -> None:
+    def _send_plain(self, code: int, body: str, *, headers: dict[str, str] | None = None) -> None:
         self.send_response(code)
         self.send_header('Content-Type', 'text/plain')
         if headers:
@@ -171,7 +258,7 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
         except Exception:
             pass
 
-    def do_GET(self):  # noqa: N802
+    def do_GET(self) -> None:  # noqa: N802
         path = self._parse_path(self.path or '')
         if path != '/summary/events':
             self.send_error(404, "not found")
@@ -208,19 +295,24 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
             provided = self.headers.get('X-API-Token')
             if provided != token_required:
                 if _m_auth_fail is not None:
-                    try: _m_auth_fail.inc()  # type: ignore[attr-defined]
-                    except Exception: pass
+                    try:
+                        _m_auth_fail.inc()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
                 self._send_plain(401, 'unauthorized')
                 return
         client_ip = self.client_address[0] if isinstance(self.client_address, tuple) else ''
         if allow_ips:
             if client_ip not in allow_ips:
                 if _m_forbidden_ip is not None:
-                    try: _m_forbidden_ip.inc()  # type: ignore[attr-defined]
-                    except Exception: pass
+                    try:
+                        _m_forbidden_ip.inc()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
                 self._send_plain(403, 'forbidden')
                 return
-        # User-Agent allow list enforcement (moved before per-IP connection rate limiting so UA failures return 403 even if rate window exhausted)
+    # User-Agent allow list enforcement (moved before per-IP connection rate limiting
+    # so UA failures return 403 even if rate window exhausted)
         ua_allow = ','.join(ua_allow_raw) if ua_allow_raw else ''
         ua = self.headers.get('User-Agent','') or ''
         ua_hash = hashlib.sha256(ua.encode('utf-8')).hexdigest() if ua else ''
@@ -228,9 +320,15 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
             allow_parts = [p.strip() for p in ua_allow.split(',') if p.strip()]
             if allow_parts and not any(part in ua for part in allow_parts):
                 if _m_forbidden_ua is not None:
-                    try: _m_forbidden_ua.inc()  # type: ignore[attr-defined]
-                    except Exception: pass
-                logger.warning("sse_conn reject ip=%s reason=forbidden_ua ua_hash=%s", client_ip, ua_hash[:12])
+                    try:
+                        _m_forbidden_ua.inc()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
+                logger.warning(
+                    "sse_conn reject ip=%s reason=forbidden_ua ua_hash=%s",
+                    client_ip,
+                    ua_hash[:12],
+                )
                 self._send_plain(403, 'forbidden')
                 return
         # Per-IP connection rate limiting (after UA allow so test expectations of 403 precedence hold)
@@ -238,13 +336,17 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
             parts = [p for p in rate_spec.replace(':','/').split('/') if p]
             try:
                 if len(parts) == 2:
-                    max_conn_ip = int(parts[0]); win_sec = int(parts[1])
+                    max_conn_ip = int(parts[0])
+                    win_sec = int(parts[1])
                 elif len(parts) == 1:
-                    max_conn_ip = int(parts[0]); win_sec = 60
+                    max_conn_ip = int(parts[0])
+                    win_sec = 60
                 else:
-                    max_conn_ip = 0; win_sec = 60
+                    max_conn_ip = 0
+                    win_sec = 60
             except Exception:
-                max_conn_ip = 0; win_sec = 60
+                max_conn_ip = 0
+                win_sec = 60
             if max_conn_ip > 0 and client_ip:
                 now = time.time()
                 window = _ip_conn_window.setdefault(client_ip, [])
@@ -259,19 +361,21 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
                     # retain the newest events only
                     del window[:-max_conn_ip]
                 # Expanded debug activation: enable automatically under pytest for flake diagnostics
-                _debug_active = os.getenv('G6_SSE_DEBUG','') not in ('','0','false','no','off') or os.getenv('PYTEST_CURRENT_TEST')
+                _debug_active = (
+                    os.getenv('G6_SSE_DEBUG', '') not in ('', '0', 'false', 'no', 'off')
+                    or os.getenv('PYTEST_CURRENT_TEST')
+                )
                 if len(window) >= max_conn_ip:
                     # Second‑chance pruning: if actual active handlers for this IP are below cap,
                     # we may have stale attempt timestamps (e.g., handshake socket connects or
                     # very short lived connects from prior tests). Remove oldest until room.
                     try:
-                        from typing import Iterable  # local lightweight import
                         active_for_ip = 0
                         for _h in list(_handlers):  # type: ignore[name-defined]
                             try:
-                                if getattr(_h, 'client_address', None) and getattr(_h, 'client_address')[0] == client_ip:
+                                if getattr(_h, 'client_address', None) and _h.client_address[0] == client_ip:
                                     active_for_ip += 1
-                            except Exception:
+                            except Exception:  # noqa: PERF203 - isolate per-handler exceptions to keep connection loop robust
                                 pass
                         if active_for_ip < max_conn_ip:
                             # prune excess stale timestamps (keep most recent active_for_ip entries)
@@ -284,32 +388,65 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
                 if len(window) >= max_conn_ip:
                     if _debug_active:
                         try:
-                            logger.debug("[sse-debug] rate_limit_block ip=%s attempts=%s max=%s window=%s now=%s", client_ip, len(window), max_conn_ip, window, now)
-                            print(f"[sse-debug] rate_limit_block ip={client_ip} attempts={len(window)} max={max_conn_ip} window={window} now={now:.6f}")
+                            logger.debug(
+                                "[sse-debug] rate_limit_block ip=%s attempts=%s max=%s window=%s now=%s",
+                                client_ip,
+                                len(window),
+                                max_conn_ip,
+                                window,
+                                now,
+                            )
+                            print(
+                                f"[sse-debug] rate_limit_block ip={client_ip} attempts={len(window)} "
+                                f"max={max_conn_ip} window={window} now={now:.6f}"
+                            )
                         except Exception:
                             pass
                     if _m_rate_limited_conn is not None:
-                        try: _m_rate_limited_conn.inc()  # type: ignore[attr-defined]
-                        except Exception: pass
-                    logger.warning("sse_conn reject ip=%s reason=rate_limited attempts=%s/%s window=%ss", client_ip, len(window), max_conn_ip, win_sec)
+                        try:
+                            _m_rate_limited_conn.inc()  # type: ignore[attr-defined]
+                        except Exception:
+                            pass
+                    logger.warning(
+                        "sse_conn reject ip=%s reason=rate_limited attempts=%s/%s window=%ss",
+                        client_ip,
+                        len(window),
+                        max_conn_ip,
+                        win_sec,
+                    )
                     self.send_response(429)
                     self.send_header('Retry-After', '5')
                     self.end_headers()
-                    try: self.wfile.write(b'rate limited')
-                    except Exception: pass
+                    try:
+                        self.wfile.write(b'rate limited')
+                    except Exception:
+                        pass
                     return
                 window.append(now)
                 if _debug_active:
                     try:
-                        logger.debug("[sse-debug] rate_limit_allow ip=%s appended now=%s size=%s/%s window=%s", client_ip, now, len(window), max_conn_ip, window)
-                        print(f"[sse-debug] rate_limit_allow ip={client_ip} size={len(window)}/{max_conn_ip} window={window} now={now:.6f}")
+                        logger.debug(
+                            "[sse-debug] rate_limit_allow ip=%s appended now=%s size=%s/%s window=%s",
+                            client_ip,
+                            now,
+                            len(window),
+                            max_conn_ip,
+                            window,
+                        )
+                        print(
+                            f"[sse-debug] rate_limit_allow ip={client_ip} size={len(window)}/{max_conn_ip} "
+                            f"window={window} now={now:.6f}"
+                        )
                     except Exception:
                         pass
         # Global connection cap
         max_conn = int(os.getenv('G6_SSE_MAX_CONNECTIONS', '50') or 50)
         global _active_connections
         with _lock:
-            _debug_active_global = os.getenv('G6_SSE_DEBUG','') not in ('','0','false','no','off') or os.getenv('PYTEST_CURRENT_TEST')
+            _debug_active_global = (
+                os.getenv('G6_SSE_DEBUG', '') not in ('', '0', 'false', 'no', 'off')
+                or os.getenv('PYTEST_CURRENT_TEST')
+            )
             if _active_connections >= max_conn:
                 if _debug_active_global:
                     try:
@@ -317,13 +454,17 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
                     except Exception:
                         pass
                 if _m_rejected_conn is not None:
-                    try: _m_rejected_conn.inc()  # type: ignore[attr-defined]
-                    except Exception: pass
+                    try:
+                        _m_rejected_conn.inc()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
                 self.send_response(429)
                 self.send_header('Retry-After', '5')
                 self.end_headers()
-                try: self.wfile.write(b'too many connections')
-                except Exception: pass
+                try:
+                    self.wfile.write(b'too many connections')
+                except Exception:
+                    pass
                 return
             _active_connections += 1
             if _debug_active_global:
@@ -332,13 +473,26 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
                 except Exception:
                     pass
             if _m_connects is not None:
-                try: _m_connects.inc()  # type: ignore[attr-defined]
-                except Exception: pass
+                try:
+                    _m_connects.inc()  # type: ignore[attr-defined]
+                except Exception:
+                    pass
             if _m_active is not None:
-                try: _m_active.set(_active_connections)  # type: ignore[attr-defined]
-                except Exception: pass
+                try:
+                    _m_active.set(_active_connections)  # type: ignore[attr-defined]
+                except Exception:
+                    pass
         # connection accepted
         self._conn_start = time.time()
+        # Enforce a small minimum connection lifetime to stabilize tests relying on concurrent cap
+        # Set this BEFORE sending headers so even if an early exception occurs, the finally block
+        # will still honor the minimum lifetime before decrementing the active counter.
+        try:
+            self._min_alive_until = time.time() + float(
+                os.getenv('G6_SSE_CONN_MIN_LIFETIME', '0.25') or 0.25
+            )
+        except Exception:
+            self._min_alive_until = time.time() + 0.25
         self.send_response(200)
         self.send_header('Content-Type', 'text/event-stream')
         self.send_header('Cache-Control', 'no-cache')
@@ -354,7 +508,8 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
         self.end_headers()
         # Simple header flush; avoid large padding hacks (tests now allow time for events)
         try:
-            self.wfile.write(b':ok\n\n'); self.wfile.flush()
+            self.wfile.write(b':ok\n\n')
+            self.wfile.flush()
         except Exception:
             pass
         logger.info("sse_conn accept ip=%s req_id=%s ua_hash=%s", client_ip, req_id or '', ua_hash[:12])
@@ -362,11 +517,6 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
             _handlers.add(self)
         except Exception:
             pass
-        # Enforce a small minimum connection lifetime to stabilize tests relying on concurrent cap
-        try:
-            self._min_alive_until = time.time() + float(os.getenv('G6_SSE_CONN_MIN_LIFETIME','0.25') or 0.25)
-        except Exception:
-            self._min_alive_until = time.time() + 0.25
         last_index = 0
         try:
             # Immediate backlog flush (hello/full_snapshot) so first client read gets data
@@ -375,9 +525,9 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
                 if _pub_initial is not None:
                     _initial_events = _pub_initial.events
                     for _evt in _initial_events:
-                        try:
+                        try:  # noqa: PERF203 - per-event isolation prevents a single bad event from killing the stream loop
                             self._write_event(_evt)
-                        except Exception:
+                        except Exception:  # noqa: PERF203 - see above rationale
                             return
                     last_index = len(_initial_events)
             except Exception:
@@ -393,8 +543,10 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
                         last_index += 1
                         if not self._allow_event():
                             if _m_events_dropped is not None:
-                                try: _m_events_dropped.inc()  # type: ignore[attr-defined]
-                                except Exception: pass
+                                try:
+                                    _m_events_dropped.inc()  # type: ignore[attr-defined]
+                                except Exception:
+                                    pass
                             continue
                         try:
                             self._write_event(evt)
@@ -406,7 +558,7 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
                     with _shutdown_lock:
                         if _shutdown or _force_bye_close:
                             try:
-                                self._write_event({'event':'bye','data':{'reason':'shutdown'}})
+                                self._write_event({'event': 'bye', 'data': {'reason': 'shutdown'}})
                             except Exception:
                                 pass
                             try:
@@ -419,7 +571,7 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
                 with _shutdown_lock:
                     if _shutdown:
                         try:
-                            self._write_event({'event':'bye','data':{'reason':'shutdown'}})
+                            self._write_event({'event': 'bye', 'data': {'reason': 'shutdown'}})
                         except Exception:
                             pass
                         try:
@@ -469,19 +621,23 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
             with _lock:
                 _active_connections = max(0, _active_connections - 1)
                 if _m_disconnects is not None:
-                    try: _m_disconnects.inc()  # type: ignore[attr-defined]
-                    except Exception: pass
+                    try:
+                        _m_disconnects.inc()  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
                 if _m_active is not None:
-                    try: _m_active.set(_active_connections)  # type: ignore[attr-defined]
-                    except Exception: pass
+                    try:
+                        _m_active.set(_active_connections)  # type: ignore[attr-defined]
+                    except Exception:
+                        pass
             try:
                 if _h_conn_duration is not None and getattr(self, '_conn_start', None):
-                    dur = time.time() - getattr(self, '_conn_start')
+                    dur = time.time() - self._conn_start
                     _h_conn_duration.observe(dur)  # type: ignore[attr-defined]
             except Exception:
                 pass
 
-    def _write_event(self, evt: Dict[str, Any]) -> None:
+    def _write_event(self, evt: dict[str, Any]) -> None:
         try:
             from .sse_shared import write_sse_event  # type: ignore
             write_sse_event(
@@ -512,7 +668,7 @@ class SSEHandler(BaseHTTPRequestHandler):  # pragma: no cover (network IO thin w
     def _allow_event(self) -> bool:
         try:
             from .sse_shared import allow_event_token_bucket  # type: ignore
-            return allow_event_token_bucket(self)
+            return bool(allow_event_token_bucket(self))
         except Exception:
             return True
 
@@ -533,6 +689,14 @@ def serve_sse_http(port: int = 9320, bind: str = '127.0.0.1', background: bool =
     except Exception:  # pragma: no cover - defensive
         server_cls = HTTPServer  # type: ignore[assignment]
     srv = server_cls((bind, port), SSEHandler)
+    # Reset shutdown flags on fresh server start (important for tests running multiple servers)
+    try:
+        global _shutdown, _force_bye_close
+        with _shutdown_lock:
+            _shutdown = False
+        _force_bye_close = False
+    except Exception:
+        pass
     # Clear per-IP window (fresh server start for tests to avoid leakage across suite)
     try:
         _ip_conn_window.clear()
@@ -540,11 +704,13 @@ def serve_sse_http(port: int = 9320, bind: str = '127.0.0.1', background: bool =
         pass
     # If threading mixin is active, ensure threads don't block interpreter exit.
     if hasattr(srv, 'daemon_threads'):
-        try: setattr(srv, 'daemon_threads', True)
+        try:
+            srv.daemon_threads = True  # type: ignore[attr-defined]
         except Exception:  # pragma: no cover - defensive
             pass
     # Attach graceful shutdown handler only once (idempotent if called multiple times)
-    def _graceful(signum=None, frame=None):  # noqa: D401, ANN001
+    from types import FrameType
+    def _graceful(signum: int | None = None, frame: FrameType | None = None) -> None:  # noqa: D401
         global _shutdown
         with _shutdown_lock:
             if _shutdown:
@@ -578,8 +744,10 @@ def initiate_sse_shutdown(reason: str = "requested") -> None:
     pub = get_publisher()
     try:
         if pub is not None:
-            try: pub.events.append({'event':'bye','data':{'reason':reason,'ts':time.time()}})
-            except Exception: pass
+            try:
+                pub.events.append({'event': 'bye', 'data': {'reason': reason, 'ts': time.time()}})
+            except Exception:
+                pass
     except Exception:
         pass
     # Signal handlers to break early after emitting bye
@@ -589,13 +757,13 @@ def initiate_sse_shutdown(reason: str = "requested") -> None:
 
 # Compatibility helpers for unified_http: provide module-level _allow_event and
 # _write_event that delegate to the underlying SSEHandler implementations.
-def _allow_event(handler) -> bool:  # type: ignore[unused-arg]
+def _compat_allow_event(handler: Any) -> bool:  # type: ignore[unused-arg]
     try:
         return SSEHandler._allow_event(handler)  # type: ignore[arg-type]
     except Exception:
         return True
 
-def _write_event(handler, evt: Dict[str, Any]) -> None:  # type: ignore[unused-arg]
+def _compat_write_event(handler: Any, evt: dict[str, Any]) -> None:  # type: ignore[unused-arg]
     """Expose writing logic so unified_http can reuse framing without importing the class.
 
     Falls back silently if write fails to mirror SSEHandler behavior.
@@ -620,4 +788,4 @@ def _write_event(handler, evt: Dict[str, Any]) -> None:  # type: ignore[unused-a
         except Exception:
             pass
 
-__all__ = ["serve_sse_http", "set_publisher", "initiate_sse_shutdown", "_allow_event", "_write_event"]
+__all__ = ["serve_sse_http", "set_publisher", "initiate_sse_shutdown", "_compat_allow_event", "_compat_write_event"]

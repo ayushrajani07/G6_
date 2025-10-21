@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Introspection & init trace dump helpers (extracted from metrics.py).
 
 Provides resilient, environment-driven JSON dump routines for:
@@ -16,13 +15,13 @@ All operations are best-effort and swallow exceptions (mirroring historical beha
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
 import json
+import logging
 import os
 import tempfile
 import time as _t
+from datetime import UTC, datetime
 from typing import Any
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +58,7 @@ def maybe_dump_introspection(registry: Any) -> None:
                 inv = []
                 registry._metrics_introspection = []  # type: ignore[attr-defined]
         payload = {
-            "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "generated_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "metric_count": len(inv),
             "groups_present": sorted({g for g in (m.get("group") for m in inv) if g}),
             "inventory": inv,

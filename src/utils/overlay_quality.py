@@ -4,14 +4,15 @@ This module stays dependency-light and can be safely imported from scripts.
 """
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Sequence, Tuple, Dict, Any
-from datetime import datetime, timezone, date
-import json
 import csv
+import json
+from collections.abc import Sequence
+from datetime import UTC, date, datetime
+from pathlib import Path
+from typing import Any
 
 
-def validate_csv_header(path: Path | str, required_columns: Sequence[str]) -> Tuple[bool, Sequence[str]]:
+def validate_csv_header(path: Path | str, required_columns: Sequence[str]) -> tuple[bool, Sequence[str]]:
     """Quickly validate that a CSV file contains the required header columns.
 
     Returns (ok, header_columns). Any exception results in (False, []).
@@ -34,12 +35,12 @@ def validate_csv_header(path: Path | str, required_columns: Sequence[str]) -> Tu
 
 def _iso_utc(dt: datetime) -> str:
     try:
-        return dt.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
+        return dt.astimezone(UTC).isoformat().replace('+00:00', 'Z')
     except Exception:
         return dt.isoformat()
 
 
-def write_quality_report(output_root: str | Path, trade_date: date, weekday_name: str, run_summary: Dict[str, Any]) -> Path:
+def write_quality_report(output_root: str | Path, trade_date: date, weekday_name: str, run_summary: dict[str, Any]) -> Path:
     """Write or append a per-date quality report JSON under <output_root>/_quality/.
 
     Structure:
@@ -54,10 +55,10 @@ def write_quality_report(output_root: str | Path, trade_date: date, weekday_name
     out_dir.mkdir(parents=True, exist_ok=True)
     report_path = out_dir / f"overlay_quality_{trade_date:%Y-%m-%d}.json"
 
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "date": f"{trade_date:%Y-%m-%d}",
         "weekday": weekday_name,
-        "generated_utc": _iso_utc(datetime.now(timezone.utc)),
+        "generated_utc": _iso_utc(datetime.now(UTC)),
         "runs": []
     }
 
@@ -73,7 +74,7 @@ def write_quality_report(output_root: str | Path, trade_date: date, weekday_name
 
     # Attach a simple severity mapping so downstream consumers can act on it
     issues = run_summary.get('issues', []) or []
-    severity_map: Dict[str, str] = {}
+    severity_map: dict[str, str] = {}
     # Basic rules: parse/read/missing roots are critical; missing daily CSV is warning; others info
     critical_types = {"parse_master_error", "read_error", "missing_index_root"}
     warning_types = {"missing_daily_csv"}
@@ -87,7 +88,7 @@ def write_quality_report(output_root: str | Path, trade_date: date, weekday_name
             # default informational
             severity_map.setdefault(it, 'info')
     # Compute counts
-    counts: Dict[str, int] = {}
+    counts: dict[str, int] = {}
     for iss in issues:
         it = str(iss.get('type', 'unknown'))
         counts[it] = counts.get(it, 0) + 1

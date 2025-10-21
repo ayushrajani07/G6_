@@ -7,7 +7,8 @@ and optionally validating against recommended sets.
 """
 from __future__ import annotations
 
-from typing import Iterable, Sequence
+from collections.abc import Iterable, Sequence
+
 from prometheus_client import Counter, Gauge, Histogram
 
 

@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Shadow Gating Controller (Phase 4 – initial dry-run implementation)
 
 Purpose:
@@ -39,10 +40,11 @@ Extensibility:
       coverage thresholds as additional guardrails.
     - Promotion hysteresis (min consecutive ok) can be layered on later.
 """
-from dataclasses import dataclass
-from typing import Deque, Dict, Mapping, Tuple, Any, Set
-from collections import defaultdict, deque
 import os
+from collections import defaultdict, deque
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any
 
 DEFAULT_PROTECTED_FIELDS = ("expiry_date", "instrument_count")
 
@@ -69,18 +71,18 @@ class WindowStore:
     (not derived each time to keep O(1) updates even for large windows).
     """
     def __init__(self) -> None:
-        self._data: Dict[Tuple[str,str], Deque[bool]] = defaultdict(lambda: deque(maxlen=200))
-        self._ok_streak: Dict[Tuple[str,str], int] = defaultdict(int)
-        self._fail_streak: Dict[Tuple[str,str], int] = defaultdict(int)
-        self._protected: Dict[Tuple[str,str], Deque[bool]] = defaultdict(lambda: deque(maxlen=200))
-        self._hashes: Dict[Tuple[str,str], Deque[str]] = defaultdict(lambda: deque(maxlen=200))
-        self._hashes_churn: Dict[Tuple[str,str], Deque[str]] = defaultdict(lambda: deque(maxlen=200))
+        self._data: dict[tuple[str,str], deque[bool]] = defaultdict(lambda: deque(maxlen=200))
+        self._ok_streak: dict[tuple[str,str], int] = defaultdict(int)
+        self._fail_streak: dict[tuple[str,str], int] = defaultdict(int)
+        self._protected: dict[tuple[str,str], deque[bool]] = defaultdict(lambda: deque(maxlen=200))
+        self._hashes: dict[tuple[str,str], deque[str]] = defaultdict(lambda: deque(maxlen=200))
+        self._hashes_churn: dict[tuple[str,str], deque[str]] = defaultdict(lambda: deque(maxlen=200))
 
     def update(self, index: str, rule: str, ok: bool, window: int, *, protected: bool, parity_hash: str | None, churn_window: int | None = None) -> None:
         key = (index, rule)
         dq = self._data[key]
         if dq.maxlen != window:  # resize preserving history
-            ndq: Deque[bool] = deque(dq, maxlen=window)
+            ndq: deque[bool] = deque(dq, maxlen=window)
             self._data[key] = dq = ndq
             # resize companion deques
             self._protected[key] = deque(self._protected.get(key, deque()), maxlen=window)
@@ -130,7 +132,7 @@ class WindowStore:
         total = len(dq)
         if total == 0:
             return 0, 0, 0.0
-        distinct: Set[str] = set(dq)
+        distinct: set[str] = set(dq)
         distinct_count = len(distinct)
         churn_ratio = distinct_count / total if total else 0.0
         return total, distinct_count, churn_ratio
@@ -208,7 +210,7 @@ def load_config_from_env() -> GatingConfig:
         churn_window=_i("G6_SHADOW_CHURN_WINDOW", -1),
     )
 
-def decide(index: str, rule: str, meta: Mapping[str, Any], *, config: GatingConfig | None = None, store: WindowStore | None = None) -> Dict[str, Any]:
+def decide(index: str, rule: str, meta: Mapping[str, Any], *, config: GatingConfig | None = None, store: WindowStore | None = None) -> dict[str, Any]:
     if config is None:
         config = load_config_from_env()
     if store is None:
@@ -233,7 +235,7 @@ def decide(index: str, rule: str, meta: Mapping[str, Any], *, config: GatingConf
         hash_distinct = c_distinct
         hash_churn_ratio = c_ratio
         churn_window_size = c_tot
-    decision: Dict[str, Any] = {
+    decision: dict[str, Any] = {
         'mode': mode,
         'promote': False,
         'canary': False,

@@ -72,6 +72,25 @@ prometheus/
 !prometheus_alerts.yml
 grafana/
 
+# --- Local environment snapshots (do not commit) ---
+env_snapshots/
+env_snapshots_full/
+env_snapshots*/
+
+# --- Windows reserved filenames present locally ---
+CON
+
+# --- Additional volatile data directories ---
+data/panels/
+data/wal/
+data/chunks_head/
+data/weekday_master*/
+data/weekday_master_rebuild*/
+data/queries.active
+data/*/_wal/
+data/*/_series/
+data/*/_tmp/
+
 # --- Security: never commit tokens (pattern safeguard) ---
 *token*.json
 *secret*.json

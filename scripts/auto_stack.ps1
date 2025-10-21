@@ -2,16 +2,44 @@ param(
   [switch]$StartPrometheus = $true,
   [switch]$StartGrafana = $true,
   [switch]$StartInflux = $true,
+  [switch]$StartWebApi = $true,
   [string]$PrometheusConfig = 'C:\Users\ASUS\Documents\G6\qq\g6_reorganized\prometheus.yml',
   [int[]]$PrometheusPorts = @(9090..9100),
   [int[]]$GrafanaPorts = @(3000..3010),
   [int[]]$InfluxPorts = @(8086..8096),
   [string]$GrafanaDataRoot = 'C:\GrafanaData',
   [string]$InfluxDataDir = 'C:\InfluxDB\data',
-  [switch]$OpenBrowser
+  [int]$WebPort = 9500,
+  [int]$WebWorkers = 1,
+  [switch]$OpenBrowser,
+  # Run Grafana attached in this console with verbose logging and no plugin downloads
+  [switch]$DebugGrafana,
+  # Skip provisioning path to isolate provisioning errors
+  [switch]$SkipProvisioning,
+  # Provision only datasources (no dashboards) to avoid crashy dashboard imports
+  [switch]$ProvisionDatasourcesOnly,
+  # Allow anonymous/viewer access to bypass login in dev
+  [switch]$GrafanaAllowAnonymous,
+  # Permanently disable login/password by enabling anonymous Admin and hiding login form
+  [switch]$GrafanaDisablePassword,
+  # Optionally set a temporary admin password for dev (use with caution)
+  [string]$GrafanaAdminPassword = ''
 )
 
 $ErrorActionPreference = 'Continue'
+
+# Trap terminating errors and continue; prevents benign failures from causing non-zero task exit
+trap {
+  try { Write-Host ("[auto_stack] Non-fatal error: {0}" -f $_.Exception.Message) -ForegroundColor DarkYellow } catch {}
+  continue
+}
+
+# Default to passwordless mode unless explicitly overridden by flags
+$__hasDisable = $PSBoundParameters.ContainsKey('GrafanaDisablePassword')
+$__hasAnon    = $PSBoundParameters.ContainsKey('GrafanaAllowAnonymous')
+if (-not $__hasDisable -and -not $__hasAnon) {
+  $GrafanaDisablePassword = $true
+}
 
 function Test-PortListening {
   param([int]$Port, [int]$TimeoutSeconds = 3, [int]$InitialDelayMs = 0)
@@ -53,6 +81,27 @@ function Test-TcpConnect {
   } catch { return $false }
 }
 
+# Resolve Python interpreter for starting the Web API (FastAPI / Uvicorn)
+function Resolve-Python {
+  param([string]$Root)
+  # Try typical virtual env locations first
+  $venvPy = Join-Path $Root '.venv/ScriptS/python.exe'
+  if (Test-Path $venvPy) { return [pscustomobject]@{Exe=$venvPy; Prefix=@()} }
+  $venvPy2 = Join-Path $Root '.venv/Scripts/python.exe'
+  if (Test-Path $venvPy2) { return [pscustomobject]@{Exe=$venvPy2; Prefix=@()} }
+  # Try plain 'python'
+  try {
+    $pyCmd = Get-Command python -ErrorAction Stop
+    if ($pyCmd -and $pyCmd.Source) { return [pscustomobject]@{Exe=$pyCmd.Source; Prefix=@()} }
+  } catch {}
+  # Try Python launcher 'py -3' (Windows)
+  try {
+    $pyLauncher = Get-Command py -ErrorAction Stop
+    if ($pyLauncher) { return [pscustomobject]@{Exe=$pyLauncher.Source; Prefix=@('-3')} }
+  } catch {}
+  return $null
+}
+
 # Helpers to inspect port owners and match expected processes
 function Get-PortOwners {
   param([int]$Port)
@@ -84,7 +133,8 @@ function Get-GrafanaBoundPort {
   param([int[]]$Range)
   foreach ($p in $Range) {
     if (Test-PortBoundQuick -Port $p) {
-      if (PortOwnedByExpected -Port $p -ExpectedNames @('grafana-server')) { return $p }
+      # Windows process name is typically 'grafana.exe' (shown as 'grafana'); Linux is 'grafana-server'
+      if (PortOwnedByExpected -Port $p -ExpectedNames @('grafana-server','grafana','grafana-server.exe','grafana.exe')) { return $p }
     }
   }
   return $null
@@ -191,7 +241,12 @@ Write-Host '=== Auto-Resolve Observability Stack (Prometheus / Grafana / Influx)
 # Discovery: check if already up (only treat as up if owned by the expected process)
 $promPort = $null; foreach ($p in $PrometheusPorts) { if (Test-PortBoundQuick -Port $p) { if (PortOwnedByExpected -Port $p -ExpectedNames @('prometheus')) { $promPort = $p; break } else { Write-Host ("Port {0} bound but not by Prometheus; will start on a free port." -f $p) -ForegroundColor DarkYellow } } }
 $influxPort = $null; foreach ($p in $InfluxPorts) { if (Test-PortBoundQuick -Port $p) { if (PortOwnedByExpected -Port $p -ExpectedNames @('influxd')) { $influxPort = $p; break } else { Write-Host ("Port {0} bound but not by influxd; will start on a free port." -f $p) -ForegroundColor DarkYellow } } }
-$grafPort = $null; foreach ($p in $GrafanaPorts) { if (Test-PortBoundQuick -Port $p) { if (PortOwnedByExpected -Port $p -ExpectedNames @('grafana-server')) { $grafPort = $p; break } else { Write-Host ("Port {0} bound but not by grafana-server; will start on a free port." -f $p) -ForegroundColor DarkYellow } } }
+$grafPort = $null; foreach ($p in $GrafanaPorts) {
+  if (Test-PortBoundQuick -Port $p) {
+    if (PortOwnedByExpected -Port $p -ExpectedNames @('grafana-server','grafana','grafana-server.exe','grafana.exe')) { $grafPort = $p; break }
+    else { Write-Host ("Port {0} bound but not by Grafana; will start on a free port." -f $p) -ForegroundColor DarkYellow }
+  }
+}
 
 # Launch all three quickly (non-blocking) if not already bound
 $startedPromPort = $null
@@ -203,8 +258,12 @@ if (-not $promPort -and $StartPrometheus) {
     $startedPromPort = Find-FreePort -Range $PrometheusPorts
     if ($startedPromPort) {
       Write-Host ("Starting Prometheus on :{0}" -f $startedPromPort) -ForegroundColor Green
-      $args = @("--config.file=$PrometheusConfig","--web.listen-address=127.0.0.1:$startedPromPort")
-      Start-Process -FilePath $promExe -ArgumentList $args -WorkingDirectory (Split-Path $promExe -Parent)
+      # Use a per-port TSDB path to avoid mmap conflicts if another Prometheus is running
+      $promDataDir = Join-Path $GrafanaDataRoot ("prom_data_{0}" -f $startedPromPort)
+      Ensure-Dir -Path $promDataDir
+      $args = @("--config.file=$PrometheusConfig","--web.listen-address=127.0.0.1:$startedPromPort","--storage.tsdb.path=$promDataDir")
+      # Use the config file's directory as working directory so relative rule_files resolve
+      Start-Process -FilePath $promExe -ArgumentList $args -WorkingDirectory (Split-Path $PrometheusConfig -Parent)
     } else { Write-Host 'No free Prometheus port found in range.' -ForegroundColor Yellow }
   } else { Write-Host 'Prometheus executable not found. Skipping start.' -ForegroundColor DarkYellow }
 }
@@ -229,6 +288,72 @@ $startedGrafPort = $null
 # Resolve grafana upfront
 $graf = $null
 if ($StartGrafana) { $graf = Resolve-Grafana }
+
+# Start lightweight Web API (FastAPI) providing JSON for Infinity (includes /api/live_csv)
+try {
+  if ($StartWebApi) {
+    $repoRoot = Split-Path $PSScriptRoot -Parent
+    $pyInfo = Resolve-Python -Root $repoRoot
+    $logDir = Join-Path $GrafanaDataRoot 'log'
+    if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Force -Path $logDir | Out-Null }
+    $webOut = Join-Path $logDir 'webapi_stdout.log'
+    $webErr = Join-Path $logDir 'webapi_stderr.log'
+    if ($pyInfo) {
+      $uvArgs = @()
+      if ($pyInfo.Prefix -and $pyInfo.Prefix.Count -gt 0) { $uvArgs += $pyInfo.Prefix }
+      $uvArgs += @('-m','uvicorn','src.web.dashboard.app:app','--host','127.0.0.1','--port',"$WebPort")
+      # Use workers if requested; otherwise avoid --reload by default to prevent reload storms on Windows.
+      # Enable --reload only when explicitly debugging Grafana to aid local development.
+      if ($WebWorkers -gt 1) {
+        $uvArgs += @('--workers',"$WebWorkers")
+      } elseif ($DebugGrafana) {
+        $uvArgs += @('--reload')
+      }
+      Start-Process -FilePath $pyInfo.Exe -ArgumentList $uvArgs -WorkingDirectory $repoRoot -RedirectStandardOutput $webOut -RedirectStandardError $webErr -WindowStyle Minimized
+      Write-Host ("Web API (dashboard) requested on :{0}" -f $WebPort) -ForegroundColor Gray
+    } else {
+      Write-Host 'Python not found; Web API not started (Infinity panels may show connection errors).' -ForegroundColor DarkYellow
+    }
+  }
+} catch { Write-Host 'Web API start failed (continuing).' -ForegroundColor DarkYellow }
+
+# Probe Web API health; wait up to ~15s so Grafana queries don't fail immediately
+try {
+  $attempts = 0
+  while ($attempts -lt 30) {
+    $attempts++
+    $h = Invoke-HttpHealth -Url ("http://127.0.0.1:{0}/health" -f $WebPort) -TimeoutSeconds 1
+    if ($h.Ok -and ($h.Code -in 200,204)) { break }
+    Start-Sleep -Milliseconds 800
+  }
+  if ($attempts -ge 30) {
+    Write-Host ("Warning: Web API on :{0} did not become healthy in time" -f $WebPort) -ForegroundColor DarkYellow
+  } else {
+    Write-Host ("Web API healthy @ http://127.0.0.1:{0}/health" -f $WebPort) -ForegroundColor DarkGray
+  }
+} catch {}
+
+# Precompute Prometheus URL for provisioning (must be set before Grafana starts)
+try {
+  $effectivePromPort = $null
+  if ($promPort) { $effectivePromPort = $promPort }
+  elseif ($startedPromPort) { $effectivePromPort = $startedPromPort }
+  elseif ($PrometheusPorts -and $PrometheusPorts.Length -gt 0) { $effectivePromPort = $PrometheusPorts[0] }
+  if ($effectivePromPort) {
+    $prePromUrl = "http://127.0.0.1:$effectivePromPort"
+    [Environment]::SetEnvironmentVariable('G6_PROM_URL', $prePromUrl)
+  }
+} catch {}
+
+# Precompute Prometheus URL for provisioning (must be set before Grafana starts)
+$effectivePromPort = $null
+if ($promPort) { $effectivePromPort = $promPort }
+elseif ($startedPromPort) { $effectivePromPort = $startedPromPort }
+elseif ($PrometheusPorts -and $PrometheusPorts.Length -gt 0) { $effectivePromPort = $PrometheusPorts[0] }
+if ($effectivePromPort) {
+  $prePromUrl = "http://127.0.0.1:$effectivePromPort"
+  [Environment]::SetEnvironmentVariable('G6_PROM_URL', $prePromUrl)
+}
 if (-not $grafPort -and $StartGrafana) {
   if ($graf) {
     $startedGrafPort = Find-FreePort -Range $GrafanaPorts
@@ -237,14 +362,156 @@ if (-not $grafPort -and $StartGrafana) {
       Ensure-Dir -Path (Join-Path $GrafanaDataRoot 'log')
       Ensure-Dir -Path (Join-Path $GrafanaDataRoot 'plugins')
       [Environment]::SetEnvironmentVariable('GF_SERVER_HTTP_PORT',"$startedGrafPort")
-      [Environment]::SetEnvironmentVariable('GF_SERVER_HTTP_ADDR','0.0.0.0')
+  [Environment]::SetEnvironmentVariable('GF_SERVER_HTTP_ADDR','127.0.0.1')
       [Environment]::SetEnvironmentVariable('GF_PATHS_HOME',$graf.Home)
       [Environment]::SetEnvironmentVariable('GF_PATHS_DATA', (Join-Path $GrafanaDataRoot 'data'))
       [Environment]::SetEnvironmentVariable('GF_PATHS_LOGS', (Join-Path $GrafanaDataRoot 'log'))
       [Environment]::SetEnvironmentVariable('GF_PATHS_PLUGINS', (Join-Path $GrafanaDataRoot 'plugins'))
-      [Environment]::SetEnvironmentVariable('GF_PATHS_PROVISIONING', (Join-Path (Split-Path $PSScriptRoot -Parent) 'grafana\provisioning'))
-      Write-Host ("Starting Grafana on :{0}" -f $startedGrafPort) -ForegroundColor Green
-      Start-Process -FilePath $graf.Exe -WorkingDirectory $graf.Home -WindowStyle Normal
+      # Security mode: prefer explicit disable over viewer anonymous
+      if ($GrafanaDisablePassword) {
+        # Anonymous Admin with login form hidden; basic auth off for clarity.
+        [Environment]::SetEnvironmentVariable('GF_AUTH_ANONYMOUS_ENABLED','true')
+        [Environment]::SetEnvironmentVariable('GF_AUTH_ANONYMOUS_ORG_ROLE','Admin')
+        [Environment]::SetEnvironmentVariable('GF_AUTH_DISABLE_LOGIN_FORM','true')
+        [Environment]::SetEnvironmentVariable('GF_AUTH_BASIC_ENABLED','false')
+        [Environment]::SetEnvironmentVariable('GF_USERS_ALLOW_SIGN_UP','false')
+        [Environment]::SetEnvironmentVariable('GF_SECURITY_ALLOW_EMBEDDING','true')
+        [Environment]::SetEnvironmentVariable('GF_SECURITY_DISABLE_GRAVATAR','true')
+      } elseif ($GrafanaAllowAnonymous) {
+        # Backward-compatible dev mode: anonymous Viewer with login form shown
+        [Environment]::SetEnvironmentVariable('GF_AUTH_ANONYMOUS_ENABLED','true')
+        [Environment]::SetEnvironmentVariable('GF_AUTH_ANONYMOUS_ORG_ROLE','Viewer')
+        [Environment]::SetEnvironmentVariable('GF_SECURITY_ALLOW_EMBEDDING','true')
+        [Environment]::SetEnvironmentVariable('GF_AUTH_DISABLE_LOGIN_FORM','false')
+      }
+      if ($GrafanaAdminPassword -and $GrafanaAdminPassword.Trim().Length -gt 0) {
+        [Environment]::SetEnvironmentVariable('GF_SECURITY_ADMIN_PASSWORD', $GrafanaAdminPassword)
+      }
+      if (-not $SkipProvisioning) {
+        $repoProv = (Join-Path (Split-Path $PSScriptRoot -Parent) 'grafana\provisioning')
+        if ($ProvisionDatasourcesOnly) {
+          $provRoot = Join-Path $GrafanaDataRoot 'provisioning_ds_only'
+          Ensure-Dir -Path $provRoot
+          # Create datasources-only provisioning folder and write a clean YAML (avoid indentation issues)
+          $dstDs = Join-Path $provRoot 'datasources'
+          Ensure-Dir -Path $dstDs
+          $dsFile = Join-Path $dstDs 'prometheus.yml'
+          $promUrlForProv = if ($prePromUrl) { $prePromUrl } else { $env:G6_PROM_URL }
+          $yaml = @"
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    orgId: 1
+    type: prometheus
+    access: proxy
+    uid: PROM
+    url: '$promUrlForProv'
+    jsonData:
+      httpMethod: POST
+    isDefault: true
+    editable: true
+"@
+          $yaml | Out-File -FilePath $dsFile -Encoding UTF8 -Force
+          [Environment]::SetEnvironmentVariable('GF_PATHS_PROVISIONING', $provRoot)
+        } else {
+          # Prepare filtered dashboards directory to avoid duplicate UID/title conflicts that block DB writes
+          $filteredRoot = Join-Path $GrafanaDataRoot 'provisioning_repo_dashboards_filtered'
+          $filteredDir = Join-Path $filteredRoot 'dashboards'
+          Ensure-Dir -Path $filteredDir
+          $repoDashGen = Join-Path (Split-Path $PSScriptRoot -Parent) 'grafana\dashboards\generated'
+          $repoDashLegacy = Join-Path (Split-Path $PSScriptRoot -Parent) 'grafana\dashboards'
+          $exclude = @('manifest.json','g6_spec_panels_dashboard.json','g6_generated_spec_dashboard.json')
+          try {
+            if (Test-Path $repoDashGen) {
+              Get-ChildItem -Path $repoDashGen -Filter *.json -File -ErrorAction Stop |
+                Where-Object { $exclude -notcontains $_.Name } |
+                ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $filteredDir $_.Name) -Force }
+            }
+            if (Test-Path $repoDashLegacy) {
+              Get-ChildItem -Path $repoDashLegacy -Filter *.json -File -ErrorAction SilentlyContinue |
+                Where-Object { $exclude -notcontains $_.Name } |
+                ForEach-Object {
+                  $dest = Join-Path $filteredDir $_.Name
+                  if (-not (Test-Path $dest)) { Copy-Item -LiteralPath $_.FullName -Destination $dest -Force }
+                }
+            }
+          } catch { Write-Host "Warning: Could not stage filtered dashboards: $($_.Exception.Message)" -ForegroundColor DarkYellow }
+          # Build a self-contained provisioning root that includes both datasources and a dashboards provider pointing to filteredDir
+          $autoProvRoot = Join-Path $GrafanaDataRoot 'provisioning_auto'
+          $dsDir = Join-Path $autoProvRoot 'datasources'
+          $dbDir = Join-Path $autoProvRoot 'dashboards'
+          Ensure-Dir -Path $dsDir
+          Ensure-Dir -Path $dbDir
+          $promUrlForProv = if ($prePromUrl) { $prePromUrl } else { $env:G6_PROM_URL }
+          # Write datasources: Prometheus + Infinity (uid INFINITY)
+          $dsYaml = @"
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    orgId: 1
+    type: prometheus
+    access: proxy
+    uid: PROM
+    url: '$promUrlForProv'
+    jsonData:
+      httpMethod: POST
+    isDefault: true
+    editable: true
+  - name: Infinity
+    orgId: 1
+    type: yesoreyeram-infinity-datasource
+    access: proxy
+    uid: INFINITY
+    jsonData:
+      allowedHosts:
+        - 'http://127.0.0.1:9500'
+        - 'http://localhost:9500'
+    editable: true
+"@
+          $dsYaml | Out-File -FilePath (Join-Path $dsDir 'datasources.yml') -Encoding UTF8 -Force
+          # Write dashboards provider pointing to filteredDir
+          $dashYaml = @"
+apiVersion: 1
+
+providers:
+  - name: G6
+    type: file
+    disableDeletion: true
+    editable: true
+    options:
+      path: '$(($filteredDir -replace "\\","/"))'
+"@
+          $dashYaml | Out-File -FilePath (Join-Path $dbDir 'dashboards.yml') -Encoding UTF8 -Force
+          [Environment]::SetEnvironmentVariable('G6_GRAFANA_DASH_PATH', ($filteredDir -replace "\\","/"))
+          [Environment]::SetEnvironmentVariable('GF_PATHS_PROVISIONING', $autoProvRoot)
+        }
+      } else {
+        # Unset provisioning path entirely to disable file provisioning
+        [Environment]::SetEnvironmentVariable('GF_PATHS_PROVISIONING', $null)
+      }
+      if ($DebugGrafana) {
+        # Verbose logging and prevent plugin downloads/signature enforcement during debug
+        [Environment]::SetEnvironmentVariable('GF_LOG_MODE','console')
+        [Environment]::SetEnvironmentVariable('GF_LOG_LEVEL','debug')
+        [Environment]::SetEnvironmentVariable('GF_LOG_FILTERS','provisioning:debug,datasources:debug')
+  [Environment]::SetEnvironmentVariable('GF_PLUGINS_PREVENT_DOWNLOAD','false')
+  # Ensure required plugins are auto-installed (Infinity & Volkov Labs Form Panel)
+  [Environment]::SetEnvironmentVariable('GF_INSTALL_PLUGINS','yesoreyeram-infinity-datasource,volkovlabs-form-panel')
+        [Environment]::SetEnvironmentVariable('GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS','grafana-exploretraces-app,grafana-metricsdrilldown-app,grafana-lokiexplore-app,grafana-pyroscope-app')
+        Write-Host ("Starting Grafana (debug, attached) on :{0}" -f $startedGrafPort) -ForegroundColor Green
+        & $graf.Exe --homepath $graf.Home
+      } else {
+  Write-Host ("Starting Grafana on :{0}" -f $startedGrafPort) -ForegroundColor Green
+  [Environment]::SetEnvironmentVariable('GF_PLUGINS_PREVENT_DOWNLOAD','false')
+  # Ensure required plugins are auto-installed (Infinity & Volkov Labs Form Panel)
+  [Environment]::SetEnvironmentVariable('GF_INSTALL_PLUGINS','yesoreyeram-infinity-datasource,volkovlabs-form-panel')
+  $outLog = Join-Path (Join-Path $GrafanaDataRoot 'log') 'grafana_stdout.log'
+  $errLog = Join-Path (Join-Path $GrafanaDataRoot 'log') 'grafana_stderr.log'
+  $argsStr = "--homepath `"$($graf.Home)`""
+  Start-Process -FilePath $graf.Exe -ArgumentList $argsStr -WorkingDirectory $graf.Home -RedirectStandardOutput $outLog -RedirectStandardError $errLog -WindowStyle Minimized
+      }
     } else { Write-Host 'No free Grafana port found in range.' -ForegroundColor Yellow }
   } else { Write-Host 'Grafana not found. Skipping start.' -ForegroundColor DarkYellow }
 }
@@ -255,8 +522,8 @@ if (-not $influxPort) { $influxPort = $startedInfluxPort }
 if (-not $grafPort) { $grafPort = $startedGrafPort }
 
 # Wait before first health check so services can initialize
-Write-Host 'Waiting 10 seconds before first health check...' -ForegroundColor DarkGray
-Start-Sleep -Seconds 10
+Write-Host 'Waiting 20 seconds before first health check...' -ForegroundColor DarkGray
+Start-Sleep -Seconds 20
 
 # First health checks in order: Prometheus -> Influx -> Grafana
 $promHealthy = $false; if ($promPort) { Write-Host ("Checking Prometheus @ http://127.0.0.1:{0}" -f $promPort) -ForegroundColor Gray; $promHealthy = Probe-Prometheus -Port $promPort -WaitSeconds 8 }
@@ -275,8 +542,12 @@ Write-Host ("Grafana:    {0}" -f ($(if ($grafUrl)  {"$grafUrl status=" + ($(if (
 
 # Iteratively move to next free port for any service still failing, waiting 10s between attempts
 function Start-PrometheusOnPort { param([string]$Exe,[int]$Port)
-  $args = @("--config.file=$PrometheusConfig","--web.listen-address=127.0.0.1:$Port")
-  Start-Process -FilePath $Exe -ArgumentList $args -WorkingDirectory (Split-Path $Exe -Parent)
+  # Use a per-port TSDB path to avoid mmap conflicts if another Prometheus is running
+  $promDataDir = Join-Path $GrafanaDataRoot ("prom_data_{0}" -f $Port)
+  Ensure-Dir -Path $promDataDir
+  $args = @("--config.file=$PrometheusConfig","--web.listen-address=127.0.0.1:$Port","--storage.tsdb.path=$promDataDir")
+  # Use the config file's directory as working directory so relative rule_files resolve
+  Start-Process -FilePath $Exe -ArgumentList $args -WorkingDirectory (Split-Path $PrometheusConfig -Parent)
 }
 function Start-InfluxOnPort { param([string]$Exe,[int]$Port)
   Ensure-Dir -Path $InfluxDataDir
@@ -293,8 +564,64 @@ function Start-GrafanaOnPort { param($Graf,[int]$Port)
   [Environment]::SetEnvironmentVariable('GF_PATHS_DATA', (Join-Path $GrafanaDataRoot 'data'))
   [Environment]::SetEnvironmentVariable('GF_PATHS_LOGS', (Join-Path $GrafanaDataRoot 'log'))
   [Environment]::SetEnvironmentVariable('GF_PATHS_PLUGINS', (Join-Path $GrafanaDataRoot 'plugins'))
-  [Environment]::SetEnvironmentVariable('GF_PATHS_PROVISIONING', (Join-Path (Split-Path $PSScriptRoot -Parent) 'grafana\provisioning'))
-  Start-Process -FilePath $Graf.Exe -WorkingDirectory $Graf.Home -WindowStyle Normal
+  if ($GrafanaAllowAnonymous) {
+    [Environment]::SetEnvironmentVariable('GF_AUTH_ANONYMOUS_ENABLED','true')
+    [Environment]::SetEnvironmentVariable('GF_AUTH_ANONYMOUS_ORG_ROLE','Viewer')
+    [Environment]::SetEnvironmentVariable('GF_SECURITY_ALLOW_EMBEDDING','true')
+    [Environment]::SetEnvironmentVariable('GF_AUTH_DISABLE_LOGIN_FORM','false')
+  }
+  if ($GrafanaAdminPassword -and $GrafanaAdminPassword.Trim().Length -gt 0) {
+    [Environment]::SetEnvironmentVariable('GF_SECURITY_ADMIN_PASSWORD', $GrafanaAdminPassword)
+  }
+  if (-not $SkipProvisioning) {
+    $repoProv = (Join-Path (Split-Path $PSScriptRoot -Parent) 'grafana\provisioning')
+    if ($ProvisionDatasourcesOnly) {
+      $provRoot = Join-Path $GrafanaDataRoot 'provisioning_ds_only'
+      Ensure-Dir -Path $provRoot
+      # Create datasources-only provisioning folder and write a clean YAML (avoid indentation issues)
+      $dstDs = Join-Path $provRoot 'datasources'
+      Ensure-Dir -Path $dstDs
+      $dsFile = Join-Path $dstDs 'prometheus.yml'
+      $promUrlForProv = if ($prePromUrl) { $prePromUrl } else { $env:G6_PROM_URL }
+      $yaml = @"
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    orgId: 1
+    type: prometheus
+    access: proxy
+    uid: PROM
+    url: '$promUrlForProv'
+    jsonData:
+      httpMethod: POST
+    isDefault: true
+    editable: true
+"@
+      $yaml | Out-File -FilePath $dsFile -Encoding UTF8 -Force
+      [Environment]::SetEnvironmentVariable('GF_PATHS_PROVISIONING', $provRoot)
+    } else {
+      [Environment]::SetEnvironmentVariable('GF_PATHS_PROVISIONING', $repoProv)
+    }
+  } else {
+    [Environment]::SetEnvironmentVariable('GF_PATHS_PROVISIONING', $null)
+  }
+  if ($DebugGrafana) {
+    [Environment]::SetEnvironmentVariable('GF_LOG_MODE','console')
+    [Environment]::SetEnvironmentVariable('GF_LOG_LEVEL','debug')
+  [Environment]::SetEnvironmentVariable('GF_PLUGINS_PREVENT_DOWNLOAD','false')
+  [Environment]::SetEnvironmentVariable('GF_INSTALL_PLUGINS','yesoreyeram-infinity-datasource,volkovlabs-form-panel')
+    [Environment]::SetEnvironmentVariable('GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS','grafana-exploretraces-app,grafana-metricsdrilldown-app,grafana-lokiexplore-app,grafana-pyroscope-app')
+    Write-Host ("Starting Grafana (debug, attached) on :{0}" -f $Port) -ForegroundColor Green
+    & $Graf.Exe --homepath $Graf.Home
+  } else {
+  [Environment]::SetEnvironmentVariable('GF_PLUGINS_PREVENT_DOWNLOAD','false')
+  [Environment]::SetEnvironmentVariable('GF_INSTALL_PLUGINS','yesoreyeram-infinity-datasource,volkovlabs-form-panel')
+  $outLog = Join-Path (Join-Path $GrafanaDataRoot 'log') 'grafana_stdout.log'
+  $errLog = Join-Path (Join-Path $GrafanaDataRoot 'log') 'grafana_stderr.log'
+  $argsStr = "--homepath `"$($Graf.Home)`""
+  Start-Process -FilePath $Graf.Exe -ArgumentList $argsStr -WorkingDirectory $Graf.Home -RedirectStandardOutput $outLog -RedirectStandardError $errLog -WindowStyle Minimized
+  }
 }
 
 if (-not ($promHealthy -and $influxHealthy -and $grafHealthy)) {
@@ -323,19 +650,25 @@ if (-not ($promHealthy -and $influxHealthy -and $grafHealthy)) {
     }
 
     if (-not $grafHealthy -and $StartGrafana -and $graf) {
-      $next = Next-FreePort -Range $GrafanaPorts -After ([int]($(if ($grafPort){$grafPort}else{-1})))
-      if ($next) {
-        Write-Host ("Grafana still DOWN; trying next port :{0}" -f $next) -ForegroundColor Yellow
-        Start-GrafanaOnPort -Graf $graf -Port $next
-        $grafPort = $next
-        $madeProgress = $true
+      # If Grafana is starting, don't spawn another instance; wait longer instead
+      $existingGraf = Get-Process -Name grafana-server -ErrorAction SilentlyContinue
+      if ($existingGraf) {
+        Write-Host 'Grafana process detected; giving it more time before retrying...' -ForegroundColor DarkGray
+      } else {
+        $next = Next-FreePort -Range $GrafanaPorts -After ([int]($(if ($grafPort){$grafPort}else{-1})))
+        if ($next) {
+          Write-Host ("Grafana still DOWN; trying next port :{0}" -f $next) -ForegroundColor Yellow
+          Start-GrafanaOnPort -Graf $graf -Port $next
+          $grafPort = $next
+          $madeProgress = $true
+        }
       }
     }
 
     if (-not $madeProgress) { break }
 
-    Write-Host 'Waiting 10 seconds before re-checking health...' -ForegroundColor DarkGray
-    Start-Sleep -Seconds 10
+  Write-Host 'Waiting 20 seconds before re-checking health...' -ForegroundColor DarkGray
+  Start-Sleep -Seconds 20
 
     # Re-check health after moving ports
     if (-not $promHealthy -and $promPort) { $promHealthy = Probe-Prometheus -Port $promPort -WaitSeconds 8 }
@@ -361,6 +694,7 @@ try {
   }
 } catch {}
 
+if ($promUrl) { [Environment]::SetEnvironmentVariable('G6_PROM_URL', $promUrl) }
 if ($influxHealthy -and $influxUrl) { [Environment]::SetEnvironmentVariable('G6_INFLUX_URL', $influxUrl) }
 
 Write-Host ''
@@ -370,6 +704,48 @@ Write-Host ("InfluxDB:   {0}" -f ($(if ($influxUrl){"$influxUrl status=" + ($(if
 Write-Host ("Grafana:    {0}" -f ($(if ($grafUrl)  {"$grafUrl status=" + ($(if ($grafHealthy){'OK'}else{'DOWN'}))} else {'not started'})))
 Write-Host '---------------------' -ForegroundColor Cyan
 
-if ($OpenBrowser -and $grafUrl -and $grafHealthy) { try { Start-Process msedge.exe ("-new-window {0}" -f $grafUrl) } catch { try { Start-Process $grafUrl } catch {} } }
+if ($OpenBrowser -and $grafUrl -and $grafHealthy) {
+  try {
+    # Prefer opening the Analytics dashboard (v4 -> v3 -> v2 -> v1)
+    $base = "http://127.0.0.1:$grafPort"
+    $uids = @('g6-analytics-infinity-v4','g6-analytics-infinity-v3','g6-analytics-infinity-v2','g6-analytics-infinity')
+    $chosen = $null
+    foreach ($u in $uids) {
+      try {
+        $r = Invoke-WebRequest -UseBasicParsing -Uri ("$base/api/dashboards/uid/$u") -TimeoutSec 3
+        if ($r.StatusCode -eq 200) { $chosen = $u; break }
+      } catch {}
+    }
+    $urlToOpen = if ($chosen) { "$base/d/$chosen/$chosen" } else { $grafUrl }
+    try { Start-Process msedge.exe ("-new-window {0}" -f $urlToOpen) } catch { try { Start-Process $urlToOpen } catch {} }
+  } catch {
+    try { Start-Process $grafUrl } catch {}
+  }
+}
 
-exit 0
+# Determine task success for clean exit code behavior in VS Code task runner
+$taskSuccess = $true
+if ($StartGrafana) {
+  $taskSuccess = $false
+  if ($grafPort) {
+    try {
+      $gok = Probe-Grafana -Port $grafPort -WaitSeconds 3
+      if ($gok) { $taskSuccess = $true }
+      else {
+        $gp = Get-Process -Name grafana-server -ErrorAction SilentlyContinue
+        if ($gp) { $taskSuccess = $true }
+      }
+    } catch { $taskSuccess = $false }
+  }
+} else { $taskSuccess = $true }
+
+# If Grafana was requested but $grafPort is empty, attempt to discover an active Grafana port in the configured range
+if ($StartGrafana -and (-not $grafPort)) {
+  $detected = Get-GrafanaBoundPort -Range $GrafanaPorts
+  if ($detected) {
+    try { if (Probe-Grafana -Port $detected -WaitSeconds 3) { $taskSuccess = $true; $grafPort = $detected } } catch {}
+  }
+}
+
+if ($taskSuccess) { exit 0 } else { exit 1 }
+

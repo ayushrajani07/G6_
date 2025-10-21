@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import Optional, Dict, Any
+
+from typing import Any
+
 
 class PersistResult:
     """Structured result representing outcome of persistence and metrics emission.
@@ -17,7 +19,7 @@ class PersistResult:
     """
     __slots__ = ("option_count","pcr","metrics_payload","failed")
 
-    def __init__(self, option_count: int = 0, pcr: Optional[float] = None, metrics_payload: Optional[Dict[str, Any]] = None, failed: bool = False):
+    def __init__(self, option_count: int = 0, pcr: float | None = None, metrics_payload: dict[str, Any] | None = None, failed: bool = False):
         self.option_count = option_count
         self.pcr = pcr
         self.metrics_payload = metrics_payload or {}

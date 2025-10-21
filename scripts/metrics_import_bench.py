@@ -23,13 +23,20 @@ JSON schema (v0):
 }
 """
 from __future__ import annotations
-import argparse, subprocess, sys, statistics, json, time, os, math, datetime
-from typing import List
+
+import argparse
+import datetime
+import json
+import math
+import statistics
+import subprocess
+import sys
+import time
 
 DEF_MODULES = ["src.metrics.generated"]
 
 
-def run_import(mods: List[str]) -> float:
+def run_import(mods: list[str]) -> float:
     code = "import time,importlib; s=time.time();\n" + \
            "".join([f"import importlib; importlib.import_module('{m}');\n" for m in mods]) + \
            "print(time.time()-s)\n"
@@ -39,11 +46,11 @@ def run_import(mods: List[str]) -> float:
         raise RuntimeError(f"import subprocess failed rc={proc.returncode} stderr={proc.stderr.strip()}")
     try:
         return float(proc.stdout.strip().splitlines()[-1])
-    except Exception:
-        raise RuntimeError(f"unexpected subprocess output: {proc.stdout!r}")
+    except Exception as err:
+        raise RuntimeError(f"unexpected subprocess output: {proc.stdout!r}") from err
 
 
-def percentile(data: List[float], pct: float) -> float:
+def percentile(data: list[float], pct: float) -> float:
     if not data:
         return math.nan
     k = (len(data)-1) * pct
@@ -56,7 +63,7 @@ def percentile(data: List[float], pct: float) -> float:
     return d0 + d1
 
 
-def main():
+def main() -> int:
     ap = argparse.ArgumentParser(description='Metrics import latency benchmark')
     ap.add_argument('--runs', type=int, default=5)
     ap.add_argument('--modules', nargs='*', default=DEF_MODULES)
@@ -65,7 +72,7 @@ def main():
     args = ap.parse_args()
 
     runs = max(1, args.runs)
-    samples: List[float] = []
+    samples: list[float] = []
     for i in range(runs):
         t = run_import(args.modules)
         samples.append(t)
@@ -92,7 +99,12 @@ def main():
     if args.json:
         print(json.dumps(out, indent=2))
     else:
-        print(f"[import-bench] runs={runs} min={stats['min_sec']:.4f}s p50={stats['p50_sec']:.4f}s p95={stats['p95_sec']:.4f}s max={stats['max_sec']:.4f}s mean={stats['mean_sec']:.4f}s modules={','.join(args.modules)}")
+        mods = ",".join(args.modules)
+        print(
+            f"[import-bench] runs={runs} min={stats['min_sec']:.4f}s "
+            f"p50={stats['p50_sec']:.4f}s p95={stats['p95_sec']:.4f}s "
+            f"max={stats['max_sec']:.4f}s mean={stats['mean_sec']:.4f}s modules={mods}"
+        )
     return 0
 
 if __name__ == '__main__':  # pragma: no cover

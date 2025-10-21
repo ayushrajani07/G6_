@@ -15,7 +15,7 @@ overhead (single RSS fetch per cycle when enabled).
 from __future__ import annotations
 
 import os
-from typing import Optional
+import time
 
 try:  # psutil optional
     import psutil
@@ -32,6 +32,33 @@ def evaluate_memory_tier(ctx) -> None:
         except Exception:
             pass
         return
+    # Optional TTL cache to avoid repeated psutil.Process() creation and
+    # RSS sampling overhead in hot paths. Controlled via env
+    # G6_MEMORY_TIER_TTL_MS or G6_MEMORY_TIER_TTL_SEC (disabled by default).
+    try:
+        ms = os.environ.get('G6_MEMORY_TIER_TTL_MS')
+        if ms is not None:
+            _ttl = max(0.0, float(ms) / 1000.0)
+        else:
+            s = os.environ.get('G6_MEMORY_TIER_TTL_SEC')
+            _ttl = max(0.0, float(s)) if s is not None else 0.0
+    except Exception:
+        _ttl = 0.0
+    # Module-level cache
+    if _ttl:
+        try:
+            # Keep simple state on the ctx if available to avoid global state
+            cache = getattr(ctx, '_memory_tier_cache', None)
+            now = time.time()
+            if cache and (now - cache.get('ts', 0)) < _ttl:
+                # reuse last-tier
+                try:
+                    ctx.set_flag('memory_tier', int(cache.get('tier', 0)))
+                except Exception:
+                    pass
+                return
+        except Exception:
+            pass
     # If psutil missing, skip auto evaluation
     if psutil is None:
         return
@@ -48,6 +75,16 @@ def evaluate_memory_tier(ctx) -> None:
         elif rss_mb >= lvl1 or rss_mb >= lvl2:  # if between lvl1 and lvl3 treat as warning
             tier = 1
         ctx.set_flag('memory_tier', tier)
+        # store into cache if requested
+        try:
+            if _ttl:
+                cache = {'ts': time.time(), 'tier': int(tier)}
+                try:
+                    ctx._memory_tier_cache = cache
+                except Exception:
+                    pass
+        except Exception:
+            pass
     except Exception:  # pragma: no cover
         # Silent failure acceptable; adaptive controller will fallback to default tier 0
         return

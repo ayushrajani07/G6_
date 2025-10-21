@@ -5,11 +5,14 @@ later phases can substitute alternative transports (SSE, IPC, etc.) without
 changing domain builders.
 """
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Any, Mapping, Optional
+
 import json
 import os
 import time
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import Any
+
 
 # Error taxonomy kept intentionally small for now.
 class StatusReadError(Exception):
@@ -47,7 +50,7 @@ def read_status(path: str, *, allow_missing: bool = True) -> StatusReadResult:
         return StatusReadResult(ok=False, status=None, ts_read=ts, mtime=None, error=StatusReadError(str(e)))
 
     try:
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, encoding='utf-8') as f:
             data = json.load(f)
         if not isinstance(data, dict):  # normalize to dict or None
             data = {}

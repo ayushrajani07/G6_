@@ -34,8 +34,11 @@ cardinality heuristics, anomaly scoring.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List
-import json, os, logging, datetime as _dt
+import datetime as _dt
+import json
+import logging
+import os
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +54,9 @@ def _now_iso() -> str:  # pragma: no cover - trivial
     return _dt.datetime.now(_dt.UTC).replace(microsecond=0).isoformat().replace('+00:00', 'Z')
 
 
-def build_current_mapping(reg: Any) -> Dict[str, List[str]]:
+def build_current_mapping(reg: Any) -> dict[str, list[str]]:
     groups = getattr(reg, "_metric_groups", {})  # attr -> group
-    mapping: Dict[str, List[str]] = {}
+    mapping: dict[str, list[str]] = {}
     for attr, grp in groups.items():
         mapping.setdefault(grp, []).append(attr)
     for grp, attrs in mapping.items():
@@ -61,7 +64,7 @@ def build_current_mapping(reg: Any) -> Dict[str, List[str]]:
     return mapping
 
 
-def write_snapshot(path: str, mapping: Dict[str, List[str]]):
+def write_snapshot(path: str, mapping: dict[str, list[str]]):
     data = {
         "version": 1,
         "generated": _now_iso(),
@@ -69,7 +72,8 @@ def write_snapshot(path: str, mapping: Dict[str, List[str]]):
     }
     # Write atomically to reduce risk of readers encountering truncated JSON (test parallelism / fast follow reads)
     try:
-        import tempfile, os
+        import os
+        import tempfile
         dir_name = os.path.dirname(path) or "."
         fd, tmp_path = tempfile.mkstemp(prefix="._card_snap_", dir=dir_name, text=True)
         try:
@@ -94,20 +98,20 @@ def write_snapshot(path: str, mapping: Dict[str, List[str]]):
         logger.error("cardinality.snapshot.write_failed path=%s err=%s", path, e)
 
 
-def load_baseline(path: str) -> Dict[str, List[str]] | None:
+def load_baseline(path: str) -> dict[str, list[str]] | None:
     import time as _t
     attempts = 3
     last_err: Exception | None = None
     for i in range(attempts):
         try:
-            with open(path, "r", encoding="utf-8") as f:
+            with open(path, encoding="utf-8") as f:
                 data = json.load(f)
             if not isinstance(data, dict):
                 return None
             groups = data.get("groups")
             if not isinstance(groups, dict):
                 return None
-            cleaned: Dict[str, List[str]] = {}
+            cleaned: dict[str, list[str]] = {}
             for g, arr in groups.items():
                 if isinstance(g, str) and isinstance(arr, list):
                     cleaned[g] = [a for a in arr if isinstance(a, str)]
@@ -264,22 +268,24 @@ def check_cardinality(reg: Any) -> dict | None:
 # Lightweight runtime registration guard
 #############################################
 
-import threading, time  # placed late to avoid impacting existing import cost
-from typing import Tuple, Set
+import threading
+import time  # placed late to avoid impacting existing import cost
 
 try:  # optional in some test paths
-    from prometheus_client import Counter as _GC_Counter, Gauge as _GC_Gauge, Histogram as _GC_Histogram  # type: ignore
+    from prometheus_client import Counter as _GC_Counter  # type: ignore
+    from prometheus_client import Gauge as _GC_Gauge
+    from prometheus_client import Histogram as _GC_Histogram
 except Exception:  # pragma: no cover
     _GC_Counter = _GC_Gauge = _GC_Histogram = None  # type: ignore
 
 _rg_lock = threading.RLock()
 _rg_metrics: dict[str, object] = {}
-_rg_seen: dict[str, Set[Tuple[str,...]]] = {}
+_rg_seen: dict[str, set[tuple[str,...]]] = {}
 _rg_budget: dict[str, int] = {}
-_rg_last_log: dict[Tuple[str,str], float] = {}
+_rg_last_log: dict[tuple[str,str], float] = {}
 _RG_SUPPRESS = 60.0
 
-def _rg_rate_limited(key: Tuple[str,str], msg: str):  # pragma: no cover - timing based
+def _rg_rate_limited(key: tuple[str,str], msg: str):  # pragma: no cover - timing based
     now = time.time()
     last = _rg_last_log.get(key, 0.0)
     if now - last > _RG_SUPPRESS:
@@ -345,7 +351,7 @@ class _RegistryGuard:
     def histogram(self, name: str, help_text: str, labels: list[str], budget: int, buckets=None):
         return self._register('histogram', name, help_text, labels, budget, buckets=buckets)
 
-    def track(self, name: str, label_values: Tuple[str,...]) -> bool:
+    def track(self, name: str, label_values: tuple[str,...]) -> bool:
         try:
             seen = _rg_seen.get(name)
             if seen is None:

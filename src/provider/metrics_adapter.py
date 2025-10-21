@@ -4,8 +4,10 @@ Abstraction layer to avoid direct coupling to prometheus or other libs.
 Provides no-op defaults; tests can inject a RecordingMetrics instance.
 """
 from __future__ import annotations
-from typing import Protocol, Dict, Any, List
+
 import time
+from typing import Any, Protocol
+
 
 class MetricsSink(Protocol):
     def incr(self, name: str, **labels: Any) -> None: ...
@@ -20,8 +22,8 @@ class NoOpMetrics:
 class RecordingMetrics:
     """In-memory metrics recorder for tests."""
     def __init__(self) -> None:
-        self.counters: list[tuple[str, Dict[str, Any]]] = []
-        self.observations: list[tuple[str, float, Dict[str, Any]]] = []
+        self.counters: list[tuple[str, dict[str, Any]]] = []
+        self.observations: list[tuple[str, float, dict[str, Any]]] = []
     def incr(self, name: str, **labels: Any) -> None:
         self.counters.append((name, labels))
     def observe(self, name: str, value: float, **labels: Any) -> None:
@@ -38,6 +40,7 @@ def metrics() -> MetricsSink:
 
 # Helper context manager for timing
 from contextlib import contextmanager
+
 
 @contextmanager
 def time_observation(name: str, **labels: Any):

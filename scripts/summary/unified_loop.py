@@ -5,20 +5,20 @@ without changing external behavior unless --unified passed.
 """
 from __future__ import annotations
 
-import time
-import signal
-import logging
 import json
+import logging
 import os
-import hashlib
-from typing import List, Mapping, Any, Iterable, Optional
-from .env_config import load_summary_env
-from .config import SummaryConfig
+import signal
+import time
+from collections.abc import Iterable, Mapping
+from typing import Any
 
-from .plugins.base import OutputPlugin, SummarySnapshot, MetricsEmitter
-from .plugins import base as plugin_base
-from . import snapshot_builder  # reuse existing builder for status-driven fields
-from . import bridge_detection
+from . import (
+    snapshot_builder,  # reuse existing builder for status-driven fields
+)
+from .config import SummaryConfig
+from .env_config import load_summary_env
+from .plugins.base import MetricsEmitter, OutputPlugin, SummarySnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -67,15 +67,20 @@ class UnifiedLoop:
                     serve_unified_http(port=env0.unified_http_port)
                     # brief readiness
                     try:
-                        import socket as _sock, time as _t
+                        import socket as _sock
+                        import time as _t
                         for _i in range(10):
-                            s = _sock.socket(); s.settimeout(0.05)
+                            s = _sock.socket()
+                            s.settimeout(0.05)
                             try:
                                 s.connect(("127.0.0.1", env0.unified_http_port))
-                                s.close(); break
+                                s.close()
+                                break
                             except Exception:
-                                try: s.close()
-                                except Exception: pass
+                                try:
+                                    s.close()
+                                except Exception:
+                                    pass
                                 _t.sleep(0.05)
                     except Exception:
                         pass
@@ -84,15 +89,31 @@ class UnifiedLoop:
         except Exception:
             pass
 
-    def _read_status(self) -> Optional[dict[str, Any]]:
+    def _read_status(self) -> dict[str, Any] | None:
         env = load_summary_env()  # status file path stable; no need to force reload each cycle
         path = env.status_file
+        # Prefer centralized StatusReader (cached + robust) with defensive fallback
         try:
-            with open(path, 'r', encoding='utf-8') as f:
+            from src.utils.status_reader import get_status_reader  # type: ignore
+        except Exception:
+            get_status_reader = None  # type: ignore
+        try:
+            if get_status_reader is not None:
+                reader = get_status_reader(path)
+                data = reader.get_raw_status()
+                return data if isinstance(data, dict) else None
+            # Fallback: mtime-cached JSON read if available
+            try:
+                from pathlib import Path as _Path
+
+                from src.utils.csv_cache import read_json_cached as _read_json_cached
+                obj = _read_json_cached(_Path(path))
+                return obj if isinstance(obj, dict) else None
+            except Exception:
+                pass
+            with open(path, encoding='utf-8') as f:
                 data = json.load(f)
-                if isinstance(data, dict):
-                    return data  # narrow to concrete dict for builder
-                return None
+                return data if isinstance(data, dict) else None
         except Exception:
             return None
 
@@ -101,7 +122,7 @@ class UnifiedLoop:
         status = self._read_status()  # concrete dict or None
         now = time.time()
         panels_dir = self._panels_dir if (self._panels_dir and os.path.isdir(self._panels_dir)) else None
-        errors: List[str] = []
+        errors: list[str] = []
         derived: Mapping[str, Any] = {}
         panel_map: Mapping[str, Any] = {}
         domain_obj = None
@@ -133,7 +154,11 @@ class UnifiedLoop:
         try:
             if status is not None or panels_dir:
                 from src.summary.unified.model import assemble_model_snapshot  # local import
-                model_obj, _diag = assemble_model_snapshot(runtime_status=status or {}, panels_dir=panels_dir, include_panels=True)
+                model_obj, _diag = assemble_model_snapshot(
+                    runtime_status=status or {},
+                    panels_dir=panels_dir,
+                    include_panels=True,
+                )
         except Exception as e:  # noqa: BLE001
             logger.debug("Unified model assembly failed (dual emission fallback): %s", e)
         # Phase 5: central panel hash computation (single source of truth)
@@ -181,7 +206,7 @@ class UnifiedLoop:
         except Exception:  # pragma: no cover
             max_cycles_override = None
 
-        def _handle_signal(signum, frame):  # noqa: ANN001
+        def _handle_signal(signum: int, frame: Any) -> None:  # noqa: ANN001
             if not shutdown_requested["v"]:
                 logger.debug("UnifiedLoop received signal %s; initiating graceful shutdown", signum)
             shutdown_requested["v"] = True
@@ -207,18 +232,22 @@ class UnifiedLoop:
                 serve_unified_http(port=env.unified_http_port)
                 # Readiness probe (extended) to ensure port is listening before tests connect
                 try:
-                    import socket as _sock, time as _t
+                    import socket as _sock
+                    import time as _t
                     for _i in range(20):  # ~1s total (20 * 0.05)
                         for _host in ("127.0.0.1", "localhost"):
-                            s = _sock.socket(); s.settimeout(0.05)
+                            s = _sock.socket()
+                            s.settimeout(0.05)
                             try:
                                 s.connect((_host, env.unified_http_port))
                                 s.close()
                                 unified_started = True
                                 break
                             except Exception:
-                                try: s.close()
-                                except Exception: pass
+                                try:
+                                    s.close()
+                                except Exception:
+                                    pass
                                 continue
                         if unified_started:
                             break
@@ -233,7 +262,11 @@ class UnifiedLoop:
             try:
                 from .http_resync import serve_resync  # lazy import
                 srv = serve_resync()
-                logger.debug("Resync HTTP server started on port %s (auto-enable)%s", srv.server_address[1], f" override={env.resync_http_port}" if env.resync_http_port else "")
+                logger.debug(
+                    "Resync HTTP server started on port %s (auto-enable)%s",
+                    srv.server_address[1],
+                    f" override={env.resync_http_port}" if env.resync_http_port else "",
+                )
             except Exception as e:  # noqa: BLE001
                 logger.debug("Resync HTTP server start failed: %s", e)
         # Optional standalone metrics HTTP server
@@ -246,7 +279,7 @@ class UnifiedLoop:
         for p in self._plugins:
             try:
                 p.setup(ctx)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:  # noqa: BLE001, PERF203 - intentional defensive isolation per plugin
                 logger.exception("Plugin %s setup failed: %s", p.name, e)
         # Identify metrics plugin (optional)
         metrics_plugin: MetricsEmitter | None = None
@@ -274,19 +307,23 @@ class UnifiedLoop:
                 serve_unified_http(port=env.unified_http_port)
                 # Brief readiness probe to avoid connection races in fast tests
                 try:
-                    import socket as _sock, time as _t
+                    import socket as _sock
+                    import time as _t
                     for _i in range(20):  # ~1s total
                         ok = False
                         for _host in ("127.0.0.1", "localhost"):
-                            s = _sock.socket(); s.settimeout(0.05)
+                            s = _sock.socket()
+                            s.settimeout(0.05)
                             try:
                                 s.connect((_host, env.unified_http_port))
                                 s.close()
                                 ok = True
                                 break
                             except Exception:
-                                try: s.close()
-                                except Exception: pass
+                                try:
+                                    s.close()
+                                except Exception:
+                                    pass
                                 continue
                         if ok:
                             break
@@ -304,21 +341,31 @@ class UnifiedLoop:
                     serve_sse_http(port=env.sse_http_port)
                     try:
                         # Diagnostic sentinel for tests to confirm server start path executed
-                        with open(os.path.join(self._panels_dir or '.', f".sse_http_started_{env.sse_http_port}"), 'w', encoding='utf-8') as _f:
+                        with open(
+                            os.path.join(
+                                self._panels_dir or '.',
+                                f".sse_http_started_{env.sse_http_port}",
+                            ),
+                            'w',
+                            encoding='utf-8',
+                        ) as _f:
                             _f.write(str(time.time()))
                     except Exception:
                         pass
                     # Brief readiness window to avoid race in fast tests immediately connecting
                     try:
-                        import socket, time as _t
+                        import socket
+                        import time as _t
                         for _i in range(10):  # up to ~250ms (10 * 0.025)
-                            s = socket.socket(); s.settimeout(0.05)
+                            s = socket.socket()
+                            s.settimeout(0.05)
                             try:
                                 s.connect(("127.0.0.1", env.sse_http_port))
                                 s.close()
                                 break
                             except Exception:
-                                s.close(); _t.sleep(0.025)
+                                s.close()
+                                _t.sleep(0.025)
                     except Exception:
                         pass
                     logger.debug("SSE HTTP endpoint active (env G6_SSE_HTTP)")
@@ -373,7 +420,11 @@ class UnifiedLoop:
             if metrics_plugin is not None:
                 metrics_plugin.observe_cycle(elapsed, build_dur, errors=len(snap.errors))
             if diag_timing:
-                print(f"[summary-diag] cycle={self._cycle} build_dur={build_dur:0.4f}s total_elapsed={elapsed:0.4f}s sleep_for={sleep_for:0.4f}s")
+                print(
+                    f"[summary-diag] cycle={self._cycle} "
+                    f"build_dur={build_dur:0.4f}s total_elapsed={elapsed:0.4f}s "
+                    f"sleep_for={sleep_for:0.4f}s"
+                )
             if max_seconds is not None and (time.time() - hard_start) >= max_seconds:
                 if diag_timing:
                     print(f"[summary-diag] max seconds {max_seconds}s exceeded -> break")
@@ -413,7 +464,8 @@ class UnifiedLoop:
         for p in self._plugins:
             try:
                 p.teardown()
-            except Exception:  # pragma: no cover - defensive
+            except Exception:  # pragma: no cover - defensive  # noqa: PERF203
+                # Intentional defensive cleanup per plugin
                 logger.exception("Plugin %s teardown failed", p.name)
 
 __all__ = ["UnifiedLoop"]

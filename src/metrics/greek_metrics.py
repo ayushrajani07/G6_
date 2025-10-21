@@ -6,8 +6,10 @@ Greek gauges to the provided registry object. Mirrors legacy
 semantics.
 """
 from __future__ import annotations
-from prometheus_client import Gauge  # type: ignore
+
 from typing import Any
+
+from prometheus_client import Gauge  # type: ignore
 
 __all__ = ["init_greek_metrics"]
 

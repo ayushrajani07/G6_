@@ -1,9 +1,10 @@
 from __future__ import annotations
+
 import os
-import sys
 import subprocess
+import sys
 import time
-from typing import List, Optional, Dict
+from typing import Any
 
 # =============================
 # G6 Unified Summary Init Menu
@@ -71,7 +72,7 @@ def _python_exe() -> str:
         return "python"
 
 
-def _merge_env(base: Optional[Dict[str, str]] = None, add: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+def _merge_env(base: dict[str, str] | None = None, add: dict[str, str] | None = None) -> dict[str, str]:
     env = dict(base or os.environ)
     if add:
         for k, v in add.items():
@@ -80,7 +81,7 @@ def _merge_env(base: Optional[Dict[str, str]] = None, add: Optional[Dict[str, st
     return env
 
 
-def _run(cmd: List[str], env: Optional[Dict[str, str]] = None) -> int:
+def _run(cmd: list[str], env: dict[str, str] | None = None) -> int:
     try:
         # On Windows PowerShell, use direct subprocess without shell to preserve Ctrl+C behavior
         proc = subprocess.Popen(cmd, env=env or os.environ.copy(), cwd=_PROJ_ROOT)
@@ -93,16 +94,23 @@ def _run(cmd: List[str], env: Optional[Dict[str, str]] = None) -> int:
         return 2
 
 
-def _spawn(cmd: List[str], env: Optional[Dict[str, str]] = None, quiet: bool = True) -> subprocess.Popen:
-    kw = {}
-    if quiet:
-        kw["stdout"] = subprocess.DEVNULL
-        kw["stderr"] = subprocess.DEVNULL
+def _spawn(cmd: list[str], env: dict[str, str] | None = None, quiet: bool = True) -> subprocess.Popen[Any]:
+    """Spawn a background process, optionally silencing stdio.
+
+    Avoid shell=True to preserve Ctrl+C behavior and keep types precise to satisfy mypy.
+    """
+    stdout = subprocess.DEVNULL if quiet else None
+    stderr = subprocess.DEVNULL if quiet else None
     # Avoid shell=True; keep Ctrl+C behavior
-    return subprocess.Popen(cmd, env=env or os.environ.copy(), **kw)  # type: ignore[arg-type]
+    return subprocess.Popen(
+        cmd,
+        env=env or os.environ.copy(),
+        stdout=stdout,
+        stderr=stderr,
+    )
 
 
-def _ensure_panels_env(extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+def _ensure_panels_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     env = dict(os.environ)
     sinks = env.get("G6_OUTPUT_SINKS", "stdout,logging")
     if "panels" not in [t.strip().lower() for t in sinks.split(",") if t.strip()]:
@@ -273,7 +281,7 @@ def menu_loop() -> int:
         if choice == "6":
             print("Starting simulator in background… Ctrl+C to stop when UI exits.")
             sim_cmd = [py, DEV_TOOLS, "simulate-status", "--status-file", "data/runtime_status.json", "--interval", "60", "--refresh", "1.0", "--open-market", "--with-analytics"]
-            p_sim = _spawn(sim_cmd, quiet=True)
+            p_sim0 = _spawn(sim_cmd, quiet=True)
             time.sleep(0.3)
             env = _ensure_panels_env({})
             try:
@@ -281,12 +289,12 @@ def menu_loop() -> int:
                 rc = _run([py, SUMMARY_APP, "--status-file", status_abs, "--refresh", "0.5"], env)
             finally:
                 try:
-                    if p_sim.poll() is None:
-                        p_sim.terminate()
+                    if p_sim0.poll() is None:
+                        p_sim0.terminate()
                         try:
-                            p_sim.wait(timeout=1.0)
+                            p_sim0.wait(timeout=1.0)
                         except Exception:
-                            p_sim.kill()
+                            p_sim0.kill()
                 except Exception:
                     pass
             return rc
@@ -319,8 +327,8 @@ def menu_loop() -> int:
             print("Starting FAST STACK (simulator + panels bridge + summary)… Ctrl+C exits summary and cleans up.")
             sim_cmd = [py, DEV_TOOLS, "simulate-status", "--status-file", "data/runtime_status.json", "--interval", "60", "--refresh", "0.5", "--open-market", "--with-analytics"]
             bridge_cmd = [py, PANELS_BRIDGE, "--status-file", "data/runtime_status.json", "--refresh", "0.5"]
-            p_sim: Optional[subprocess.Popen] = None
-            p_bridge: Optional[subprocess.Popen] = None
+            p_sim: subprocess.Popen[Any] | None = None
+            p_bridge: subprocess.Popen[Any] | None = None
             try:
                 p_sim = _spawn(sim_cmd, quiet=True)
                 time.sleep(0.25)
@@ -349,7 +357,7 @@ def menu_loop() -> int:
             # Fast stack without panels bridge (slightly lighter) + summary
             print("Starting FAST STACK (simulator + summary)… Ctrl+C exits summary and cleans up.")
             sim_cmd = [py, DEV_TOOLS, "simulate-status", "--status-file", "data/runtime_status.json", "--interval", "60", "--refresh", "0.5", "--open-market", "--with-analytics"]
-            p_sim2: Optional[subprocess.Popen] = None
+            p_sim2: subprocess.Popen[Any] | None = None
             try:
                 p_sim2 = _spawn(sim_cmd, quiet=True)
                 time.sleep(0.25)
@@ -372,7 +380,7 @@ def menu_loop() -> int:
         if choice == "12":
             print("Starting DIAGNOSTIC STACK (simulator + summary with debug flags)…")
             sim_cmd = [py, DEV_TOOLS, "simulate-status", "--status-file", "data/runtime_status.json", "--interval", "60", "--refresh", "0.5", "--open-market", "--with-analytics"]
-            p_simd: Optional[subprocess.Popen] = None
+            p_simd: subprocess.Popen[Any] | None = None
             try:
                 p_simd = _spawn(sim_cmd, quiet=True)
                 time.sleep(0.3)
@@ -400,7 +408,7 @@ def menu_loop() -> int:
             # Fast stack with SSE overlay (no legacy panels bridge). Assumes an SSE endpoint is available.
             print("Starting FAST STACK (simulator + summary + SSE overlay)… Ctrl+C exits summary and cleans up.")
             sim_cmd = [py, DEV_TOOLS, "simulate-status", "--status-file", "data/runtime_status.json", "--interval", "60", "--refresh", "0.5", "--open-market", "--with-analytics"]
-            p_sim3: Optional[subprocess.Popen] = None
+            p_sim3: subprocess.Popen[Any] | None = None
             try:
                 p_sim3 = _spawn(sim_cmd, quiet=True)
                 time.sleep(0.3)

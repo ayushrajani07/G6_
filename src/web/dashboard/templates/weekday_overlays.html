@@ -15,7 +15,7 @@
         <div class="placeholder">
           No overlays HTML found at <code>{{ html_path }}</code>.
           <p>Generate it via:</p>
-          <pre class="code">python scripts/plot_weekday_overlays.py --index NIFTY --expiry-tag this_week --offset ATM --output weekday_overlays.html</pre>
+          <pre class="code">python scripts/plot_weekday_overlays.py --index NIFTY --expiry-tag this_week --offset 0 --output weekday_overlays.html</pre>
           {% if meta_json %}
           <p>Metadata sidecar:</p>
           <pre class="code">{{ meta_json }}</pre>

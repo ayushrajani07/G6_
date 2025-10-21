@@ -9,10 +9,14 @@ Runtime behavior is unchanged (pure passthrough); only type information and
 docstrings were added.
 """
 from __future__ import annotations
-from typing import Any, Iterable, Mapping, MutableMapping, Sequence, Dict, Optional, TypedDict, cast
+
+from collections.abc import Iterable, Mapping, MutableMapping, Sequence
+from typing import Any, TypedDict, cast
 
 from src.collectors.helpers.coverage import (
     coverage_metrics as _legacy_coverage_metrics,
+)
+from src.collectors.helpers.coverage import (
     field_coverage_metrics as _legacy_field_coverage_metrics,
 )
 
@@ -25,7 +29,7 @@ class InstrumentDict(TypedDict, total=False):
     strike: float | int | None
     option_count: int | None
 
-Instrument = Mapping[str, Any] | MutableMapping[str, Any] | InstrumentDict | Dict[str, Any]
+Instrument = Mapping[str, Any] | MutableMapping[str, Any] | InstrumentDict | dict[str, Any]
 
 class EnrichedExpiryDict(TypedDict, total=False):
     strike_coverage_avg: float | int | None
@@ -40,7 +44,7 @@ def coverage_metrics(
     index_symbol: str,
     expiry_rule: str,
     expiry_date: Any,
-) -> Optional[float]:
+) -> float | None:
     """Compute strike coverage ratio (0..1) for an expiry.
 
     Performs a light normalization of inputs before delegating to legacy implementation.
@@ -56,10 +60,10 @@ def coverage_metrics(
                     tmp.append(s)
             norm_strikes = tmp
         # Legacy expects Iterable[Dict[str, Any]]; perform a shallow coercion where possible.
-        coerced: list[Dict[str, Any]] = []
+        coerced: list[dict[str, Any]] = []
         for inst in instruments:
             if isinstance(inst, dict):
-                coerced.append(cast(Dict[str, Any], inst))
+                coerced.append(cast(dict[str, Any], inst))
             else:
                 # Wrap mapping-like into a plain dict snapshot
                 try:
@@ -79,7 +83,7 @@ def field_coverage_metrics(
     index_symbol: str,
     expiry_rule: str,
     expiry_date: Any,
-) -> Optional[float]:
+) -> float | None:
     """Compute full-field option coverage ratio (0..1) for an expiry.
 
     Light validation + normalization layer shielding callers from legacy ``Any`` leakage.
@@ -88,7 +92,7 @@ def field_coverage_metrics(
     try:
         # Legacy expects Dict[str, Any]; shallow copy acceptable.
         if isinstance(enriched_data, dict):
-            edict: Dict[str, Any] = cast(Dict[str, Any], enriched_data)
+            edict: dict[str, Any] = cast(dict[str, Any], enriched_data)
         else:
             try:
                 edict = dict(enriched_data)

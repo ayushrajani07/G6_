@@ -8,7 +8,11 @@ Suppress warning:
     set G6_SUPPRESS_DEPRECATIONS=1
 """
 from __future__ import annotations
-import os, sys, subprocess
+
+import os
+import subprocess
+import sys
+
 
 def main(argv: list[str] | None = None) -> int:  # noqa: D401
     if argv is None:

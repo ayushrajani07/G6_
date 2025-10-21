@@ -27,7 +27,12 @@ Note: This script intentionally keeps imports light until after argument parsing
 for faster --help responsiveness.
 """
 from __future__ import annotations
-import argparse, logging, os, sys, subprocess
+
+import argparse
+import logging
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 LOG_FORMAT = "[%(asctime)s] %(levelname)s %(name)s: %(message)s"
@@ -53,6 +58,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     p.add_argument("--require-auth", action="store_true", help="Fail (exit 4) if auth validation cannot succeed")
     p.add_argument("--auth-only", action="store_true", help="Only perform auth validation then exit (0/4)")
     p.add_argument("--summary", action="store_true", help="Run summary view instead of orchestrator loop")
+    # Stack/observability controls (deprecated): stack is mandatory and brought up via obs_start.ps1 on Windows
     # Removed legacy panels bridge mode (status_to_panels.py); unified summary handles panels internally now.
     # Retain flag stub to avoid breaking old automation; emit warning if used.
     p.add_argument("--panels", action="store_true", help="(Deprecated) Equivalent to --summary; legacy bridge & env toggle removed (auto-detect active)")
@@ -84,6 +90,7 @@ def ensure_env(args: argparse.Namespace) -> None:
     elif args.concise:
         os.environ["G6_CONCISE_LOGS"] = "1"
         os.environ.pop("G6_QUIET_MODE", None)
+    # All stack services are mandatory; do not set G6_INFLUX_OPTIONAL here
 
 
 def run_auth_validation(require_success: bool) -> bool:
@@ -183,16 +190,28 @@ def main(argv: list[str]) -> int:
                 return True
         logging.getLogger().addFilter(_NoTraceFilter())
 
-    # Auto-resolve Observability Stack (runs first; uses scripts/auto_stack.ps1 under Windows)
+    # Bring up Observability Stack via PowerShell (Windows) and enforce mandatory services
     try:
+        if os.name == 'nt':
+            ps1 = _SCRIPT_DIR / 'obs_start.ps1'
+            if not ps1.exists():
+                logger.error("obs_start.ps1 missing: %s", ps1)
+                return 3
+            cmd = ['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(ps1)]
+            logger.info("[launcher] Starting observability stack via obs_start.ps1")
+            subprocess.run(cmd, cwd=str(_PROJECT_ROOT), check=False, timeout=180)
+        else:
+            logger.warning("[launcher] obs_start.ps1 is Windows-only; ensure Prometheus, InfluxDB, and Grafana are running")
+        # Verify all services are healthy after attempted start
         from scripts.auto_resolve_stack import ensure_stack, print_summary  # type: ignore
-        stack = ensure_stack(auto_start=True)
+        stack = ensure_stack(auto_start=False)
         print_summary(stack)
-        if not stack.influx.ok:
-            logger.error("[launcher] InfluxDB is mandatory and not reachable. Exiting.")
+        if not (stack.prometheus.ok and stack.grafana.ok and stack.influx.ok):
+            logger.error("[launcher] Observability stack not healthy (all mandatory). prom=%s graf=%s influx=%s", stack.prometheus.ok, stack.grafana.ok, stack.influx.ok)
             return 3
     except Exception:
-        logger.exception("[launcher] Auto-resolve stack phase failed unexpectedly (continuing)")
+        logger.exception("[launcher] Stack bring-up/verification failed")
+        return 3
 
     planned = []
     if not args.no_auth and not args.summary and not args.panels:

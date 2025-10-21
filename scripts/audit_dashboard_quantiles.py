@@ -5,7 +5,8 @@ Rules:
   * If a panel target expr contains `histogram_quantile(` with a 5m or 30m rate window on a *_bucket metric
     AND a corresponding recording rule (<base>:p95_5m, <base>:p95_30m, <base>:p95_ratio_5m_30m or p99 variant) exists
     THEN flag as violation (we prefer recorded series for consistency & lower query cost).
-  * Allowlist: governance dashboard may keep one raw quantile per histogram for validation (at most 1 per metric & window set).
+    * Allowlist: governance dashboard may keep one raw quantile per histogram for validation.
+        Limit to at most 1 per metric & window set.
 
 Exit codes:
   0 -> success (no violations)
@@ -20,7 +21,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
 DASH_DIR = ROOT / "grafana" / "dashboards" / "generated"
@@ -33,16 +34,16 @@ BUCKET_EXTRACT = re.compile(r'rate\((?P<metric>[a-zA-Z0-9_:]+)_bucket\[(5m|30m)\
 
 # Minimal YAML loader (avoid PyYAML dependency if not already present)
 try:
-    import yaml  # type: ignore
+    import yaml  # type: ignore[import-untyped]
 except ImportError:  # pragma: no cover
-    yaml = None
+    yaml = None  # type: ignore[assignment]
 
 
-def load_recording_rules() -> Set[str]:
-    recs: Set[str] = set()
+def load_recording_rules() -> set[str]:
+    recs: set[str] = set()
     if not RULES_GEN.exists() or not yaml:
         return recs
-    data = yaml.safe_load(RULES_GEN.read_text()) or {}
+    data: dict[str, Any] = yaml.safe_load(RULES_GEN.read_text()) or {}
     for g in data.get("groups", []) or []:
         for r in g.get("rules", []) or []:
             name = r.get("record")
@@ -51,11 +52,11 @@ def load_recording_rules() -> Set[str]:
     return recs
 
 
-def scan_dashboards(recording_rules: Set[str]) -> List[Dict]:
+def scan_dashboards(recording_rules: set[str]) -> list[dict]:
     if not DASH_DIR.exists():
         raise SystemExit(2)
-    violations: List[Dict] = []
-    allow_gov_limit: Dict[str, int] = {}  # metric -> count of raw quantiles allowed in governance
+    violations: list[dict] = []
+    allow_gov_limit: dict[str, int] = {}  # metric -> count of raw quantiles allowed in governance
     for fp in DASH_DIR.glob("*.json"):
         data = json.loads(fp.read_text())
         slug = fp.stem
@@ -74,7 +75,7 @@ def scan_dashboards(recording_rules: Set[str]) -> List[Dict]:
                 if not bmatch:
                     continue
                 base_metric = bmatch.group("metric")
-                window = m.group(2) if len(m.groups()) >= 2 else None
+                # window = m.group(2) if len(m.groups()) >= 2 else None
                 # compute expected rule names to justify replacement
                 expected = {f"{base_metric}:p95_5m", f"{base_metric}:p95_30m", f"{base_metric}:p95_ratio_5m_30m",
                             f"{base_metric}:p99_5m"}
@@ -94,7 +95,7 @@ def scan_dashboards(recording_rules: Set[str]) -> List[Dict]:
     return violations
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     recs = load_recording_rules()
     violations = scan_dashboards(recs)
     if violations:

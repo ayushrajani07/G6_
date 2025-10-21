@@ -6,12 +6,13 @@ orchestrator process; thread-safe for concurrent publishers.
 """
 from __future__ import annotations
 
-from collections import deque, Counter
 import os
+from collections import Counter, deque
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone, tzinfo
 from threading import Lock
-from typing import Any, Deque, Dict, Iterable, List, Optional, Tuple, Protocol, runtime_checkable, Union, Callable
+from typing import Any, Protocol, Union, runtime_checkable
 
 try:  # Prefer system zoneinfo if available
     from zoneinfo import ZoneInfo
@@ -35,7 +36,7 @@ except Exception:  # pragma: no cover - fallback
 
 @runtime_checkable
 class _LabelsMixin(Protocol):
-    def labels(self, **label_values: str) -> "_LabelsMixin": ...
+    def labels(self, **label_values: str) -> _LabelsMixin: ...
 
 
 @runtime_checkable
@@ -67,10 +68,10 @@ class EventRecord:
     event_id: int
     event_type: str
     timestamp_ist: str
-    payload: Dict[str, Any]
-    coalesce_key: Optional[str] = None
+    payload: dict[str, Any]
+    coalesce_key: str | None = None
 
-    def as_sse_payload(self) -> Dict[str, Any]:
+    def as_sse_payload(self) -> dict[str, Any]:
         """Return dictionary ready for JSON serialization to SSE clients."""
         base = {
             "id": self.event_id,
@@ -98,23 +99,23 @@ class EventBus:
 
     # Class-level annotations for attributes populated in __init__ (aids static analysis)
     _coalesce_counts: Counter[str]
-    _forced_full_last_reason_ts: Dict[str, float]
-    _m_events_emitted: Optional[CounterLike]
-    _m_events_coalesced: Optional[CounterLike]
-    _m_backlog_capacity: Optional[GaugeLike]
-    _m_last_id: Optional[GaugeLike]
-    _m_forced_full_total: Optional[CounterLike]
-    _m_conn_duration: Optional[HistogramLike]
+    _forced_full_last_reason_ts: dict[str, float]
+    _m_events_emitted: CounterLike | None
+    _m_events_coalesced: CounterLike | None
+    _m_backlog_capacity: GaugeLike | None
+    _m_last_id: GaugeLike | None
+    _m_forced_full_total: CounterLike | None
+    _m_conn_duration: HistogramLike | None
 
     def __init__(self, max_events: int = 2048) -> None:
         if max_events <= 0:
             raise ValueError("max_events must be positive")
         self._lock = Lock()
         self._max_events = max_events
-        self._events: Deque[EventRecord] = deque(maxlen=max_events)
+        self._events: deque[EventRecord] = deque(maxlen=max_events)
         self._seq = 0
         # Map coalesce key -> event_id to allow targeted replacement
-        self._coalesce_index: Dict[str, int] = {}
+        self._coalesce_index: dict[str, int] = {}
         # Per-type published counters (lifetime within process)
         self._type_counts: Counter[str] = Counter()
         # Backlog high-water mark (max len observed)
@@ -123,13 +124,13 @@ class EventBus:
         self._consumers = 0
         # Lazy metrics registration placeholders (populated on first publish)
         self._metrics_registered = False
-        self._m_events_total: Optional[CounterLike] = None
-        self._m_backlog_current: Optional[GaugeLike] = None
-        self._m_backlog_highwater: Optional[GaugeLike] = None
-        self._m_consumers: Optional[GaugeLike] = None
+        self._m_events_total: CounterLike | None = None
+        self._m_backlog_current: GaugeLike | None = None
+        self._m_backlog_highwater: GaugeLike | None = None
+        self._m_consumers: GaugeLike | None = None
         # Panel generation (increments only on panel_full) exposed via gauge
         self._generation = 0
-        self._m_generation: Optional[GaugeLike] = None
+        self._m_generation: GaugeLike | None = None
         # Additional Phase 1 instrumentation placeholders
         self._m_events_emitted = None  # Counter (post-coalesce) labeled by type
         self._m_events_coalesced = None  # Counter labeled by type
@@ -170,7 +171,7 @@ class EventBus:
     # Internal metric helper utilities (DRY guarded interactions)
     # ------------------------------------------------------------------
     @staticmethod
-    def _inc_metric(metric: Optional[CounterLike], amount: int | float = 1) -> None:
+    def _inc_metric(metric: CounterLike | None, amount: int | float = 1) -> None:
         if metric is None:
             return
         try:
@@ -181,7 +182,7 @@ class EventBus:
             pass
 
     @staticmethod
-    def _inc_labeled_metric(metric: Optional[CounterLike], labels: Dict[str, str], amount: int | float = 1) -> None:
+    def _inc_labeled_metric(metric: CounterLike | None, labels: dict[str, str], amount: int | float = 1) -> None:
         if metric is None:
             return
         try:
@@ -197,7 +198,7 @@ class EventBus:
             pass
 
     @staticmethod
-    def _set_gauge(gauge: Optional[GaugeLike], value: int | float) -> None:
+    def _set_gauge(gauge: GaugeLike | None, value: int | float) -> None:
         if gauge is None:
             return
         try:
@@ -228,7 +229,7 @@ class EventBus:
             return
         target_id = self._coalesce_index.pop(key)
         # Rebuild deque without the targeted event. Bounded size keeps cost low.
-        filtered: Deque[EventRecord] = deque(maxlen=self._max_events)
+        filtered: deque[EventRecord] = deque(maxlen=self._max_events)
         for event in self._events:
             if event.event_id != target_id:
                 filtered.append(event)
@@ -240,10 +241,10 @@ class EventBus:
     def publish(
         self,
         event_type: str,
-        payload: Dict[str, Any],
+        payload: dict[str, Any],
         *,
-        coalesce_key: Optional[str] = None,
-        timestamp_ist: Optional[str] = None,
+        coalesce_key: str | None = None,
+        timestamp_ist: str | None = None,
     ) -> EventRecord:
         """Publish a new event and return the stored record.
 
@@ -347,7 +348,8 @@ class EventBus:
                     if event_type in ('panel_full','panel_diff') and _env_bool('G6_SSE_TRACE', False):
                         if '_trace' not in record.payload:
                             try:
-                                import uuid as _uuid, time as _t
+                                import time as _t
+                                import uuid as _uuid
                                 trace_id = _uuid.uuid4().hex[:16]
                                 record.payload['_trace'] = {'id': trace_id, 'publish_ts': _t.time()}
                             except Exception:
@@ -397,7 +399,7 @@ class EventBus:
                             from src.metrics import get_metrics  # type: ignore
                             m = get_metrics()
                             if m and hasattr(m, 'sse_trace_stages_total'):
-                                ctr = getattr(m, 'sse_trace_stages_total')
+                                ctr = m.sse_trace_stages_total
                                 inc = getattr(ctr, 'inc', None)
                                 if callable(inc):
                                     inc()
@@ -419,7 +421,7 @@ class EventBus:
                     cur_backlog = len(self._events)
                     # If backlog collapsed sharply below half the configured exit backlog ratio, reset samples to accelerate exit
                     try:
-                        exit_ratio = getattr(getattr(self._adaptive, 'config'), 'exit_backlog_ratio', 0.4)
+                        exit_ratio = getattr(self._adaptive.config, 'exit_backlog_ratio', 0.4)
                         if self._max_events > 0 and (cur_backlog / self._max_events) <= (exit_ratio * 0.5):
                             # Clear internal sample deques (best-effort)
                             try:
@@ -478,7 +480,7 @@ class EventBus:
     # ------------------------------------------------------------------
     # Snapshot guard (forced full emission logic) re-exposed as method
     # ------------------------------------------------------------------
-    def enforce_snapshot_guard(self) -> Optional[EventRecord]:
+    def enforce_snapshot_guard(self) -> EventRecord | None:
         """Evaluate snapshot guard and emit a forced panel_full if needed.
 
         Reasons:
@@ -503,7 +505,7 @@ class EventBus:
                 gap_max = int(os.environ.get('G6_EVENTS_SNAPSHOT_GAP_MAX','500'))
             except Exception:
                 gap_max = 500
-            need_full_reason: Optional[str] = None
+            need_full_reason: str | None = None
             if last_full_id == 0:
                 for ev in self._events:
                     if ev.event_type == 'panel_diff':
@@ -542,13 +544,13 @@ class EventBus:
         with self._lock:
             return self._seq
 
-    def get_since(self, last_event_id: int, limit: Optional[int] = None) -> List[EventRecord]:
+    def get_since(self, last_event_id: int, limit: int | None = None) -> list[EventRecord]:
         """Return events with id greater than *last_event_id* in arrival order."""
 
         with self._lock:
             items: Iterable[EventRecord] = (e for e in self._events if e.event_id > last_event_id)
             if limit is not None and limit >= 0:
-                out: List[EventRecord] = []
+                out: list[EventRecord] = []
                 for e in items:
                     out.append(e)
                     if len(out) >= limit:
@@ -564,7 +566,7 @@ class EventBus:
             m_backlog_cur = self._m_backlog_current
             EventBus._set_gauge(m_backlog_cur, 0)
 
-    def latest_full_snapshot(self) -> Optional[Dict[str, Any]]:
+    def latest_full_snapshot(self) -> dict[str, Any] | None:
         """Return the most recent panel_full payload (including embedded _generation) if present.
 
         Scans from the right (newest) side of the deque for first panel_full event.
@@ -624,9 +626,12 @@ class EventBus:
                     registry = None
             _maybe = getattr(registry, '_maybe_register', None) if registry is not None else None
             if callable(_maybe):
-                from prometheus_client import Counter as _Counter, Gauge as _Gauge, Histogram as _Histogram
-                from typing import cast as _cast
                 from typing import Any as _Any
+                from typing import cast as _cast
+
+                from prometheus_client import Counter as _Counter
+                from prometheus_client import Gauge as _Gauge
+                from prometheus_client import Histogram as _Histogram
                 def _safe(reg_cls, attr: str, name: str, doc: str, labels: list[str] | None = None) -> _Any:
                     metric = None
                     try:
@@ -697,7 +702,7 @@ class EventBus:
         except Exception:  # pragma: no cover - observability best-effort
             pass
 
-    def stats_snapshot(self) -> Dict[str, Any]:
+    def stats_snapshot(self) -> dict[str, Any]:
         """Return a thread-safe snapshot of bus stats for external endpoints."""
         with self._lock:
             if self._events:
@@ -757,7 +762,7 @@ class EventBus:
             EventBus._set_gauge(self._m_consumers, self._consumers)
 
 
-_GLOBAL_BUS: Optional[EventBus] = None
+_GLOBAL_BUS: EventBus | None = None
 
 
 def get_event_bus(max_events: int = 2048) -> EventBus:

@@ -10,9 +10,11 @@ Goals:
 - Narrow public surface to ease future migration to file/secret store.
 """
 from __future__ import annotations
+
+import logging
+import os
+import threading
 from dataclasses import dataclass, replace
-from typing import Optional
-import os, threading, logging
 
 logger = logging.getLogger(__name__)
 
@@ -21,14 +23,14 @@ _PRIMARY_ACCESS_TOKEN_VARS = ("KITE_ACCESS_TOKEN", "KITE_ACCESSTOKEN")
 
 @dataclass(frozen=True)
 class ProviderConfig:
-    api_key: Optional[str]
-    access_token: Optional[str]
+    api_key: str | None
+    access_token: str | None
     discovered: bool  # whether values came from env (vs explicit update)
 
     def is_complete(self) -> bool:
         return bool(self.api_key and self.access_token)
 
-    def with_updates(self, *, api_key: Optional[str] = None, access_token: Optional[str] = None) -> "ProviderConfig":
+    def with_updates(self, *, api_key: str | None = None, access_token: str | None = None) -> ProviderConfig:
         """Return a new config with updated credentials (explicit override)."""
         new_api = api_key if api_key is not None else self.api_key
         new_tok = access_token if access_token is not None else self.access_token
@@ -65,7 +67,7 @@ def get_provider_config(refresh: bool = False) -> ProviderConfig:
         return _singleton
 
 
-def update_provider_credentials(api_key: Optional[str] = None, access_token: Optional[str] = None) -> ProviderConfig:
+def update_provider_credentials(api_key: str | None = None, access_token: str | None = None) -> ProviderConfig:
     """Explicitly override credentials (e.g., after refresh) returning new snapshot."""
     global _singleton
     with _singleton_lock:

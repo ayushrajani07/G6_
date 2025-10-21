@@ -1,6 +1,12 @@
 {
-  "updated_at": "2025-10-10T06:31:31.850997+00:00",
+  "updated_at": "2025-10-19T14:43:59.072075+00:00",
   "alerts": [
+    {
+      "time": "2025-09-27T10:00:00Z",
+      "level": "INFO",
+      "component": "Seed",
+      "message": "Hello"
+    },
     {
       "time": "2025-09-27T10:00:00Z",
       "level": "INFO",
@@ -8,7 +14,7 @@
       "message": "m"
     },
     {
-      "time": "2025-10-10T06:09:27.239471+00:00",
+      "time": "2025-10-19T14:43:59.071856+00:00",
       "level": "ERROR",
       "component": "Data Quality",
       "message": "Low data quality: FINNIFTY:77.0%",

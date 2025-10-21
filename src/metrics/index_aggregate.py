@@ -1,12 +1,15 @@
 """Per-index aggregate metric registrations (extracted)."""
 from __future__ import annotations
-from prometheus_client import Counter, Gauge, REGISTRY
+
 import logging
+
+from prometheus_client import REGISTRY, Counter, Gauge
 
 logger = logging.getLogger(__name__)
 
-def init_index_aggregate_metrics(registry: "MetricsRegistry") -> None:
-    from prometheus_client import Counter as _C, Gauge as _G
+def init_index_aggregate_metrics(registry: MetricsRegistry) -> None:
+    from prometheus_client import Counter as _C
+    from prometheus_client import Gauge as _G
     try:
         registry.index_options_processed = _G('g6_index_options_processed', 'Options processed for index last cycle', ['index'])
     except ValueError:

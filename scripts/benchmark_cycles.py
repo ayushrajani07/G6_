@@ -19,10 +19,15 @@ Migration:
 This file may be deleted any time after the target removal date without further notice.
 """
 from __future__ import annotations
-import os, sys, time, json, argparse, logging
+
+import argparse
+import json
+import logging
+import os
+import time
 
 _LOG = logging.getLogger("benchmark_cycles_stub")
-_WARN = not (os.environ.get('G6_SUPPRESS_DEPRECATIONS','').lower() in {'1','true','yes','on'})
+_WARN = os.environ.get('G6_SUPPRESS_DEPRECATIONS','').lower() not in {'1','true','yes','on'}
 
 def run_benchmark(cycles: int, interval: float) -> dict:  # type: ignore[override]
     if _WARN:

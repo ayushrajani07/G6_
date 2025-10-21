@@ -15,18 +15,32 @@ Public API:
     evaluate_market_gate(build_snapshots, metrics) -> (proceed: bool, early_result: dict | None)
 """
 from __future__ import annotations
-import os, datetime, logging
-from typing import Any, Dict, Tuple, Optional
+
+import datetime
 import importlib
+import logging
+import os
+import time
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["evaluate_market_gate"]
 
+# Throttle for repeated "market closed" banner to avoid log spam.
+# Default to once per minute, override via G6_MARKET_GATE_LOG_INTERVAL_SEC.
+_CLOSED_BANNER_INTERVAL_SEC: float = float(os.environ.get("G6_MARKET_GATE_LOG_INTERVAL_SEC", "60"))
+_last_closed_banner_ts: float = 0.0
 
-def evaluate_market_gate(build_snapshots: bool, metrics: Any | None) -> Tuple[bool, Optional[Dict[str, Any]]]:
+
+def evaluate_market_gate(build_snapshots: bool, metrics: Any | None) -> tuple[bool, dict[str, Any] | None]:
     # Determine market open status (permissive default on failure)
     _market_open = True
+    # Explicit force-open override for tests and controlled runs
+    try:
+        _force_open_env = os.environ.get('G6_FORCE_MARKET_OPEN', '').lower() in ('1','true','yes','on')
+    except Exception:
+        _force_open_env = False
     try:  # pragma: no cover
         _mh = importlib.import_module('src.utils.market_hours')
         _market_open = bool(getattr(_mh, 'is_market_open', lambda **k: True)(market_type="equity", session_type="regular"))
@@ -35,15 +49,18 @@ def evaluate_market_gate(build_snapshots: bool, metrics: Any | None) -> Tuple[bo
 
     # Weekend mode logic removed (reverting to strict weekday/holiday market hours only)
 
-    force_open = os.environ.get('G6_FORCE_MARKET_OPEN','').lower() in ('1','true','yes','on')
-
-    # Broaden bypass when snapshot building under tests
+    # Snapshot tests may still bypass to prevent flakiness in CI
+    force_open = False
     try:  # pragma: no cover (defensive)
-        if not force_open and build_snapshots:
+        if build_snapshots:
             if ('PYTEST_CURRENT_TEST' in os.environ) or ('pytest' in __import__('sys').modules) or (os.environ.get('G6_SNAPSHOT_TEST_MODE','').lower() in ('1','true','yes','on')):
                 force_open = True
     except Exception:
         pass
+
+    # Honor environment override regardless of snapshot mode
+    if _force_open_env:
+        force_open = True
 
     if force_open or _market_open:
         disable_repeat = os.environ.get('G6_DISABLE_REPEAT_BANNERS','').lower() in ('1','true','yes','on')
@@ -69,17 +86,22 @@ def evaluate_market_gate(build_snapshots: bool, metrics: Any | None) -> Tuple[bo
     # Market closed path
     try:
         _mh = importlib.import_module('src.utils.market_hours')
-        get_next_market_open = getattr(_mh, 'get_next_market_open')
+        get_next_market_open = _mh.get_next_market_open
         next_open = get_next_market_open(market_type="equity", session_type="regular")
-        wait_time = (next_open - datetime.datetime.now(datetime.timezone.utc)).total_seconds()
+        wait_time = (next_open - datetime.datetime.now(datetime.UTC)).total_seconds()
     except Exception:
         next_open = None; wait_time = 0
 
-    logger.info(
-        "Equity market is closed. Next market open: %s%s",
-        next_open,
-        (f" (in {wait_time/60:.1f} minutes)" if next_open else ""),
-    )
+    # Throttled banner: emit at most once per configured interval
+    global _last_closed_banner_ts
+    now_ts = time.time()
+    if (_last_closed_banner_ts == 0.0) or (now_ts - _last_closed_banner_ts >= _CLOSED_BANNER_INTERVAL_SEC):
+        logger.info(
+            "Equity market is closed. Next market open: %s%s",
+            next_open,
+            (f" (in {wait_time/60:.1f} minutes)" if next_open else ""),
+        )
+        _last_closed_banner_ts = now_ts
     # Emit trace via existing lightweight tracer if available
     try:  # pragma: no cover
         _se = importlib.import_module('src.collectors.helpers.struct_events')

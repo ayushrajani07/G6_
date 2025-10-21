@@ -22,8 +22,13 @@ Design Goals:
 Future Extensions (Roadmap): retention pruning integration, integrity checker invocation, anomaly remediation.
 """
 from __future__ import annotations
-import os, time, pathlib, gzip, io
-from typing import Iterable
+
+import gzip
+import os
+import pathlib
+import time
+from collections.abc import Iterable
+
 from src.metrics import get_metrics  # facade import
 
 

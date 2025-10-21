@@ -26,9 +26,17 @@ Design notes:
   * Includes per-file checksum in manifest to enable partial distribution integrity.
 """
 from __future__ import annotations
-import argparse, os, sys, json, tarfile, hashlib, subprocess, datetime
+
+import argparse
+import datetime
+import hashlib
+import json
+import os
+import subprocess
+import sys
+import tarfile
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any
 
 REPO = Path(__file__).resolve().parent.parent
 DASH_DIR = REPO / 'grafana' / 'dashboards'
@@ -59,10 +67,10 @@ def file_sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def collect_dashboards() -> List[Path]:
+def collect_dashboards() -> list[Path]:
     if not DASH_DIR.exists():
         raise SystemExit(f"Dashboards dir missing: {DASH_DIR}")
-    out: List[Path] = []
+    out: list[Path] = []
     for p in DASH_DIR.glob('*.json'):
         if any(sub in p.name for sub in SKIP_SUBSTRINGS):
             continue
@@ -70,13 +78,13 @@ def collect_dashboards() -> List[Path]:
     return sorted(out)
 
 
-def build_manifest(files: List[Path], version: str) -> Dict[str, Any]:
+def build_manifest(files: list[Path], version: str) -> dict[str, Any]:
     records = []
     for p in files:
         try:
             data = json.loads(p.read_text(encoding='utf-8', errors='ignore'))
         except json.JSONDecodeError as e:
-            raise SystemExit(f"Invalid JSON in {p}: {e}")
+            raise SystemExit(f"Invalid JSON in {p}: {e}") from e
         uid = data.get('uid')
         title = data.get('title')
         if not uid or not title:
@@ -98,7 +106,7 @@ def build_manifest(files: List[Path], version: str) -> Dict[str, Any]:
     }
 
 
-def write_bundle(files: List[Path], version: str, out_dir: Path) -> Path:
+def write_bundle(files: list[Path], version: str, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     archive = out_dir / f"dashboards_{version}.tar.gz"
     with tarfile.open(archive, 'w:gz') as tf:

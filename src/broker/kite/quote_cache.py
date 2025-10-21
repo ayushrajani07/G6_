@@ -5,8 +5,8 @@ Previously inline in quotes.py; extracted to enable future alternative backends.
 """
 from __future__ import annotations
 
-import threading, time
-from typing import Dict, Tuple, Any, Optional
+import threading
+import time
 
 try:  # local import guard to avoid hard dependency when metrics disabled
     from src.metrics import get_metrics  # type: ignore
@@ -15,11 +15,11 @@ except Exception:  # pragma: no cover
         return None
 
 _LOCK = threading.Lock()
-_CACHE: Dict[str, Tuple[float, dict]] = {}
+_CACHE: dict[str, tuple[float, dict]] = {}
 _HITS = 0
 _MISSES = 0
 
-def _export_metrics(hit: Optional[bool]) -> None:
+def _export_metrics(hit: bool | None) -> None:
     m = get_metrics()
     if not m:
         return

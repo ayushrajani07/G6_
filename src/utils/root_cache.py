@@ -5,14 +5,14 @@ scans over large option universes. Keeps implementation lightweight and
 failure-tolerant. Optional disable via G6_DISABLE_ROOT_CACHE=1.
 """
 from __future__ import annotations
-from typing import Optional, Dict
+
 import os
 from threading import RLock
 
 try:
     from src.utils.symbol_root import detect_root as _detect_root  # type: ignore
 except Exception:  # pragma: no cover
-    def _detect_root(s: str) -> Optional[str]:  # type: ignore
+    def _detect_root(s: str) -> str | None:  # type: ignore
         return None
 
 # Use centralized env adapter with safe fallbacks to avoid import cycles during early init
@@ -39,7 +39,7 @@ def _as_int(val: str, default: int) -> int:
 _DISABLE = _as_bool(_env_get_str('G6_DISABLE_ROOT_CACHE', '0'))
 _MAX = _as_int(_env_get_str('G6_ROOT_CACHE_MAX', '4096'), 4096)
 
-_CACHE: Dict[str,str] = {}
+_CACHE: dict[str,str] = {}
 _HITS = 0
 _MISSES = 0
 _EVICTIONS = 0
@@ -48,7 +48,7 @@ _lock = RLock()
 __all__ = ["cached_detect_root","cache_stats","clear_root_cache"]
 
 
-def cached_detect_root(ts: str) -> Optional[str]:
+def cached_detect_root(ts: str) -> str | None:
     if not ts:
         return None
     if _DISABLE:
@@ -102,7 +102,7 @@ def clear_root_cache() -> None:
     _update_metrics()  # reflect cleared size/ratio
 
 
-def _update_metrics(hit: Optional[bool] = None, evicted: int = 0) -> None:  # pragma: no cover - exercised via public API
+def _update_metrics(hit: bool | None = None, evicted: int = 0) -> None:  # pragma: no cover - exercised via public API
     """Push counters/gauges into metrics registry if available.
 
     Safe-noop if metrics subsystem absent or registration gated.

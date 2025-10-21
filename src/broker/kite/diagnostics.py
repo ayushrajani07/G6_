@@ -15,23 +15,35 @@ for diagnostics, or degraded/unhealthy for health check.
 """
 from __future__ import annotations
 
-import time
 import logging
-from typing import Any, Dict
+import time
+from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 
 try:  # import mapping for health check pair selection
-    from src.broker.kite_provider import INDEX_MAPPING  # type: ignore
+    from src.broker.kite_provider import INDEX_MAPPING as _INDEX_MAPPING  # type: ignore
+    INDEX_MAPPING: dict[str, tuple[str, str]] = _INDEX_MAPPING
 except Exception:  # pragma: no cover
     INDEX_MAPPING = {"NIFTY": ("NSE", "NIFTY 50")}
 
 
-def provider_diagnostics(provider) -> Dict[str, Any]:
+class _ProviderLike(Protocol):
+    """Minimal protocol for provider used by diagnostics/health.
+
+    We only rely on get_ltp for health; other attributes are accessed via
+    getattr best-effort and therefore aren't part of the protocol surface.
+    """
+
+    def get_ltp(self, pairs: list[tuple[str, str]]) -> Any:
+        ...
+
+
+def provider_diagnostics(provider: _ProviderLike) -> dict[str, Any]:
     try:
-        token_age_sec = None
-        token_expiry = None
-        cache_meta = {}
+        token_age_sec: float | None = None
+        token_expiry: float | None = None
+        cache_meta: dict[str, Any] = {}
         try:  # Attempt token metadata extraction (best effort)
             kc = getattr(provider, 'kite', None)
             issued = getattr(kc, 'api_token_issue_time', None)
@@ -70,11 +82,11 @@ def provider_diagnostics(provider) -> Dict[str, Any]:
         return {}
 
 
-def check_health(provider) -> Dict[str, Any]:
+def check_health(provider: _ProviderLike) -> dict[str, Any]:
     try:
-        pair = INDEX_MAPPING.get("NIFTY", ("NSE", "NIFTY 50"))
-        ltp = provider.get_ltp([pair])
-        price_ok = False
+        pair: tuple[str, str] = INDEX_MAPPING.get("NIFTY", ("NSE", "NIFTY 50"))
+        ltp: Any = provider.get_ltp([pair])
+        price_ok: bool = False
         if isinstance(ltp, dict):
             for v in ltp.values():
                 if isinstance(v, dict) and isinstance(v.get('last_price'), (int, float)) and v['last_price'] > 0:

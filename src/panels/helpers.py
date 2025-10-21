@@ -4,24 +4,24 @@ This module centralizes small bits of logic used across the panels factory,
 web dashboard metrics cache, and optional publisher paths to avoid drift.
 """
 from __future__ import annotations
-from typing import Optional, Tuple, Literal
 
+from typing import Literal
 
 Style = Literal['panels', 'web']
 
 
 def compute_status_and_reason(
     *,
-    success_pct: Optional[float],
-    legs: Optional[int],
+    success_pct: float | None,
+    legs: int | None,
     err_recent: bool = False,
-    err_type: Optional[str] = None,
+    err_type: str | None = None,
     style: Style = 'panels',
     # Thresholds (defaults mirror existing behavior in callers)
     ok_threshold: int = 95,
     warn_floor: int = 80,  # panels: >= warn_floor and < ok -> WARN; < warn_floor -> ERROR
     web_warn_threshold: int = 92,  # web: succ < 92 -> warn
-) -> Tuple[str, Optional[str]]:
+) -> tuple[str, str | None]:
     """Return a (status, reason) tuple for given inputs.
 
     - style='panels': returns status in {'OK','WARN','ERROR'}
@@ -36,14 +36,14 @@ def compute_status_and_reason(
                'error: <type>' if err_recent and err_type provided; 'possible stall' hint if err_type == 'stall'.
     """
     # Normalize inputs
-    succ_int: Optional[int] = None
+    succ_int: int | None = None
     if isinstance(success_pct, (int, float)):
         try:
             succ_int = int(round(success_pct))
         except Exception:
             succ_int = None
 
-    legs_int: Optional[int] = None
+    legs_int: int | None = None
     if isinstance(legs, (int, float)):
         try:
             legs_int = int(legs)
@@ -58,7 +58,7 @@ def compute_status_and_reason(
             status = 'WARN'
         else:
             status = 'ERROR'
-        reason: Optional[str] = None
+        reason: str | None = None
         if legs_int == 0:
             reason = 'no legs this cycle'
         elif succ_int is None and status in ('WARN', 'ERROR'):
@@ -72,7 +72,7 @@ def compute_status_and_reason(
 
     # Web-style computation
     status_web = 'ok'
-    reason_web: Optional[str] = None
+    reason_web: str | None = None
     if succ_int is None or (isinstance(succ_int, int) and succ_int < warn_floor) or legs_int == 0:
         status_web = 'bad'
         if legs_int == 0:

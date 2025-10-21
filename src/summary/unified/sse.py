@@ -10,7 +10,9 @@ in panel JSON payloads. This is intentionally conservative; deep/nested
 structures fallback to overwrite semantics.
 """
 from __future__ import annotations
-from typing import Any, Dict, Mapping, MutableMapping
+
+from collections.abc import Mapping
+from typing import Any
 
 REMOVAL_SENTINEL = object()
 
@@ -38,7 +40,7 @@ def merge_panel_diff(base: Any, delta: Any) -> Any:
     if type(base) is not type(delta):  # noqa: E721
         return _clone(delta)
     if isinstance(base, dict):
-        result: Dict[str, Any] = {}
+        result: dict[str, Any] = {}
         # start from base
         for k, v in base.items():
             result[k] = _clone(v)

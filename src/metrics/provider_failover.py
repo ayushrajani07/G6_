@@ -7,9 +7,13 @@ Moves the always-on provider_failover counter out of placeholders.py while prese
  - Ordering: still initialized early (immediately after SLA placeholders)
 """
 from __future__ import annotations
-from typing import Any, Callable
-from prometheus_client import Counter, REGISTRY
-import logging, os
+
+import logging
+import os
+from collections.abc import Callable
+from typing import Any
+
+from prometheus_client import REGISTRY, Counter
 
 __all__ = ["init_provider_failover_placeholders"]
 
@@ -46,7 +50,7 @@ def init_provider_failover_placeholders(reg: Any, group_allowed: Callable[[str],
                 raise
             return
         if metric is not None:
-            setattr(reg, 'provider_failover', metric)
+            reg.provider_failover = metric
             try:
                 if group_allowed('provider_failover'):
                     reg._metric_groups['provider_failover'] = 'provider_failover'  # type: ignore[attr-defined]

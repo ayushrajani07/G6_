@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Build info metric registration helper (extracted from metrics.py).
 
 Provides idempotent registration of a labeled build info gauge:
@@ -12,10 +11,11 @@ Behavior:
 """
 from __future__ import annotations
 
-from typing import Any
-import os
-from prometheus_client import REGISTRY, Gauge  # type: ignore
 import logging
+import os
+from typing import Any
+
+from prometheus_client import REGISTRY, Gauge  # type: ignore
 
 logger = logging.getLogger(__name__)
 

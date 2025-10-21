@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Developer convenience multi-tool replacing quick_* scripts.
 
 Subcommands:
@@ -11,8 +12,12 @@ Deprecated single-purpose scripts:
   quick_import_test.py, quick_provider_check.py, quick_cycle.py
 All now delegate here and emit deprecation warnings (suppressed via G6_SUPPRESS_DEPRECATIONS=1).
 """
-import argparse, os, sys, json, importlib, time
-from typing import Any, List, Dict
+import argparse
+import importlib
+import json
+import os
+import time
+from typing import Any
 
 _SUPPRESS = bool(os.getenv("G6_SUPPRESS_DEPRECATIONS"))
 
@@ -28,7 +33,7 @@ def _warn_once(tag: str, message: str) -> None:
     except Exception:
         pass
     emitted.add(tag)  # type: ignore[attr-defined]
-    setattr(_warn_once, "_emitted", emitted)  # type: ignore[attr-defined]
+    _warn_once._emitted = emitted  # type: ignore[attr-defined]
 
 
 def cmd_import_check(_: argparse.Namespace) -> int:
@@ -51,8 +56,8 @@ def _ensure_env_defaults() -> None:
 def cmd_provider_check(args: argparse.Namespace) -> int:
     _ensure_env_defaults()
     try:
+        from src.broker.kite_provider import DummyKiteProvider, KiteProvider
         from src.utils.bootstrap import bootstrap
-        from src.broker.kite_provider import KiteProvider, DummyKiteProvider
     except Exception as e:
         print(json.dumps({"bootstrap_import_error": str(e)}))
         return 1
@@ -63,7 +68,7 @@ def cmd_provider_check(args: argparse.Namespace) -> int:
     instruments=[('NSE','NIFTY 50')]
     try:
         kp = KiteProvider.from_env()
-        out: Dict[str, Any] = {"real_provider": True}
+        out: dict[str, Any] = {"real_provider": True}
         try:
             q = kp.get_quote(instruments)
             l = kp.get_ltp(instruments)
@@ -105,7 +110,6 @@ def cmd_one_cycle(args: argparse.Namespace) -> int:
     # Run orchestrator for a single cycle; respect interval if provided
     try:
         from scripts.run_orchestrator_loop import build_cycle_fn
-        from src.orchestrator.loop import run_loop
     except Exception as e:
         print(json.dumps({"error": f"import_failure: {e}"}))
         return 1
@@ -125,7 +129,7 @@ def cmd_one_cycle(args: argparse.Namespace) -> int:
 def cmd_status_dump(args: argparse.Namespace) -> int:
     path = args.status_file or os.getenv("G6_STATUS_FILE", "data/runtime_status.json")
     try:
-        with open(path, 'r', encoding='utf-8') as f:
+        with open(path, encoding='utf-8') as f:
             data = json.load(f)
         # Light normalization: strip large volatile blocks optionally
         if not args.full:

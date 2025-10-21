@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import Optional, cast, Dict, Any, TYPE_CHECKING
-import time
+import logging
+import os
 import sys
 import threading
-import os
-import logging
+import time
 import webbrowser
+from typing import TYPE_CHECKING, Any, cast
 
 from kiteconnect import KiteConnect  # optional external dependency
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:  # pragma: no cover - imported only for type checkers
 logger = logging.getLogger("token-provider.kite")
 
 
-def _to_dict(obj: Any) -> Dict[str, Any]:
+def _to_dict(obj: Any) -> dict[str, Any]:
     if isinstance(obj, dict):
         return obj
     try:
@@ -52,7 +52,7 @@ class KiteTokenProvider:
         api_secret: str,
         headless: bool = False,
         interactive: bool = True,
-    ) -> Optional[str]:  # noqa: D401
+    ) -> str | None:  # noqa: D401
         # Headless mode: no browser or interactive prompt; rely on KITE_REQUEST_TOKEN env
         if headless:
             manual_rt = os.environ.get("KITE_REQUEST_TOKEN")
@@ -95,7 +95,7 @@ class KiteTokenProvider:
         cb_path = os.environ.get("KITE_REDIRECT_PATH", "success").lstrip("/") or "success"
 
         app = Flask(__name__)
-        container: dict[str, Optional[str]] = {"token": None}
+        container: dict[str, str | None] = {"token": None}
 
         @app.route(f"/{cb_path}")
         @app.route("/callback")
@@ -134,7 +134,7 @@ class KiteTokenProvider:
         return container["token"]
 
     # Interactive manual path
-    def _interactive(self, api_key: str, api_secret: str) -> Optional[str]:
+    def _interactive(self, api_key: str, api_secret: str) -> str | None:
         try:
             kite = KiteConnect(api_key=api_key)
             login_url = kite.login_url()

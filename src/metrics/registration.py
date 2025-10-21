@@ -12,9 +12,11 @@ optionally re-raised if G6_METRICS_STRICT_EXCEPTIONS is set (fail‑fast mode).
 """
 from __future__ import annotations
 
-from typing import Any, Callable
-import os
 import logging
+import os
+from collections.abc import Callable
+from typing import Any
+
 from prometheus_client import REGISTRY  # type: ignore
 
 logger = logging.getLogger(__name__)
@@ -60,7 +62,7 @@ def maybe_register(registry: Any, group: str, attr: str, metric_cls: Callable,
     # Resolve alias map if present (some refactors add _group_alias on registry)
     try:
         if hasattr(registry, '_group_alias'):
-            group = getattr(registry, '_group_alias').get(group, group)  # type: ignore[attr-defined]
+            group = registry._group_alias.get(group, group)  # type: ignore[attr-defined]
     except Exception:
         pass
 

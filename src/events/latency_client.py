@@ -6,7 +6,8 @@ If not imported, no latency histogram observations occur (zero overhead).
 from __future__ import annotations
 
 import time
-from typing import Mapping, Any
+from collections.abc import Mapping
+from typing import Any
 
 try:
     from src.metrics import get_metrics  # facade import

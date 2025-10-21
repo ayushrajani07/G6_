@@ -1,12 +1,18 @@
 from __future__ import annotations
-from typing import Any, Dict, Mapping, Iterable
-import hashlib, json
+
+import hashlib
+import json
 import logging
+from collections.abc import Iterable, Mapping
+from typing import Any
+
+from . import (
+    gating,  # Phase 4 gating controller (dry-run)
+    phases,
+)
+from .executor import execute_phases
 from .state import ExpiryState
 from .struct_events import emit_struct_event
-from . import phases
-from .executor import execute_phases
-from . import gating  # Phase 4 gating controller (dry-run)
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +69,7 @@ def run_shadow_pipeline(
     index: str,
     rule: str,
     precomputed_strikes: Iterable[float] | Any,
-    legacy_snapshot: Dict[str, Any],
+    legacy_snapshot: dict[str, Any],
 ) -> ExpiryState | None:
     state = ExpiryState(index=index, rule=rule, settings=settings)
     try:

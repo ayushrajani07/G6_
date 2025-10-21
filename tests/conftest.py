@@ -2,6 +2,13 @@ from __future__ import annotations
 import os, socket, contextlib, time
 import pytest
 import asyncio
+import warnings
+
+# Silence noisy ResourceWarnings globally in CI where sockets close at shutdown
+try:
+    warnings.simplefilter("ignore", ResourceWarning)
+except Exception:
+    pass
 
 
 def _find_free_port() -> int:
@@ -41,7 +48,9 @@ def catalog_http_server(monkeypatch):
         import urllib.request, urllib.error
         for _ in range(40):
             try:
-                urllib.request.urlopen(base_url + '/health')
+                # Ensure response is closed to avoid ResourceWarning on Windows CI
+                with contextlib.closing(urllib.request.urlopen(base_url + '/health')) as resp:  # noqa: S310 - test-only local URL
+                    _ = resp.read(0)
                 break
             except Exception:
                 time.sleep(0.05)
@@ -111,6 +120,12 @@ def _early_session_provision():  # type: ignore
         provision_sandbox(Path.cwd(), ROOT)
     except Exception:
         pass
+    # Ensure any local .env in the starting directory is loaded for tests relying on env creds
+    try:
+        from src.tools import token_manager as _tm  # type: ignore
+        _tm.load_env_vars()
+    except Exception:
+        pass
 
 @pytest.fixture(scope='session', autouse=True)
 def _sandbox_provision_watchdog():  # type: ignore
@@ -137,6 +152,12 @@ def _sandbox_provision_watchdog():  # type: ignore
         original_chdir(path)
         provision_sandbox(Path.cwd(), ROOT)
         ensure_pythonpath(ROOT)
+        # Automatically overlay env from local .env to support tests that chdir into a tmp sandbox
+        try:
+            from src.tools import token_manager as _tm2  # type: ignore
+            _tm2.load_env_vars()
+        except Exception:
+            pass
 
     # Install wrapper
     os.chdir = _wrapped_chdir  # type: ignore[assignment]
@@ -240,9 +261,15 @@ def _timing_guard(request):
 
     def _timeout_trigger():  # pragma: no cover
         exceeded['hard'] = True
+        # Under pytest-xdist, interrupting the main thread can cause a
+        # spurious KeyboardInterrupt in the controller during teardown.
+        # Instead of interrupting in workers, rely on post-run failure
+        # below (hard budget) which still enforces limits without flakiness.
         try:
-            import _thread
-            _thread.interrupt_main()
+            import os as _os
+            if not _os.environ.get('PYTEST_XDIST_WORKER'):
+                import _thread  # type: ignore
+                _thread.interrupt_main()
         except Exception:
             warnings.warn(f"[timing-guard] Unable to interrupt main thread for {request.node.nodeid}")
 
@@ -262,6 +289,33 @@ def _timing_guard(request):
             pytest.fail(f"[timing-guard] Hard budget {hard:.2f}s exceeded post-run: {elapsed:.2f}s {request.node.nodeid}")
         elif elapsed > soft:
             warnings.warn(f"[timing-guard] Soft budget {soft:.2f}s exceeded: {elapsed:.2f}s {request.node.nodeid}")
+
+# ---------------------------------------------------------------------------
+# Scoped deprecation filters for migration bridge modules
+# We intentionally ignore DeprecationWarnings originating from plural bridge
+# modules that re-export from singular namespaces during the transition.
+# This keeps the suite output clean while still surfacing deprecations from
+# direct singular imports elsewhere (tests that assert warnings can still opt-in).
+# ---------------------------------------------------------------------------
+try:
+    warnings.filterwarnings(
+        "ignore",
+        category=DeprecationWarning,
+        module=r"^src\.providers\.errors$",
+    )
+    warnings.filterwarnings(
+        "ignore",
+        category=DeprecationWarning,
+        module=r"^src\.providers\.config$",
+    )
+    # Also ignore by message substring for singular->plural bridge to catch import path based emission
+    warnings.filterwarnings(
+        "ignore",
+        category=DeprecationWarning,
+        message=r"Importing from 'src\.provider' is deprecated; use 'src\.providers\..*' instead\."
+    )
+except Exception:
+    pass
 
 # ---------------------------------------------------------------------------
 # Autouse metrics registry reset fixture

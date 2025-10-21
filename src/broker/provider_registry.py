@@ -39,17 +39,20 @@ Future Enhancements (Deferred):
 """
 from __future__ import annotations
 
-from typing import Callable, Any, Dict, Optional, Mapping
-import threading, os, logging
+import logging
+import os
+import threading
+from collections.abc import Callable, Mapping
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 _LOCK = threading.RLock()
-_FACTORIES: Dict[str, Callable[[], Any]] = {}
-_SINGLETONS: Dict[str, Any] = {}
-_CAPS: Dict[str, Dict[str, bool]] = {}  # capability metadata per provider
-_DEFAULT: Optional[str] = None
-_ACTIVE: Optional[str] = None  # last requested provider name (resolved)
+_FACTORIES: dict[str, Callable[[], Any]] = {}
+_SINGLETONS: dict[str, Any] = {}
+_CAPS: dict[str, dict[str, bool]] = {}  # capability metadata per provider
+_DEFAULT: str | None = None
+_ACTIVE: str | None = None  # last requested provider name (resolved)
 
 
 def register_provider(
@@ -58,7 +61,7 @@ def register_provider(
     *,
     default: bool = False,
     eager: bool = False,
-    capabilities: Optional[Mapping[str, bool]] = None,
+    capabilities: Mapping[str, bool] | None = None,
 ) -> None:
     """Register a provider factory under a canonical lowercase name.
 
@@ -110,7 +113,7 @@ def list_providers() -> list[str]:
         return sorted(_FACTORIES.keys())
 
 
-def get_active_name() -> Optional[str]:
+def get_active_name() -> str | None:
     with _LOCK:
         return _ACTIVE
 
@@ -176,7 +179,7 @@ def reset_registry() -> None:  # test helper
 
 
 # --- Capabilities Accessors ----------------------------------------------
-def get_capabilities(name: str | None = None) -> Dict[str, bool]:
+def get_capabilities(name: str | None = None) -> dict[str, bool]:
     """Return capabilities dict for provider (empty dict if unknown).
 
     Name resolution mimics get_provider precedence if name omitted.
@@ -196,8 +199,9 @@ def provider_supports(capability: str, name: str | None = None) -> bool:
 
 # --- Auto-registration for KiteProvider (best-effort) ---------------------
 try:  # pragma: no cover - import guard
-    from .kite_provider import KiteProvider
     from src.provider.config import get_provider_config
+
+    from .kite_provider import KiteProvider
     register_provider(
         'kite',
     lambda: KiteProvider.from_provider_config(get_provider_config()),

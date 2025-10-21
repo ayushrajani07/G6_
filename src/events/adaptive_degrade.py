@@ -32,11 +32,11 @@ Notes:
 """
 from __future__ import annotations
 
+import os
+import time
+from collections import deque
 from dataclasses import dataclass, field
 from enum import Enum, auto
-from typing import Deque, Optional
-from collections import deque
-import os, time, statistics
 
 
 class AdaptiveState(Enum):
@@ -72,8 +72,8 @@ class AdaptiveConfig:
 class AdaptiveController:
     config: AdaptiveConfig = field(default_factory=AdaptiveConfig)
     state: AdaptiveState = AdaptiveState.NORMAL
-    _backlog_samples: Deque[tuple[float, float]] = field(default_factory=lambda: deque())  # (ts, ratio)
-    _latency_samples: Deque[tuple[float, float]] = field(default_factory=lambda: deque())  # (ts, seconds)
+    _backlog_samples: deque[tuple[float, float]] = field(default_factory=lambda: deque())  # (ts, ratio)
+    _latency_samples: deque[tuple[float, float]] = field(default_factory=lambda: deque())  # (ts, seconds)
     _last_state_change: float = field(default_factory=time.time)
     _last_exit_ts: float = 0.0
     _last_enter_ts: float = 0.0
@@ -97,7 +97,7 @@ class AdaptiveController:
         self._last_state_change = now
         self._last_exit_ts = now
 
-    def update(self, backlog: int, capacity: int, serialize_latency_s: Optional[float]) -> Optional[str]:
+    def update(self, backlog: int, capacity: int, serialize_latency_s: float | None) -> str | None:
         """Feed latest metrics; return transition directive or None.
 
         Caller supplies current backlog and capacity; ratio = backlog / capacity (clamped 0-1).

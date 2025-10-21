@@ -1,0 +1,102 @@
+<html><head><meta charset='utf-8'><title>Weekday Overlays</title>
+<style>
+body { font-family: Arial, sans-serif; margin:0; }
+html, body { width:100%; height:100%; }
+#filters { padding:8px 12px; }
+#filters label { margin-right: 12px; font-size: 13px; }
+.sim-controls { padding: 4px 12px 8px; display:flex; align-items:center; gap:12px; font-size:13px; }
+.sim-controls input[type='range'] { width: 260px; }
+.sim-controls .tick { font-variant-numeric: tabular-nums; color:#666; }
+.panel-grid { display: grid; grid-template-columns: repeat(1, minmax(0, 1fr)); grid-gap: 16px; padding: 8px 12px; }
+.panel { border:1px solid #ddd; padding:4px; border-radius:4px; background:#fff; width:100%; }
+.panel .plotly-graph-div { width:100% !important; }
+.panel h3 { font-size:14px; margin:4px 0 6px; font-weight:600; }
+</style>
+<link rel='stylesheet' href='src/assets/css/overlay_themes.css'></head><body><script src='https://cdn.plot.ly/plotly-2.26.0.min.js'></script><script src='src/assets/js/overlay_live_updates.js'></script><script>window.G6 = window.G6 || {}; window.G6.overlay = window.G6.overlay || {}; window.G6.overlay.cfg = {"live": {"endpoint": null, "intervalMs": 5000}, "theme": "dark"};</script><div class='header'><div class='title'>Weekday Overlays (Tuesday) – 2025-10-14</div><div class='controls'><button id='g6-theme-toggle' class='theme-toggle'>Toggle theme</button></div></div><section id='filters'><strong>Filters:</strong><div>Expiry Tags:<label><input type='checkbox' class='f-exp' value='this_week' checked> this_week</label></div><div>Offsets:<label><input type='checkbox' class='f-off' value='ATM' checked> ATM</label></div><a href='#' id='all-on'>All On</a> | <a href='#' id='all-off'>All Off</a></section>
+<section class='sim-controls'>
+    <label><input type='checkbox' id='simulate-live'> Simulate live (reveal over time)</label>
+    <input type='range' id='time-scrub' min='0' max='100' step='1' value='100'>
+    <span class='tick'>0%</span>
+    <span class='tick' style='margin-left:auto'>100%</span>
+</section>
+<div class='panel-grid'><div class='panel' data-exp='this_week' data-off='ATM'><div>                            <div id="panel-NIFTY-this_week-ATM" class="plotly-graph-div" style="height:520px; width:100%;"></div>            <script type="text/javascript">                window.PLOTLYENV=window.PLOTLYENV || {};                                if (document.getElementById("panel-NIFTY-this_week-ATM")) {                    Plotly.newPlot(                        "panel-NIFTY-this_week-ATM",                        [],                        {"template":{"data":{"barpolar":[{"marker":{"line":{"color":"white","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"barpolar"}],"bar":[{"error_x":{"color":"#2a3f5f"},"error_y":{"color":"#2a3f5f"},"marker":{"line":{"color":"white","width":0.5},"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"bar"}],"carpet":[{"aaxis":{"endlinecolor":"#2a3f5f","gridcolor":"#C8D4E3","linecolor":"#C8D4E3","minorgridcolor":"#C8D4E3","startlinecolor":"#2a3f5f"},"baxis":{"endlinecolor":"#2a3f5f","gridcolor":"#C8D4E3","linecolor":"#C8D4E3","minorgridcolor":"#C8D4E3","startlinecolor":"#2a3f5f"},"type":"carpet"}],"choropleth":[{"colorbar":{"outlinewidth":0,"ticks":""},"type":"choropleth"}],"contourcarpet":[{"colorbar":{"outlinewidth":0,"ticks":""},"type":"contourcarpet"}],"contour":[{"colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"type":"contour"}],"heatmap":[{"colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"type":"heatmap"}],"histogram2dcontour":[{"colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"type":"histogram2dcontour"}],"histogram2d":[{"colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"type":"histogram2d"}],"histogram":[{"marker":{"pattern":{"fillmode":"overlay","size":10,"solidity":0.2}},"type":"histogram"}],"mesh3d":[{"colorbar":{"outlinewidth":0,"ticks":""},"type":"mesh3d"}],"parcoords":[{"line":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"parcoords"}],"pie":[{"automargin":true,"type":"pie"}],"scatter3d":[{"line":{"colorbar":{"outlinewidth":0,"ticks":""}},"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scatter3d"}],"scattercarpet":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scattercarpet"}],"scattergeo":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scattergeo"}],"scattergl":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scattergl"}],"scattermapbox":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scattermapbox"}],"scattermap":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scattermap"}],"scatterpolargl":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scatterpolargl"}],"scatterpolar":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scatterpolar"}],"scatter":[{"fillpattern":{"fillmode":"overlay","size":10,"solidity":0.2},"type":"scatter"}],"scatterternary":[{"marker":{"colorbar":{"outlinewidth":0,"ticks":""}},"type":"scatterternary"}],"surface":[{"colorbar":{"outlinewidth":0,"ticks":""},"colorscale":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"type":"surface"}],"table":[{"cells":{"fill":{"color":"#EBF0F8"},"line":{"color":"white"}},"header":{"fill":{"color":"#C8D4E3"},"line":{"color":"white"}},"type":"table"}]},"layout":{"annotationdefaults":{"arrowcolor":"#2a3f5f","arrowhead":0,"arrowwidth":1},"autotypenumbers":"strict","coloraxis":{"colorbar":{"outlinewidth":0,"ticks":""}},"colorscale":{"diverging":[[0,"#8e0152"],[0.1,"#c51b7d"],[0.2,"#de77ae"],[0.3,"#f1b6da"],[0.4,"#fde0ef"],[0.5,"#f7f7f7"],[0.6,"#e6f5d0"],[0.7,"#b8e186"],[0.8,"#7fbc41"],[0.9,"#4d9221"],[1,"#276419"]],"sequential":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]],"sequentialminus":[[0.0,"#0d0887"],[0.1111111111111111,"#46039f"],[0.2222222222222222,"#7201a8"],[0.3333333333333333,"#9c179e"],[0.4444444444444444,"#bd3786"],[0.5555555555555556,"#d8576b"],[0.6666666666666666,"#ed7953"],[0.7777777777777778,"#fb9f3a"],[0.8888888888888888,"#fdca26"],[1.0,"#f0f921"]]},"colorway":["#636efa","#EF553B","#00cc96","#ab63fa","#FFA15A","#19d3f3","#FF6692","#B6E880","#FF97FF","#FECB52"],"font":{"color":"#2a3f5f"},"geo":{"bgcolor":"white","lakecolor":"white","landcolor":"white","showlakes":true,"showland":true,"subunitcolor":"#C8D4E3"},"hoverlabel":{"align":"left"},"hovermode":"closest","mapbox":{"style":"light"},"paper_bgcolor":"white","plot_bgcolor":"white","polar":{"angularaxis":{"gridcolor":"#EBF0F8","linecolor":"#EBF0F8","ticks":""},"bgcolor":"white","radialaxis":{"gridcolor":"#EBF0F8","linecolor":"#EBF0F8","ticks":""}},"scene":{"xaxis":{"backgroundcolor":"white","gridcolor":"#DFE8F3","gridwidth":2,"linecolor":"#EBF0F8","showbackground":true,"ticks":"","zerolinecolor":"#EBF0F8"},"yaxis":{"backgroundcolor":"white","gridcolor":"#DFE8F3","gridwidth":2,"linecolor":"#EBF0F8","showbackground":true,"ticks":"","zerolinecolor":"#EBF0F8"},"zaxis":{"backgroundcolor":"white","gridcolor":"#DFE8F3","gridwidth":2,"linecolor":"#EBF0F8","showbackground":true,"ticks":"","zerolinecolor":"#EBF0F8"}},"shapedefaults":{"line":{"color":"#2a3f5f"}},"ternary":{"aaxis":{"gridcolor":"#DFE8F3","linecolor":"#A2B1C6","ticks":""},"baxis":{"gridcolor":"#DFE8F3","linecolor":"#A2B1C6","ticks":""},"bgcolor":"white","caxis":{"gridcolor":"#DFE8F3","linecolor":"#A2B1C6","ticks":""}},"title":{"x":0.05},"xaxis":{"automargin":true,"gridcolor":"#EBF0F8","linecolor":"#EBF0F8","ticks":"","title":{"standoff":15},"zerolinecolor":"#EBF0F8","zerolinewidth":2},"yaxis":{"automargin":true,"gridcolor":"#EBF0F8","linecolor":"#EBF0F8","ticks":"","title":{"standoff":15},"zerolinecolor":"#EBF0F8","zerolinewidth":2}}},"annotations":[{"showarrow":false,"text":"No data: NIFTY-this_week-ATM","x":0.5,"xref":"paper","y":0.5,"yref":"paper"},{"align":"left","bgcolor":"rgba(255,255,255,0.6)","font":{"color":"#444","size":11},"showarrow":false,"text":"EMA α=0.5 (eff≈3.00 buckets) | Tuesday 2025-10-14","x":0.01,"xref":"paper","y":0.99,"yref":"paper"}],"margin":{"l":40,"r":10,"t":40,"b":40},"height":520,"title":{"text":"NIFTY | this_week | ATM"},"hovermode":"x unified","meta":{"ema":{"alpha":0.5,"effective_window_buckets":3.0,"generated_utc":"2025-10-14T09:04:11.760999Z"}}},                        {"responsive": true}                    )                };            </script>        </div></div></div>
+<script>
+function applyFilters(){
+  const expSel=[...document.querySelectorAll('.f-exp:checked')].map(c=>c.value);
+  const offSel=[...document.querySelectorAll('.f-off:checked')].map(c=>c.value);
+  document.querySelectorAll('.panel').forEach(p=>{
+    const e=p.getAttribute('data-exp');
+    const o=p.getAttribute('data-off');
+    if(expSel.includes(e) && offSel.includes(o)) { p.style.display='block'; } else { p.style.display='none'; }
+  });
+    // After show/hide, ask Plotly to resize visible graphs to avoid blank renders
+    setTimeout(()=>{
+        document.querySelectorAll('.panel').forEach(p=>{
+            if(p.style.display!=='none'){
+                const div=p.querySelector('.plotly-graph-div');
+                if(div && window.Plotly && Plotly.Plots){ try{ Plotly.Plots.resize(div); }catch(_){} }
+            }
+        });
+    }, 50);
+}
+document.querySelectorAll('.f-exp,.f-off').forEach(cb=>cb.addEventListener('change',applyFilters));
+document.getElementById('all-on').addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.f-exp,.f-off').forEach(c=>c.checked=true);applyFilters();});
+document.getElementById('all-off').addEventListener('click',e=>{e.preventDefault();document.querySelectorAll('.f-exp,.f-off').forEach(c=>c.checked=false);applyFilters();});
+
+// Time scrubber logic
+function applyScrub(){
+    const enabled = document.getElementById('simulate-live')?.checked;
+    const slider = document.getElementById('time-scrub');
+    const pct = slider ? (parseFloat(slider.value)||0) : 100;
+    const graphs = document.querySelectorAll('.plotly-graph-div');
+    graphs.forEach(div=>{
+        try{
+            const data = div.data || [];
+            if(!data.length) return;
+            if(!div._orig){
+                // store shallow copies of original arrays
+                div._orig = data.map(tr=>({ x: (tr.x||[]).slice(), y: (tr.y||[]).slice() }));
+            }
+            const orig = div._orig;
+            if(!enabled){
+                // restore original full series
+                orig.forEach((tr,i)=>{ Plotly.restyle(div, { x:[tr.x], y:[tr.y] }, [i]); });
+                return;
+            }
+            const xs = orig[0].x || [];
+            if(!xs.length) return;
+            const start = new Date(xs[0]).getTime();
+            const end = new Date(xs[xs.length-1]).getTime();
+            const cutoff = start + (Math.max(0, Math.min(100, pct))/100.0) * (end - start);
+            for(let i=0;i<orig.length;i++){
+                const xarr = orig[i].x; const yarr = orig[i].y;
+                const ynew = yarr.map((yv, idx)=>{
+                    const t = new Date(xarr[idx]).getTime();
+                    return (t <= cutoff) ? yv : null;
+                });
+                Plotly.restyle(div, { y:[ynew] }, [i]);
+            }
+            if(window.Plotly && Plotly.Plots){ try{ Plotly.Plots.resize(div); }catch(_){ } }
+        }catch(_){ }
+    });
+}
+document.addEventListener('DOMContentLoaded', function(){
+    const slider = document.getElementById('time-scrub');
+    const box = document.getElementById('simulate-live');
+    if(slider){ slider.addEventListener('input', applyScrub); }
+    if(box){ box.addEventListener('change', applyScrub); }
+});
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+    try{ if(window.G6 && G6.overlay){ G6.overlay.initTheme((G6.overlay.cfg && G6.overlay.cfg.theme) || 'dark'); } }catch(_){ }
+    try{
+        document.querySelectorAll('.plotly-graph-div').forEach(div=>{ if(div.id){ G6.overlay.registerGraph(div.id, { layout: 'grid' }); }});
+        if(G6.overlay && G6.overlay.cfg && G6.overlay.cfg.live){ G6.overlay.startPolling(G6.overlay.cfg.live); }
+        // Apply initial scrub state if any (ensures slider reflects current graph)
+        try{ applyScrub(); }catch(_){ }
+    }catch(_){ }
+});
+</script>
+</body></html>

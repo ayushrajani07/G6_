@@ -37,20 +37,25 @@ ALWAYS_ON = {
     MetricGroup.SLA_HEALTH,
 }
 
-from dataclasses import dataclass
-from typing import Optional, Set
 import os
+from dataclasses import dataclass
+from typing import Callable
+
+_env_str: Callable[[str, str], str]
 try:
     from src.collectors.env_adapter import get_str as _env_str  # type: ignore
 except Exception:  # pragma: no cover - fallback
-    _env_str = lambda k, d="": (os.getenv(k, d) or "")
+    def _fallback_env_str(name: str, default: str = "") -> str:
+        v = os.getenv(name, default)
+        return v or ""
+    _env_str = _fallback_env_str
 
 @dataclass
 class GroupFilters:
     enabled_raw: str
     disabled_raw: str
-    enabled: Optional[Set[str]]
-    disabled: Set[str]
+    enabled: set[str] | None
+    disabled: set[str]
 
     def allowed(self, name: str) -> bool:
         if self.disabled and name in self.disabled:

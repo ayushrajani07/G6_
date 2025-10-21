@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Minimal optional HTTP server exposing health endpoints using stdlib only.
 
@@ -17,8 +16,9 @@ from __future__ import annotations
 
 import json
 import threading
+from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Callable, Dict, Optional, Any, cast
+from typing import Any, cast
 
 from .models import HealthLevel, HealthState
 
@@ -28,9 +28,9 @@ class _HealthStateStore:
         self._lock = threading.RLock()
         self._overall_level: HealthLevel = HealthLevel.UNKNOWN
         self._overall_state: str = HealthState.UNKNOWN.value
-        self._components: Dict[str, Dict[str, str | int]] = {}
+        self._components: dict[str, dict[str, str | int]] = {}
 
-    def get_snapshot(self) -> Dict[str, Any]:
+    def get_snapshot(self) -> dict[str, Any]:
         with self._lock:
             return {
                 "status": self._overall_state,
@@ -51,17 +51,17 @@ class _HealthStateStore:
 
 
 class _Handler(BaseHTTPRequestHandler):
-    def _get_store(self) -> Optional[_HealthStateStore]:
+    def _get_store(self) -> _HealthStateStore | None:
         store = getattr(self.server, "_g6_store", None)
         return store if isinstance(store, _HealthStateStore) else None
 
-    def _get_ready_check(self) -> Optional[Callable[[], bool]]:
+    def _get_ready_check(self) -> Callable[[], bool] | None:
         rc = getattr(self.server, "_g6_ready_check", None)
         if callable(rc):
             return cast(Callable[[], bool], rc)
         return None
 
-    def _send_json(self, code: int, payload: Dict[str, Any]) -> None:
+    def _send_json(self, code: int, payload: dict[str, Any]) -> None:
         body = json.dumps(payload).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
@@ -115,7 +115,7 @@ class _Handler(BaseHTTPRequestHandler):
             store = self._get_store()
             snap = store.get_snapshot() if store is not None else {"components": {}}
             comps_raw = snap.get("components", {})
-            components_map: Dict[str, Any] = comps_raw if isinstance(comps_raw, dict) else {}
+            components_map: dict[str, Any] = comps_raw if isinstance(comps_raw, dict) else {}
             self._send_json(200, {"components": components_map})
             return
 
@@ -124,13 +124,13 @@ class _Handler(BaseHTTPRequestHandler):
             store = self._get_store()
             snap = store.get_snapshot() if store is not None else {"components": {}}
             comps_raw = snap.get("components", {})
-            comps_map: Dict[str, Any] = comps_raw if isinstance(comps_raw, dict) else {}
+            comps_map: dict[str, Any] = comps_raw if isinstance(comps_raw, dict) else {}
             comp_raw = comps_map.get(name)
-            comp: Optional[Dict[str, Any]] = comp_raw if isinstance(comp_raw, dict) else None
+            comp: dict[str, Any] | None = comp_raw if isinstance(comp_raw, dict) else None
             if comp is None:
                 self._send_json(404, {"error": "component not found"})
                 return
-            payload: Dict[str, Any] = {"name": name}
+            payload: dict[str, Any] = {"name": name}
             lvl_val = comp.get("level")
             if isinstance(lvl_val, int):
                 payload["level"] = lvl_val
@@ -155,13 +155,13 @@ class HealthServer:
         self,
         host: str = "127.0.0.1",
         port: int = 8099,
-        ready_check: Optional[Callable[[], bool]] = None,
+        ready_check: Callable[[], bool] | None = None,
     ) -> None:
         self._store = _HealthStateStore()
         self._server = HTTPServer((host, port), _Handler)
-        setattr(self._server, "_g6_store", self._store)
-        setattr(self._server, "_g6_ready_check", ready_check)
-        self._thread: Optional[threading.Thread] = None
+        self._server._g6_store = self._store
+        self._server._g6_ready_check = ready_check
+        self._thread: threading.Thread | None = None
 
     def start(self) -> None:
         if self._thread and self._thread.is_alive():

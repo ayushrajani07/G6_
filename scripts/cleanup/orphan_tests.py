@@ -14,7 +14,11 @@ Outputs JSON list to stdout: [{"path": <rel>, "reasons": [...]}]
 Exit code 0 if none, 1 if orphans found.
 """
 from __future__ import annotations
-import ast, os, sys, json, re
+
+import ast
+import json
+import re
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -43,7 +47,9 @@ def load_coverage_lines() -> set[tuple[str,int]]:
             lines.add((str(rel), ln))
     return lines
 
-def analyze_test(path: Path, executed: set[tuple[str,int]]):
+from typing import Any
+
+def analyze_test(path: Path, executed: set[tuple[str,int]]) -> dict[str, Any] | None:
     try:
         txt = path.read_text(encoding='utf-8', errors='ignore')
     except Exception:
@@ -93,7 +99,7 @@ def analyze_test(path: Path, executed: set[tuple[str,int]]):
         return {"path": str(path.relative_to(ROOT)), "reasons": reasons}
     return None
 
-def main():
+def main() -> int:
     executed = load_coverage_lines()
     orphans = []
     tests_dir = ROOT / 'tests'

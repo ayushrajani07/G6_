@@ -43,8 +43,11 @@ Assumptions / Omissions for minimal risk:
 If any step fails, falls back to a failed legacy-shaped outcome with marker.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Callable
-import logging, os
+
+import logging
+import os
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -62,11 +65,11 @@ except Exception:  # pragma: no cover
 try:  # pragma: no cover
     from src.collectors.modules.persist_flow import run_persist_flow
 except Exception:  # pragma: no cover
-    def run_persist_flow(ctx: Any, enriched_data: Dict[str, Dict[str, Any]], expiry_ctx: Any, index_ohlc: Any, allowed_expiry_dates: set, trace: Callable[..., None], concise_mode: bool) -> Any:
+    def run_persist_flow(ctx: Any, enriched_data: dict[str, dict[str, Any]], expiry_ctx: Any, index_ohlc: Any, allowed_expiry_dates: set, trace: Callable[..., None], concise_mode: bool) -> Any:
         raise RuntimeError("persist_flow_unavailable")
 
 # Fallback classifier/status if imports fail
-def _classify_expiry_result(_expiry_rec: Dict[str, Any], _enriched: Dict[str, Any]) -> str:
+def _classify_expiry_result(_expiry_rec: dict[str, Any], _enriched: dict[str, Any]) -> str:
     status: str = 'OK'
     try:  # pragma: no cover
         from src.collectors.helpers.synthetic import classify_expiry_result as _real
@@ -76,7 +79,7 @@ def _classify_expiry_result(_expiry_rec: Dict[str, Any], _enriched: Dict[str, An
     except Exception:
         status = 'OK'
     return status
-def _compute_expiry_status(_rec: Dict[str, Any]) -> str:
+def _compute_expiry_status(_rec: dict[str, Any]) -> str:
     try:  # pragma: no cover
         from src.collectors.helpers.status_reducer import compute_expiry_status as _real_status
         _res: object = _real_status(_rec)
@@ -102,20 +105,20 @@ def finalize_from_enriched(
     expiry_rule: str,
     expiry_date: Any,
     atm_strike: float,
-    enriched_data: Dict[str, Dict[str, Any]],
-    strikes: List[float],
+    enriched_data: dict[str, dict[str, Any]],
+    strikes: list[float],
     per_index_ts: Any,
     index_price: float,
-    index_ohlc: Dict[str, Any],
+    index_ohlc: dict[str, Any],
     allowed_expiry_dates: set,
     concise_mode: bool,
     metrics: Any,
     collector_settings: Any,
-    legacy_classifiers: Dict[str, Any] | None = None,
+    legacy_classifiers: dict[str, Any] | None = None,
     instruments_count: int | None = None,
-    clamp_sentinal: Dict[str, Any] | None = None,
-) -> Dict[str, Any]:  # runtime contract stays a plain dict
-    outcome: Dict[str, Any] = { 'success': False }
+    clamp_sentinal: dict[str, Any] | None = None,
+) -> dict[str, Any]:  # runtime contract stays a plain dict
+    outcome: dict[str, Any] = { 'success': False }
     expiry_rec = {
         'rule': expiry_rule,
         'expiry_date': str(expiry_date) if expiry_date is not None else None,

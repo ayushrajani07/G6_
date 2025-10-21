@@ -11,7 +11,7 @@ def run_cycle_once():
     # Build minimal arguments required for cycle function. We locate the main cycle function heuristically.
     # The file is large; we assume a function named run_collection_cycle or similar; fallback to invoking a small slice.
     # For robustness (and to avoid depending on internal name), we replicate just the header emission logic here.
-    today_str = __import__('datetime').datetime.now().strftime('%d-%b-%Y')
+    today_str = __import__('datetime').datetime.now().strftime('%d-%b-%Y')  # local-ok
     header_expected = f'DAILY OPTIONS COLLECTION LOG — {today_str}'
     # Call concise header logic by re-running the module-level function that includes header code path via a lightweight shim.
     # We re-execute a small inline snippet replicating logic to assert idempotence across imports.

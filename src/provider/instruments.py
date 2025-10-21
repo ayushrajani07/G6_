@@ -8,18 +8,21 @@ Will progressively absorb logic from `KiteProvider.get_instruments` including:
 Current stub returns an empty list to avoid behavioural change risk.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Callable, Tuple
-import time
+
 import logging
-from .metrics_adapter import metrics, time_observation
+import time
+from collections.abc import Callable
+from typing import Any
+
 from .logging_events import emit_event
+from .metrics_adapter import metrics, time_observation
 
 logger = logging.getLogger(__name__)
 
 class InstrumentCache:
     def __init__(self) -> None:
-        self._cache: Dict[str, list[dict[str, Any]]] = {}
-        self._meta: Dict[str, float] = {}
+        self._cache: dict[str, list[dict[str, Any]]] = {}
+        self._meta: dict[str, float] = {}
         self._last_log_ts: float = 0.0
 
     def _allow_log(self, interval: float = 5.0) -> bool:
@@ -37,7 +40,7 @@ class InstrumentCache:
         self._cache[exchange] = instruments
         self._meta[exchange] = time.time()
 
-    def load_all(self) -> List[dict[str, Any]]:  # compatibility placeholder
+    def load_all(self) -> list[dict[str, Any]]:  # compatibility placeholder
         out: list[dict[str, Any]] = []
         for v in self._cache.values():
             out.extend(v)
@@ -54,7 +57,7 @@ class InstrumentCache:
         retry_on_empty: bool = True,
         retry_fetch: Callable[[], list[dict[str, Any]] | Any] | None = None,
         now_func: Callable[[], float] = time.time,
-    ) -> Tuple[list[dict[str, Any]], bool]:
+    ) -> tuple[list[dict[str, Any]], bool]:
         """Return cached instruments or fetch using provided callable.
 
         Returns (result, from_cache_flag).

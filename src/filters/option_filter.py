@@ -5,10 +5,10 @@ Future extension: plug-in rejection metrics, dynamic rule injection, symbol alia
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import datetime as _dt
-from typing import Any, Optional, Dict, Tuple
+from dataclasses import dataclass
 from importlib import import_module
+from typing import Any
 
 # Safe adapters around optional utilities with signature normalization
 try:  # pragma: no cover - import resolution only
@@ -72,7 +72,7 @@ class OptionFilterContext:
     underlying_strict: bool = True
     safe_mode: bool = True
 
-    def normalize_expiry(self, raw: Any) -> Optional[_dt.date]:  # noqa: D401
+    def normalize_expiry(self, raw: Any) -> _dt.date | None:  # noqa: D401
         """Best effort normalization of instrument expiry to date."""
         if raw is None:
             return None
@@ -104,7 +104,7 @@ REJECT_UNDERLYING = 'underlying_mismatch'
 ACCEPT = 'accepted'
 
 # Public API
-def accept_option(inst: Dict[str, Any], ctx: OptionFilterContext, root_cache: Dict[str,str], *, expected_expiry: Optional[_dt.date] = None, contamination_samples: list[str] | None = None) -> Tuple[bool, str]:
+def accept_option(inst: dict[str, Any], ctx: OptionFilterContext, root_cache: dict[str,str], *, expected_expiry: _dt.date | None = None, contamination_samples: list[str] | None = None) -> tuple[bool, str]:
     tsym = str(inst.get('tradingsymbol',''))
     itype = (inst.get('instrument_type') or '').upper()
     if itype not in ('CE','PE'):

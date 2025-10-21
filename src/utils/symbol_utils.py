@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Symbol utilities for G6 Platform
 Standardized symbol handling.
@@ -6,7 +5,7 @@ Standardized symbol handling.
 
 from __future__ import annotations
 
-from typing import Dict, Optional, TypedDict, Union, Mapping, Any
+from typing import TypedDict
 
 
 class _IndexInfo(TypedDict):
@@ -16,7 +15,7 @@ class _IndexInfo(TypedDict):
     exchange: str
 
 # Keyed by root symbol
-INDEX_INFO: Dict[str, _IndexInfo] = {
+INDEX_INFO: dict[str, _IndexInfo] = {
     # ... existing entries replaced below
 }
 
@@ -48,24 +47,24 @@ def normalize_symbol(symbol: str) -> NormalizedSymbol:
     """
     if not symbol:
         return NormalizedSymbol(root="UNKNOWN", display="Unknown", strike_step=50, segment="NFO-OPT", exchange="NSE")
-    
+
     # Convert to uppercase and remove whitespace
     clean = symbol.strip().upper()
-    
+
     # Check for exact matches
     if clean in INDEX_INFO:
         info = INDEX_INFO[clean]
         return NormalizedSymbol(root=clean, display=info["display"], strike_step=info["strike_step"], segment=info["segment"], exchange=info["exchange"])
-    
+
     # Check for partial matches
     for key, info in INDEX_INFO.items():
         if clean.startswith(key):
             return NormalizedSymbol(root=key, display=info["display"], strike_step=info["strike_step"], segment=info["segment"], exchange=info["exchange"])
-    
+
     # Default case
     return NormalizedSymbol(root=clean, display=clean, strike_step=50, segment="NFO-OPT", exchange="NSE")
 
-def get_segment(symbol: str) -> Optional[str]:
+def get_segment(symbol: str) -> str | None:
     """Get segment for a symbol."""
     norm = normalize_symbol(symbol)
     return norm.get("segment")

@@ -13,32 +13,38 @@ Public API:
 Behavior preserved from legacy unified_collectors implementation.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Protocol, Optional, Mapping, MutableMapping, TypedDict, Sequence, Callable, cast
+
 import logging
+from collections.abc import Callable, Mapping, MutableMapping
+from typing import Any, Protocol, TypedDict, cast
 
 logger = logging.getLogger(__name__)
 
 # Helper callable aliases (match concrete imported signatures to avoid spurious mismatches)
-DerivePartialReason = Callable[[Dict[str, Any]], Optional[str]]
-ComputeReasonTotals = Callable[[List[Dict[str, Any]]], Dict[str, int]]
+DerivePartialReason = Callable[[dict[str, Any]], str | None]
+ComputeReasonTotals = Callable[[list[dict[str, Any]]], dict[str, int]]
 class EmitMatchStats(Protocol):
     def __call__(self, **k: Any) -> None: ...  # pragma: no cover
 
 try:  # pragma: no cover
     from src.collectors.helpers.status_reducer import derive_partial_reason as _derive_partial_reason_any
 except Exception:  # pragma: no cover
-    def _derive_partial_reason_any(expiry_rec: Dict[str, Any]) -> Optional[str]:
+    def _derive_partial_reason_any(expiry_rec: dict[str, Any]) -> str | None:
         return None
 derive_partial_reason = cast(DerivePartialReason, _derive_partial_reason_any)
 
 try:  # pragma: no cover
-    from src.collectors.helpers.struct_events import _compute_reason_totals as _crt  # imported signature: (indices: List[Dict[str, Any]]) -> Dict[str,int]
+    from src.collectors.helpers.struct_events import (
+        _compute_reason_totals as _crt,  # imported signature: (indices: List[Dict[str, Any]]) -> Dict[str,int]
+    )
 except Exception:  # pragma: no cover
-    def _crt(indices: List[Dict[str, Any]]) -> Dict[str, int]:  # fallback keeps matching signature
+    def _crt(indices: list[dict[str, Any]]) -> dict[str, int]:  # fallback keeps matching signature
         return {}
 
 try:  # pragma: no cover
-    from src.collectors.helpers.struct_events import emit_option_match_stats as _emit_option_match_stats_impl  # noqa: F401
+    from src.collectors.helpers.struct_events import (
+        emit_option_match_stats as _emit_option_match_stats_impl,  # noqa: F401
+    )
     _emit_option_match_stats_impl = cast(Any, _emit_option_match_stats_impl)
 except Exception:  # pragma: no cover
     def _emit_option_match_stats_impl(**k: Any) -> None:  # fallback dynamic
@@ -60,7 +66,7 @@ class PartialReasonTotals(TypedDict, total=False):
     ...  # no fixed fields
 
 class MetricsCounterLike(Protocol):  # minimal Protocol for counters
-    def labels(self, **label_values: Any) -> "MetricsCounterLike": ...  # pragma: no cover
+    def labels(self, **label_values: Any) -> MetricsCounterLike: ...  # pragma: no cover
     def inc(self, value: int = 1) -> None: ...  # pragma: no cover
     def set(self, value: float) -> None: ...  # pragma: no cover
 
@@ -78,9 +84,9 @@ __all__ = [
 
 
 def finalize_expiry(
-    expiry_rec: Dict[str, Any],
+    expiry_rec: dict[str, Any],
     enriched_data: Mapping[str, Mapping[str, Any] | MutableMapping[str, Any]],
-    strikes: List[int],
+    strikes: list[int],
     index_symbol: str,
     expiry_date: Any,
     expiry_rule: str,
@@ -106,15 +112,15 @@ def finalize_expiry(
         Metrics collector (prometheus style) or None; accessed dynamically.
     """
     # Build strike footprint sample
-    precomputed_strikes: List[int] = strikes or []
-    strike_min: Optional[float]
-    strike_max: Optional[float]
-    step_val: Optional[float]
+    precomputed_strikes: list[int] = strikes or []
+    strike_min: float | None
+    strike_max: float | None
+    step_val: float | None
     if precomputed_strikes:
         try:
             strike_min = float(min(precomputed_strikes))
             strike_max = float(max(precomputed_strikes))
-            diffs_tmp = [b - a for a, b in zip(precomputed_strikes, precomputed_strikes[1:]) if b > a]
+            diffs_tmp = [b - a for a, b in zip(precomputed_strikes, precomputed_strikes[1:], strict=False) if b > a]
             step_val = float(min(diffs_tmp)) if diffs_tmp else None
         except Exception:
             strike_min = strike_max = step_val = None
@@ -145,7 +151,7 @@ def finalize_expiry(
     pe_per_strike = (pe_legs / len(precomputed_strikes)) if precomputed_strikes else None
 
     # Derive partial reason if status PARTIAL
-    _partial_reason: Optional[str] = None
+    _partial_reason: str | None = None
     try:
         if expiry_rec.get('status') == 'PARTIAL':
             _partial_reason = derive_partial_reason(expiry_rec)
@@ -191,7 +197,7 @@ def finalize_expiry(
 
 
 def compute_cycle_reason_totals(
-    indices_struct: List[Dict[str, Any]],
+    indices_struct: list[dict[str, Any]],
     metrics: MetricsLike | Any | None,
 ) -> PartialReasonTotals | None:
     """Aggregate partial expiry reasons across indices in a cycle.
@@ -202,7 +208,7 @@ def compute_cycle_reason_totals(
     try:
         # Accept list of dicts; _crt may expect a Sequence[Mapping]; list is fine at runtime.
         partial_reason_totals_raw = _crt(indices_struct)
-        filtered: Dict[str, int] = {
+        filtered: dict[str, int] = {
             str(k): int(v) for k, v in partial_reason_totals_raw.items() if isinstance(k, str) and isinstance(v, int)
         }
         partial_reason_totals = cast(PartialReasonTotals, filtered)

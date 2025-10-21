@@ -21,13 +21,11 @@ from __future__ import annotations
 
 import argparse
 import os
-import sys
 import tempfile
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Tuple
 
 import pandas as pd
-
 
 REQUIRED_COLS = ["ce_vol", "pe_vol", "ce_oi", "pe_oi"]
 
@@ -39,7 +37,7 @@ class FileResult:
     rows_after: int
     dropped: int
     skipped_missing_cols: bool = False
-    error: Optional[str] = None
+    error: str | None = None
 
     @property
     def changed(self) -> bool:
@@ -64,41 +62,49 @@ def _coerce_numeric(series: pd.Series) -> pd.Series:
     return s.fillna(0)
 
 
-def _iter_csv_chunks(path: str, chunksize: int):
+def _iter_csv_chunks(path: str, chunksize: int) -> Iterator[pd.DataFrame]:
     """Yield DataFrame chunks with robust parsing (encoding and bad-line handling)."""
-    # Try a few encodings and parser options
-    attempts = [
-        dict(encoding="utf-8", engine="c", on_bad_lines="skip", dtype="object"),
-        dict(encoding="utf-8-sig", engine="c", on_bad_lines="skip", dtype="object"),
-        dict(encoding="latin-1", engine="python", on_bad_lines="skip", dtype="object"),
-    ]
-    last_err = None
-    for opts in attempts:
-        try:
-            for chunk in pd.read_csv(path, chunksize=chunksize, **opts):
-                yield chunk
-            return
-        except Exception as e:
-            last_err = e
-            continue
+    last_err: Exception | None = None
+    # Attempt 1: utf-8 + C engine
+    try:
+        for chunk in pd.read_csv(path, chunksize=chunksize, encoding="utf-8", engine="c", on_bad_lines="skip", dtype="object"):
+            yield chunk
+        return
+    except Exception as e:
+        last_err = e
+    # Attempt 2: utf-8-sig + C engine
+    try:
+        for chunk in pd.read_csv(path, chunksize=chunksize, encoding="utf-8-sig", engine="c", on_bad_lines="skip", dtype="object"):
+            yield chunk
+        return
+    except Exception as e:
+        last_err = e
+    # Attempt 3: latin-1 + python engine
+    try:
+        for chunk in pd.read_csv(path, chunksize=chunksize, encoding="latin-1", engine="python", on_bad_lines="skip", dtype="object"):
+            yield chunk
+        return
+    except Exception as e:
+        last_err = e
     # If we got here, all attempts failed
-    raise last_err  # type: ignore[misc]
+    raise last_err if last_err is not None else RuntimeError("read_csv failed")
 
 
 def _read_head(path: str) -> pd.DataFrame:
-    attempts = [
-        dict(encoding="utf-8", engine="c", on_bad_lines="skip", dtype="object"),
-        dict(encoding="utf-8-sig", engine="c", on_bad_lines="skip", dtype="object"),
-        dict(encoding="latin-1", engine="python", on_bad_lines="skip", dtype="object"),
-    ]
-    last_err = None
-    for opts in attempts:
-        try:
-            return pd.read_csv(path, nrows=1, **opts)
-        except Exception as e:
-            last_err = e
-            continue
-    raise last_err  # type: ignore[misc]
+    last_err: Exception | None = None
+    try:
+        return pd.read_csv(path, nrows=1, encoding="utf-8", engine="c", on_bad_lines="skip", dtype="object")
+    except Exception as e:
+        last_err = e
+    try:
+        return pd.read_csv(path, nrows=1, encoding="utf-8-sig", engine="c", on_bad_lines="skip", dtype="object")
+    except Exception as e:
+        last_err = e
+    try:
+        return pd.read_csv(path, nrows=1, encoding="latin-1", engine="python", on_bad_lines="skip", dtype="object")
+    except Exception as e:
+        last_err = e
+    raise last_err if last_err is not None else RuntimeError("read_csv head failed")
 
 
 def process_file(path: str, threshold: int, dry_run: bool, verify_only: bool, chunksize: int = 200_000) -> FileResult:
@@ -189,7 +195,7 @@ def process_file(path: str, threshold: int, dry_run: bool, verify_only: bool, ch
         return FileResult(path, rows_before, rows_after, rows_before - rows_after, error=str(e))
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Clean g6_data CSVs by dropping rows below threshold for vol/oi fields.")
     p.add_argument("--root", default=".", help="Root folder to search (default: current directory)")
     p.add_argument("--threshold", type=int, default=50000, help="Minimum required value for ce_vol, pe_vol, ce_oi, pe_oi (default: 50000)")

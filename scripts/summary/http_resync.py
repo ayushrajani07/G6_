@@ -1,26 +1,27 @@
-from __future__ import annotations
 """Minimal HTTP handler for /summary/resync and shared snapshot getters.
 
 Kept lightweight to avoid tight coupling with the main loop; tests patch
 set_last_snapshot/get_last_snapshot implicitly by importing this module.
 """
+from __future__ import annotations
+
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Optional, Dict, Any
+from typing import Any
 
 from .resync import get_resync_snapshot
 from .schema import SCHEMA_VERSION
 
-_last_snapshot = None
+_last_snapshot: Any | None = None
 _lock = threading.RLock()
 
-def set_last_snapshot(snap) -> None:  # snap: SummarySnapshot | None (duck-typed to avoid import cycle)
+def set_last_snapshot(snap: Any | None) -> None:  # snap: SummarySnapshot | None (duck-typed to avoid import cycle)
     with _lock:
         global _last_snapshot
         _last_snapshot = snap
 
-def get_last_snapshot():
+def get_last_snapshot() -> Any | None:
     with _lock:
         return _last_snapshot
 
@@ -28,10 +29,10 @@ class ResyncHandler(BaseHTTPRequestHandler):  # pragma: no cover - thin IO layer
     server_version = "G6Resync/0.1"
     sys_version = ""
 
-    def log_message(self, format: str, *args) -> None:  # noqa: A003
+    def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
         return  # suppress default noisy logging
 
-    def do_GET(self):  # noqa: N802
+    def do_GET(self) -> None:  # noqa: N802
         path = self.path or "/summary/resync"
         if path.rstrip('/') != "/summary/resync":
             self._json(404, {"error": "not found"})
@@ -48,7 +49,7 @@ class ResyncHandler(BaseHTTPRequestHandler):  # pragma: no cover - thin IO layer
         payload['schema_version'] = SCHEMA_VERSION
         self._json(200, payload)
 
-    def _json(self, code: int, obj: Dict[str, Any]) -> None:
+    def _json(self, code: int, obj: dict[str, Any]) -> None:
         body = json.dumps(obj, separators=(',', ':')).encode('utf-8')
         self.send_response(code)
         self.send_header('Content-Type', 'application/json')

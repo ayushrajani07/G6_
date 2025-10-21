@@ -1,15 +1,23 @@
 from __future__ import annotations
-import time
-import threading
-import urllib.request
+
 import re
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Deque, Tuple, Any, Mapping
+import threading
+import time
+import urllib.request
 from collections import deque
-from src.error_handling import get_error_handler, ErrorCategory, ErrorSeverity
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from typing import Any
+
+from src.error_handling import ErrorCategory, ErrorSeverity, get_error_handler
 from src.types.dashboard_types import (
-    StreamRow, FooterSummary, StorageSnapshot, ErrorEvent,
-    HistoryEntry, HistoryStorage, RollState
+    ErrorEvent,
+    FooterSummary,
+    HistoryEntry,
+    HistoryStorage,
+    RollState,
+    StorageSnapshot,
+    StreamRow,
 )
 
 METRIC_LINE_RE = re.compile(r"^(?P<name>[a-zA-Z_:][a-zA-Z0-9_:]*)\{?(?P<labels>[^}]*)}?\s+(?P<value>[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?\d+)?)")
@@ -18,28 +26,28 @@ LABEL_RE = re.compile(r"(\w+)=\"([^\"]*)\"")
 @dataclass
 class MetricSample:
     value: float
-    labels: Dict[str,str]
+    labels: dict[str,str]
 
 @dataclass
 class ParsedMetrics:
     ts: float
-    raw: Dict[str, List[MetricSample]] = field(default_factory=dict)
+    raw: dict[str, list[MetricSample]] = field(default_factory=dict)
     age_seconds: float = 0.0
     stale: bool = False
     # Stream row schema (narrow fields used by templates)
-    stream_rows: List[StreamRow] = field(default_factory=list)
-    footer: FooterSummary | Dict[str, Any] = field(default_factory=dict)
-    storage: StorageSnapshot | Dict[str, Any] = field(default_factory=dict)
-    error_events: List[ErrorEvent] = field(default_factory=list)
+    stream_rows: list[StreamRow] = field(default_factory=list)
+    footer: FooterSummary | dict[str, Any] = field(default_factory=dict)
+    storage: StorageSnapshot | dict[str, Any] = field(default_factory=dict)
+    error_events: list[ErrorEvent] = field(default_factory=list)
     # DEBUG_CLEANUP_BEGIN: store missing core metrics list for temporary banner
-    missing_core: List[str] = field(default_factory=list)
+    missing_core: list[str] = field(default_factory=list)
     # DEBUG_CLEANUP_END
 
 class MetricsCache:
     # Per-index rolling aggregation state: index -> numeric counters/meta
-    _roll_index: Dict[str, RollState]
+    _roll_index: dict[str, RollState]
     # History of (timestamp, partial_state) where partial_state may hold 'errors' or 'storage'
-    _history: Deque[Tuple[float, HistoryEntry]]
+    _history: deque[tuple[float, HistoryEntry]]
     def __init__(self, endpoint: str, interval: float = 5.0, timeout: float = 1.5) -> None:
         self.endpoint = endpoint.rstrip('/')
         if not self.endpoint.endswith('/metrics'):
@@ -47,11 +55,11 @@ class MetricsCache:
         self.interval = interval
         self.timeout = timeout
         self._lock = threading.RLock()
-        self._data: Optional[ParsedMetrics] = None
+        self._data: ParsedMetrics | None = None
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._loop, name="metrics-cache", daemon=True)
         # Rolling per-index aggregation state
-        self._roll_index: Dict[str, RollState] = {}
+        self._roll_index: dict[str, RollState] = {}
         # History of (timestamp, partial_state dict)
         self._history = deque(maxlen=50)
         # DEBUG_CLEANUP_BEGIN: history & roll structures partly support temporary
@@ -65,7 +73,7 @@ class MetricsCache:
     def stop(self) -> None:
         self._stop.set()
 
-    def snapshot(self) -> Optional[ParsedMetrics]:
+    def snapshot(self) -> ParsedMetrics | None:
         with self._lock:
             if self._data:
                 # update age
@@ -92,7 +100,7 @@ class MetricsCache:
             )
             # Raise to let caller's try/except path keep old data
             raise
-        parsed: Dict[str,List[MetricSample]] = {}
+        parsed: dict[str,list[MetricSample]] = {}
         # DEBUG_CLEANUP_BEGIN: unknown line counter placeholder (no metrics registry in this process)
         unknown_lines = 0
         try:
@@ -105,7 +113,7 @@ class MetricsCache:
                     continue
                 name = m.group('name')
                 labels_raw = m.group('labels')
-                labels: Dict[str,str] = {}
+                labels: dict[str,str] = {}
                 if labels_raw:
                     for lm in LABEL_RE.finditer(labels_raw):
                         labels[lm.group(1)] = lm.group(2)
@@ -171,7 +179,7 @@ class MetricsCache:
         cycle_attempts_map = {s.labels.get('index','?'): s.value for s in idx_cycle_attempts}
         cycle_success_map = {s.labels.get('index','?'): s.value for s in idx_cycle_success}
         attempts_total_map = {s.labels.get('index','?'): s.value for s in idx_attempts_total}
-        failures_total_map: Dict[str, float] = {}
+        failures_total_map: dict[str, float] = {}
         for s in idx_failures_total:
             idx = s.labels.get('index','?')
             failures_total_map[idx] = failures_total_map.get(idx, 0.0) + s.value
@@ -193,7 +201,7 @@ class MetricsCache:
                 if isinstance(prev_errs_obj, dict):
                     prev_errors = prev_errs_obj
         errs = pm.raw.get('g6_collection_errors_total', [])
-        curr_errors_map: Dict[str, float] = {}
+        curr_errors_map: dict[str, float] = {}
         for e in errs:
             idx = e.labels.get('index','?')
             et = e.labels.get('error_type','err')
@@ -205,7 +213,7 @@ class MetricsCache:
                 rs['last_err_ts'] = now_ts
                 rs['last_err_type'] = et
         self._history.append((now_ts, {'kind': 'errors', 'errors': curr_errors_map}))
-        rows: List[StreamRow] = []
+        rows: list[StreamRow] = []
         for name, rs in sorted(self._roll_index.items()):
             legs = opts_map.get(name, 0)
             legs_avg = (rs['legs_total']/rs['legs_cycles']) if rs['legs_cycles'] else 0
@@ -272,7 +280,7 @@ class MetricsCache:
         # rows already matches List[StreamRow]
         pm.stream_rows = rows
         total_legs = sum(r['legs'] for r in rows)
-        valid_succ: List[float] = [float(r['succ']) for r in rows if r['succ'] is not None and isinstance(r['succ'], (int, float))]
+        valid_succ: list[float] = [float(r['succ']) for r in rows if r['succ'] is not None and isinstance(r['succ'], (int, float))]
         overall_succ = sum(valid_succ)/len(valid_succ) if valid_succ else None
         pm.footer = {
             'total_legs': total_legs,
@@ -346,9 +354,9 @@ class MetricsCache:
     def _augment_errors(self, pm: ParsedMetrics, max_events: int = 40) -> None:
         pm.error_events = self._build_error_events(pm, max_events)
 
-    def _build_error_events(self, pm: ParsedMetrics, max_events: int) -> List[ErrorEvent]:
+    def _build_error_events(self, pm: ParsedMetrics, max_events: int) -> list[ErrorEvent]:
         cutoff = pm.ts - (self.interval * 60)
-        events: List[ErrorEvent] = []
+        events: list[ErrorEvent] = []
         seen: set[str] = set()
         for ts, state in reversed(self._history):
             if ts < cutoff or len(events) >= max_events:

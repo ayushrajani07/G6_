@@ -21,8 +21,10 @@ Design Notes:
 """
 from __future__ import annotations
 
-from typing import Dict, List, Tuple
-import os, sys, logging, datetime, socket, json
+import logging
+import os
+import socket
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +150,7 @@ def kite_auth_validation(ctx) -> None:
 # Step 4 + 5: Expiry resolution & matrix print
 # ---------------------------------------------------------------------------
 
-def resolve_expiries(ctx) -> Dict[str, Dict[str,str]]:
+def resolve_expiries(ctx) -> dict[str, dict[str,str]]:
     """Build mapping index -> { expiry_tag: resolved_date } using provider raw expiries.
 
     New authoritative behavior (2025-09 refactor):
@@ -164,10 +166,10 @@ def resolve_expiries(ctx) -> Dict[str, Dict[str,str]]:
       * Previous env G6_EXPIRY_RULE_RESOLUTION is ignored here (rule engine removed);
         we log once if it is set to highlight deprecation.
     """
-    mapping: Dict[str, Dict[str,str]] = {}
+    mapping: dict[str, dict[str,str]] = {}
     index_params = getattr(ctx, 'index_params', None)
     if not index_params and hasattr(ctx, 'config') and hasattr(ctx.config, 'raw'):
-        raw = getattr(ctx.config, 'raw')
+        raw = ctx.config.raw
         index_params = raw.get('index_params') or raw.get('indices')
     if not isinstance(index_params, dict) or not index_params:
         logger.warning("[startup] No index_params available; cannot resolve expiries")
@@ -197,7 +199,7 @@ def resolve_expiries(ctx) -> Dict[str, Dict[str,str]]:
 
     for index, cfg in index_params.items():
         tags = cfg.get('expiries') if isinstance(cfg, dict) else []
-        row: Dict[str,str] = {}
+        row: dict[str,str] = {}
         # Trace raw provider expiries if requested (best effort)
         if trace:
             try:
@@ -249,7 +251,7 @@ def resolve_expiries(ctx) -> Dict[str, Dict[str,str]]:
         mapping[index] = row
     return mapping
 
-def print_expiry_matrix(mapping: Dict[str, Dict[str,str]]) -> None:
+def print_expiry_matrix(mapping: dict[str, dict[str,str]]) -> None:
     if not mapping:
         return
     # Compute column widths
@@ -261,7 +263,7 @@ def print_expiry_matrix(mapping: Dict[str, Dict[str,str]]) -> None:
         for t, v in row.items():
             col_w[t] = max(col_w.get(t,len(t)), len(v))
     def fmt_row(cells):
-        return ' | '.join(str(c).ljust(col_w[h]) for c, h in zip(cells, header))
+        return ' | '.join(str(c).ljust(col_w[h]) for c, h in zip(cells, header, strict=False))
     logger.info("[startup] Expiry Matrix:")
     logger.info(fmt_row(header))
     logger.info('-+-'.join('-'*col_w[h] for h in header))

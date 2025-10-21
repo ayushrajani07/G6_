@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Collector settings & feature flag bootstrap (Phase 0).
 
 Introduces a single-pass environment hydration object to replace scattered
@@ -11,9 +10,11 @@ structured log when G6_COLLECTOR_SETTINGS_LOG=1 (off by default).
 This file is safe to import early; heavy modules should not be imported here.
 """
 from __future__ import annotations
+
+import logging
+import os
+import threading
 from dataclasses import dataclass, field
-from typing import List, Dict, Any, Optional
-import os, threading, logging
 
 __all__ = ["CollectorSettings", "get_collector_settings", "PIPELINE_V2_ENABLED"]
 
@@ -43,16 +44,16 @@ class CollectorSettings:
     quiet_allow_trace: bool = False
 
     # Logging / behavior overrides
-    log_level_overrides: Dict[str, str] = field(default_factory=dict)
+    log_level_overrides: dict[str, str] = field(default_factory=dict)
 
     # Feature flag for pipeline shadow / activation (Phase 0 gate)
     pipeline_v2_flag: bool = False
 
     # Raw env snapshot (debug / diagnostics)
-    _env_snapshot: Dict[str, str] = field(default_factory=dict, repr=False)
+    _env_snapshot: dict[str, str] = field(default_factory=dict, repr=False)
 
     @classmethod
-    def from_env(cls, env: Optional[Dict[str, str]] = None) -> "CollectorSettings":
+    def from_env(cls, env: dict[str, str] | None = None) -> CollectorSettings:
         e = env if env is not None else os.environ
         def _bool(name: str, default: bool = False) -> bool:
             return (e.get(name, str(int(default))).lower() in ("1","true","yes","on"))
@@ -67,7 +68,7 @@ class CollectorSettings:
             except Exception:
                 return default
         overrides_raw = e.get("G6_COLLECTOR_LOG_LEVEL_OVERRIDES","")
-        overrides: Dict[str,str] = {}
+        overrides: dict[str,str] = {}
         if overrides_raw:
             # format: key=LEVEL,key2=LEVEL
             for part in overrides_raw.split(','):
@@ -107,7 +108,7 @@ class CollectorSettings:
 
 # Lazy singleton (thread-safe) to avoid repeated parsing
 _settings_lock = threading.Lock()
-_settings_singleton: Optional[CollectorSettings] = None
+_settings_singleton: CollectorSettings | None = None
 
 def get_collector_settings(force_reload: bool = False) -> CollectorSettings:
     global _settings_singleton

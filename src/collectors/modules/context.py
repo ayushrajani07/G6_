@@ -7,10 +7,11 @@ lightweight helpers. No behavioral changes expected.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Mapping, Any, Optional, Dict, List, cast
 import datetime
 import logging
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -43,19 +44,19 @@ class MetricsSink:
 class CollectorContext:
     env: Mapping[str, str]
     now: datetime.datetime
-    indices: List[str]
+    indices: list[str]
     config: CollectorConfig
     logger: logging.Logger
-    metrics: Optional[Any] = None
+    metrics: Any | None = None
     debug: bool = False
     # Phase 1: allow attaching transient state dictionaries (mutable) for legacy code interop.
-    state: Dict[str, Any] = field(default_factory=dict)
+    state: dict[str, Any] = field(default_factory=dict)
 
-    def child(self, **overrides: Any) -> "CollectorContext":
+    def child(self, **overrides: Any) -> CollectorContext:
         """Create a shallow-override derivative context.
         Safe because `config` and other heavy objects are shared (immutable contract).
         """
-        data: Dict[str, Any] = {
+        data: dict[str, Any] = {
             'env': self.env,
             'now': self.now,
             'indices': self.indices,
@@ -75,7 +76,7 @@ def build_collector_context(index_params: Mapping[str, Any], metrics: Any | None
     import os
     return CollectorContext(
         env=dict(os.environ),
-        now=datetime.datetime.now(datetime.timezone.utc),
+        now=datetime.datetime.now(datetime.UTC),
         indices=list(index_params.keys()),
         config=CollectorConfig(raw=index_params),
         logger=logging.getLogger('collectors.context'),

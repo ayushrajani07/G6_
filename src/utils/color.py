@@ -8,7 +8,9 @@ Env var G6_COLOR controls behavior:
   auto (default) -> enable only if stdout is a tty
 """
 from __future__ import annotations
-import os, sys
+
+import os
+import sys
 
 RESET = "\x1b[0m"
 BOLD = "\x1b[1m"

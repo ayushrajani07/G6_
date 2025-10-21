@@ -11,16 +11,19 @@ This script imports the metrics registry in-process so it should be run in an
 isolated environment / fresh process to avoid duplicate registration noise.
 """
 from __future__ import annotations
-import os, inspect, sys, json
-from datetime import datetime, UTC
-from typing import Iterable
+
+import os
+import sys
+from collections.abc import Iterable
+from datetime import UTC, datetime
+from typing import Any
 
 # Ensure repository root on path when executed directly.
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from src.metrics import get_metrics, MetricsRegistry  # facade import
+from src.metrics import MetricsRegistry, get_metrics  # facade import
 
 EXCLUDE_PREFIXES = { 'process_', 'python_', 'promhttp_' }
 
@@ -32,7 +35,7 @@ KIND_MAP = {
     'Summary': 'summary'
 }
 
-def iter_metric_objects(reg: MetricsRegistry):
+def iter_metric_objects(reg: MetricsRegistry) -> Iterable[tuple[str, Any]]:
     for attr, value in reg.__dict__.items():
         # Skip internal helpers or private attrs
         if attr.startswith('_'):
@@ -46,14 +49,14 @@ def iter_metric_objects(reg: MetricsRegistry):
         yield attr, value
 
 
-def format_labels(mobj) -> list[str]:
+def format_labels(mobj: object) -> list[str]:
     # prometheus_client stores label names on ._labelnames (tuple)
     labs = getattr(mobj, '_labelnames', ()) or ()
     # Ensure it's a list and filter out internal 'quantile' for Summaries (not a label)
     return [l for l in list(labs) if l not in ('quantile',)]
 
 
-def discover_groups(reg: MetricsRegistry):
+def discover_groups(reg: MetricsRegistry) -> dict[str, str]:
     """Return mapping attr->group.
 
     Preference order:
@@ -77,11 +80,14 @@ def discover_groups(reg: MetricsRegistry):
     return groups
 
 
-def main():
+def main() -> None:
     reg = get_metrics()
+    if reg is None:
+        print('No MetricsRegistry instance available')
+        return
     groups_map = discover_groups(reg)
-    rows = []
-    for attr, mobj in sorted(iter_metric_objects(reg), key=lambda x: x[1]._name):
+    rows: list[dict[str, Any]] = []
+    for attr, mobj in sorted(iter_metric_objects(reg), key=lambda x: getattr(x[1], '_name', '')):
         name = mobj._name  # type: ignore[attr-defined]
         help_text = getattr(mobj, '_documentation', '') or ''
         mtype = KIND_MAP.get(mobj.__class__.__name__, mobj.__class__.__name__)

@@ -4,8 +4,8 @@ Provides public helpers for dynamic metric group pruning and preview.
 """
 from __future__ import annotations
 
-from typing import Any, Dict
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +23,7 @@ def _get_registry():  # lazy import to avoid cycles
         return None
 
 
-def prune_metrics_groups(reload_filters: bool = True, *, dry_run: bool = False) -> Dict[str, Any]:  # pragma: no cover - thin facade
+def prune_metrics_groups(reload_filters: bool = True, *, dry_run: bool = False) -> dict[str, Any]:  # pragma: no cover - thin facade
     reg = _get_registry()
     if reg is None:
         return {}
@@ -34,7 +34,7 @@ def prune_metrics_groups(reload_filters: bool = True, *, dry_run: bool = False) 
         return {}
 
 
-def preview_prune_metrics_groups(reload_filters: bool = True) -> Dict[str, Any]:  # pragma: no cover - thin facade
+def preview_prune_metrics_groups(reload_filters: bool = True) -> dict[str, Any]:  # pragma: no cover - thin facade
     try:
         return prune_metrics_groups(reload_filters=reload_filters, dry_run=True)
     except Exception:

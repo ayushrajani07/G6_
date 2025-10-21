@@ -27,8 +27,15 @@ Usage:
   python scripts/exercise_metrics.py --spec metrics/spec/base.yml --run-drift-check --strict-drift
 """
 from __future__ import annotations
-import argparse, importlib, os, sys, time, types
-from typing import Any, Dict, List
+
+import argparse
+import importlib
+import os
+import sys
+import time
+import types
+from typing import Any
+
 import yaml
 
 SPEC_DEFAULT = 'metrics/spec/base.yml'
@@ -36,7 +43,7 @@ DRIFT_SCRIPT = 'scripts/metrics_drift_check.py'
 
 
 def load_spec(path: str) -> dict:
-    with open(path, 'r', encoding='utf-8') as f:
+    with open(path, encoding='utf-8') as f:
         return yaml.safe_load(f)
 
 
@@ -46,10 +53,10 @@ def ensure_metrics_server(host: str, port: int) -> None:
     setup_metrics_server(port=port, host=host)
 
 
-def warm_metric(metric: Dict[str, Any], generated_mod: types.ModuleType) -> None:
+def warm_metric(metric: dict[str, Any], generated_mod: types.ModuleType) -> None:
     name = metric['name']
     mtype = metric['type']
-    labels: List[str] = metric.get('labels') or []
+    labels: list[str] = metric.get('labels') or []
     accessor_name = f"m_{name}"
     if not hasattr(generated_mod, accessor_name):
         # Might happen if code generation not run; skip silently (drift script will catch)

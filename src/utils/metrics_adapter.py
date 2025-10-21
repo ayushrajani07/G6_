@@ -15,7 +15,7 @@ which already handles caching, parsing, and fault tolerance.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Optional, Protocol
+from typing import Any, Protocol
 
 try:
     from src.summary.metrics_processor import get_metrics_processor  # real factory
@@ -30,7 +30,7 @@ class _IndexMetricsPlaceholder:
 class _ProcessorProto(Protocol):  # minimal protocol for typing convenience
     def get_all_metrics(self) -> Any: ...
     def get_performance_metrics(self) -> Any: ...
-    def get_index_metrics(self, index: Optional[str] = None) -> Any: ...
+    def get_index_metrics(self, index: str | None = None) -> Any: ...
 
 
 class MetricsAdapter:
@@ -41,7 +41,7 @@ class MetricsAdapter:
     raising. This keeps call sites robust.
     """
 
-    def __init__(self, prometheus_url: Optional[str] = None, processor: Optional[Any] = None):
+    def __init__(self, prometheus_url: str | None = None, processor: Any | None = None):
         """Create an adapter.
 
         Parameters:
@@ -65,7 +65,7 @@ class MetricsAdapter:
                         self._processor = get_metrics_processor()
 
     # ---- Raw accessors ----
-    def get_platform_metrics(self) -> Optional[Any]:
+    def get_platform_metrics(self) -> Any | None:
         try:
             if not self._processor:
                 return None
@@ -73,7 +73,7 @@ class MetricsAdapter:
         except Exception:
             return None
 
-    def get_performance_metrics(self) -> Optional[Any]:
+    def get_performance_metrics(self) -> Any | None:
         try:
             if not self._processor:
                 return None
@@ -81,7 +81,7 @@ class MetricsAdapter:
         except Exception:
             return None
 
-    def get_index_metrics(self, index: Optional[str] = None) -> Any:
+    def get_index_metrics(self, index: str | None = None) -> Any:
         try:
             if not self._processor:
                 return {} if index is None else _IndexMetricsPlaceholder()
@@ -90,7 +90,7 @@ class MetricsAdapter:
             return {} if index is None else _IndexMetricsPlaceholder()
 
     # ---- Scalar helpers ----
-    def get_memory_usage_mb(self) -> Optional[float]:
+    def get_memory_usage_mb(self) -> float | None:
         pm = self.get_performance_metrics()
         try:
             if pm is None:
@@ -102,7 +102,7 @@ class MetricsAdapter:
         except Exception:
             return None
 
-    def get_cpu_percent(self) -> Optional[float]:
+    def get_cpu_percent(self) -> float | None:
         pm = self.get_performance_metrics()
         try:
             if pm is None:
@@ -114,7 +114,7 @@ class MetricsAdapter:
         except Exception:
             return None
 
-    def get_api_success_rate_percent(self) -> Optional[float]:
+    def get_api_success_rate_percent(self) -> float | None:
         pm = self.get_performance_metrics()
         try:
             if pm is None:
@@ -126,7 +126,7 @@ class MetricsAdapter:
         except Exception:
             return None
 
-    def get_api_latency_ms(self) -> Optional[float]:
+    def get_api_latency_ms(self) -> float | None:
         pm = self.get_performance_metrics()
         try:
             if pm is None:
@@ -138,7 +138,7 @@ class MetricsAdapter:
         except Exception:
             return None
 
-    def get_collection_success_rate_percent(self) -> Optional[float]:
+    def get_collection_success_rate_percent(self) -> float | None:
         pm = self.get_performance_metrics()
         try:
             if pm is None:
@@ -150,7 +150,7 @@ class MetricsAdapter:
         except Exception:
             return None
 
-    def get_options_processed_total(self) -> Optional[int]:
+    def get_options_processed_total(self) -> int | None:
         pm = self.get_performance_metrics()
         try:
             if pm is None:
@@ -162,7 +162,7 @@ class MetricsAdapter:
         except Exception:
             return None
 
-    def get_options_per_minute(self) -> Optional[float]:
+    def get_options_per_minute(self) -> float | None:
         pm = self.get_performance_metrics()
         try:
             if pm is None:
@@ -174,7 +174,7 @@ class MetricsAdapter:
         except Exception:
             return None
 
-    def get_last_cycle_options_sum(self) -> Optional[int]:
+    def get_last_cycle_options_sum(self) -> int | None:
         """Approximate last-cycle options by summing per-index current_cycle_legs.
 
         This mirrors what the UI previously reported via local counters, but
@@ -195,10 +195,10 @@ class MetricsAdapter:
             return None
 
 
-_adapter_singleton: Optional[MetricsAdapter] = None
+_adapter_singleton: MetricsAdapter | None = None
 
 
-def get_metrics_adapter(prometheus_url: Optional[str] = None, *, processor: Optional[Any] = None) -> MetricsAdapter:
+def get_metrics_adapter(prometheus_url: str | None = None, *, processor: Any | None = None) -> MetricsAdapter:
     """Return a process-wide MetricsAdapter singleton.
 
     The adapter internally uses a cached MetricsProcessor instance which also

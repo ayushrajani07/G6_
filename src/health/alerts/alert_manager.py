@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Optional Alert Manager for G6 health subsystem.
 
@@ -16,7 +15,7 @@ import threading
 import time
 import uuid
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -35,18 +34,18 @@ class AlertStatus(Enum):
 
 
 class Alert:
-    def __init__(self, component: str, message: str, severity: AlertSeverity, details: Optional[Dict[str, Any]] = None):
+    def __init__(self, component: str, message: str, severity: AlertSeverity, details: dict[str, Any] | None = None):
         self.id = str(uuid.uuid4())
         self.component = component
         self.message = message
         self.severity = severity
         self.details = details or {}
         self.status = AlertStatus.ACTIVE
-        self.created_at = datetime.datetime.now(datetime.timezone.utc)
+        self.created_at = datetime.datetime.now(datetime.UTC)
         self.updated_at = self.created_at
         self.group_key = f"{component}:{severity.value}:{hash(message) % 1000000}"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "component": self.component,
@@ -70,7 +69,7 @@ class AlertChannel:
 
 
 class EmailChannel(AlertChannel):
-    def __init__(self, name: str, smtp_server: str, smtp_port: int, sender: str, recipients: List[str], username: Optional[str] = None, password: Optional[str] = None, use_tls: bool = True):
+    def __init__(self, name: str, smtp_server: str, smtp_port: int, sender: str, recipients: list[str], username: str | None = None, password: str | None = None, use_tls: bool = True):
         super().__init__(name)
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
@@ -123,7 +122,7 @@ class EmailChannel(AlertChannel):
 
 
 class WebhookChannel(AlertChannel):
-    def __init__(self, name: str, url: str, headers: Optional[Dict[str, str]] = None, timeout: float = 5.0):
+    def __init__(self, name: str, url: str, headers: dict[str, str] | None = None, timeout: float = 5.0):
         super().__init__(name)
         self.url = url
         self.headers = headers or {"Content-Type": "application/json"}
@@ -154,13 +153,13 @@ class WebhookChannel(AlertChannel):
 
 
 class AlertPolicy:
-    def __init__(self, name: str, component_pattern: str = "*", min_level: int = 2, cooldown_seconds: int = 300, channels: Optional[List[str]] = None):
+    def __init__(self, name: str, component_pattern: str = "*", min_level: int = 2, cooldown_seconds: int = 300, channels: list[str] | None = None):
         self.name = name
         self.component_pattern = component_pattern
         self.min_level = int(min_level)  # 0 healthy .. higher worse
         self.cooldown_seconds = int(cooldown_seconds)
         self.channels = channels
-        self._last_trigger: Dict[str, datetime.datetime] = {}
+        self._last_trigger: dict[str, datetime.datetime] = {}
 
     def matches(self, component: str) -> bool:
         if self.component_pattern == "*":
@@ -170,7 +169,7 @@ class AlertPolicy:
         return component == self.component_pattern
 
     def allow(self, component: str) -> bool:
-        now = datetime.datetime.now(datetime.timezone.utc)
+        now = datetime.datetime.now(datetime.UTC)
         last = self._last_trigger.get(component)
         if last and (now - last).total_seconds() < self.cooldown_seconds:
             return False
@@ -179,11 +178,11 @@ class AlertPolicy:
 
 
 class AlertManager:
-    _inst: Optional["AlertManager"] = None
+    _inst: AlertManager | None = None
     _lock = threading.RLock()
 
     @classmethod
-    def get_instance(cls) -> "AlertManager":
+    def get_instance(cls) -> AlertManager:
         with cls._lock:
             if cls._inst is None:
                 cls._inst = AlertManager()
@@ -191,17 +190,17 @@ class AlertManager:
 
     def __init__(self) -> None:
         self.enabled = False
-        self.channels: Dict[str, AlertChannel] = {}
-        self.policies: List[AlertPolicy] = []
-        self.active: Dict[str, Alert] = {}
-        self.history: List[Alert] = []
-        self.state_dir: Optional[str] = None
-        self._queue: List[Alert] = []
+        self.channels: dict[str, AlertChannel] = {}
+        self.policies: list[AlertPolicy] = []
+        self.active: dict[str, Alert] = {}
+        self.history: list[Alert] = []
+        self.state_dir: str | None = None
+        self._queue: list[Alert] = []
         self._q_lock = threading.RLock()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._stop = threading.Event()
 
-    def initialize(self, cfg: Dict[str, Any]) -> None:
+    def initialize(self, cfg: dict[str, Any]) -> None:
         """Initialize channels and policies, start background processing."""
         self.enabled = bool(cfg.get("enabled", False))
         if not self.enabled:
@@ -289,7 +288,7 @@ class AlertManager:
                 pass
 
     # -------- Public API --------
-    def process_health_update(self, component: str, level: int, state: Any, details: Optional[Dict[str, Any]] = None) -> None:
+    def process_health_update(self, component: str, level: int, state: Any, details: dict[str, Any] | None = None) -> None:
         if not self.enabled:
             return
         # Decide if any policy wants an alert
@@ -316,10 +315,10 @@ class AlertManager:
             alert = Alert(component=component, message=msg, severity=sev, details=details)
             self._enqueue(alert, target_channels=pol.channels)
 
-    def get_active_alerts(self) -> List[Dict[str, Any]]:
+    def get_active_alerts(self) -> list[dict[str, Any]]:
         return [a.to_dict() for a in self.active.values() if a.status in (AlertStatus.ACTIVE, AlertStatus.ACKNOWLEDGED)]
 
-    def get_alert_history(self, limit: int = 100) -> List[Dict[str, Any]]:
+    def get_alert_history(self, limit: int = 100) -> list[dict[str, Any]]:
         return [a.to_dict() for a in self.history[-limit:]]
 
     def acknowledge(self, alert_id: str) -> bool:
@@ -327,7 +326,7 @@ class AlertManager:
         if not a:
             return False
         a.status = AlertStatus.ACKNOWLEDGED
-        a.updated_at = datetime.datetime.now(datetime.timezone.utc)
+        a.updated_at = datetime.datetime.now(datetime.UTC)
         self._persist()
         return True
 
@@ -336,7 +335,7 @@ class AlertManager:
         if not a:
             return False
         a.status = AlertStatus.RESOLVED
-        a.updated_at = datetime.datetime.now(datetime.timezone.utc)
+        a.updated_at = datetime.datetime.now(datetime.UTC)
         self.history.append(a)
         self._persist()
         return True
@@ -347,7 +346,7 @@ class AlertManager:
             if a.component == component and a.status == AlertStatus.ACTIVE:
                 self.resolve(aid)
 
-    def _enqueue(self, alert: Alert, target_channels: Optional[List[str]]) -> None:
+    def _enqueue(self, alert: Alert, target_channels: list[str] | None) -> None:
         with self._q_lock:
             # Dedup by group key if an active one exists
             for a in self.active.values():
@@ -373,7 +372,7 @@ class AlertManager:
             time.sleep(1)
 
     def _drain_once(self) -> None:
-        batch: List[Alert] = []
+        batch: list[Alert] = []
         with self._q_lock:
             if not self._queue:
                 return
@@ -383,7 +382,7 @@ class AlertManager:
             self._deliver(a)
 
     def _deliver(self, alert: Alert) -> None:
-        targets: List[AlertChannel]
+        targets: list[AlertChannel]
         tgt_names = alert.details.get("target_channels")
         if tgt_names:
             targets = [self.channels[n] for n in tgt_names if n in self.channels]

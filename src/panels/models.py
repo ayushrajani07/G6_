@@ -5,27 +5,28 @@ They intentionally remain loose (via Optional/Dict[Any, Any]) to preserve
 backward compatibility with existing consumers (TUI/summary and tests).
 """
 from __future__ import annotations
-from typing import Dict, Any, Optional, TypedDict
+
+from typing import Any, TypedDict
 
 
 class ProviderPanel(TypedDict, total=False):
-    name: Optional[str]
-    auth: Optional[bool]
-    expiry: Optional[str]
-    latency_ms: Optional[float]
+    name: str | None
+    auth: bool | None
+    expiry: str | None
+    latency_ms: float | None
 
 
 class ResourcesPanel(TypedDict, total=False):
-    cpu: Optional[float]
-    rss: Optional[int]
-    memory_mb: Optional[float]
+    cpu: float | None
+    rss: int | None
+    memory_mb: float | None
 
 
 class LoopPanel(TypedDict, total=False):
-    cycle: Optional[int]
-    last_start: Optional[str]
-    last_duration: Optional[float]
-    success_rate: Optional[float]
+    cycle: int | None
+    last_start: str | None
+    last_duration: float | None
+    success_rate: float | None
 
 
 class HealthPanel(TypedDict, total=False):
@@ -46,16 +47,16 @@ class IndicesSummaryPanel(TypedDict):
 class IndicesStreamItem(TypedDict, total=False):
     index: str
     status: str
-    cycle: Optional[int]
-    time: Optional[str]
-    time_hms: Optional[str]
-    legs: Optional[int]
-    avg: Optional[float]
-    success: Optional[int]
-    dq_score: Optional[float]
-    dq_issues: Optional[int]
-    dq_labels: Optional[list[str]]
-    status_reason: Optional[str]
+    cycle: int | None
+    time: str | None
+    time_hms: str | None
+    legs: int | None
+    avg: float | None
+    success: int | None
+    dq_score: float | None
+    dq_issues: int | None
+    dq_labels: list[str] | None
+    status_reason: str | None
 
 
-PanelsDict = Dict[str, Any]
+PanelsDict = dict[str, Any]

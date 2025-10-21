@@ -17,15 +17,20 @@ Notes:
   * Lower confidence findings are printed as INFO but not enforced.
 """
 from __future__ import annotations
-import argparse, json, os, sys, subprocess, shlex, pathlib
-from typing import List, Tuple
+
+import argparse
+import json
+import os
+import pathlib
+import subprocess
+import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ALLOWLIST_FILE = ROOT / "dead_code_allowlist.txt"
 
 DEFAULT_MIN_CONF = 80
 
-class Finding(Tuple[str,str,int,int]):
+class Finding(tuple[str,str,int,int]):
     __slots__ = ()
     # path, name, lineno, confidence
 
@@ -41,8 +46,8 @@ def load_allowlist() -> set[str]:
         items.add(s)
     return items
 
-def parse_vulture(output: str) -> List[Finding]:
-    findings: List[Finding] = []
+def parse_vulture(output: str) -> list[Finding]:
+    findings: list[Finding] = []
     for line in output.splitlines():
         # Expect format: path:line: unused code 'name' (confidence X%)
         if "unused" not in line or "confidence" not in line:
@@ -71,7 +76,7 @@ def parse_vulture(output: str) -> List[Finding]:
             continue
     return findings
 
-def run_vulture(paths: List[str]) -> str:
+def run_vulture(paths: list[str]) -> str:
     cmd = [sys.executable, '-m', 'vulture', *paths]
     try:
         res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=False)

@@ -5,9 +5,10 @@ logic can focus on domain behavior. This module keeps imports lazy to avoid the
 heavy dependency cost on cold paths (tests using dummy subclasses).
 """
 from __future__ import annotations
-from typing import Any, Optional, Protocol
-import os
+
 import logging
+import os
+from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -19,13 +20,13 @@ class KiteLike(Protocol):  # Minimal protocol subset used by provider
 _DEF_TIMEOUT = 5.0
 
 class ClientConfig:
-    def __init__(self, api_key: Optional[str], access_token: Optional[str], timeout: float):
+    def __init__(self, api_key: str | None, access_token: str | None, timeout: float):
         self.api_key = api_key
         self.access_token = access_token
         self.timeout = timeout
 
     @classmethod
-    def from_provider_config(cls) -> 'ClientConfig':
+    def from_provider_config(cls) -> ClientConfig:
         try:
             from src.provider.config import get_provider_config as _get_pc  # type: ignore
             _pc = _get_pc()
@@ -41,7 +42,7 @@ class ClientConfig:
         return cls(api_key, token, timeout)
 
 
-def create_kite_client(cfg: ClientConfig) -> Optional[KiteLike]:
+def create_kite_client(cfg: ClientConfig) -> KiteLike | None:
     """Instantiate a Kite-like client.
 
     Returns None if credentials missing (provider will operate in degraded/dummy mode).
@@ -60,6 +61,6 @@ def create_kite_client(cfg: ClientConfig) -> Optional[KiteLike]:
         kc.set_access_token(cfg.access_token)
         logger.debug("Kite client created (timeout=%s)", cfg.timeout)
         return kc  # type: ignore[return-value]
-    except Exception as e:  # pragma: no cover - defensive
+    except Exception:  # pragma: no cover - defensive
         logger.error("Failed to create Kite client", exc_info=True)
         return None

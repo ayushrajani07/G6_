@@ -19,9 +19,14 @@ Future Enhancements:
   - Deprecation integration for legacy script direct usage.
 """
 from __future__ import annotations
-import argparse, os, sys, subprocess, textwrap
+
+import argparse
+import json
+import os
+import subprocess
+import sys
+import time
 from pathlib import Path
-import time, json
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -77,7 +82,7 @@ def cmd_panels_bridge(args: argparse.Namespace) -> int:
     # Invoke tombstone stub to preserve exit semantics (always non-zero) while
     # also printing immediate guidance here for clarity.
     if os.getenv('G6_SUPPRESS_LEGACY_CLI','').lower() not in {'1','true','yes','on'}:
-        print('[REMOVED] panels-bridge: use `python -m scripts.summary.app --refresh {}` (panels emitted in-process)'.format(args.refresh), file=sys.stderr)
+        print(f'[REMOVED] panels-bridge: use `python -m scripts.summary.app --refresh {args.refresh}` (panels emitted in-process)', file=sys.stderr)
     base = [sys.executable, str(ROOT / 'scripts' / 'status_to_panels.py'), '--status-file', args.status_file, '--refresh', str(args.refresh)]
     if args.once:
         base.append('--once')  # retained for stub parity; has no effect

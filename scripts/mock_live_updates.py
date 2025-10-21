@@ -26,21 +26,20 @@ import math
 import random
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Dict, List, Tuple
 
 
 def iso_z(ts: float) -> str:
-    return datetime.fromtimestamp(ts, tz=timezone.utc).isoformat().replace("+00:00", "Z")
+    return datetime.fromtimestamp(ts, tz=UTC).isoformat().replace("+00:00", "Z")
 
 
 class State:
-    def __init__(self, pairs: List[Tuple[str, str, str]]):
+    def __init__(self, pairs: list[tuple[str, str, str]]):
         self.lock = threading.Lock()
         self.t0 = time.time()
         # simple walk per panel
-        self.series: Dict[str, List[Tuple[float, float]]] = {}
+        self.series: dict[str, list[tuple[float, float]]] = {}
         for idx, exp, off in pairs:
             key = f"panel-{idx}-{exp}-{off}"
             self.series[key] = []
@@ -58,7 +57,7 @@ class State:
                 if len(seq) > 600:
                     del seq[: len(seq) - 600]
 
-    def payload(self) -> Dict[str, dict]:
+    def payload(self) -> dict[str, dict]:
         with self.lock:
             panels = {}
             for key, seq in self.series.items():
@@ -136,7 +135,7 @@ def run_server(state: State, host: str, port: int, interval: float):
         httpd.server_close()
 
 
-def parse_pairs(vals: List[str]) -> List[Tuple[str, str, str]]:
+def parse_pairs(vals: list[str]) -> list[tuple[str, str, str]]:
     out = []
     for v in vals or []:
         parts = v.split(":")

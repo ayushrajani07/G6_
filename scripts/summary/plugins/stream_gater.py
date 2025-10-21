@@ -24,14 +24,15 @@ The plugin is conservative: failures never raise; they log at debug and continue
 """
 from __future__ import annotations
 
-from typing import Mapping, Any, Optional, Dict, List
-import os
+import datetime as _dt
 import json
 import logging
-import datetime as _dt
+import os
+import threading
+from collections.abc import Mapping
+from typing import Any
 
 from .base import OutputPlugin, SummarySnapshot
-import threading
 
 logger = logging.getLogger(__name__)
 
@@ -76,9 +77,9 @@ class StreamGaterPlugin(OutputPlugin):
         if self._metrics_bound:
             return
         try:  # pragma: no cover - best effort instrumentation
-            from prometheus_client import Counter, REGISTRY  # type: ignore
+            from prometheus_client import REGISTRY, Counter  # type: ignore
 
-            def _get_or_create(name: str, doc: str, labels: tuple[str, ...] | None = None):
+            def _get_or_create(name: str, doc: str, labels: tuple[str, ...] | None = None) -> Any:
                 prom_name = name
                 existing = getattr(REGISTRY, '_names_to_collectors', {})  # type: ignore[attr-defined]
                 coll = existing.get(prom_name) if isinstance(existing, dict) else None
@@ -96,10 +97,24 @@ class StreamGaterPlugin(OutputPlugin):
                     return None
 
             # Option A: explicit *_total naming to align with spec & catalog.
-            self._m_append = _get_or_create('g6_stream_append_total', 'Total indices_stream append events (labels: mode)', ('mode',))
-            self._m_skipped = _get_or_create('g6_stream_skipped_total', 'Total indices_stream skips (labels: mode,reason)', ('mode','reason'))
-            self._m_state_err = _get_or_create('g6_stream_state_persist_errors_total', 'State file persistence errors')
-            self._m_conflict = _get_or_create('g6_stream_conflict_total', 'Detected potential indices_stream write conflict')
+            self._m_append = _get_or_create(
+                'g6_stream_append_total',
+                'Total indices_stream append events (labels: mode)',
+                ('mode',),
+            )
+            self._m_skipped = _get_or_create(
+                'g6_stream_skipped_total',
+                'Total indices_stream skips (labels: mode,reason)',
+                ('mode', 'reason'),
+            )
+            self._m_state_err = _get_or_create(
+                'g6_stream_state_persist_errors_total',
+                'State file persistence errors',
+            )
+            self._m_conflict = _get_or_create(
+                'g6_stream_conflict_total',
+                'Detected potential indices_stream write conflict',
+            )
             # Backward compatibility: if earlier base-name counters exist, do nothing; we deliberately
             # do not alias to avoid double counting. Historical scrape continuity is acceptable since
             # *_total metrics are new for Phase 1/2 rollout.
@@ -109,7 +124,7 @@ class StreamGaterPlugin(OutputPlugin):
         self._metrics_bound = True
 
     # --- State persistence ---------------------------------------------------------
-    def _state_path(self) -> Optional[str]:
+    def _state_path(self) -> str | None:
         if not self._panels_dir:
             return None
         return os.path.join(self._panels_dir, _GATE_FILE)
@@ -123,7 +138,7 @@ class StreamGaterPlugin(OutputPlugin):
             return
         try:
             if os.path.exists(path):
-                with open(path, 'r', encoding='utf-8') as f:
+                with open(path, encoding='utf-8') as f:
                     obj = json.load(f)
                 if isinstance(obj, dict):
                     lc = obj.get('last_cycle')
@@ -146,7 +161,7 @@ class StreamGaterPlugin(OutputPlugin):
             return
         try:
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            payload = {}
+            payload: dict[str, int | str] = {}
             if isinstance(self._last_cycle, int):
                 payload['last_cycle'] = self._last_cycle
             if isinstance(self._last_bucket, str):
@@ -194,32 +209,32 @@ class StreamGaterPlugin(OutputPlugin):
             return None
         try:
             if isinstance(ts, (int,float)):
-                dt = _dt.datetime.fromtimestamp(float(ts), tz=_dt.timezone.utc)
+                dt = _dt.datetime.fromtimestamp(float(ts), tz=_dt.UTC)
             elif isinstance(ts, str):
                 # Accept already UTC ISO with Z or offset
                 dt = _dt.datetime.fromisoformat(ts.replace('Z','+00:00'))
                 if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=_dt.timezone.utc)
+                    dt = dt.replace(tzinfo=_dt.UTC)
             elif isinstance(ts, _dt.datetime):
-                dt = ts if ts.tzinfo else ts.replace(tzinfo=_dt.timezone.utc)
+                dt = ts if ts.tzinfo else ts.replace(tzinfo=_dt.UTC)
             else:
                 return None
-            dt_utc = dt.astimezone(_dt.timezone.utc)
+            dt_utc = dt.astimezone(_dt.UTC)
             return dt_utc.strftime('%Y-%m-%dT%H:%MZ')
         except Exception:
             return None
 
-    def _decorate_time_hms(self, item: Dict[str, Any]) -> None:
+    def _decorate_time_hms(self, item: dict[str, Any]) -> None:
         try:
             raw_ts = item.get('time') or item.get('ts') or item.get('timestamp')
             if not raw_ts:
                 return
             if isinstance(raw_ts, (int,float)):
-                dt = _dt.datetime.fromtimestamp(float(raw_ts), tz=_dt.timezone.utc)
+                dt = _dt.datetime.fromtimestamp(float(raw_ts), tz=_dt.UTC)
             elif isinstance(raw_ts, str):
                 dt = _dt.datetime.fromisoformat(raw_ts.replace('Z','+00:00'))
                 if dt.tzinfo is None:
-                    dt = dt.replace(tzinfo=_dt.timezone.utc)
+                    dt = dt.replace(tzinfo=_dt.UTC)
             else:
                 return
             ist = dt.astimezone(_dt.timezone(_dt.timedelta(hours=5, minutes=30)))
@@ -228,13 +243,13 @@ class StreamGaterPlugin(OutputPlugin):
             pass
 
     # --- Heartbeat -----------------------------------------------------------------
-    def _emit_heartbeat(self, status_mut: Dict[str, Any]) -> None:
+    def _emit_heartbeat(self, status_mut: dict[str, Any]) -> None:
         try:
             now_iso = _dt.datetime.now(_dt.UTC).isoformat().replace('+00:00','Z')
         except Exception:
             # Fallback: avoid forbidden direct UTC naive timestamp helper (policy disallows datetime.utcnow)
             try:
-                now_iso = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00','Z')
+                now_iso = _dt.datetime.now(_dt.UTC).replace(microsecond=0).isoformat().replace('+00:00','Z')
             except Exception:
                 now_iso = '1970-01-01T00:00:00Z'
         bridge_meta = {
@@ -267,10 +282,16 @@ class StreamGaterPlugin(OutputPlugin):
         try:
             # Double-checked locking to avoid emitting duplicate warnings under rare
             # concurrent first-call invocation scenarios.
-            if (not getattr(logger, '_flags_warned_once', False)) and (os.getenv('G6_UNIFIED_STREAM_GATER') or os.getenv('G6_DISABLE_UNIFIED_GATER')):
+            if (
+                not getattr(logger, '_flags_warned_once', False)
+                and (os.getenv('G6_UNIFIED_STREAM_GATER') or os.getenv('G6_DISABLE_UNIFIED_GATER'))
+            ):
                 with _FLAGS_WARNED_LOCK:
                     if not getattr(logger, '_flags_warned_once', False):
-                        logger.warning("[stream_gater] Flags G6_UNIFIED_STREAM_GATER / G6_DISABLE_UNIFIED_GATER are retired and ignored (always enabled).")
+                        logger.warning(
+                            "[stream_gater] Flags G6_UNIFIED_STREAM_GATER / G6_DISABLE_UNIFIED_GATER "
+                            "are retired and ignored (always enabled)."
+                        )
                         logger._flags_warned_once = True  # type: ignore[attr-defined]
                         # keep global in sync for completeness
                         _FLAGS_WARNED = True
@@ -320,8 +341,14 @@ class StreamGaterPlugin(OutputPlugin):
                                 inc_lbl(mode=self._gate_mode).inc()  # type: ignore[attr-defined]
                             else:
                                 self._m_append.inc()  # type: ignore[attr-defined]
-                        # Conflict heuristic: if stream file existed with newer mtime within same cycle and pre_len changed unexpectedly (duplicate cycle append)
-                        if self._m_conflict is not None and reason is None and not should_append and pre_len is not None:
+                        # Conflict heuristic: if stream file existed with newer mtime within same
+                        # cycle and pre_len changed unexpectedly (duplicate cycle append)
+                        if (
+                            self._m_conflict is not None
+                            and reason is None
+                            and not should_append
+                            and pre_len is not None
+                        ):
                             pass  # nothing (heuristic disabled here – see conflict block below)
                     except Exception:
                         pass
@@ -329,7 +356,8 @@ class StreamGaterPlugin(OutputPlugin):
                 # Metric: skipped
                 try:
                     if self._m_skipped is not None:
-                        # treat skipped_total as counter with labels via helper _inc(labels) if such API exists (best-effort)
+                        # treat skipped_total as counter with labels via helper _inc(labels)
+                        # if such API exists (best-effort)
                         inc_fn = getattr(self._m_skipped, 'labels', None)
                         if callable(inc_fn):
                             inc_fn(mode=self._gate_mode, reason=reason or 'unknown').inc()  # type: ignore[attr-defined]
@@ -343,16 +371,19 @@ class StreamGaterPlugin(OutputPlugin):
                     self._emit_heartbeat(status_obj)
             except Exception:
                 pass
-            # Simple conflict detection: if legacy bridge also wrote indices_stream.json in the same cycle (detected by presence of 'time_hms' missing or duplicate index without new cycle)
+            # Simple conflict detection: if legacy bridge also wrote indices_stream.json in the same
+            # cycle (detected by presence of 'time_hms' missing or duplicate index without new cycle)
             try:
                 if self._m_conflict is not None and should_append and isinstance(cur_cycle, int):
-                    # If we appended but the new last item lacks time_hms while prior items have it, suggests a competing writer pattern
+                    # If we appended but the new last item lacks time_hms while prior items have it,
+                    # suggests a competing writer pattern
                     path = self._stream_path()
                     if path and os.path.exists(path):
-                        with open(path,'r',encoding='utf-8') as f:
+                        with open(path,encoding='utf-8') as f:
                             arr = json.load(f)
                         if isinstance(arr, list) and len(arr) >= 2:
-                            last = arr[-1]; prev = arr[-2]
+                            last = arr[-1]
+                            prev = arr[-2]
                             if isinstance(last, dict) and isinstance(prev, dict):
                                 if ('time_hms' not in last) and ('time_hms' in prev):
                                     self._m_conflict.inc()  # type: ignore[attr-defined]
@@ -362,19 +393,19 @@ class StreamGaterPlugin(OutputPlugin):
             logger.debug("stream_gater process error: %s", e)
 
     # --- Helpers -------------------------------------------------------------------
-    def _stream_path(self) -> Optional[str]:
+    def _stream_path(self) -> str | None:
         if not self._panels_dir:
             return None
         return os.path.join(self._panels_dir, 'indices_stream.json')
 
-    def _append_indices_stream(self, items: List[Dict[str, Any]]) -> None:
+    def _append_indices_stream(self, items: list[dict[str, Any]]) -> None:
         path = self._stream_path()
         if not path:
             return
-        existing: List[Dict[str, Any]] = []
+        existing: list[dict[str, Any]] = []
         try:
             if os.path.exists(path):
-                with open(path, 'r', encoding='utf-8') as f:
+                with open(path, encoding='utf-8') as f:
                     obj = json.load(f)
                 if isinstance(obj, list):
                     existing = obj
@@ -406,7 +437,7 @@ class StreamGaterPlugin(OutputPlugin):
         if not path or not os.path.exists(path):
             return None
         try:
-            with open(path,'r',encoding='utf-8') as f:
+            with open(path,encoding='utf-8') as f:
                 obj = json.load(f)
             if isinstance(obj, list):
                 return len(obj)
@@ -418,8 +449,8 @@ class StreamGaterPlugin(OutputPlugin):
             return None
         return None
 
-    def _build_stream_items(self, status: Mapping[str, Any]) -> List[Dict[str, Any]]:
-        items: List[Dict[str, Any]] = []
+    def _build_stream_items(self, status: Mapping[str, Any]) -> list[dict[str, Any]]:
+        items: list[dict[str, Any]] = []
         # Attempt to leverage indices_panel via indices_detail structure
         try:
             indices_detail = status.get('indices_detail') if isinstance(status.get('indices_detail'), Mapping) else {}
@@ -430,8 +461,16 @@ class StreamGaterPlugin(OutputPlugin):
                     item = {
                         'index': name,
                         'status': data.get('status'),
-                        'dq_score': (data.get('dq') or {}).get('score_percent') if isinstance(data.get('dq'), Mapping) else None,
-                        'time': data.get('last_update') or data.get('timestamp') or status.get('timestamp'),
+                        'dq_score': (
+                            (data.get('dq') or {}).get('score_percent')
+                            if isinstance(data.get('dq'), Mapping)
+                            else None
+                        ),
+                        'time': (
+                            data.get('last_update')
+                            or data.get('timestamp')
+                            or status.get('timestamp')
+                        ),
                     }
                     self._decorate_time_hms(item)
                     items.append(item)

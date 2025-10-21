@@ -21,8 +21,11 @@ This is a lightweight synthetic; real latency with network flush may differ.
 """
 from __future__ import annotations
 
-import argparse, json, os, random, statistics, time
-from typing import List
+import argparse
+import json
+import random
+import statistics
+import time
 
 from src.events.event_bus import get_event_bus
 from src.utils.serialization_cache import get_serialization_cache, serialize_event
@@ -35,7 +38,7 @@ def _rand_payload(panel_n: int) -> dict:
 
 def run_bench(events: int, panel_diffs: int, subscribers: int) -> dict:
     bus = get_event_bus()
-    ser_times: List[float] = []
+    ser_times: list[float] = []
     cache = get_serialization_cache()
     # Simulate baseline subscribers by performing serialization per subscriber (shared cache makes this cheap)
     for i in range(events):
@@ -50,7 +53,7 @@ def run_bench(events: int, panel_diffs: int, subscribers: int) -> dict:
         ser_times.append(time.time() - start)
     total = len(ser_times)
     p95 = statistics.quantiles(ser_times, n=100)[94] if total >= 20 else max(ser_times) if ser_times else 0.0
-    avg_payload_bytes = 0
+    avg_payload_bytes: float = 0.0
     if cache._data:  # type: ignore[attr-defined]
         try:
             avg_payload_bytes = sum(len(e.data) for e in cache._data.values()) / len(cache._data)

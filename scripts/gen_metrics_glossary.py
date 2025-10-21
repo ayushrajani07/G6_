@@ -13,6 +13,7 @@ With --write it updates README.md in-place between the markers:
   <!-- METRICS_GLOSSARY_START --> ... <!-- METRICS_GLOSSARY_END -->
 """
 from __future__ import annotations
+
 import re
 import sys
 from pathlib import Path

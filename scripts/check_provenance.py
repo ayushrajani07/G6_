@@ -17,8 +17,15 @@ Usage:
       --alerts prometheus/g6_generated_alerts.yml
 """
 from __future__ import annotations
-import argparse, json, yaml, pathlib, hashlib, sys
-from typing import Optional
+
+import argparse  # type: ignore[import-untyped]
+import hashlib
+import json
+import pathlib
+import sys
+from typing import Any
+
+import yaml
 
 DEF_SPEC = 'metrics/spec/base.yml'
 DEF_DASH = 'grafana/dashboards/g6_spec_panels_dashboard.json'
@@ -34,7 +41,7 @@ def load_spec_hash(path: str) -> str:
     return short_hash(raw)
 
 
-def check_dashboard(path: str, expected: str) -> Optional[str]:
+def check_dashboard(path: str, expected: str) -> str | None:
     p = pathlib.Path(path)
     if not p.exists():
         return f'Dashboard missing: {path}'
@@ -50,12 +57,12 @@ def check_dashboard(path: str, expected: str) -> Optional[str]:
     return None
 
 
-def check_alerts(path: str, expected: str) -> Optional[str]:
+def check_alerts(path: str, expected: str) -> str | None:
     p = pathlib.Path(path)
     if not p.exists():
         return f'Alerts file missing: {path}'
     try:
-        data = yaml.safe_load(p.read_text(encoding='utf-8'))
+        data: Any = yaml.safe_load(p.read_text(encoding='utf-8'))  # type: ignore[no-redef]
     except Exception as e:
         return f'Alerts parse error: {e}'
     prov = (data or {}).get('x_g6_provenance') or {}

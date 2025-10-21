@@ -23,9 +23,11 @@ Behavior parity retained:
 """
 from __future__ import annotations
 
-from typing import Any, Iterable, Dict, Sequence, Union, Protocol, Callable, Optional, runtime_checkable
+import logging
+from collections.abc import Callable, Iterable, Sequence
+from typing import Any, Protocol, Union, runtime_checkable
+
 from .types import QuoteTD
-import logging, os, time, threading
 
 logger = logging.getLogger(__name__)
 
@@ -42,8 +44,9 @@ except Exception:  # pragma: no cover
 
 # Retry helper imported lazily to avoid cost if synthetic path only
 from src.utils.retry import call_with_retry
+
 try:  # rate limiter optional (Phase 1)
-    from .rate_limit import build_default_rate_limiter, RateLimitedError
+    from .rate_limit import RateLimitedError, build_default_rate_limiter
 except Exception:  # pragma: no cover
     build_default_rate_limiter = None  # type: ignore
     class RateLimitedError(RuntimeError): ...  # type: ignore
@@ -57,7 +60,6 @@ except Exception:  # pragma: no cover
     def get_batcher():  # type: ignore
         raise RuntimeError('batcher_unavailable')
 
-from . import quote_cache  # new cache module
 
 
 @runtime_checkable
@@ -65,9 +67,9 @@ class ProviderLike(Protocol):
     kite: Any
     _settings: Any
     _auth_failed: bool
-    _api_rl: Optional[Callable[[], None]]
-    _rl_fallback: Optional[Callable[[], bool]]
-    _rl_quote_fallback: Optional[Callable[[], bool]]
+    _api_rl: Callable[[], None] | None
+    _rl_fallback: Callable[[], bool] | None
+    _rl_quote_fallback: Callable[[], bool] | None
     _synthetic_quotes_used: int
     _last_quotes_synthetic: bool
     def maybe_refresh_token_proactively(self) -> None: ...  # pragma: no cover - optional
@@ -117,7 +119,7 @@ def _quality_guard_ltps(raw: Any) -> Any:
     return raw
 
 
-def _synthetic_ltp(provider, instruments: Iterable[InstrumentLike]) -> Dict[str, Any]:
+def _synthetic_ltp(provider, instruments: Iterable[InstrumentLike]) -> dict[str, Any]:
     # Synthetic fallback
     try:
         from src.broker.kite.synthetic import synth_ltp_for_pairs
@@ -137,7 +139,7 @@ def _synthetic_ltp(provider, instruments: Iterable[InstrumentLike]) -> Dict[str,
                 continue
         return synth_ltp_for_pairs(norm_pairs)
     except Exception:  # pragma: no cover
-        data: Dict[str, Any] = {}
+        data: dict[str, Any] = {}
         for entry in instruments:
             try:
                 if isinstance(entry, str):
@@ -164,7 +166,7 @@ def _synthetic_ltp(provider, instruments: Iterable[InstrumentLike]) -> Dict[str,
         return data
 
 
-def get_ltp(provider: ProviderLike | Any, instruments: Iterable[InstrumentLike]) -> Dict[str, Any]:
+def get_ltp(provider: ProviderLike | Any, instruments: Iterable[InstrumentLike]) -> dict[str, Any]:
     """Return last traded prices (dict) for requested instruments (parity preserved)."""
     try:
         try:
@@ -205,7 +207,7 @@ def get_ltp(provider: ProviderLike | Any, instruments: Iterable[InstrumentLike])
     return _synthetic_ltp(provider, instruments)
 
 
-def get_quote(provider: ProviderLike | Any, instruments: Iterable[InstrumentLike]) -> Dict[str, QuoteTD]:
+def get_quote(provider: ProviderLike | Any, instruments: Iterable[InstrumentLike]) -> dict[str, QuoteTD]:
     """Return full quotes (fallback to synthetic / LTP-based structure).
 
     Format mirrors provider.get_quote: dict keyed by EXCH:SYMBOL with at least
@@ -238,7 +240,7 @@ def get_quote(provider: ProviderLike | Any, instruments: Iterable[InstrumentLike
 
     # Fallback -> build synthetic quotes from LTP
     ltp_data = get_ltp(provider, instruments)
-    quotes: Dict[str, QuoteTD] = {}
+    quotes: dict[str, QuoteTD] = {}
     if isinstance(ltp_data, dict):
         try:
             from src.broker.kite.synthetic import build_synthetic_quotes

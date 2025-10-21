@@ -4,8 +4,9 @@ This snapshot object reduces repeated os.environ lookups on hot paths.
 Behavior must remain identical; only centralizing access.
 """
 from __future__ import annotations
-from dataclasses import dataclass
+
 import os
+from dataclasses import dataclass
 
 _BOOL_TRUE = {"1","true","yes","on"}
 
@@ -18,6 +19,7 @@ def _b(val: str | None, default: bool=False) -> bool:
 class Settings:
     concise: bool
     kite_timeout_sec: float
+    kite_instruments_timeout_sec: float
     kite_throttle_ms: int
     instrument_cache_ttl: float
     lean_mode: bool
@@ -42,6 +44,12 @@ def load_settings() -> Settings:
         or os.environ.get("G6_KITE_TIMEOUT_SEC", "4.0")
         or "4.0"
     )
+    # Instruments can legitimately take longer; allow a separate, higher default
+    kite_instr_timeout = float(
+        os.environ.get("G6_KITE_INSTRUMENTS_TIMEOUT_SEC")
+        or os.environ.get("G6_KITE_TIMEOUT_SEC")
+        or "8.0"
+    )
     throttle_ms = int(os.environ.get("G6_KITE_THROTTLE_MS", "0") or "0")
     try:
         ttl = float(os.environ.get('G6_INSTRUMENT_CACHE_TTL', '600'))
@@ -64,6 +72,7 @@ def load_settings() -> Settings:
     return Settings(
         concise=concise,
         kite_timeout_sec=kite_timeout,
+        kite_instruments_timeout_sec=kite_instr_timeout,
         kite_throttle_ms=throttle_ms,
         instrument_cache_ttl=ttl,
         lean_mode=lean_mode,

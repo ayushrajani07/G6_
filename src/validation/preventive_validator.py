@@ -11,8 +11,10 @@ Goals:
  - Produce a structured report used by collectors to decide whether to proceed.
 """
 from __future__ import annotations
-import math, statistics, datetime
-from typing import Dict, Any, Tuple, List, Set
+
+import datetime
+import statistics
+from typing import Any
 
 DEFAULT_CFG = {
     'max_strike_deviation_pct': 40.0,  # strikes outside ±40% of ATM rejected
@@ -40,9 +42,9 @@ def _parse_date(d) -> datetime.date | None:
     return None
 
 
-def validate_option_batch(index: str, expiry_rule: str, expiry_date, instruments: List[Dict[str,Any]], enriched: Dict[str,Dict[str,Any]], index_price: float, config: Dict[str,Any] | None = None) -> PreventiveResult:
+def validate_option_batch(index: str, expiry_rule: str, expiry_date, instruments: list[dict[str,Any]], enriched: dict[str,dict[str,Any]], index_price: float, config: dict[str,Any] | None = None) -> PreventiveResult:
     cfg = {**DEFAULT_CFG, **(config or {})}
-    report: Dict[str, Any] = {
+    report: dict[str, Any] = {
         'index': index,
         'expiry_rule': expiry_rule,
         'resolved_expiry': str(expiry_date),
@@ -67,7 +69,7 @@ def validate_option_batch(index: str, expiry_rule: str, expiry_date, instruments
     atm = index_price or 0
     if atm <= 0:
         # Fallback: median strike from instruments (ignore None / non-numeric safely)
-        numeric_strikes: List[float] = []
+        numeric_strikes: list[float] = []
         for i in instruments:
             raw = i.get('strike')
             if raw is None:
@@ -86,8 +88,8 @@ def validate_option_batch(index: str, expiry_rule: str, expiry_date, instruments
 
     max_dev = cfg['max_strike_deviation_pct'] / 100.0 if atm > 0 else None
 
-    cleaned: Dict[str, Dict[str, Any]] = {}
-    strikes: Set[float] = set()
+    cleaned: dict[str, dict[str, Any]] = {}
+    strikes: set[float] = set()
 
     for sym, row in enriched.items():
         # Strike validation

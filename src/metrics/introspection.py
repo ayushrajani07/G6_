@@ -17,8 +17,8 @@ collector types are introduced.
 """
 from __future__ import annotations
 
-from typing import Any, List, Dict
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ __all__ = [
 ]
 
 
-def build_introspection_inventory(registry: Any) -> List[Dict[str, Any]]:  # pragma: no cover - pure data assembly
+def build_introspection_inventory(registry: Any) -> list[dict[str, Any]]:  # pragma: no cover - pure data assembly
     """Assemble a list of metric metadata dictionaries.
 
     Each entry contains: name, attr, type, group, labels, documentation.
@@ -41,7 +41,7 @@ def build_introspection_inventory(registry: Any) -> List[Dict[str, Any]]:  # pra
     with the 'g6_' prefix are included to avoid leaking internal state.
     The result is deterministically sorted by metric name then attribute.
     """
-    inventory: List[Dict[str, Any]] = []
+    inventory: list[dict[str, Any]] = []
     try:
         # The registry mapping can be useful for future enrichment; retained for parity
         _ = getattr(REGISTRY, "_names_to_collectors", {}) if REGISTRY else {}
@@ -82,7 +82,7 @@ def build_introspection_inventory(registry: Any) -> List[Dict[str, Any]]:  # pra
     return inventory
 
 
-def get_metrics_introspection(registry: Any) -> List[Dict[str, Any]]:  # pragma: no cover - thin accessor
+def get_metrics_introspection(registry: Any) -> list[dict[str, Any]]:  # pragma: no cover - thin accessor
     """Return cached introspection inventory, rebuilding if absent."""
     inv = getattr(registry, "_metrics_introspection", None)
     if inv is None:

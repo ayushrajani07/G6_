@@ -22,12 +22,12 @@ Each trigger returns a dict {type, message}. Callers can aggregate and attach
 into runtime status under key 'adaptive_alerts'.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
+
 import os
-import math
-import time
+from typing import Any
 
 from . import severity
+
 
 def _get_metrics():  # lightweight guarded import to avoid attr-defined ignores
     try:
@@ -36,7 +36,7 @@ def _get_metrics():  # lightweight guarded import to avoid attr-defined ignores
     except Exception:
         return None
 
-def _get_or_init_dict(obj: Any, attr: str) -> Dict[str, Any]:
+def _get_or_init_dict(obj: Any, attr: str) -> dict[str, Any]:
     d = getattr(obj, attr, None)
     if not isinstance(d, dict):
         d = {}
@@ -46,7 +46,7 @@ def _get_or_init_dict(obj: Any, attr: str) -> Dict[str, Any]:
             pass
     return d
 
-def _get_or_init_list(obj: Any, attr: str) -> List[Any]:
+def _get_or_init_list(obj: Any, attr: str) -> list[Any]:
     lst = getattr(obj, attr, None)
     if not isinstance(lst, list):
         lst = []
@@ -82,7 +82,7 @@ def _env_int(name: str, default: int) -> int:
 
 # ---------------- Interpolation Guard -----------------
 
-def record_interpolation_fraction(index: str, fraction: float) -> Optional[Dict[str, Any]]:
+def record_interpolation_fraction(index: str, fraction: float) -> dict[str, Any] | None:
     m = _get_metrics()
     if m is None:
         return None
@@ -122,7 +122,7 @@ def record_interpolation_fraction(index: str, fraction: float) -> Optional[Dict[
                 aia.labels(index=index, reason='high_fraction').inc()
         except Exception:
             pass
-        alert_obj: Dict[str, Any] = {
+        alert_obj: dict[str, Any] = {
             'type': 'interpolation_high',
             'message': f'interpolated fraction {fraction:.2f} > {thr:.2f} for {cur} consecutive builds ({index})',
             'interpolated_fraction': fraction,
@@ -131,7 +131,7 @@ def record_interpolation_fraction(index: str, fraction: float) -> Optional[Dict[
         try:
             alerts_list = getattr(m, 'adaptive_alerts', None)
             if alerts_list is None:
-                setattr(m, 'adaptive_alerts', [alert_obj])
+                m.adaptive_alerts = [alert_obj]
             else:
                 if isinstance(alerts_list, list):
                     alerts_list.append(alert_obj)
@@ -142,7 +142,7 @@ def record_interpolation_fraction(index: str, fraction: float) -> Optional[Dict[
 
 # ---------------- Risk Delta Drift -----------------
 
-def record_risk_delta(delta_notional: float, row_count: int) -> Optional[Dict[str, Any]]:
+def record_risk_delta(delta_notional: float, row_count: int) -> dict[str, Any] | None:
     m = _get_metrics()
     if m is None:
         return None
@@ -182,7 +182,7 @@ def record_risk_delta(delta_notional: float, row_count: int) -> Optional[Dict[st
                 ard.labels(direction=direction).inc()
         except Exception:
             pass
-        alert_obj: Dict[str, Any] = {
+        alert_obj: dict[str, Any] = {
             'type': 'risk_delta_drift',
             'message': f'risk delta drift {change_pct:+.1f}% over {window} builds with stable rows',
             'drift_pct': change_pct,
@@ -193,7 +193,7 @@ def record_risk_delta(delta_notional: float, row_count: int) -> Optional[Dict[st
 
 # ---------------- Bucket Utilization Streak -----------------
 
-def record_bucket_util(utilization: float) -> Optional[Dict[str, Any]]:
+def record_bucket_util(utilization: float) -> dict[str, Any] | None:
     m = _get_metrics()
     if m is None:
         return None
@@ -205,7 +205,7 @@ def record_bucket_util(utilization: float) -> Optional[Dict[str, Any]]:
     else:
         cur = 0
     try:
-        setattr(m, '_bucket_util_streak', cur)
+        m._bucket_util_streak = cur
     except Exception:
         pass
     try:
@@ -221,7 +221,7 @@ def record_bucket_util(utilization: float) -> Optional[Dict[str, Any]]:
                 abua.inc()
         except Exception:
             pass
-        alert_obj: Dict[str, Any] = {
+        alert_obj: dict[str, Any] = {
             'type': 'bucket_util_low',
             'message': f'bucket utilization {utilization:.2f} < {thr:.2f} for {cur} consecutive builds',
             'utilization': utilization,

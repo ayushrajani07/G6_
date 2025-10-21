@@ -4,8 +4,10 @@ Centralizes fabrication logic used when real API calls fail or when auth is
 unavailable. Behavior preserved verbatim from pre-refactor implementation.
 """
 from __future__ import annotations
-from typing import Iterable, Dict, Any, Tuple, List
+
 import datetime as _dt
+from collections.abc import Iterable
+from typing import Any
 
 # Base ATM anchors and strike steps (mirrors constants inline in legacy path)
 _BASE_ATM = {
@@ -38,7 +40,7 @@ def _next_weekday(start: _dt.date, target_weekday: int) -> _dt.date:
     return start + _dt.timedelta(days=7)
 
 
-def generate_synthetic_instruments() -> List[Dict[str, Any]]:
+def generate_synthetic_instruments() -> list[dict[str, Any]]:
     """Reproduce legacy synthetic instrument lattice (two expiries, 3 strikes, CE/PE)."""
     today = _dt.date.today()
     this_map = {
@@ -49,7 +51,7 @@ def generate_synthetic_instruments() -> List[Dict[str, Any]]:
     }
     next_map = {k: v + _dt.timedelta(days=7) for k, v in this_map.items()}
     exp_map = {k: [this_map[k], next_map[k]] for k in this_map}
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     token_counter = 1
     for idx, expiries in exp_map.items():
         atm = _BASE_ATM[idx]
@@ -77,9 +79,9 @@ def generate_synthetic_instruments() -> List[Dict[str, Any]]:
     return out
 
 
-def synth_ltp_for_pairs(pairs: Iterable[Tuple[str, str]]) -> Dict[str, Any]:
+def synth_ltp_for_pairs(pairs: Iterable[tuple[str, str]]) -> dict[str, Any]:
     """Return synthetic LTP mapping for exchange:symbol pairs (same heuristics)."""
-    data: Dict[str, Any] = {}
+    data: dict[str, Any] = {}
     for exch, ts in pairs:
         if 'NIFTY 50' in ts:
             price = 24800
@@ -97,12 +99,12 @@ def synth_ltp_for_pairs(pairs: Iterable[Tuple[str, str]]) -> Dict[str, Any]:
     return data
 
 
-def build_synthetic_quotes(ltp_map: Dict[str, Any]) -> Dict[str, Any]:
+def build_synthetic_quotes(ltp_map: dict[str, Any]) -> dict[str, Any]:
     """Given an LTP map (like synth_ltp_for_pairs), fabricate quote-like payloads.
 
     Adds deterministic OHLC + synthetic volume/oi/average_price fields (copied from legacy logic).
     """
-    quotes: Dict[str, Any] = {}
+    quotes: dict[str, Any] = {}
     for key, payload in ltp_map.items():
         lp = payload.get('last_price', 0)
         high = round(lp * 1.01, 2) if lp else 0

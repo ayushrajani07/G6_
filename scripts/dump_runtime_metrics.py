@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import importlib
+
 from prometheus_client import REGISTRY
 
 # Force import via facade (legacy path retained for historical comparison tests elsewhere)

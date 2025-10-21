@@ -17,8 +17,15 @@ Env flags honored:
 
 """
 from __future__ import annotations
-import os, time, json, argparse, statistics, sys, pathlib
-from typing import Dict, Any, List, cast
+
+import argparse
+import json
+import os
+import pathlib
+import statistics
+import sys
+import time
+from typing import Any, cast
 
 # Ensure project root on path when executed directly (not via module runner)
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -61,8 +68,8 @@ except Exception:  # pragma: no cover
             return data
 
 
-def _build_index_params(symbols: List[str]) -> Dict[str, Dict[str, Any]]:
-    params: Dict[str, Dict[str, Any]] = {}
+def _build_index_params(symbols: list[str]) -> dict[str, dict[str, Any]]:
+    params: dict[str, dict[str, Any]] = {}
     for sym in symbols:
         params[sym] = {
             'symbol': sym,
@@ -101,10 +108,10 @@ def _run_cycle(index_params, provider, *, pipeline: bool, async_enrich: bool) ->
     return elapsed
 
 
-def benchmark(symbols: List[str], cycles: int) -> Dict[str, Any]:
+def benchmark(symbols: list[str], cycles: int) -> dict[str, Any]:
     provider = DeterministicProvider()
     index_params = _build_index_params(symbols)
-    results: Dict[str, List[float]] = {
+    results: dict[str, list[float]] = {
         'legacy': [],
         'pipeline_sync': [],
         'pipeline_async': [],
@@ -114,14 +121,14 @@ def benchmark(symbols: List[str], cycles: int) -> Dict[str, Any]:
         results['pipeline_sync'].append(_run_cycle(index_params, provider, pipeline=True, async_enrich=False))
         # Async path optional – if enrichment_async not available call still falls back, so include
         results['pipeline_async'].append(_run_cycle(index_params, provider, pipeline=True, async_enrich=True))
-    def _summary(vals: List[float]) -> Dict[str, float]:
+    def _summary(vals: list[float]) -> dict[str, float]:
         return {
             'mean_s': statistics.mean(vals),
             'p95_s': sorted(vals)[int(len(vals)*0.95)-1] if vals else 0.0,
             'min_s': min(vals),
             'max_s': max(vals),
         }
-    out: Dict[str, Any] = {k: _summary(v) for k,v in results.items()}
+    out: dict[str, Any] = {k: _summary(v) for k,v in results.items()}
     # Relative speedups
     base = out['legacy']['mean_s'] or 1.0
     # Store speedups as floats (0.0 sentinel if division invalid) for schema stability

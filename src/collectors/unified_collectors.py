@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 # Standard library imports needed early in module
-import os
-import logging
 import datetime
+import logging
+import os
 import time
+
 try:
     from src.utils.env_flags import is_truthy_env
 except Exception:  # fallback should not trigger normally
@@ -23,36 +23,45 @@ def _trace_import(msg: str) -> None:  # lightweight, safe no-op if disabled
         pass
 
 _trace_import('unified_collectors: start import')
-from typing import Dict, Any, List, Tuple, Optional, Callable, Set, cast, TypedDict
 import json
 from dataclasses import dataclass
+from typing import Any, TypedDict, cast
+
 _trace_import('import cycle_context')
-from src.collectors.cycle_context import CycleContext, ExpiryContext
+from src.collectors.cycle_context import CycleContext
+
 _trace_import('import timeutils')
 from src.utils.timeutils import utc_now
+
 _trace_import('import modules.context')
-from src.collectors.modules.context import build_collector_context, CollectorContext  # Phase 1 context introduction
+from src.collectors.modules.context import CollectorContext, build_collector_context  # Phase 1 context introduction
+
 _trace_import('import persist_result')
 from src.collectors.persist_result import PersistResult
+
 _trace_import('import helpers.persist')
-from src.collectors.helpers.persist import persist_and_metrics, persist_with_context
+from src.collectors.helpers.persist import persist_and_metrics
+
 _trace_import('import logstream.formatter')
-from src.logstream.formatter import format_index
 _trace_import('import utils.deprecations')
+# Add this before launching the subprocess
+
 from src.utils.deprecations import check_pipeline_flag_deprecation
 
-
-# Add this before launching the subprocess
-import sys  # retained for potential future CLI usage
 _trace_import('import utils.market_hours')
-from src.utils.market_hours import get_next_market_open  # dynamic is_market_open access below
 try:  # Phase 6: data quality bridge (extracted)
     _trace_import('import data_quality_bridge')
     from src.collectors.modules.data_quality_bridge import (
         get_dq_checker as _get_dq_checker,
-        run_option_quality as _run_option_quality,
-        run_index_quality as _run_index_quality,
+    )
+    from src.collectors.modules.data_quality_bridge import (
         run_expiry_consistency as _run_expiry_consistency,
+    )
+    from src.collectors.modules.data_quality_bridge import (
+        run_index_quality as _run_index_quality,
+    )
+    from src.collectors.modules.data_quality_bridge import (
+        run_option_quality as _run_option_quality,
     )
 except Exception:  # pragma: no cover
     _get_dq_checker = lambda: None
@@ -61,18 +70,10 @@ except Exception:  # pragma: no cover
     _run_expiry_consistency = lambda dq, options_data, index_price, expiry_rule: []
 _trace_import('import memory_pressure_bridge')
 from src.collectors.modules.memory_pressure_bridge import evaluate_memory_pressure  # memory pressure abstraction
+
 _trace_import('import error_handling')
-from src.error_handling import handle_collector_error
 _trace_import('import utils.exceptions')
-from src.utils.exceptions import (
-    ResolveExpiryError,
-    NoInstrumentsError,
-    NoQuotesError,
-    CsvWriteError,
-    InfluxWriteError,
-)
 _trace_import('import helpers.status_reducer')
-from src.collectors.helpers.status_reducer import derive_partial_reason  # hot-path helper (was dynamically imported)
 
 
 
@@ -80,7 +81,7 @@ from src.collectors.helpers.status_reducer import derive_partial_reason  # hot-p
 _trace_import('imports complete, logger init')
 logger = logging.getLogger(__name__)
 # Stage2 global flags
-_DAILY_HEADER_EMITTED: Set[str] = set()
+_DAILY_HEADER_EMITTED: set[str] = set()
 _AGGREGATED_SUMMARY_ENABLED = is_truthy_env('G6_AGGREGATE_GLOBAL_BANNER')
 _PHASE_MERGE = is_truthy_env('G6_PHASE_TIMING_MERGE')
 _PHASE_SINGLE_EMIT = is_truthy_env('G6_PHASE_TIMING_SINGLE_EMIT')  # new: consolidate to one line per cycle
@@ -97,6 +98,53 @@ _G6_PROVIDER_OUTAGE_SEQ: int = 0
 
 # Explicit public exports (static) – replaces late mutation pattern
 __all__: list[str] = ['_EXPIRY_SERVICE_SINGLETON']
+
+# Backward-compatibility shim: IV estimation block re-export
+# Tests import _iv_estimation_block from this module; delegate to modular implementation.
+try:  # pragma: no cover - simple adapter
+    from src.collectors.modules.iv_estimation import run_iv_estimation as _run_iv_estimation
+except Exception:  # fallback no-op if module unavailable
+    def _run_iv_estimation(*_a: "object", **_k: "object") -> None:  # type: ignore[override]
+        return None
+
+def _iv_estimation_block(
+    ctx: "object",
+    enriched: "object",
+    index_symbol: "object",
+    expiry_rule: "object",
+    expiry_date: "object",
+    index_price: "object",
+    greeks_calculator: "object",
+    estimate_iv_enabled: "object",
+    risk_free_rate: "object",
+    iv_max_iterations: "object",
+    iv_min: "object",
+    iv_max: "object",
+    iv_precision: "object",
+) -> None:
+    """Compatibility adapter calling the modular IV estimation routine.
+
+    This preserves the historical import location while forwarding to the
+    current implementation which also records histogram observations.
+    """
+    try:
+        _run_iv_estimation(
+            ctx,
+            enriched,
+            index_symbol,
+            expiry_rule,
+            expiry_date,
+            index_price,
+            greeks_calculator,
+            bool(estimate_iv_enabled),
+            risk_free_rate,
+            iv_max_iterations,
+            iv_min,
+            iv_max,
+            iv_precision,
+        )
+    except Exception:
+        logger.debug('iv_estimation_block_delegate_failed', exc_info=True)
 
 # Centralized TRACE emission: delegate to broker.kite.tracing when available.
 try:  # pragma: no cover - import side-effect free
@@ -149,7 +197,7 @@ class _ExpiryResult:
         'expiry_rule','expiry_date','enriched','pcr','day_width','collection_time',
         'strike_list','option_count','fail','human_row','snapshot_timestamp'
     )
-    def __init__(self, expiry_rule: str, expiry_date: Any, enriched: Dict[str,Any], strike_list: List[float]) -> None:
+    def __init__(self, expiry_rule: str, expiry_date: Any, enriched: dict[str,Any], strike_list: list[float]) -> None:
         self.expiry_rule = expiry_rule
         self.expiry_date = expiry_date
         self.enriched = enriched
@@ -170,9 +218,9 @@ class AggregationState:
     snapshot_base_time: earliest timestamp across expiries (used for snapshot anchoring).
     """
     representative_day_width: int = 0
-    snapshot_base_time: Optional[datetime.datetime] = None
+    snapshot_base_time: datetime.datetime | None = None
 
-    def capture(self, metrics_payload: Dict[str, Any]) -> None:  # pragma: no cover - lightweight defensive
+    def capture(self, metrics_payload: dict[str, Any]) -> None:  # pragma: no cover - lightweight defensive
         try:
             if metrics_payload.get('day_width'):
                 self.representative_day_width = int(metrics_payload['day_width'])
@@ -195,7 +243,7 @@ class ExpiryStructEntry(TypedDict, total=False):
     pcr: float | None
     day_width: int | None
     collection_time: float | None
-    strike_list: List[float]
+    strike_list: list[float]
     empty_consec: int
 
 
@@ -204,7 +252,7 @@ class IndexStructEntry(TypedDict, total=False):
     status: str
     option_count: int
     attempts: int
-    expiries: List[ExpiryStructEntry]
+    expiries: list[ExpiryStructEntry]
     legs: int
     fails: int
     empty_consec: int
@@ -233,7 +281,7 @@ def _maybe_emit_heartbeat(metrics: Any, *, force: bool = False) -> None:
         hb.loop.heartbeat duration_s=<sec_since_last_cycle> options=<last_cycle_options> cycles=<total_cycles>
     Safe no-op if metrics absent. Uses module global to avoid cross-import duplication.
     """
-    import os, time as _t
+    import time as _t
     try:
         from src.collector.settings import get_collector_settings as _get_cs
     except Exception:
@@ -280,14 +328,14 @@ def _maybe_emit_heartbeat(metrics: Any, *, force: bool = False) -> None:
         batch_avg = None
         try:
             if metrics and hasattr(metrics, 'collection_cycles'):
-                val = getattr(getattr(metrics, 'collection_cycles'), '_value', None)
+                val = getattr(metrics.collection_cycles, '_value', None)
                 if val and hasattr(val, 'get'):
                     cycles = int(val.get())
         except Exception:
             pass
         try:
             if metrics and hasattr(metrics, '_last_cycle_options'):
-                opts = int(getattr(metrics, '_last_cycle_options') or 0)
+                opts = int(metrics._last_cycle_options or 0)
         except Exception:
             pass
         try:  # batching stats
@@ -301,7 +349,7 @@ def _maybe_emit_heartbeat(metrics: Any, *, force: bool = False) -> None:
             import gc
             for _obj in gc.get_objects():
                 if _obj.__class__.__name__ == 'RateLimiter' and hasattr(_obj, '_st'):
-                    _st = getattr(_obj, '_st')
+                    _st = _obj._st
                     limiter_tokens = getattr(_st, 'tokens', None)
                     cd_until = getattr(_st, 'cooldown_until', 0.0)
                     if cd_until and cd_until > now:
@@ -333,7 +381,7 @@ def _init_cycle_metrics(metrics: Any) -> None:  # side-effect only
             pass
 
 
-def _maybe_init_greeks(compute_greeks: bool, estimate_iv: bool, risk_free_rate: float, metrics: Any) -> Tuple[Any, bool, bool]:
+def _maybe_init_greeks(compute_greeks: bool, estimate_iv: bool, risk_free_rate: float, metrics: Any) -> tuple[Any, bool, bool]:
     """Initialize greeks calculator honoring env overrides. Returns (greeks_calculator, compute_greeks_flag, estimate_iv_flag)."""
     try:
         _env_force_greeks = is_truthy_env('G6_FORCE_GREEKS')
@@ -370,7 +418,7 @@ def _maybe_init_greeks(compute_greeks: bool, estimate_iv: bool, risk_free_rate: 
     return greeks_calculator, compute_greeks, estimate_iv
 
 
-def _evaluate_memory_pressure(metrics: Any) -> Dict[str,Any]:  # backward-compatible wrapper
+def _evaluate_memory_pressure(metrics: Any) -> dict[str,Any]:  # backward-compatible wrapper
     return evaluate_memory_pressure(metrics)
 
 
@@ -379,7 +427,7 @@ try:
     from src.utils.strikes import build_strikes as _build_strikes  # shared utility with scale param
 except Exception:  # pragma: no cover
     _FALLBACK_BUILD = True
-    def _build_strikes(atm: float, n_itm: int, n_otm: int, index_symbol: str, *, step: float | None = None, min_strikes: int = 0, scale: float | None = None) -> List[float]:  # match primary signature superset
+    def _build_strikes(atm: float, n_itm: int, n_otm: int, index_symbol: str, *, step: float | None = None, min_strikes: int = 0, scale: float | None = None) -> list[float]:  # match primary signature superset
         # scale ignored in fallback
         if atm <= 0:
             return []
@@ -389,7 +437,7 @@ except Exception:  # pragma: no cover
             step = float(get_index_meta(index_symbol).step)
         except Exception:
             step = 100.0 if index_symbol in ['BANKNIFTY','SENSEX'] else 50.0
-        arr: List[float] = []
+        arr: list[float] = []
         for i in range(1, n_itm + 1):
             arr.append(float(atm - i*step))
         arr.append(float(atm))
@@ -409,31 +457,24 @@ except Exception:  # pragma: no cover
 # NOTE: Deferred intentionally to keep current change scoped to complexity reduction.
 
 
-from src.collectors.modules.coverage_eval import coverage_metrics as _coverage_metrics, field_coverage_metrics as _field_coverage_metrics  # Phase 3 extracted
-from src.collectors.helpers.iv_greeks import iv_estimation_block as _iv_estimation_block
-from src.collectors.helpers.validation import preventive_validation_stage as _preventive_validation_stage
 try:  # synthetic classification removed; keep placeholder for backward compatibility if tests import
     from src.collectors.helpers.synthetic import classify_expiry_result as _classify_expiry_result
 except Exception:  # pragma: no cover
-    def _classify_expiry_result(expiry_rec: Dict[str, Any], enriched_data: Dict[str, Any]) -> Any:  # widen to Any for parity
+    def _classify_expiry_result(expiry_rec: dict[str, Any], enriched_data: dict[str, Any]) -> Any:  # widen to Any for parity
         return {'status': 'OK'}
 try:  # synthetic index price strategy deprecated
     from src.synthetic.strategy import synthesize_index_price as _synthesize_index_price
 except Exception:  # pragma: no cover
-    def _synthesize_index_price(index_symbol: str, index_price: Any, atm_strike: Any) -> Tuple[float, float, bool]:  # match imported flexibility
+    def _synthesize_index_price(index_symbol: str, index_price: Any, atm_strike: Any) -> tuple[float, float, bool]:  # match imported flexibility
         try:
             return float(index_price), float(atm_strike), False
         except Exception:
             return 0.0, 0.0, False
-from src.collectors.helpers.validation import preventive_validation_stage as _preventive_validation_stage
-from src.collectors.helpers.greeks import compute_greeks_block as _compute_greeks_block
-from src.collectors.helpers.status_reducer import compute_expiry_status as _compute_expiry_status, aggregate_cycle_status as _aggregate_cycle_status
+from src.collectors.helpers.status_reducer import aggregate_cycle_status as _aggregate_cycle_status
 from src.collectors.helpers.struct_events import (
-    emit_zero_data as _emit_zero_data_struct,
-    emit_option_match_stats as _emit_option_match_stats,
     emit_cycle_status_summary as _emit_cycle_status_summary,
 )
-from src.collectors.modules.expiry_universe import build_expiry_map as _build_expiry_map  # Phase 2: extracted expiry map
+
 try:
     # B11 anomaly detection (optional) – lightweight import; guarded where used
     from src.bench.anomaly import detect_anomalies as _detect_anomalies
@@ -507,7 +548,8 @@ def _resolve_expiry(index_symbol: str, expiry_rule: str, providers: Any, metrics
     Single source of truth: delegate directly to `providers.resolve_expiry`.
     Any failure falls back to today's date (logged in non-concise mode).
     """
-    import datetime as _dt, logging
+    import datetime as _dt
+    import logging
     try:
         return cast(datetime.date, providers.resolve_expiry(index_symbol, expiry_rule))
     except Exception as e:  # defensive fallback: today
@@ -518,19 +560,18 @@ def _resolve_expiry(index_symbol: str, expiry_rule: str, providers: Any, metrics
         return _dt.date.today()
 
 
-def _fetch_option_instruments(index_symbol: str, expiry_rule: str, expiry_date: Any, strikes: List[float], providers: Any, metrics: Any) -> Any:  # pragma: no cover
+def _fetch_option_instruments(index_symbol: str, expiry_rule: str, expiry_date: Any, strikes: list[float], providers: Any, metrics: Any) -> Any:  # pragma: no cover
     from src.collectors.modules.expiry_helpers import fetch_option_instruments as _impl
     return _impl(index_symbol, expiry_rule, expiry_date, strikes, providers, metrics)
 
 
-def _enrich_quotes(index_symbol: str, expiry_rule: str, expiry_date: Any, instruments: Any, providers: Any, metrics: Any) -> Dict[str, Any]:  # pragma: no cover
+def _enrich_quotes(index_symbol: str, expiry_rule: str, expiry_date: Any, instruments: Any, providers: Any, metrics: Any) -> dict[str, Any]:  # pragma: no cover
     from src.collectors.modules.expiry_helpers import enrich_quotes as _impl
-    return cast(Dict[str, Any], _impl(index_symbol, expiry_rule, expiry_date, instruments, providers, metrics))
+    return cast(dict[str, Any], _impl(index_symbol, expiry_rule, expiry_date, instruments, providers, metrics))
 
 # Dynamic __all__ mutation removed (static __all__ defined above)
 
 
-from src.collectors.helpers.validation import preventive_validation_stage as _preventive_validation_stage
 
 
 def _process_index(
@@ -541,15 +582,15 @@ def _process_index(
     compute_greeks: bool,
     estimate_iv: bool,
     greeks_calculator: Any,
-    mem_flags: Dict[str, Any],
+    mem_flags: dict[str, Any],
     concise_mode: bool,
     build_snapshots: bool,
     risk_free_rate: float,
     metrics: Any,
-    snapshots_accum: List[Any],
+    snapshots_accum: list[Any],
     dq_enabled: bool,
     dq_checker: Any,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
     """Thin delegator to extracted modules.index_processor.process_index.
 
     Falls back to legacy inline implementation (no-op result) if import fails.
@@ -583,10 +624,10 @@ def _process_index(
                 'run_index_quality': _run_index_quality,
             },
         )
-        return cast(Dict[str, Any], res)
+        return cast(dict[str, Any], res)
     except Exception:
         logger.debug('index_processor_module_failed', exc_info=True)
-        return cast(Dict[str, Any], {
+        return cast(dict[str, Any], {
             'human_block': None,
             'indices_struct_entry': None,
             'summary_rows_entry': None,
@@ -602,8 +643,8 @@ def _process_expiry(
     expiry_rule: str,
     atm_strike: float,
     concise_mode: bool,
-    precomputed_strikes: List[float],
-    expiry_universe_map: Optional[Dict[Any, Any]],
+    precomputed_strikes: list[float],
+    expiry_universe_map: dict[Any, Any] | None,
     allow_per_option_metrics: bool,
     local_compute_greeks: bool,
     local_estimate_iv: bool,
@@ -611,17 +652,17 @@ def _process_expiry(
     risk_free_rate: float,
     per_index_ts: datetime.datetime,
     index_price: float,
-    index_ohlc: Dict[str, Any],
+    index_ohlc: dict[str, Any],
     metrics: Any,
-    mem_flags: Dict[str, Any],
+    mem_flags: dict[str, Any],
     dq_checker: Any,
     dq_enabled: bool,
-    snapshots_accum: List[Any],
+    snapshots_accum: list[Any],
     build_snapshots: bool,
     allowed_expiry_dates: set,
-    pcr_snapshot: Dict[str, Any],
+    pcr_snapshot: dict[str, Any],
     aggregation_state: 'AggregationState',
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
     """Process a single expiry. Returns dict containing success flag, option_count, expiry_rec, human_row.
 
     Extraction of original inline logic from _process_index; behavior preserved. AggregationState replaces holder lambdas.
@@ -631,7 +672,7 @@ def _process_expiry(
         from src.collectors.modules.expiry_processor import process_expiry as _proc
         # Optional pipeline v2 path
         try:
-            from src.collectors.modules.expiry_pipeline import process_expiry_v2, pipeline_enabled
+            from src.collectors.modules.expiry_pipeline import pipeline_enabled, process_expiry_v2
             if pipeline_enabled():  # route through skeleton pipeline
                 # Provide pipeline phases access to strike universe & optional expiry_universe_map
                 _prev_strikes = getattr(ctx, 'precomputed_strikes', None)
@@ -639,7 +680,7 @@ def _process_expiry(
                 try:
                     try:
                         try:
-                            setattr(ctx, 'precomputed_strikes', precomputed_strikes)
+                            ctx.precomputed_strikes = precomputed_strikes
                         except Exception:
                             pass
                     except Exception:
@@ -647,7 +688,7 @@ def _process_expiry(
                     if expiry_universe_map is not None:
                         try:
                             try:
-                                setattr(ctx, 'expiry_universe_map', expiry_universe_map)
+                                ctx.expiry_universe_map = expiry_universe_map
                             except Exception:
                                 pass
                         except Exception:
@@ -668,7 +709,7 @@ def _process_expiry(
                                 delattr(ctx, 'precomputed_strikes')
                         else:
                             try:
-                                setattr(ctx, 'precomputed_strikes', _prev_strikes)
+                                ctx.precomputed_strikes = _prev_strikes
                             except Exception:
                                 pass
                     except Exception:
@@ -680,14 +721,14 @@ def _process_expiry(
                                     delattr(ctx, 'expiry_universe_map')
                             else:
                                 try:
-                                    setattr(ctx, 'expiry_universe_map', _prev_universe)
+                                    ctx.expiry_universe_map = _prev_universe
                                 except Exception:
                                     pass
                         except Exception:
                             pass
         except Exception:
             pass  # fall back to legacy immediately
-        res2: Dict[str, Any] = _proc(
+        res2: dict[str, Any] = _proc(
             ctx=ctx,
             index_symbol=index_symbol,
             expiry_rule=expiry_rule,
@@ -718,11 +759,11 @@ def _process_expiry(
     except Exception:  # pragma: no cover - fallback path
         logger.debug('expiry_processor_module_failed_fallback_inline', exc_info=True)
         # Preserve legacy failure semantics: return a minimal failure outcome
-        return cast(Dict[str, Any], {'success': False, 'option_count': 0, 'expiry_rec': {'rule': expiry_rule, 'failed': True}})
+        return cast(dict[str, Any], {'success': False, 'option_count': 0, 'expiry_rec': {'rule': expiry_rule, 'failed': True}})
 
 
 def run_unified_collectors(
-    index_params: Dict[str, Any],
+    index_params: dict[str, Any],
     providers: Any,
     csv_sink: Any,
     influx_sink: Any,
@@ -736,7 +777,7 @@ def run_unified_collectors(
     iv_max: float | None = None,
     iv_precision: float | None = None,
     build_snapshots: bool = False,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Run unified collectors for all configured indices.
 
     Parameters
@@ -778,7 +819,7 @@ def run_unified_collectors(
             have_warned = False
         if not have_warned:
             logger.error("Unified collectors: providers not initialized (set G6_BOOTSTRAP_COMPONENTS=1 or supply credentials); skipping all indices")
-            try: setattr(run_unified_collectors, '_g6_warned_missing_providers', True)
+            try: run_unified_collectors._g6_warned_missing_providers = True
             except Exception: pass
         return {
             'status': 'no_providers',
@@ -816,7 +857,7 @@ def run_unified_collectors(
     try:
         if _collector_settings is not None:
             try:
-                setattr(ctx, 'collector_settings', _collector_settings)
+                ctx.collector_settings = _collector_settings
             except Exception:
                 pass
     except Exception:
@@ -829,7 +870,7 @@ def run_unified_collectors(
             debug=is_truthy_env('G6_COLLECTOR_REFACTOR_DEBUG'),
         )
         try:
-            setattr(ctx, 'collector_ctx', _collector_ctx)
+            ctx.collector_ctx = _collector_ctx
         except Exception:
             pass
     except Exception:
@@ -857,12 +898,12 @@ def run_unified_collectors(
                 _maybe_auto_disable_trace_flags()
             except Exception:
                 logger.debug('trace_auto_disable_early_failed', exc_info=True)
-            return cast(Dict[str, Any], early)
+            return cast(dict[str, Any], early)
         _trace("market_open")
     except Exception:
         logger.debug("market_gate_module_failed_fallback_inline", exc_info=True)
         # Fallback: do nothing (assume open) and continue
-    
+
     # Init greeks & memory pressure flags
     # Update bootstrap with elapsed so far (exclude future timed phases) if still zero.
     try:
@@ -888,7 +929,7 @@ def run_unified_collectors(
     banner_debug = is_truthy_env('G6_BANNER_DEBUG')
     if concise_mode and not single_header_mode:
         # Use timezone-aware UTC now to avoid naive datetime usage (tests forbid naive now())
-        today_str = datetime.datetime.now(datetime.timezone.utc).strftime('%d-%b-%Y')  # display-ok
+        today_str = datetime.datetime.now(datetime.UTC).strftime('%d-%b-%Y')  # display-ok
         force_daily_repeat = is_truthy_env('G6_DAILY_HEADER_EVERY_CYCLE')
         suppress_repeat = is_truthy_env('G6_DISABLE_REPEAT_BANNERS')
         if force_daily_repeat or (today_str not in _DAILY_HEADER_EMITTED) or not suppress_repeat:
@@ -900,7 +941,7 @@ def run_unified_collectors(
     elif single_header_mode:
         # Ensure collectors do NOT re-emit banner accidentally (legacy code paths)
         # Add a lightweight sentinel each call; no logging here.
-        today_str = datetime.datetime.now(datetime.timezone.utc).strftime('%d-%b-%Y')  # display-ok
+        today_str = datetime.datetime.now(datetime.UTC).strftime('%d-%b-%Y')  # display-ok
         _DAILY_HEADER_EMITTED.add(today_str)
         if banner_debug:
             logger.debug("banner_suppressed single_header_mode=1 date=%s", today_str)
@@ -918,8 +959,8 @@ def run_unified_collectors(
             return default
 
     # Container for optional snapshot domain objects (built only when build_snapshots=True)
-    snapshots_accum: List[Any] = [] if build_snapshots else []
-    indices_struct: List[IndexStructEntry] = []  # structured per-index summaries
+    snapshots_accum: list[Any] = [] if build_snapshots else []
+    indices_struct: list[IndexStructEntry] = []  # structured per-index summaries
 
     # Initialize data quality checker once (guarded by env flag for parity)
     dq_enabled = is_truthy_env('G6_ENABLE_DATA_QUALITY')
@@ -984,7 +1025,7 @@ def run_unified_collectors(
                 counter_map[index_symbol] = curr
                 if metrics is not None and getattr(metrics, '_consec_empty_counters', None) is None:
                     try:
-                        setattr(metrics, '_consec_empty_counters', counter_map)
+                        metrics._consec_empty_counters = counter_map
                     except Exception:
                         pass
                 entry['empty_consec'] = curr
@@ -1016,13 +1057,13 @@ def run_unified_collectors(
                 legs = int(_res.get('overall_legs', 0) or 0)
                 # Initialize per-index tracking map if missing
                 if not hasattr(metrics, '_per_index_last_cycle_options'):
-                    setattr(metrics, '_per_index_last_cycle_options', {})
-                per_map = getattr(metrics, '_per_index_last_cycle_options')
+                    metrics._per_index_last_cycle_options = {}
+                per_map = metrics._per_index_last_cycle_options
                 if isinstance(per_map, dict):
                     per_map[index_symbol] = legs
         except Exception:
             logger.debug('metrics_per_index_option_accumulate_failed', exc_info=True)
-    
+
     # Update collection time metrics
     total_elapsed = time.time() - start_cycle_wall  # cycle duration (seconds)
     # Set aggregate options processed for cycle summary (sum of legs across indices)
@@ -1032,12 +1073,12 @@ def run_unified_collectors(
             # Fallback if per-index map present: recompute to be safe
             if hasattr(metrics, '_per_index_last_cycle_options'):
                 try:
-                    m = getattr(metrics, '_per_index_last_cycle_options')
+                    m = metrics._per_index_last_cycle_options
                     if isinstance(m, dict) and m:
                         total_legs = sum(int(v or 0) for v in m.values())
                 except Exception:
                     pass
-            setattr(metrics, '_last_cycle_options', total_legs)
+            metrics._last_cycle_options = total_legs
     except Exception:
         logger.debug('metrics_total_option_accumulate_failed', exc_info=True)
     # Reconstitute merged phase timings for metrics emission if merge mode cleared ctx.phase_times.
@@ -1061,13 +1102,13 @@ def run_unified_collectors(
             if metrics:
                 try:
                     # Multi-expiry test tracks _phase_observed (a set)
-                    if hasattr(metrics, '_phase_observed') and isinstance(getattr(metrics,'_phase_observed'), set):
+                    if hasattr(metrics, '_phase_observed') and isinstance(metrics._phase_observed, set):
                         if not metrics._phase_observed and ctx.phase_times:
                             for _phase_name, _secs in ctx.phase_times.items():
                                 try: metrics.phase_duration_seconds.labels(phase=_phase_name).observe(_secs)
                                 except Exception: pass
                     # Bootstrap test tracks _phases dict
-                    if hasattr(metrics, '_phases') and isinstance(getattr(metrics,'_phases'), dict):
+                    if hasattr(metrics, '_phases') and isinstance(metrics._phases, dict):
                         if not metrics._phases and ctx.phase_times:
                             for _phase_name, _secs in ctx.phase_times.items():
                                 try: metrics.phase_duration_seconds.labels(phase=_phase_name).observe(_secs)
@@ -1092,7 +1133,7 @@ def run_unified_collectors(
                 cycle_start_ts=cycle_start_ts,
                 total_elapsed=total_elapsed,
             )
-        except Exception as e:
+        except Exception:
             try:
                 collection_time_elapsed = (utc_now() - cycle_start_ts).total_seconds()
                 metrics.collection_duration.observe(collection_time_elapsed)
@@ -1206,7 +1247,7 @@ def run_unified_collectors(
                     try:
                         cs2 = _get_cs2()
                         if cs2 and getattr(cs2, 'provider_outage_threshold', None):
-                            outage_threshold = int(getattr(cs2, 'provider_outage_threshold'))
+                            outage_threshold = int(cs2.provider_outage_threshold)
                     except Exception:
                         pass
                 # Normalize outage_threshold to a positive int
@@ -1241,7 +1282,7 @@ def run_unified_collectors(
                         try:
                             cs3 = _get_cs3()
                             if cs3 and getattr(cs3, 'provider_outage_log_every', None):
-                                throttle_n = int(getattr(cs3, 'provider_outage_log_every'))
+                                throttle_n = int(cs3.provider_outage_log_every)
                         except Exception:
                             pass
                         if not throttle_n:
@@ -1276,7 +1317,8 @@ def run_unified_collectors(
             # Abort logic for stale cycles when mode=abort
             # Standardized env reads via adapter
             try:
-                from src.collectors.env_adapter import get_str as _env_str, get_int as _env_int
+                from src.collectors.env_adapter import get_int as _env_int
+                from src.collectors.env_adapter import get_str as _env_str
             except Exception:  # fallback if adapter import fails unexpectedly
                 _env_str = lambda k, d=None: (os.getenv(k, d) if d is not None else (os.getenv(k) or '')).strip()
                 _env_int = lambda k, d=0: int(os.getenv(k, str(d)) or d)
@@ -1289,7 +1331,7 @@ def run_unified_collectors(
                     consec = consec + 1 if stale_present else 0
                     try:
                         try:
-                            setattr(metrics, '_consec_stale_cycles', consec)
+                            metrics._consec_stale_cycles = consec
                         except Exception:
                             pass
                     except Exception:
@@ -1300,7 +1342,8 @@ def run_unified_collectors(
                 # System-level stale metrics (lazy create)
                 if metrics is not None:
                     try:  # pragma: no cover - metrics wiring
-                        from prometheus_client import Counter as _C, Gauge as _G
+                        from prometheus_client import Counter as _C
+                        from prometheus_client import Gauge as _G
                         if not hasattr(metrics, 'stale_system_cycles_total'):
                             try:
                                 metrics.stale_system_cycles_total = _C(
@@ -1366,7 +1409,8 @@ def run_unified_collectors(
         # If we didn’t emit the concise footer block, still enforce stale abort logic here.
         try:
             try:
-                from src.collectors.env_adapter import get_str as _env_str, get_int as _env_int
+                from src.collectors.env_adapter import get_int as _env_int
+                from src.collectors.env_adapter import get_str as _env_str
             except Exception:
                 _env_str = lambda k, d=None: (os.getenv(k, d) if d is not None else (os.getenv(k) or '')).strip()
                 _env_int = lambda k, d=0: int(os.getenv(k, str(d)) or d)
@@ -1376,7 +1420,7 @@ def run_unified_collectors(
                 consec = getattr(metrics, '_consec_stale_cycles', 0)
                 consec = consec + 1 if stale_present else 0
                 try:
-                    setattr(metrics, '_consec_stale_cycles', consec)
+                    metrics._consec_stale_cycles = consec
                 except Exception:
                     pass
             else:
@@ -1399,7 +1443,7 @@ def run_unified_collectors(
     # 2. Else use G6_CYCLE_OUTPUT value (default 'pretty')
     # 3. Values: 'pretty' => only human table (header+row) line(s); 'raw' => only machine CYCLE line; 'both' => both.
     try:
-        from src.logstream.formatter import format_cycle, format_cycle_pretty, format_cycle_table, format_cycle_readable
+        from src.logstream.formatter import format_cycle, format_cycle_readable, format_cycle_table
         legacy_disable = is_truthy_env('G6_DISABLE_PRETTY_CYCLE')
         try:
             from src.collectors.env_adapter import get_str as _env_str
@@ -1552,7 +1596,7 @@ def run_unified_collectors(
             _emit_cycle_status_summary(
                 cycle_ts=int(time.time()),
                 duration_s=total_elapsed,
-                indices=cast(List[Dict[str, Any]], indices_struct),
+                indices=cast(list[dict[str, Any]], indices_struct),
                 index_count=len(indices_struct),
                 include_reason_totals=True,
             )
@@ -1563,22 +1607,22 @@ def run_unified_collectors(
             from src.collectors.modules.benchmark_bridge import write_benchmark_artifact
             # Provide detector function if available
             detector_fn = _detect_anomalies if _detect_anomalies else None
-            write_benchmark_artifact(cast(List[Dict[str, Any]], indices_struct), total_elapsed, ctx, metrics, detector_fn)
+            write_benchmark_artifact(cast(list[dict[str, Any]], indices_struct), total_elapsed, ctx, metrics, detector_fn)
         except Exception:
             logger.debug("benchmark_bridge_failed", exc_info=True)
         # Build snapshot summary (Phase 7 extraction cleanup – fallback removed) + Phase 9 alert aggregation
         from src.collectors.modules.snapshot_core import build_snapshot
         try:
             from src.collectors.modules.alerts_core import aggregate_alerts
-            _alert_summary = aggregate_alerts(cast(List[Dict[str, Any]], indices_struct))
+            _alert_summary = aggregate_alerts(cast(list[dict[str, Any]], indices_struct))
         except Exception:
             logger.debug('legacy_alert_aggregation_failed', exc_info=True)
             _alert_summary = None
-        snap_summary = build_snapshot(cast(List[Dict[str, Any]], indices_struct), len(index_params or {}), metrics, build_reason_totals=True)
+        snap_summary = build_snapshot(cast(list[dict[str, Any]], indices_struct), len(index_params or {}), metrics, build_reason_totals=True)
         partial_reason_totals = snap_summary.partial_reason_totals
         # Phase 0 parity snapshot write (debug mode) BEFORE returning (extracted to persistence_io)
         # Removed refactor_debug parity snapshot emission
-        snapshot_summary: Optional[Dict[str, Any]] = snap_summary.to_dict() if snap_summary else None
+        snapshot_summary: dict[str, Any] | None = snap_summary.to_dict() if snap_summary else None
         if snapshot_summary is not None and _alert_summary is not None:
             try:
                 summary_alerts = _alert_summary.to_dict()
@@ -1611,7 +1655,9 @@ def run_unified_collectors(
         # Phase 10 operational metrics (legacy path) – best-effort
         try:
             if metrics is not None:
-                from prometheus_client import Histogram as _H, Summary as _S, Counter as _C
+                from prometheus_client import Counter as _C
+                from prometheus_client import Histogram as _H
+                from prometheus_client import Summary as _S
                 cycle_elapsed = total_elapsed
                 if not hasattr(metrics, 'legacy_cycle_duration_seconds'):
                     try: metrics.legacy_cycle_duration_seconds = _H('g6_legacy_cycle_duration_seconds','Legacy collectors cycle duration seconds', buckets=(0.1,0.25,0.5,1,2,5,10))
@@ -1650,10 +1696,10 @@ def run_unified_collectors(
         # Phase 8: add coverage rollups at index level if not already present
         try:
             from src.collectors.modules.coverage_core import compute_index_coverage
-            for ix in cast(List[Dict[str, Any]], ret_obj['indices']):
+            for ix in cast(list[dict[str, Any]], ret_obj['indices']):
                 if 'expiries' in ix and 'strike_coverage_avg' not in ix:
                     index_sym = str(ix.get('index') or '')
-                    expiries_list = cast(List[Dict[str, Any]], ix.get('expiries') or [])
+                    expiries_list = cast(list[dict[str, Any]], ix.get('expiries') or [])
                     cov_roll = compute_index_coverage(index_sym, expiries_list)
                     ix['strike_coverage_avg'] = cov_roll.get('strike_coverage_avg')
                     ix['field_coverage_avg'] = cov_roll.get('field_coverage_avg')

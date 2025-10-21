@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Lightweight health models and enums used across the platform.
 
@@ -9,8 +8,8 @@ for component/check health reporting and mapping to levels.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import IntEnum, Enum
-from typing import Dict, Any, Optional
+from enum import Enum, IntEnum
+from typing import Any
 
 
 class HealthLevel(IntEnum):
@@ -50,8 +49,8 @@ class ComponentHealth:
     name: str
     status: str = HealthState.UNKNOWN.value
     message: str = ""
-    last_check: Optional[str] = None
-    details: Dict[str, Any] = field(default_factory=dict)
+    last_check: str | None = None
+    details: dict[str, Any] = field(default_factory=dict)
 
     @property
     def level(self) -> HealthLevel:
@@ -63,8 +62,8 @@ class CheckHealth:
     name: str
     status: str = HealthState.UNKNOWN.value
     message: str = ""
-    last_check: Optional[str] = None
-    details: Dict[str, Any] = field(default_factory=dict)
+    last_check: str | None = None
+    details: dict[str, Any] = field(default_factory=dict)
 
     @property
     def level(self) -> HealthLevel:
@@ -77,8 +76,8 @@ class HealthResponse:
     status: str
     level: HealthLevel
     # Mapping or lists as simple structures (kept generic to avoid tight coupling)
-    components: Dict[str, ComponentHealth] | None = None
-    checks: Dict[str, CheckHealth] | None = None
+    components: dict[str, ComponentHealth] | None = None
+    checks: dict[str, CheckHealth] | None = None
 
 
 __all__ = [

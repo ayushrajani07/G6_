@@ -5,15 +5,33 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from .cardinality_guard import registry_guard
 
-from typing import Any, Dict
 
-_METRICS: Dict[str, Any] = {}  # name -> metric instance
+# Typing-friendly helpers to access metric.label() and set value without
+# requiring prometheus_client types at analysis time.
+def _labels(m: Any, **kwargs: Any) -> Any:
+    try:
+        return m.labels(**kwargs)
+    except Exception:
+        return None
+
+def _labels_set(m: Any, value: float, **kwargs: Any) -> None:
+    try:
+        h = m.labels(**kwargs)
+        s = getattr(h, 'set', None)
+        if callable(s):
+            s(value)
+    except Exception:
+        pass
+
+_METRICS: dict[str, Any] = {}  # name -> metric instance
 
 def _get(name: str): return _METRICS.get(name)
 
-SPEC_HASH = 'e8f45ed380d0801a'  # short sha256 of spec file
+SPEC_HASH = '0533405d11f9f66e'  # short sha256 of spec file
 
 def m_api_calls_total():
     if 'g6_api_calls_total' not in _METRICS:
@@ -24,7 +42,7 @@ def m_api_calls_total_labels(endpoint: str, result: str):
     metric = m_api_calls_total()
     if not metric: return None
     if not registry_guard.track('g6_api_calls_total', (endpoint,result,)): return None
-    return metric.labels(endpoint=endpoint, result=result)
+    return _labels(metric, endpoint=endpoint, result=result)
 
 def m_api_response_latency_ms():
     if 'g6_api_response_latency_ms' not in _METRICS:
@@ -40,7 +58,7 @@ def m_quote_enriched_total_labels(provider: str):
     metric = m_quote_enriched_total()
     if not metric: return None
     if not registry_guard.track('g6_quote_enriched_total', (provider,)): return None
-    return metric.labels(provider=provider)
+    return _labels(metric, provider=provider)
 
 def m_quote_missing_volume_oi_total():
     if 'g6_quote_missing_volume_oi_total' not in _METRICS:
@@ -51,7 +69,7 @@ def m_quote_missing_volume_oi_total_labels(provider: str):
     metric = m_quote_missing_volume_oi_total()
     if not metric: return None
     if not registry_guard.track('g6_quote_missing_volume_oi_total', (provider,)): return None
-    return metric.labels(provider=provider)
+    return _labels(metric, provider=provider)
 
 def m_quote_avg_price_fallback_total():
     if 'g6_quote_avg_price_fallback_total' not in _METRICS:
@@ -62,7 +80,7 @@ def m_quote_avg_price_fallback_total_labels(provider: str):
     metric = m_quote_avg_price_fallback_total()
     if not metric: return None
     if not registry_guard.track('g6_quote_avg_price_fallback_total', (provider,)): return None
-    return metric.labels(provider=provider)
+    return _labels(metric, provider=provider)
 
 def m_index_zero_price_fallback_total():
     if 'g6_index_zero_price_fallback_total' not in _METRICS:
@@ -73,7 +91,7 @@ def m_index_zero_price_fallback_total_labels(index: str, path: str):
     metric = m_index_zero_price_fallback_total()
     if not metric: return None
     if not registry_guard.track('g6_index_zero_price_fallback_total', (index,path,)): return None
-    return metric.labels(index=index, path=path)
+    return _labels(metric, index=index, path=path)
 
 def m_expiry_resolve_fail_total():
     if 'g6_expiry_resolve_fail_total' not in _METRICS:
@@ -84,7 +102,7 @@ def m_expiry_resolve_fail_total_labels(index: str, rule: str, reason: str):
     metric = m_expiry_resolve_fail_total()
     if not metric: return None
     if not registry_guard.track('g6_expiry_resolve_fail_total', (index,rule,reason,)): return None
-    return metric.labels(index=index, rule=rule, reason=reason)
+    return _labels(metric, index=index, rule=rule, reason=reason)
 
 def m_metrics_batch_queue_depth():
     if 'g6_metrics_batch_queue_depth' not in _METRICS:
@@ -96,11 +114,11 @@ def m_cardinality_series_total():
         _METRICS['g6_cardinality_series_total'] = registry_guard.gauge('g6_cardinality_series_total', 'Observed unique label sets registered per metric name', ['metric'], 200)
     return _METRICS['g6_cardinality_series_total']
 
-def m_cardinality_series_total_labels(metric: str):
-    metric = m_cardinality_series_total()
-    if not metric: return None
-    if not registry_guard.track('g6_cardinality_series_total', (metric,)): return None
-    return metric.labels(metric=metric)
+def m_cardinality_series_total_labels(metric_name: str):
+    _m = m_cardinality_series_total()
+    if not _m: return None
+    if not registry_guard.track('g6_cardinality_series_total', (metric_name,)): return None
+    return _labels(_m, metric=metric_name)
 
 def m_api_success_rate_percent():
     if 'g6_api_success_rate_percent' not in _METRICS:
@@ -121,7 +139,7 @@ def m_provider_mode_labels(mode: str):
     metric = m_provider_mode()
     if not metric: return None
     if not registry_guard.track('g6_provider_mode', (mode,)): return None
-    return metric.labels(mode=mode)
+    return _labels(metric, mode=mode)
 
 def m_provider_failover_total():
     if 'g6_provider_failover_total' not in _METRICS:
@@ -137,7 +155,7 @@ def m_metrics_spec_hash_info_labels(hash: str):
     metric = m_metrics_spec_hash_info()
     if not metric: return None
     if not registry_guard.track('g6_metrics_spec_hash_info', (hash,)): return None
-    return metric.labels(hash=hash)
+    return _labels(metric, hash=hash)
 
 def m_build_config_hash_info():
     if 'g6_build_config_hash_info' not in _METRICS:
@@ -148,7 +166,7 @@ def m_build_config_hash_info_labels(hash: str):
     metric = m_build_config_hash_info()
     if not metric: return None
     if not registry_guard.track('g6_build_config_hash_info', (hash,)): return None
-    return metric.labels(hash=hash)
+    return _labels(metric, hash=hash)
 
 def m_metric_duplicates_total():
     if 'g6_metric_duplicates_total' not in _METRICS:
@@ -159,7 +177,7 @@ def m_metric_duplicates_total_labels(name: str):
     metric = m_metric_duplicates_total()
     if not metric: return None
     if not registry_guard.track('g6_metric_duplicates_total', (name,)): return None
-    return metric.labels(name=name)
+    return _labels(metric, name=name)
 
 def m_cardinality_guard_offenders_total():
     if 'g6_cardinality_guard_offenders_total' not in _METRICS:
@@ -190,7 +208,7 @@ def m_cardinality_guard_growth_percent_labels(group: str):
     metric = m_cardinality_guard_growth_percent()
     if not metric: return None
     if not registry_guard.track('g6_cardinality_guard_growth_percent', (group,)): return None
-    return metric.labels(group=group)
+    return _labels(metric, group=group)
 
 def m_option_contracts_active():
     if 'g6_option_contracts_active' not in _METRICS:
@@ -201,7 +219,7 @@ def m_option_contracts_active_labels(mny: str, dte: str):
     metric = m_option_contracts_active()
     if not metric: return None
     if not registry_guard.track('g6_option_contracts_active', (mny,dte,)): return None
-    return metric.labels(mny=mny, dte=dte)
+    return _labels(metric, mny=mny, dte=dte)
 
 def m_option_open_interest():
     if 'g6_option_open_interest' not in _METRICS:
@@ -212,7 +230,7 @@ def m_option_open_interest_labels(mny: str, dte: str):
     metric = m_option_open_interest()
     if not metric: return None
     if not registry_guard.track('g6_option_open_interest', (mny,dte,)): return None
-    return metric.labels(mny=mny, dte=dte)
+    return _labels(metric, mny=mny, dte=dte)
 
 def m_option_volume_24h():
     if 'g6_option_volume_24h' not in _METRICS:
@@ -223,7 +241,7 @@ def m_option_volume_24h_labels(mny: str, dte: str):
     metric = m_option_volume_24h()
     if not metric: return None
     if not registry_guard.track('g6_option_volume_24h', (mny,dte,)): return None
-    return metric.labels(mny=mny, dte=dte)
+    return _labels(metric, mny=mny, dte=dte)
 
 def m_option_iv_mean():
     if 'g6_option_iv_mean' not in _METRICS:
@@ -234,7 +252,7 @@ def m_option_iv_mean_labels(mny: str, dte: str):
     metric = m_option_iv_mean()
     if not metric: return None
     if not registry_guard.track('g6_option_iv_mean', (mny,dte,)): return None
-    return metric.labels(mny=mny, dte=dte)
+    return _labels(metric, mny=mny, dte=dte)
 
 def m_option_spread_bps_mean():
     if 'g6_option_spread_bps_mean' not in _METRICS:
@@ -245,7 +263,7 @@ def m_option_spread_bps_mean_labels(mny: str, dte: str):
     metric = m_option_spread_bps_mean()
     if not metric: return None
     if not registry_guard.track('g6_option_spread_bps_mean', (mny,dte,)): return None
-    return metric.labels(mny=mny, dte=dte)
+    return _labels(metric, mny=mny, dte=dte)
 
 def m_option_contracts_new_total():
     if 'g6_option_contracts_new_total' not in _METRICS:
@@ -256,7 +274,7 @@ def m_option_contracts_new_total_labels(dte: str):
     metric = m_option_contracts_new_total()
     if not metric: return None
     if not registry_guard.track('g6_option_contracts_new_total', (dte,)): return None
-    return metric.labels(dte=dte)
+    return _labels(metric, dte=dte)
 
 def m_bus_events_published_total():
     if 'g6_bus_events_published_total' not in _METRICS:
@@ -267,7 +285,7 @@ def m_bus_events_published_total_labels(bus: str):
     metric = m_bus_events_published_total()
     if not metric: return None
     if not registry_guard.track('g6_bus_events_published_total', (bus,)): return None
-    return metric.labels(bus=bus)
+    return _labels(metric, bus=bus)
 
 def m_bus_events_dropped_total():
     if 'g6_bus_events_dropped_total' not in _METRICS:
@@ -278,7 +296,7 @@ def m_bus_events_dropped_total_labels(bus: str, reason: str):
     metric = m_bus_events_dropped_total()
     if not metric: return None
     if not registry_guard.track('g6_bus_events_dropped_total', (bus,reason,)): return None
-    return metric.labels(bus=bus, reason=reason)
+    return _labels(metric, bus=bus, reason=reason)
 
 def m_bus_queue_retained_events():
     if 'g6_bus_queue_retained_events' not in _METRICS:
@@ -289,7 +307,7 @@ def m_bus_queue_retained_events_labels(bus: str):
     metric = m_bus_queue_retained_events()
     if not metric: return None
     if not registry_guard.track('g6_bus_queue_retained_events', (bus,)): return None
-    return metric.labels(bus=bus)
+    return _labels(metric, bus=bus)
 
 def m_bus_subscriber_lag_events():
     if 'g6_bus_subscriber_lag_events' not in _METRICS:
@@ -300,7 +318,7 @@ def m_bus_subscriber_lag_events_labels(bus: str, subscriber: str):
     metric = m_bus_subscriber_lag_events()
     if not metric: return None
     if not registry_guard.track('g6_bus_subscriber_lag_events', (bus,subscriber,)): return None
-    return metric.labels(bus=bus, subscriber=subscriber)
+    return _labels(metric, bus=bus, subscriber=subscriber)
 
 def m_bus_publish_latency_ms():
     if 'g6_bus_publish_latency_ms' not in _METRICS:
@@ -311,7 +329,7 @@ def m_bus_publish_latency_ms_labels(bus: str):
     metric = m_bus_publish_latency_ms()
     if not metric: return None
     if not registry_guard.track('g6_bus_publish_latency_ms', (bus,)): return None
-    return metric.labels(bus=bus)
+    return _labels(metric, bus=bus)
 
 def m_emission_failures_total():
     if 'g6_emission_failures_total' not in _METRICS:
@@ -322,7 +340,7 @@ def m_emission_failures_total_labels(emitter: str):
     metric = m_emission_failures_total()
     if not metric: return None
     if not registry_guard.track('g6_emission_failures_total', (emitter,)): return None
-    return metric.labels(emitter=emitter)
+    return _labels(metric, emitter=emitter)
 
 def m_emission_failure_once_total():
     if 'g6_emission_failure_once_total' not in _METRICS:
@@ -333,7 +351,7 @@ def m_emission_failure_once_total_labels(emitter: str):
     metric = m_emission_failure_once_total()
     if not metric: return None
     if not registry_guard.track('g6_emission_failure_once_total', (emitter,)): return None
-    return metric.labels(emitter=emitter)
+    return _labels(metric, emitter=emitter)
 
 def m_metrics_batch_flush_duration_ms():
     if 'g6_metrics_batch_flush_duration_ms' not in _METRICS:
@@ -359,7 +377,7 @@ def m_cs_ingest_rows_total_labels(table: str):
     metric = m_cs_ingest_rows_total()
     if not metric: return None
     if not registry_guard.track('g6_cs_ingest_rows_total', (table,)): return None
-    return metric.labels(table=table)
+    return _labels(metric, table=table)
 
 def m_cs_ingest_bytes_total():
     if 'g6_cs_ingest_bytes_total' not in _METRICS:
@@ -370,7 +388,7 @@ def m_cs_ingest_bytes_total_labels(table: str):
     metric = m_cs_ingest_bytes_total()
     if not metric: return None
     if not registry_guard.track('g6_cs_ingest_bytes_total', (table,)): return None
-    return metric.labels(table=table)
+    return _labels(metric, table=table)
 
 def m_cs_ingest_latency_ms():
     if 'g6_cs_ingest_latency_ms' not in _METRICS:
@@ -381,7 +399,7 @@ def m_cs_ingest_latency_ms_labels(table: str):
     metric = m_cs_ingest_latency_ms()
     if not metric: return None
     if not registry_guard.track('g6_cs_ingest_latency_ms', (table,)): return None
-    return metric.labels(table=table)
+    return _labels(metric, table=table)
 
 def m_cs_ingest_failures_total():
     if 'g6_cs_ingest_failures_total' not in _METRICS:
@@ -392,7 +410,7 @@ def m_cs_ingest_failures_total_labels(table: str, reason: str):
     metric = m_cs_ingest_failures_total()
     if not metric: return None
     if not registry_guard.track('g6_cs_ingest_failures_total', (table,reason,)): return None
-    return metric.labels(table=table, reason=reason)
+    return _labels(metric, table=table, reason=reason)
 
 def m_cs_ingest_backlog_rows():
     if 'g6_cs_ingest_backlog_rows' not in _METRICS:
@@ -403,7 +421,7 @@ def m_cs_ingest_backlog_rows_labels(table: str):
     metric = m_cs_ingest_backlog_rows()
     if not metric: return None
     if not registry_guard.track('g6_cs_ingest_backlog_rows', (table,)): return None
-    return metric.labels(table=table)
+    return _labels(metric, table=table)
 
 def m_cs_ingest_backpressure_flag():
     if 'g6_cs_ingest_backpressure_flag' not in _METRICS:
@@ -414,7 +432,7 @@ def m_cs_ingest_backpressure_flag_labels(table: str):
     metric = m_cs_ingest_backpressure_flag()
     if not metric: return None
     if not registry_guard.track('g6_cs_ingest_backpressure_flag', (table,)): return None
-    return metric.labels(table=table)
+    return _labels(metric, table=table)
 
 def m_cs_ingest_retries_total():
     if 'g6_cs_ingest_retries_total' not in _METRICS:
@@ -425,7 +443,7 @@ def m_cs_ingest_retries_total_labels(table: str):
     metric = m_cs_ingest_retries_total()
     if not metric: return None
     if not registry_guard.track('g6_cs_ingest_retries_total', (table,)): return None
-    return metric.labels(table=table)
+    return _labels(metric, table=table)
 
 def m_stream_append_total():
     if 'g6_stream_append_total' not in _METRICS:
@@ -436,7 +454,7 @@ def m_stream_append_total_labels(mode: str):
     metric = m_stream_append_total()
     if not metric: return None
     if not registry_guard.track('g6_stream_append_total', (mode,)): return None
-    return metric.labels(mode=mode)
+    return _labels(metric, mode=mode)
 
 def m_stream_skipped_total():
     if 'g6_stream_skipped_total' not in _METRICS:
@@ -447,7 +465,7 @@ def m_stream_skipped_total_labels(mode: str, reason: str):
     metric = m_stream_skipped_total()
     if not metric: return None
     if not registry_guard.track('g6_stream_skipped_total', (mode,reason,)): return None
-    return metric.labels(mode=mode, reason=reason)
+    return _labels(metric, mode=mode, reason=reason)
 
 def m_stream_state_persist_errors_total():
     if 'g6_stream_state_persist_errors_total' not in _METRICS:
@@ -468,7 +486,7 @@ def m_panel_diff_writes_total_labels(type: str):
     metric = m_panel_diff_writes_total()
     if not metric: return None
     if not registry_guard.track('g6_panel_diff_writes_total', (type,)): return None
-    return metric.labels(type=type)
+    return _labels(metric, type=type)
 
 def m_panel_diff_truncated_total():
     if 'g6_panel_diff_truncated_total' not in _METRICS:
@@ -479,7 +497,7 @@ def m_panel_diff_truncated_total_labels(reason: str):
     metric = m_panel_diff_truncated_total()
     if not metric: return None
     if not registry_guard.track('g6_panel_diff_truncated_total', (reason,)): return None
-    return metric.labels(reason=reason)
+    return _labels(metric, reason=reason)
 
 def m_panel_diff_bytes_total():
     if 'g6_panel_diff_bytes_total' not in _METRICS:
@@ -490,7 +508,7 @@ def m_panel_diff_bytes_total_labels(type: str):
     metric = m_panel_diff_bytes_total()
     if not metric: return None
     if not registry_guard.track('g6_panel_diff_bytes_total', (type,)): return None
-    return metric.labels(type=type)
+    return _labels(metric, type=type)
 
 def m_panel_diff_bytes_last():
     if 'g6_panel_diff_bytes_last' not in _METRICS:
@@ -501,18 +519,44 @@ def m_panel_diff_bytes_last_labels(type: str):
     metric = m_panel_diff_bytes_last()
     if not metric: return None
     if not registry_guard.track('g6_panel_diff_bytes_last', (type,)): return None
-    return metric.labels(type=type)
+    return _labels(metric, type=type)
 
 try:
     _hm = m_metrics_spec_hash_info()
-    if _hm: _hm.labels(hash=SPEC_HASH).set(1)
+    if _hm: _labels_set(_hm, 1, hash=SPEC_HASH)
 except Exception: pass
 
 try:
     import os
     _bhv = os.getenv('G6_BUILD_CONFIG_HASH', SPEC_HASH)
     _bh = m_build_config_hash_info()
-    if _bh: _bh.labels(hash=_bhv).set(1)
+    if _bh: _labels_set(_bh, 1, hash=_bhv)
 except Exception: pass
 
-__all__ = [n for n in globals() if n.startswith('m_') or n in {'SPEC_HASH'}]
+# Export helper names and SPEC_HASH; avoid dynamic comprehensions that confuse some analyzers
+__all__ = (
+    [
+        'SPEC_HASH',
+        'm_api_calls_total','m_api_calls_total_labels','m_api_response_latency_ms','m_quote_enriched_total','m_quote_enriched_total_labels',
+        'm_quote_missing_volume_oi_total','m_quote_missing_volume_oi_total_labels','m_quote_avg_price_fallback_total','m_quote_avg_price_fallback_total_labels',
+        'm_index_zero_price_fallback_total','m_index_zero_price_fallback_total_labels','m_expiry_resolve_fail_total','m_expiry_resolve_fail_total_labels',
+        'm_metrics_batch_queue_depth','m_cardinality_series_total','m_cardinality_series_total_labels','m_api_success_rate_percent','m_api_response_time_ms',
+        'm_provider_mode','m_provider_mode_labels','m_provider_failover_total','m_metrics_spec_hash_info','m_metrics_spec_hash_info_labels',
+        'm_build_config_hash_info','m_build_config_hash_info_labels','m_metric_duplicates_total','m_metric_duplicates_total_labels',
+        'm_cardinality_guard_offenders_total','m_cardinality_guard_new_groups_total','m_cardinality_guard_last_run_epoch','m_cardinality_guard_allowed_growth_percent',
+        'm_cardinality_guard_growth_percent','m_cardinality_guard_growth_percent_labels','m_option_contracts_active','m_option_contracts_active_labels',
+        'm_option_open_interest','m_option_open_interest_labels','m_option_volume_24h','m_option_volume_24h_labels','m_option_iv_mean','m_option_iv_mean_labels',
+        'm_option_spread_bps_mean','m_option_spread_bps_mean_labels','m_option_contracts_new_total','m_option_contracts_new_total_labels',
+        'm_bus_events_published_total','m_bus_events_published_total_labels','m_bus_events_dropped_total','m_bus_events_dropped_total_labels',
+        'm_bus_queue_retained_events','m_bus_queue_retained_events_labels','m_bus_subscriber_lag_events','m_bus_subscriber_lag_events_labels',
+        'm_bus_publish_latency_ms','m_bus_publish_latency_ms_labels','m_emission_failures_total','m_emission_failures_total_labels',
+        'm_emission_failure_once_total','m_emission_failure_once_total_labels','m_metrics_batch_flush_duration_ms','m_metrics_batch_flush_increments',
+        'm_metrics_batch_adaptive_target','m_cs_ingest_rows_total','m_cs_ingest_rows_total_labels','m_cs_ingest_bytes_total','m_cs_ingest_bytes_total_labels',
+        'm_cs_ingest_latency_ms','m_cs_ingest_latency_ms_labels','m_cs_ingest_failures_total','m_cs_ingest_failures_total_labels',
+        'm_cs_ingest_backlog_rows','m_cs_ingest_backlog_rows_labels','m_cs_ingest_backpressure_flag','m_cs_ingest_backpressure_flag_labels',
+        'm_cs_ingest_retries_total','m_cs_ingest_retries_total_labels','m_stream_append_total','m_stream_append_total_labels',
+        'm_stream_skipped_total','m_stream_skipped_total_labels','m_stream_state_persist_errors_total','m_stream_conflict_total',
+        'm_panel_diff_writes_total','m_panel_diff_writes_total_labels','m_panel_diff_truncated_total','m_panel_diff_truncated_total_labels',
+        'm_panel_diff_bytes_total','m_panel_diff_bytes_total_labels','m_panel_diff_bytes_last','m_panel_diff_bytes_last_labels'
+    ]
+)

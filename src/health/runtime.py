@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Runtime health integration helpers.
 
@@ -9,7 +8,7 @@ to check flags.
 """
 from __future__ import annotations
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 from .models import HealthLevel, HealthState
 
@@ -17,11 +16,11 @@ if TYPE_CHECKING:  # pragma: no cover - for type checking only
     from .api_server import HealthServer
     from .prom_exporter import HealthMetricsExporter
 
-_SERVER: Optional["HealthServer"] = None
-_EXPORTER: Optional["HealthMetricsExporter"] = None
+_SERVER: HealthServer | None = None
+_EXPORTER: HealthMetricsExporter | None = None
 
 
-def set_current(server: Optional["HealthServer"], exporter: Optional["HealthMetricsExporter"]) -> None:
+def set_current(server: HealthServer | None, exporter: HealthMetricsExporter | None) -> None:
     global _SERVER, _EXPORTER
     _SERVER = server
     _EXPORTER = exporter

@@ -7,15 +7,19 @@ Functions are intentionally light on dependencies; they accept a context-like
 object exposing `metrics` attribute (duck-typed) to avoid tight coupling.
 """
 from __future__ import annotations
-from typing import Any, Dict, Iterable
-import logging, os, time
+
+import logging
+import os
+from collections.abc import Iterable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 _SUPPRESS_COVERAGE_WARN = os.environ.get('G6_SUPPRESS_COVERAGE_WARNINGS','0').lower() in ('1','true','yes','on')
 
 try:  # pragma: no cover
-    from src.broker.kite.tracing import trace as _trace, is_enabled as _trace_enabled  # type: ignore
+    from src.broker.kite.tracing import is_enabled as _trace_enabled
+    from src.broker.kite.tracing import trace as _trace  # type: ignore
 except Exception:  # fallback minimal gate
     def _trace(event: str, **ctx):
         if os.environ.get('G6_TRACE_COLLECTOR','0').lower() not in ('1','true','yes','on'):
@@ -27,7 +31,7 @@ except Exception:  # fallback minimal gate
     def _trace_enabled():  # type: ignore
         return os.environ.get('G6_TRACE_COLLECTOR','0').lower() in ('1','true','yes','on')
 
-def coverage_metrics(ctx, instruments: Iterable[Dict[str, Any]], strikes, index_symbol: str, expiry_rule: str, expiry_date):  # side effects only; returns strike coverage ratio (0..1)
+def coverage_metrics(ctx, instruments: Iterable[dict[str, Any]], strikes, index_symbol: str, expiry_rule: str, expiry_date):  # side effects only; returns strike coverage ratio (0..1)
     try:
         realized_strikes = {float(inst.get('strike', 0)) for inst in instruments if float(inst.get('strike', 0)) > 0}
         coverage_ratio = (len(realized_strikes) / len(strikes)) if strikes else 0.0
@@ -60,7 +64,7 @@ def coverage_metrics(ctx, instruments: Iterable[Dict[str, Any]], strikes, index_
         logger.debug("Coverage diagnostics failed", exc_info=True)
         return None
 
-def field_coverage_metrics(ctx, enriched_data: Dict[str, Any], index_symbol: str, expiry_rule: str, expiry_date):  # side effects only; returns full-field coverage ratio (0..1)
+def field_coverage_metrics(ctx, enriched_data: dict[str, Any], index_symbol: str, expiry_rule: str, expiry_date):  # side effects only; returns full-field coverage ratio (0..1)
     try:
         missing_counts = {'volume':0,'oi':0,'avg_price':0}
         total_options = 0

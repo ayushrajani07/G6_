@@ -6,7 +6,6 @@ abstraction point so future adaptive logic / alternative strategies can plug in
 without touching the orchestrator.
 """
 from __future__ import annotations
-from typing import List, Tuple
 
 # We intentionally import the same underlying builder to guarantee parity.
 try:
@@ -16,7 +15,7 @@ except Exception:  # pragma: no cover
 
 __all__ = ["compute_strike_universe"]
 
-def compute_strike_universe(atm: float, n_itm: int, n_otm: int, index_symbol: str, *, scale: float | None = None) -> Tuple[List[float], dict]:
+def compute_strike_universe(atm: float, n_itm: int, n_otm: int, index_symbol: str, *, scale: float | None = None) -> tuple[list[float], dict]:
     """Return (strike_list, meta) with meta carrying diagnostic info.
 
     Meta fields (stable contract for future metrics/tests):
@@ -31,7 +30,7 @@ def compute_strike_universe(atm: float, n_itm: int, n_otm: int, index_symbol: st
     if _legacy_build_strikes is None:
         # Fallback simplified generation; mirrors fallback path in unified collectors
         step = 100.0 if index_symbol in ('BANKNIFTY','SENSEX') else 50.0
-        arr: List[float] = []
+        arr: list[float] = []
         for i in range(1, n_itm + 1):
             arr.append(float(atm - i*step))
         arr.append(float(atm))

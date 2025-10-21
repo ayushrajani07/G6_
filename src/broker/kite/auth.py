@@ -7,7 +7,7 @@ stable, auth-scoped import path for future enhancements (token refresh, expiry
 proactive checks, etc.).
 """
 from __future__ import annotations
-from typing import Any, Optional
+
 import logging
 
 logger = logging.getLogger(__name__)
@@ -57,7 +57,7 @@ def ensure_client_auth(provider) -> None:  # pragma: no cover - thin delegate
         pass
 
 
-def update_credentials_auth(provider, api_key: Optional[str] = None, access_token: Optional[str] = None, rebuild: bool = True) -> None:
+def update_credentials_auth(provider, api_key: str | None = None, access_token: str | None = None, rebuild: bool = True) -> None:
     try:
         from .client_bootstrap import update_credentials as _update
         _update(provider, api_key=api_key, access_token=access_token, rebuild=rebuild)

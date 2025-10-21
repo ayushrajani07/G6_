@@ -22,13 +22,13 @@ Side-effects (cache population, metrics emission) are preserved.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import datetime as _dt
 import logging
 import os
 import time
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, Protocol, runtime_checkable, Callable, Mapping
-from .types import OptionInstrumentTD as OptionInstTD
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass
+from typing import Any, Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ except Exception:  # pragma: no cover
         return True
 
 # Local type aliases
-Instrument = Dict[str, Any]
+Instrument = dict[str, Any]
 
 
 @runtime_checkable
@@ -62,7 +62,7 @@ class FilterRuntime:
 # ---------------------------------------------------------------------------
 # Prefilter Stage
 # ---------------------------------------------------------------------------
-def prefilter_option_universe(index_symbol: str, instruments: Sequence[Instrument], raw_total_opts: int) -> Tuple[List[Instrument], bool, Dict[str, int]]:
+def prefilter_option_universe(index_symbol: str, instruments: Sequence[Instrument], raw_total_opts: int) -> tuple[list[Instrument], bool, dict[str, int]]:
     """Prefilter instruments to reduce downstream work.
 
     Returns (filtered_instruments, used_flag, diagnostics_counts)
@@ -73,12 +73,13 @@ def prefilter_option_universe(index_symbol: str, instruments: Sequence[Instrumen
         return [inst for inst in instruments if (inst.get('instrument_type') or '') in ('CE','PE')], False, {'rejected': 0}
 
     try:
-        from src.utils.symbol_root import detect_root as _pf_detect_root, parse_root_before_digits as _pf_parse_root
+        from src.utils.symbol_root import detect_root as _pf_detect_root
+        from src.utils.symbol_root import parse_root_before_digits as _pf_parse_root
     except Exception:  # pragma: no cover
         _pf_detect_root = lambda _s: ''
         _pf_parse_root = lambda _s: ''
     tgt = index_symbol.upper()
-    filtered: List[Instrument] = []
+    filtered: list[Instrument] = []
     rejected = 0
     start_ts = time.time()
     for inst in instruments:
@@ -187,9 +188,9 @@ class StrikeMembership:
 # ---------------------------------------------------------------------------
 # Pre-index build for fast candidate lookups
 # ---------------------------------------------------------------------------
-def build_preindex(instruments: Sequence[Instrument], strike_membership: StrikeMembership) -> Dict[Tuple[_dt.date, float, str], List[Instrument]]:
-    pre_index: Dict[Tuple[_dt.date, float, str], List[Instrument]] = {}
-    def _norm_exp(exp_val: Any) -> Optional[_dt.date]:
+def build_preindex(instruments: Sequence[Instrument], strike_membership: StrikeMembership) -> dict[tuple[_dt.date, float, str], list[Instrument]]:
+    pre_index: dict[tuple[_dt.date, float, str], list[Instrument]] = {}
+    def _norm_exp(exp_val: Any) -> _dt.date | None:
         try:
             if exp_val is None:
                 return None
@@ -242,15 +243,15 @@ def build_preindex(instruments: Sequence[Instrument], strike_membership: StrikeM
 # ---------------------------------------------------------------------------
 @dataclass
 class MatchResult:
-    instruments: List[Instrument]
-    reject_counts: Dict[str, int]
-    contamination_list: List[str]
+    instruments: list[Instrument]
+    reject_counts: dict[str, int]
+    contamination_list: list[str]
 
 
-def match_options(provider: ProviderLike | Any, index_symbol: str, expiry_target: _dt.date, strikes: Sequence[float], instruments: Sequence[Instrument], pre_index: Mapping[Tuple[_dt.date, float, str], Sequence[Instrument]], strike_membership: StrikeMembership) -> MatchResult:
-    from src.runtime.runtime_flags import get_flags
+def match_options(provider: ProviderLike | Any, index_symbol: str, expiry_target: _dt.date, strikes: Sequence[float], instruments: Sequence[Instrument], pre_index: Mapping[tuple[_dt.date, float, str], Sequence[Instrument]], strike_membership: StrikeMembership) -> MatchResult:
     from src.filters.option_filter import OptionFilterContext, accept_option
-    from src.utils.symbol_root import detect_root, parse_root_before_digits  # for root cache fallback
+    from src.runtime.runtime_flags import get_flags
+    from src.utils.symbol_root import detect_root  # for root cache fallback
     try:
         from src.utils.root_cache import cached_detect_root
     except Exception:  # pragma: no cover
@@ -265,7 +266,6 @@ def match_options(provider: ProviderLike | Any, index_symbol: str, expiry_target
     safe_mode = flags.safe_mode
     underlying_strict = flags.underlying_strict
 
-    from src.utils.strike_index import build_strike_index  # ensure same implementation semantics
     # Pre-index already built; construct filter context
     strike_key_set = {round(float(s), 2) for s in strike_membership.sorted}
     filter_ctx = OptionFilterContext(
@@ -277,7 +277,7 @@ def match_options(provider: ProviderLike | Any, index_symbol: str, expiry_target
         safe_mode=safe_mode,
     )
 
-    _root_cache: Dict[str,str] = {}
+    _root_cache: dict[str,str] = {}
     def _get_root_cached(ts: str) -> str:
         v = _root_cache.get(ts)
         if v is not None: return v
@@ -289,7 +289,7 @@ def match_options(provider: ProviderLike | Any, index_symbol: str, expiry_target
         return v
 
     # Candidate selection using preindex
-    candidate_set: List[Instrument] = []
+    candidate_set: list[Instrument] = []
     try:
         for s in strike_membership.sorted:
             rs = round(float(s),2)
@@ -303,8 +303,8 @@ def match_options(provider: ProviderLike | Any, index_symbol: str, expiry_target
         candidate_set = [inst for inst in instruments if (inst.get('instrument_type') or '') in ('CE','PE')]
 
     reject_counts = {k:0 for k in ('not_option_type','root_mismatch','expiry_mismatch','strike_mismatch','underlying_mismatch')}
-    contamination_samples: List[str] = []
-    matching: List[Instrument] = []
+    contamination_samples: list[str] = []
+    matching: list[Instrument] = []
 
     for inst in candidate_set:
         ok, reason = accept_option(
@@ -326,7 +326,7 @@ def match_options(provider: ProviderLike | Any, index_symbol: str, expiry_target
 # Expiry fallback strategies
 # ---------------------------------------------------------------------------
 
-def apply_expiry_fallbacks(provider: ProviderLike | Any, index_symbol: str, expiry_target: _dt.date, strikes: Sequence[float], instruments: Sequence[Instrument], strike_membership: StrikeMembership, existing_matches: List[Instrument]) -> List[Instrument]:
+def apply_expiry_fallbacks(provider: ProviderLike | Any, index_symbol: str, expiry_target: _dt.date, strikes: Sequence[float], instruments: Sequence[Instrument], strike_membership: StrikeMembership, existing_matches: list[Instrument]) -> list[Instrument]:
     if existing_matches:
         return existing_matches  # no need for fallbacks
     settings = getattr(provider, '_settings', None)
@@ -351,7 +351,7 @@ def apply_expiry_fallbacks(provider: ProviderLike | Any, index_symbol: str, expi
         from src.utils.symbol_root import detect_root as cached_detect_root
 
     # Build expiry meta map
-    by_exp_meta: Dict[_dt.date, Dict[str, Any]] = {}
+    by_exp_meta: dict[_dt.date, dict[str, Any]] = {}
     def _norm_exp(ev):
         if isinstance(ev, _dt.datetime): return ev.date()
         if isinstance(ev, _dt.date): return ev
@@ -381,12 +381,12 @@ def apply_expiry_fallbacks(provider: ProviderLike | Any, index_symbol: str, expi
         meta['pool'].append(inst)
         meta['strike_set'].add(rsv)
 
-    matches: List[Instrument] = []
+    matches: list[Instrument] = []
     # Forward fallback
     if settings and getattr(settings, 'enable_nearest_expiry_fallback', True):
         try:
             forward_candidates = sorted(e for e,m in by_exp_meta.items() if e >= expiry_target and (m.get('strike_set') or set()) & strike_key_set)
-            chosen_forward: Optional[_dt.date] = None
+            chosen_forward: _dt.date | None = None
             for e in forward_candidates[:4]:
                 chosen_forward = e
                 break
@@ -409,7 +409,7 @@ def apply_expiry_fallbacks(provider: ProviderLike | Any, index_symbol: str, expi
         try:
             back_candidates = [e for e,m in by_exp_meta.items() if expiry_target > e and (expiry_target - e).days <= 3 and (m.get('strike_set') or set()) & strike_key_set]
             back_candidates.sort(reverse=True)
-            chosen_back: Optional[_dt.date] = None
+            chosen_back: _dt.date | None = None
             for e in back_candidates:
                 chosen_back = e
                 break
@@ -434,7 +434,7 @@ def apply_expiry_fallbacks(provider: ProviderLike | Any, index_symbol: str, expi
 # ---------------------------------------------------------------------------
 
 def _log_summary(index_symbol: str, expiry_date: Any, strikes: Sequence[float], matching_instruments: Sequence[Instrument]) -> None:
-    strikes_summary: Dict[float, Dict[str,int]] = {}
+    strikes_summary: dict[float, dict[str,int]] = {}
     for inst in matching_instruments:
         strike = float(inst.get('strike',0) or 0)
         it = inst.get('instrument_type','')
@@ -458,11 +458,11 @@ def _log_summary(index_symbol: str, expiry_date: Any, strikes: Sequence[float], 
         if strike_count >= 2:
             strike_min = strike_keys[0]
             strike_max = strike_keys[-1]
-            diffs = [b-a for a,b in zip(strike_keys, strike_keys[1:]) if b-a>0]
+            diffs = [b-a for a,b in zip(strike_keys, strike_keys[1:], strict=False) if b-a>0]
             step = min(diffs) if diffs else 0
         elif strike_count == 1:
             strike_min = strike_max = strike_keys[0]
-        sample: List[str] = []
+        sample: list[str] = []
         if strike_keys:
             if strike_count <= 5:
                 sample = [f"{s:.0f}" for s in strike_keys]
@@ -527,7 +527,7 @@ def _log_summary(index_symbol: str, expiry_date: Any, strikes: Sequence[float], 
 # Public entrypoint
 # ---------------------------------------------------------------------------
 
-def option_instruments(provider: ProviderLike | Any, index_symbol: str, expiry_date: Any, strikes: Iterable[float]) -> List[Instrument]:
+def option_instruments(provider: ProviderLike | Any, index_symbol: str, expiry_date: Any, strikes: Iterable[float]) -> list[Instrument]:
     """Return option instruments for requested strikes and expiry.
 
     Mirrors the old KiteProvider.option_instruments method so that KiteProvider
@@ -572,7 +572,7 @@ def option_instruments(provider: ProviderLike | Any, index_symbol: str, expiry_d
             expiry_iso = str(expiry_date)
 
         strikes_list = list(strikes)
-        cached_all: List[Instrument] = []
+        cached_all: list[Instrument] = []
         cache_hit_complete = True
         for s in strikes_list:
             for opt_type in ('CE','PE'):
@@ -596,8 +596,8 @@ def option_instruments(provider: ProviderLike | Any, index_symbol: str, expiry_d
                 logger.debug(f"Instrument cache MISS idx={index_symbol} expiry={expiry_iso} strikes={len(strikes_list)} (miss #{state.option_cache_misses})")
 
         # Universe fetch (prefer provider daily universe if attached)
-        if hasattr(provider, '_daily_universe') and getattr(provider, '_daily_universe'):
-            universe = getattr(provider, '_daily_universe')
+        if hasattr(provider, '_daily_universe') and provider._daily_universe:
+            universe = provider._daily_universe
         else:
             exchange_pool = 'NFO'
             universe = provider.get_instruments(exchange_pool)
@@ -677,7 +677,7 @@ def option_instruments(provider: ProviderLike | Any, index_symbol: str, expiry_d
         if not matching:
             try:
                 logger.debug(
-                    "option_match_empty_pre_relax index=%s expiry=%s strikes=%d filtered=%d prefilter_used=%s", 
+                    "option_match_empty_pre_relax index=%s expiry=%s strikes=%d filtered=%d prefilter_used=%s",
                     index_symbol, expiry_target, len(strikes_list), len(filtered), prefiltered_used
                 )
             except Exception:
@@ -690,12 +690,12 @@ def option_instruments(provider: ProviderLike | Any, index_symbol: str, expiry_d
             if is_truthy_env('G6_RELAX_EMPTY_MATCH') or 'G6_RELAX_EMPTY_MATCH' not in os.environ:
                 try:
                     logger.warning(
-                        "empty_option_match_relaxing index=%s expiry=%s filtered=%d strikes=%d", 
+                        "empty_option_match_relaxing index=%s expiry=%s filtered=%d strikes=%d",
                         index_symbol, expiry_target, len(filtered), len(strikes_list)
                     )
                     strikes_set = {float(s) for s in strikes_list}
                     # First pass: strict expiry + strike match
-                    relaxed: List[Instrument] = []
+                    relaxed: list[Instrument] = []
                     def _norm_exp(ev):
                         import datetime as _dt
                         if isinstance(ev, _dt.datetime): return ev.date()
@@ -718,7 +718,7 @@ def option_instruments(provider: ProviderLike | Any, index_symbol: str, expiry_d
                     # If still nothing, allow nearest expiry (forward) with strike match
                     if not relaxed:
                         # Build mapping of expiry -> candidates to pick nearest
-                        by_exp: Dict[Any, List[Instrument]] = {}
+                        by_exp: dict[Any, list[Instrument]] = {}
                         for inst in filtered:
                             ity = (inst.get('instrument_type') or '').upper()
                             if ity not in ('CE','PE'): continue
@@ -734,13 +734,13 @@ def option_instruments(provider: ProviderLike | Any, index_symbol: str, expiry_d
                             forward = sorted(e for e in by_exp.keys() if e >= expiry_target)
                             chosen = forward[0] if forward else sorted(by_exp.keys())[0]
                             logger.warning(
-                                "empty_option_match_relax_nearest_expiry index=%s requested=%s using=%s", 
+                                "empty_option_match_relax_nearest_expiry index=%s requested=%s using=%s",
                                 index_symbol, expiry_target, chosen
                             )
                             relaxed.extend(by_exp.get(chosen, []))
                     # Optional: de-duplicate by (strike, type)
                     if relaxed:
-                        dedup: Dict[tuple[float,str], Instrument] = {}
+                        dedup: dict[tuple[float,str], Instrument] = {}
                         for inst in relaxed:
                             try:
                                 st = float(inst.get('strike') or 0)
@@ -751,17 +751,17 @@ def option_instruments(provider: ProviderLike | Any, index_symbol: str, expiry_d
                             dedup[(st, ity)] = inst
                         matching = list(dedup.values())
                         logger.info(
-                            "empty_option_match_relax_success index=%s expiry=%s recovered=%d", 
+                            "empty_option_match_relax_success index=%s expiry=%s recovered=%d",
                             index_symbol, expiry_target, len(matching)
                         )
                     else:
                         logger.debug(
-                            "empty_option_match_relax_failed index=%s expiry=%s", 
+                            "empty_option_match_relax_failed index=%s expiry=%s",
                             index_symbol, expiry_target
                         )
                         try:
                             logger.debug(
-                                "option_match_remains_empty_after_relax index=%s expiry=%s filtered=%d strikes=%d", 
+                                "option_match_remains_empty_after_relax index=%s expiry=%s filtered=%d strikes=%d",
                                 index_symbol, expiry_target, len(filtered), len(strikes_list)
                             )
                         except Exception:

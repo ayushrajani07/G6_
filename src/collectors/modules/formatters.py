@@ -1,7 +1,9 @@
 """Formatting helpers for collector concise-mode output."""
 from __future__ import annotations
-from typing import Dict, Any, Iterable, Tuple, List
+
 import datetime
+from collections.abc import Iterable
+from typing import Any
 
 __all__ = ["format_concise_expiry_row"]
 
@@ -12,9 +14,9 @@ def format_concise_expiry_row(
     atm_strike: float | int | None,
     expiry_date: Any,
     expiry_rule: str,
-    enriched_data: Dict[str, Dict[str, Any]],
+    enriched_data: dict[str, dict[str, Any]],
     strikes: Iterable[float] | None,
-) -> Tuple[str,str,str,str,str,str,str,str,str,str,str]:
+) -> tuple[str,str,str,str,str,str,str,str,str,str,str]:
     """Produce the human row tuple used in concise mode.
 
     Mirrors legacy inline logic exactly (ordering & formatting) to preserve parity.
@@ -22,7 +24,7 @@ def format_concise_expiry_row(
     """
     # Time (UTC HH:MM)
     try:
-        ts_local = per_index_ts.astimezone(datetime.timezone.utc).strftime('%H:%M')
+        ts_local = per_index_ts.astimezone(datetime.UTC).strftime('%H:%M')
     except Exception:
         ts_local = '--:--'
     # Price formatting
@@ -60,7 +62,7 @@ def format_concise_expiry_row(
         pcr_val = (pe_count / ce_count) if ce_count > 0 else 0.0
     # Strike range & step
     rng_disp = '-'; step_val_h = 0
-    strike_list: List[float] = []
+    strike_list: list[float] = []
     if strikes:
         try:
             strike_list = list(strikes)
@@ -69,7 +71,7 @@ def format_concise_expiry_row(
     if strike_list:
         try:
             rng_min = int(min(strike_list)); rng_max = int(max(strike_list))
-            diffs_f = [int(b-a) for a,b in zip(strike_list, strike_list[1:]) if b > a]
+            diffs_f = [int(b-a) for a,b in zip(strike_list, strike_list[1:], strict=False) if b > a]
             step_val_h = min(diffs_f) if diffs_f else 0
             rng_disp = f"{rng_min}\u2013{rng_max}"
         except Exception:

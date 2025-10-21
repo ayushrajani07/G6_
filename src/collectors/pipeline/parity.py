@@ -29,9 +29,11 @@ Returned structure:
 Future versions may incorporate distributional comparisons (e.g., per-index strike counts) but must remain monotonic and inexpensive.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, TypedDict, MutableMapping
-from collections import deque
+
 import os
+from collections import deque
+from typing import Any, TypedDict
+
 
 def _extract_alert_set(obj: Any) -> set[str]:
     if obj is None:
@@ -53,21 +55,21 @@ def _extract_alert_set(obj: Any) -> set[str]:
 class ParityDetails(TypedDict, total=False):
     indices: tuple[int, int]
     options_total: tuple[int, int]
-    alerts: Dict[str, Any]
+    alerts: dict[str, Any]
     strike_coverage_avg: tuple[float, float]
-    strike_shape: Dict[str, Any]
-    strike_cov_variance: Dict[str, Any]
+    strike_shape: dict[str, Any]
+    strike_cov_variance: dict[str, Any]
 
 class ParityResult(TypedDict, total=False):
     version: int
     score: float
-    components: Dict[str, float]
-    weights: Dict[str, float]
-    missing: List[str]
+    components: dict[str, float]
+    weights: dict[str, float]
+    missing: list[str]
     details: ParityDetails
 
 
-def compute_parity_score(legacy: Dict[str, Any] | None, pipeline: Dict[str, Any] | None, *, weights: Dict[str, float] | None = None) -> ParityResult:
+def compute_parity_score(legacy: dict[str, Any] | None, pipeline: dict[str, Any] | None, *, weights: dict[str, float] | None = None) -> ParityResult:
     extended = os.getenv('G6_PARITY_EXTENDED','0').lower() in ('1','true','on','yes')
     enable_shape = os.getenv('G6_PARITY_STRIKE_SHAPE','0').lower() in ('1','true','on','yes')
     enable_cov_var = os.getenv('G6_PARITY_STRIKE_COV_VAR','0').lower() in ('1','true','on','yes')
@@ -83,7 +85,7 @@ def compute_parity_score(legacy: Dict[str, Any] | None, pipeline: Dict[str, Any]
         return {'version': version, 'score': 0.0, 'components': {}, 'missing': ['all'], 'weights': {}, 'details': {}}
     weights = weights or {}
     # Default equal weights for found components; assign after detection.
-    components: Dict[str, float] = {}
+    components: dict[str, float] = {}
     details: ParityDetails = {}
     missing: list[str] = []
 
@@ -131,14 +133,14 @@ def compute_parity_score(legacy: Dict[str, Any] | None, pipeline: Dict[str, Any]
     # Alerts parity (supports optional severity weighting + per-category diff)
     try:
         # Accept either flat list (legacy) or structured {'categories': {...}}
-        def _normalize_alerts(root: Dict[str, Any]) -> Dict[str, int]:
+        def _normalize_alerts(root: dict[str, Any]) -> dict[str, int]:
             if root is None:
                 return {}
             alerts_block = root.get('alerts') if isinstance(root, dict) else None
             if isinstance(alerts_block, dict):
                 cats = alerts_block.get('categories') if isinstance(alerts_block, dict) else None
                 if isinstance(cats, dict):
-                    norm: Dict[str,int] = {}
+                    norm: dict[str,int] = {}
                     for k, v in cats.items():
                         try:
                             norm[str(k)] = int(v)
@@ -156,7 +158,7 @@ def compute_parity_score(legacy: Dict[str, Any] | None, pipeline: Dict[str, Any]
         cat_names = sorted(set(cats_a.keys()) | set(cats_b.keys()))
         # Severity weighting env override: comma list cat:weight
         raw_weights = os.getenv('G6_PARITY_ALERT_WEIGHTS','')
-        sev_weights: Dict[str, float] = {}
+        sev_weights: dict[str, float] = {}
         if raw_weights:
             for part in raw_weights.split(','):
                 if not part.strip():
@@ -171,7 +173,7 @@ def compute_parity_score(legacy: Dict[str, Any] | None, pipeline: Dict[str, Any]
         diffs_weighted = 0.0
         denom_weighted = 0.0
         per_cat_details = {}
-        for name in cat_names:     
+        for name in cat_names:
             a = cats_a.get(name, 0)
             b = cats_b.get(name, 0)
             w = sev_weights.get(name, 1.0)
@@ -205,7 +207,7 @@ def compute_parity_score(legacy: Dict[str, Any] | None, pipeline: Dict[str, Any]
     # Extended: strike coverage distribution similarity (simple mean diff heuristic)
     if extended:
         try:
-            def _avg_cov(root: Dict[str, Any]) -> float | None:
+            def _avg_cov(root: dict[str, Any]) -> float | None:
                 indices = root.get('indices') or []
                 vals = []
                 for rec in indices:
@@ -231,8 +233,8 @@ def compute_parity_score(legacy: Dict[str, Any] | None, pipeline: Dict[str, Any]
     if enable_shape:
         try:
             # Extract per-index strike counts; fallback to option_count where strike_count missing
-            def _strike_counts(root: Dict[str, Any]) -> List[int]:
-                out: List[int] = []
+            def _strike_counts(root: dict[str, Any]) -> list[int]:
+                out: list[int] = []
                 indices = root.get('indices') or []
                 for rec in indices:
                     if not isinstance(rec, dict):
@@ -296,8 +298,8 @@ def compute_parity_score(legacy: Dict[str, Any] | None, pipeline: Dict[str, Any]
     # Strike coverage variance component (Wave 4 W4-08)
     if enable_cov_var:
         try:
-            def _cov_vals(root: Dict[str, Any]) -> List[float]:
-                vals: List[float] = []
+            def _cov_vals(root: dict[str, Any]) -> list[float]:
+                vals: list[float] = []
                 indices = root.get('indices') or []
                 for rec in indices:
                     if isinstance(rec, dict):
@@ -310,8 +312,7 @@ def compute_parity_score(legacy: Dict[str, Any] | None, pipeline: Dict[str, Any]
             if len(vals_a) < 2 or len(vals_b) < 2:
                 missing.append('strike_cov_variance')
             else:
-                import math
-                def _variance(xs: List[float]) -> float:
+                def _variance(xs: list[float]) -> float:
                     if not xs:
                         return 0.0
                     m = sum(xs)/len(xs)

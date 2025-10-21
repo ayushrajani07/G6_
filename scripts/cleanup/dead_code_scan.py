@@ -17,8 +17,17 @@ Environment:
   G6_DEAD_CODE_BUDGET (int) optional hard cap for non-allowlisted items.
 """
 from __future__ import annotations
-import argparse, json, os, re, subprocess, sys, ast, pathlib
+
+import argparse
+import ast
+import json
+import os
+import pathlib
+import re
+import subprocess
+import sys
 from dataclasses import dataclass
+from typing import TypedDict
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 ALLOWLIST_PATH = ROOT / "tools" / "dead_code_allowlist.json"
@@ -36,6 +45,10 @@ class DeadItem:
     filename: str
     lineno: int
     confidence: int | None = None
+
+class Summary(TypedDict):
+    total: int
+    by_type: dict[str, int]
 
 def run_vulture(min_conf: int) -> list[DeadItem]:
     cmd = [sys.executable, "-m", "vulture", *VULTURE_MODULES, "--min-confidence", str(min_conf)]
@@ -102,17 +115,17 @@ def load_allowlist() -> dict[str, dict]:
             return {}
     return {}
 
-def save_allowlist(data: dict[str, dict]):
+def save_allowlist(data: dict[str, dict]) -> None:
     ALLOWLIST_PATH.parent.mkdir(parents=True, exist_ok=True)
     ALLOWLIST_PATH.write_text(json.dumps(data, indent=2, sort_keys=True), encoding='utf-8')
 
-def summarize(items: list[DeadItem]):
-    return {
-        'total': len(items),
-        'by_type': {t: sum(1 for i in items if i.typ == t) for t in sorted({i.typ for i in items})},
-    }
+def summarize(items: list[DeadItem]) -> Summary:
+    return Summary(
+        total=len(items),
+        by_type={t: sum(1 for i in items if i.typ == t) for t in sorted({i.typ for i in items})},
+    )
 
-def write_report(findings: list[DeadItem], new_items: list[DeadItem], allowlist_keys: set[str]):
+def write_report(findings: list[DeadItem], new_items: list[DeadItem], allowlist_keys: set[str]) -> None:
     REPORT_JSON.write_text(json.dumps({
         'total_findings': len(findings),
         'new_items': [i.__dict__ for i in new_items],

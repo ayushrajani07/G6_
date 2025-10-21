@@ -298,8 +298,8 @@ groups:
     labels:
       job: g6_platform
     record: g6_cs_ingest_backlog_rows:eta_minutes
-  - expr: max(0, (sum(g6_cs_ingest_backlog_rows offset 5m) - sum(g6_cs_ingest_backlog_rows))
-      / 300)
+  - expr: clamp_min((sum(g6_cs_ingest_backlog_rows offset 5m) - sum(g6_cs_ingest_backlog_rows))
+      / 300, 0)
     labels:
       job: g6_platform
     record: g6_cs_ingest_backlog_rows:burn_rows_per_s
@@ -367,3 +367,52 @@ groups:
     labels:
       job: g6_platform
     record: g6_panel_diff_bytes_last:top5
+  - expr: topk(5, g6_stale_active)
+    labels:
+      job: g6_platform
+    record: g6_stale_active:top5
+  - expr: sum(rate(g6_stale_cycles_total[5m])) by (index,mode)
+    labels:
+      job: g6_platform
+    record: g6_stale_cycles_total:rate_5m
+  - expr: sum(rate(g6_stale_cycles_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_stale_cycles_total:total_rate_5m
+  - expr: sum(rate(g6_stale_system_cycles_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_stale_system_cycles_total:total_rate_5m
+  - expr: sum(rate(g6_empty_quote_fields_total[5m])) by (index)
+    labels:
+      job: g6_platform
+    record: g6_empty_quote_fields_total:rate_5m
+  - expr: sum(rate(g6_empty_quote_fields_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_empty_quote_fields_total:total_rate_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_sse_flush_seconds_bucket[5m])) by (le))
+    labels:
+      job: g6_platform
+    record: g6_sse_flush_seconds:p95_5m
+  - expr: histogram_quantile(0.99, sum(rate(g6_sse_flush_seconds_bucket[5m])) by (le))
+    labels:
+      job: g6_platform
+    record: g6_sse_flush_seconds:p99_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_sse_flush_seconds_bucket[5m])) by (le))
+    labels:
+      job: g6_platform
+    record: g6_sse_flush_seconds:p95_5m
+  - expr: histogram_quantile(0.95, sum(rate(g6_sse_flush_seconds_bucket[30m])) by
+      (le))
+    labels:
+      job: g6_platform
+    record: g6_sse_flush_seconds:p95_30m
+  - expr: g6_sse_flush_seconds:p95_5m / clamp_min(g6_sse_flush_seconds:p95_30m, 0.001)
+    labels:
+      job: g6_platform
+    record: g6_sse_flush_seconds:p95_ratio_5m_30m
+  - expr: sum(rate(g6_sse_trace_stages_total[5m]))
+    labels:
+      job: g6_platform
+    record: g6_sse_trace_stages_total:total_rate_5m

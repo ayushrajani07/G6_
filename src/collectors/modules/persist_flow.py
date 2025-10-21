@@ -15,8 +15,10 @@ NOTE: This module intentionally keeps logic minimal; any future enhancements
 expiry_processor again.
 """
 from __future__ import annotations
-from typing import Any, Dict, Optional, Callable, Set, TYPE_CHECKING
+
 import logging
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +38,7 @@ else:
 try:  # pragma: no cover
     from src.collectors.helpers.persist import persist_with_context
 except Exception:  # pragma: no cover
-    def persist_with_context(*a: Any, **kw: Any) -> 'PersistResult':  # fallback
+    def persist_with_context(*a: Any, **kw: Any) -> PersistResult:  # fallback
         raise RuntimeError("persist_with_context unavailable")
 
 TraceFn = Callable[[str], None] | Callable[[str, Any], None]
@@ -44,13 +46,13 @@ TraceFn = Callable[[str], None] | Callable[[str, Any], None]
 
 def run_persist_flow(
     ctx: Any,
-    enriched_data: Dict[str, Dict[str, Any]],
+    enriched_data: dict[str, dict[str, Any]],
     expiry_ctx: Any,
     index_ohlc: Any,
-    allowed_expiry_dates: Set[Any],
+    allowed_expiry_dates: set[Any],
     trace: Callable[..., None],
     concise_mode: bool,
-) -> 'PersistResult':
+) -> PersistResult:
     """Execute persistence & metrics emission.
 
     Parameters
@@ -79,7 +81,7 @@ def run_persist_flow(
     sink = getattr(ctx, 'csv_sink', None)
     if sink is not None:
         try:
-            setattr(sink, 'allowed_expiry_dates', allowed_expiry_dates)
+            sink.allowed_expiry_dates = allowed_expiry_dates
         except Exception:  # pragma: no cover
             logger.debug('persist_flow_set_allowed_expiry_dates_failed', exc_info=True)
 

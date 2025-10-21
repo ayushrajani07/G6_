@@ -29,14 +29,14 @@ Implementation notes:
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import sys
 import tempfile
+from collections.abc import Iterable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Dict, Iterable, List, Set, Tuple, Any
-from datetime import datetime, timezone
+from typing import Any
 
 TOKEN_RE = re.compile(r"\bG6_[A-Z0-9_]+\b")
 DOC_FILE_CANDIDATE = Path("docs/env_dict.md")
@@ -65,8 +65,8 @@ def iter_files(root: Path) -> Iterable[Path]:
         yield p
 
 
-def collect_tokens(root: Path) -> Dict[str, TokenInfo]:
-    found: Dict[str, TokenInfo] = {}
+def collect_tokens(root: Path) -> dict[str, TokenInfo]:
+    found: dict[str, TokenInfo] = {}
     for file_path in iter_files(root):
         try:
             text = file_path.read_text(encoding="utf-8", errors="ignore")
@@ -82,7 +82,7 @@ def collect_tokens(root: Path) -> Dict[str, TokenInfo]:
     return found
 
 
-def collect_documented(doc_file: Path) -> Set[str]:
+def collect_documented(doc_file: Path) -> set[str]:
     if not doc_file.exists():
         return set()
     try:
@@ -92,7 +92,7 @@ def collect_documented(doc_file: Path) -> Set[str]:
     return set(TOKEN_RE.findall(text))
 
 
-def format_section(header: str, lines: List[str]) -> str:
+def format_section(header: str, lines: list[str]) -> str:
     out = [f"## {header}", ""]
     if not lines:
         out.append("(none)")
@@ -104,16 +104,16 @@ def format_section(header: str, lines: List[str]) -> str:
 
 def write_output(
     out_file: Path,
-    discovered: Dict[str, TokenInfo],
-    documented: Set[str],
+    discovered: dict[str, TokenInfo],
+    documented: set[str],
     json_out: Path | None = None,
 ) -> None:
     code_tokens = set(discovered.keys())
     missing_doc = sorted(code_tokens - documented)
     stale_doc = sorted(documented - code_tokens)
-    now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    now = datetime.now(UTC).isoformat().replace("+00:00", "Z")
 
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append("# Auto-Generated Environment Variable Inventory")
     lines.append("")
     lines.append(f"Generated: {now}")
@@ -158,7 +158,7 @@ def write_output(
 
     if json_out is not None:
         import json
-        json_payload: Dict[str, Any] = {
+        json_payload: dict[str, Any] = {
             "generated": now,
             "counts": {
                 "code_referenced": len(code_tokens),
@@ -185,7 +185,7 @@ def write_output(
         tmp_json.replace(json_out)
 
 
-def main(argv: List[str]) -> int:
+def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description="Generate G6_* env var inventory")
     ap.add_argument("--out", default=str(DEFAULT_OUT), help="Output markdown file path")
     ap.add_argument(

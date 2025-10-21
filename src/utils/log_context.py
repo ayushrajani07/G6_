@@ -21,14 +21,15 @@ The JSON console logger (G6_JSON_LOGS=1) will include these fields if present.
 """
 from __future__ import annotations
 
-from contextlib import contextmanager
-from typing import Any, Dict, Iterator, Optional
 import contextvars
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any
 
-_CTX: contextvars.ContextVar[Dict[str, Any]] = contextvars.ContextVar("g6_log_ctx", default={})
+_CTX: contextvars.ContextVar[dict[str, Any]] = contextvars.ContextVar("g6_log_ctx", default={})
 
 
-def get_context() -> Dict[str, Any]:
+def get_context() -> dict[str, Any]:
     """Return a shallow copy of the current context dict."""
     ctx = _CTX.get()
     # Return a copy to prevent accidental external mutation

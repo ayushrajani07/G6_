@@ -5,7 +5,11 @@ Unified command:
     python scripts/bench_tools.py verify <artifact_dir>
 """
 from __future__ import annotations
-import os, sys, subprocess
+
+import os
+import subprocess
+import sys
+
 
 def main(argv: list[str] | None = None) -> int:  # noqa: D401
     if argv is None:

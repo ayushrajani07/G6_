@@ -1,20 +1,27 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Metrics for G6 Options Trading Platform.
 Sets up a Prometheus metrics server.
 """
 
 import logging
-from src.utils.env_flags import is_truthy_env as _is_truthy_env  # type: ignore
-import warnings
 import os
+import warnings
+
+from src.utils.env_flags import is_truthy_env as _is_truthy_env  # type: ignore
+
 try:
     # Local import aliases; fall back to os.getenv semantics if adapter unavailable very early
     from src.collectors.env_adapter import (
         get_bool as _env_bool,
-        get_int as _env_int,
+    )
+    from src.collectors.env_adapter import (
         get_float as _env_float,
+    )
+    from src.collectors.env_adapter import (
+        get_int as _env_int,
+    )
+    from src.collectors.env_adapter import (
         get_str as _env_str,
     )
 except Exception:  # pragma: no cover - defensive
@@ -22,12 +29,11 @@ except Exception:  # pragma: no cover - defensive
     _env_int = lambda k, d=0: int(os.getenv(k, str(d)) or d)
     _env_float = lambda k, d=0.0: float(os.getenv(k, str(d)) or d)
     _env_str = lambda k, d='': (os.getenv(k, d) or '').strip()
-import threading
-from prometheus_client import Summary, Counter, Gauge, Histogram, REGISTRY
+import sys  # noqa: F401
 import time
 from contextlib import contextmanager
-import sys  # noqa: F401
-import logging
+
+from prometheus_client import REGISTRY, Counter, Gauge, Summary
 
 # LogRecord .message attribute handling is now installed centrally in src/metrics/__init__.py
 
@@ -154,7 +160,7 @@ class MetricsRegistry:
             except Exception:
                 pass
             return None
-    
+
     def __init__(self):
         """Initialize metrics."""
         _trace_simple = _is_truthy_env('G6_METRICS_INIT_SIMPLE_TRACE')
@@ -224,11 +230,11 @@ class MetricsRegistry:
             if not hasattr(self, 'group_allowed'):
                 def group_allowed(name: str) -> bool:  # type: ignore
                     try:
-                        return bool(getattr(self, '_group_allowed')(name))  # type: ignore[attr-defined]
+                        return bool(self._group_allowed(name))  # type: ignore[attr-defined]
                     except Exception:
                         return True
                 self.group_allowed = group_allowed  # type: ignore[attr-defined]
-            self._group_allowed = getattr(self, '_group_allowed')  # ensure alias stability
+            self._group_allowed = self._group_allowed  # ensure alias stability
             _end(ok=True, groups=len(CONTROLLED_GROUPS))
             _pt('group_gating_ok', groups=len(CONTROLLED_GROUPS))
             if _prof_enabled:
@@ -269,7 +275,7 @@ class MetricsRegistry:
         _prof_t = _prof_time.perf_counter() if _prof_enabled else 0.0  # type: ignore[attr-defined]
         _end = _step('spec_registration')
         try:
-            from .spec import METRIC_SPECS, GROUPED_METRIC_SPECS  # type: ignore
+            from .spec import GROUPED_METRIC_SPECS, METRIC_SPECS  # type: ignore
             scount = 0
             for _spec in METRIC_SPECS:
                 try:
@@ -448,7 +454,9 @@ class MetricsRegistry:
             # Skip panel diff family entirely when egress is frozen.
             if _is_truthy_env('G6_EGRESS_FROZEN'):
                 raise RuntimeError('panel_diff_metrics_skipped_frozen')  # short-circuit to except: block
-            from prometheus_client import REGISTRY as _R, Counter as _PCounter, Gauge as _PGauge  # type: ignore
+            from prometheus_client import REGISTRY as _R  # type: ignore
+            from prometheus_client import Counter as _PCounter
+            from prometheus_client import Gauge as _PGauge
             def _force_panel_metric(attr: str, prom_name: str, ctor, labels: list[str], doc: str):  # noqa: ANN001
                 if not getattr(self, '_group_allowed', lambda *_: True)('panel_diff'):
                     return
@@ -590,7 +598,8 @@ class MetricsRegistry:
         # Early fallback for API metrics if init_api_call_metrics path failed (ensures presence before pruning)
         try:
             if not hasattr(self, 'api_response_time') or not hasattr(self, 'api_success_rate') or not hasattr(self, 'api_response_latency'):
-                from prometheus_client import Gauge as _Gf, Histogram as _Hf
+                from prometheus_client import Gauge as _Gf
+                from prometheus_client import Histogram as _Hf
                 if not hasattr(self, 'api_response_time'):
                     self.api_response_time = _Gf('g6_api_response_time_ms', 'Average upstream API response time (ms, rolling)')  # type: ignore[attr-defined]
                 if not hasattr(self, 'api_success_rate'):
@@ -860,7 +869,7 @@ class MetricsRegistry:
         # (Fault budget tracker already initialized earlier if env enabled.)
 
         # (Removed duplicated init/log/introspection/dump block – original earlier block retained.)
-    
+
     # ---------------- Category Init Helpers (extracted) -----------------
     # Category initializer methods removed (extracted to modules under src/metrics/)
 
@@ -1060,7 +1069,9 @@ class MetricsRegistry:
             disabled_count: int size of disabled set
         """
         try:
-            from .gating import configure_registry_groups as _cfg, apply_pruning as _apply, CONTROLLED_GROUPS as _CG  # type: ignore
+            from .gating import CONTROLLED_GROUPS as _CG
+            from .gating import apply_pruning as _apply
+            from .gating import configure_registry_groups as _cfg  # type: ignore
         except Exception:
             return {"error": "gating import failed"}
 
@@ -1186,7 +1197,7 @@ class MetricsRegistry:
                         except Exception:
                             pass
                         try:
-                            del getattr(self, '_metric_groups')[attr]  # type: ignore[index]
+                            del self._metric_groups[attr]  # type: ignore[index]
                         except Exception:
                             pass
             except Exception:
@@ -1206,7 +1217,7 @@ class MetricsRegistry:
                         except Exception:
                             pass
                         try:
-                            del getattr(self, '_metric_groups')[attr]  # type: ignore[index]
+                            del self._metric_groups[attr]  # type: ignore[index]
                         except Exception:
                             pass
                 if _env_str('G6_DEBUG_PRUNE',''):
@@ -1281,6 +1292,7 @@ def get_metrics_metadata() -> dict | None:
 
 from . import _singleton  # central singleton anchor (import placed here to avoid early circulars)
 
+
 # ---------------------------------------------------------------------------
 # Legacy accessors (preserved) now fully delegate to central singleton anchor
 # ---------------------------------------------------------------------------
@@ -1326,7 +1338,7 @@ def get_metrics_singleton() -> MetricsRegistry | None:  # pragma: no cover - thi
                     if want_init_trace_dump and not getattr(existing, '_init_trace', []):
                         logger.info("METRICS_INIT_TRACE: 0 steps")
                 try:
-                    setattr(existing, "_dump_marker_emitted", True)
+                    existing._dump_marker_emitted = True
                 except Exception:
                     pass
         except Exception:
@@ -1525,8 +1537,9 @@ def isolated_metrics_registry():  # pragma: no cover - thin helper, exercised in
         # Guarantee _maybe_register present for tests expecting dynamic registration
         if not hasattr(reg, '_maybe_register'):
             try:
-                from .registration import maybe_register as _maybe  # type: ignore
                 import functools as _ft
+
+                from .registration import maybe_register as _maybe  # type: ignore
                 reg._maybe_register = _ft.partial(_maybe, reg)  # type: ignore[attr-defined]
             except Exception:
                 pass

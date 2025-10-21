@@ -1,30 +1,29 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 CSV Storage Sink for G6 Platform.
 """
 
-import os
 import csv
-import json
 import datetime
-import time
+import json
 import logging
-import re  # added for ISO date detection in expiry tag
-from typing import Dict, Any, List, Tuple
-import shutil
+import os
 import os as _os_env  # for env access without shadowing
+import re  # added for ISO date detection in expiry tag
+import shutil
 import time
+from typing import Any
+
 from ..utils.timeutils import (
-    round_timestamp,  # generic (still used for raw rounding where needed)
     format_ist_dt_30s,  # unified IST full datetime formatting with 30s rounding
-    round_to_30s_ist,
-)  # type: ignore
+    round_timestamp,  # generic (still used for raw rounding where needed)
+    )
+
 
 class CsvSink:
     """CSV storage sink for options data."""
-    
-    def __init__(self, base_dir="data/g6_data"):
+
+    def __init__(self, base_dir: str = "data/g6_data") -> None:
         """
         Initialize CSV sink.
         Args:
@@ -47,7 +46,7 @@ class CsvSink:
         # Detect global concise mode (default enabled) to reduce repetitive write logs
         self._concise = _os_env.environ.get('G6_CONCISE_LOGS', '1').lower() not in ('0','false','no','off')
         # Lazy metrics registry (optional injection later)
-        self.metrics = None
+        self.metrics: Any | None = None
         # Configurable overview aggregation interval (seconds)
         try:
             self.overview_interval_seconds = int(_os_env.environ.get('G6_OVERVIEW_INTERVAL_SECONDS', '180'))
@@ -56,28 +55,64 @@ class CsvSink:
         # Verbose logging flag
         self.verbose = _os_env.environ.get('G6_CSV_VERBOSE', '1').lower() not in ('0','false','no')
         # Internal state for aggregation
-        self._agg_last_write: Dict[str, datetime.datetime] = {}
-        self._agg_pcr_snapshot: Dict[str, Dict[str, float]] = {}
-        self._agg_day_width: Dict[str, float] = {}
+        self._agg_last_write: dict[str, datetime.datetime] = {}
+        self._agg_pcr_snapshot: dict[str, dict[str, float]] = {}
+        self._agg_day_width: dict[str, float] = {}
+        # Overview change tracking state (per index)
+        self._index_last_price: dict[str, float] = {}
+        self._index_open_price: dict[str, float] = {}
+        self._index_open_date: dict[str, str] = {}
+        self._tp_last: dict[str, float] = {}
+        self._tp_open: dict[str, float] = {}
+        self._tp_open_date: dict[str, str] = {}
+        # Previous day close tracking (lazy-loaded per day per index)
+        self._index_prev_close: dict[str, float] = {}
+        self._tp_prev_close: dict[str, float] = {}
+        self._prev_close_loaded_date: dict[str, str] = {}
+        # Per-offset TP tracking for option files
+        self._tp_open_by_key: dict[tuple[str, str, int], float] = {}
+        self._tp_open_date_by_key: dict[tuple[str, str, int], str] = {}
+        self._tp_prev_close_by_key: dict[tuple[str, str, int], float] = {}
+        self._tp_prev_loaded_date_by_key: dict[tuple[str, str, int], str] = {}
+        # Last known VIX (for aggregated snapshot fallback)
+        self._last_vix: float | None = None
         # ---------------- Batching State (Task 10) ----------------
         try:
             self._batch_flush_threshold = int(_os_env.environ.get('G6_CSV_BATCH_FLUSH','0'))  # 0 => disabled
         except ValueError:
             self._batch_flush_threshold = 0
         # key: (index, expiry_code, date_str) -> { option_file: {'header': header, 'rows': [row,...]} }
-        self._batch_buffers = {}
+        self._batch_buffers: dict[tuple[str, str, str], dict[str, dict[str, Any]]] = {}
         # Track counts per key to know when to flush
-        self._batch_counts = {}
+        self._batch_counts: dict[tuple[str, str, str], int] = {}
         # Track which logical expiry tags have been seen per index per date for advisory (Task 35)
-        self._seen_expiry_tags = {}
-        self._advisory_emitted = {}
+        self._seen_expiry_tags: dict[tuple[str, str], set[str]] = {}
+        self._advisory_emitted: dict[tuple[str, str], bool] = {}
+        # Frequently used dynamic attributes predeclared for type checker
+        self._last_row_keys: dict[tuple[str, int], str] = {}
+        self._expiry_daily_stats: dict[str, dict[str, int]] = {}
+        self._last_expiry_summary_emit: float = 0.0
+        self._config_cache: Any | None = None
+        self._junk_cfg_loaded: bool = False
+        self._junk_cfg_whitelist_val: str | None = None
+        self._expiry_canonical_map: dict[tuple[str, str], str] = {}
+        self._expiry_misclass_dedupe: set[tuple[str, str, str, str]] = set()
+        self._expiry_misclass_accounted_map: dict[tuple[str, str], int] = {}
+        self._expiry_misclass_mis_keys: set[tuple[str, str, str, str]] = set()
+        self._expiry_misclass_policy: str = 'rewrite'
+        self._expiry_quarantine_dir: str = 'data/quarantine/expiries'
+        self._expiry_rewrite_annotate: bool = False
+        self._expiry_summary_interval: int = 60
+        self._rewrite_annotations: list[Any] = []
+        # Track pending quarantined rows per ISO date for metrics
+        self._expiry_quarantine_pending_counts: dict[str, int] = {}
 
-    def attach_metrics(self, metrics_registry):
+    def attach_metrics(self, metrics_registry: Any) -> None:
         """Attach metrics registry after initialization to avoid circular imports."""
         self.metrics = metrics_registry
-        
+
     # ---------------- Metric Wrapper Helpers ----------------
-    def _metric_inc(self, name: str, amount: int | float = 1, labels: Dict[str, Any] | None = None):
+    def _metric_inc(self, name: str, amount: int | float = 1, labels: dict[str, Any] | None = None) -> None:
         """Safely increment a metric if it exists (counter/gauge)."""
         try:
             if not self.metrics:
@@ -97,7 +132,7 @@ class CsvSink:
         except Exception:
             pass
 
-    def _metric_set(self, name: str, value: int | float, labels: Dict[str, Any] | None = None):
+    def _metric_set(self, name: str, value: int | float, labels: dict[str, Any] | None = None) -> None:
         """Safely set a gauge metric if it exists."""
         try:
             if not self.metrics:
@@ -116,7 +151,7 @@ class CsvSink:
                 pass
         except Exception:
             pass
-    
+
     # ------------------------------------------------------------------
     # Expiry remediation daily summary helpers
     # ------------------------------------------------------------------
@@ -154,15 +189,21 @@ class CsvSink:
                 self._last_expiry_summary_emit = now
             except Exception:
                 pass
-    
-    def _clean_for_json(self, obj):
-        """Convert non-serializable objects for JSON."""
+
+    def _clean_for_json(self, obj: Any) -> Any:
+        """Convert non-serializable objects for JSON.
+
+        Returns a JSON-serializable representation (str/number/dict/list) as appropriate.
+        """
         if isinstance(obj, (datetime.date, datetime.datetime)):
             return obj.isoformat()
-        elif hasattr(obj, 'to_dict'):
-            return obj.to_dict()
-        return str(obj)
-    
+        if hasattr(obj, 'to_dict'):
+            try:
+                return obj.to_dict()
+            except Exception:
+                return str(obj)
+        return obj if isinstance(obj, (str, int, float, bool, list, dict, type(None))) else str(obj)
+
     # ==================================================================
     # Public API: Orchestrates end-to-end write for a single expiry slice
     # Major phases (each delegated to extracted helpers):
@@ -175,9 +216,9 @@ class CsvSink:
     # Behavior preserving refactor; helpers isolate vertical concerns so that
     # future changes remain localized and testable.
     # ==================================================================
-    def write_options_data(self, index, expiry, options_data, timestamp, index_price=None, index_ohlc=None,
+    def write_options_data(self, index: str, expiry: Any, options_data: dict[str, dict[str, Any]], timestamp: datetime.datetime, index_price: float | None = None, index_ohlc: dict[str, Any] | None = None,
                            suppress_overview: bool = False, return_metrics: bool = False,
-                           expiry_rule_tag: str | None = None, **_extra):
+                           expiry_rule_tag: str | None = None, **_extra: Any) -> dict[str, Any] | None:
         """Write options data to CSV with locking, duplicate suppression, and config-tag honoring.
 
         expiry_rule_tag: Optional logical tag from the collector (e.g. 'this_month') used instead of
@@ -211,7 +252,7 @@ class CsvSink:
                 # Lazy-load config once and cache on class
                 if not hasattr(self, '_config_cache'):
                     cfg_path = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')), 'config', 'g6_config.json')
-                    with open(cfg_path, 'r', encoding='utf-8') as _cf:
+                    with open(cfg_path, encoding='utf-8') as _cf:
                         self._config_cache = json.load(_cf)
                 indices_cfg = (self._config_cache or {}).get('indices', {})
                 allowed = indices_cfg.get(index, {}).get('expiries') or []
@@ -226,7 +267,7 @@ class CsvSink:
                     return {'expiry_code': expiry_code, 'pcr': 0, 'timestamp': timestamp, 'day_width': 0, 'skipped': True} if return_metrics else None
             except Exception as cfg_e:  # pragma: no cover
                 self.logger.debug(f"Config enforcement failed for {index} {expiry_code}: {cfg_e}")
-            
+
     # Get or calculate index price
         if not index_price:
             # Use a default value based on index if nothing else is available
@@ -238,25 +279,25 @@ class CsvSink:
                 "SENSEX": 80900
             }
             index_price = defaults.get(index, 0)
-            
+
             # Try to find index price in the first option's metadata
             for _, data in options_data.items():
                 if 'index_price' in data:
                     index_price = float(data['index_price'])
                     break
-        
+
         # Calculate ATM strike (factored out)
         atm_strike = self._compute_atm_strike(index, float(index_price))
-            
+
         if concise_mode:
             self.logger.debug(f"Index {index} price: {index_price}, ATM strike: {atm_strike}")
         else:
             self.logger.info(f"Index {index} price: {index_price}, ATM strike: {atm_strike}")
-        
-        # Calculate PCR for this expiry
-        put_oi = sum(float(data.get('oi', 0)) for data in options_data.values() 
+
+    # Calculate PCR for this expiry
+        put_oi = sum(float(data.get('oi', 0)) for data in options_data.values()
                     if data.get('instrument_type') == 'PE')
-        call_oi = sum(float(data.get('oi', 0)) for data in options_data.values() 
+        call_oi = sum(float(data.get('oi', 0)) for data in options_data.values()
                     if data.get('instrument_type') == 'CE')
         pcr = put_oi / call_oi if call_oi > 0 else 0
 
@@ -271,39 +312,113 @@ class CsvSink:
                 return {'expiry_code': expiry_code, 'pcr': 0, 'timestamp': timestamp, 'day_width': 0, 'skipped_invalid_expiry': True} if return_metrics else None
         except Exception:
             pass
-        
+
         # Calculate day width if OHLC data is available
-        day_width = 0
+        day_width: float = 0.0
         if index_ohlc and 'high' in index_ohlc and 'low' in index_ohlc:
             day_width = float(index_ohlc.get('high', 0)) - float(index_ohlc.get('low', 0))
+
+        # ---- Compute ATM total premium (tp) for overview, and index/tp changes ----
+        # Derive ATM CE and PE prices from options_data around atm_strike
+        def _nearest_price(instrument_type: str) -> float:
+            best_diff: float | None = None
+            best_price = 0.0
+            for od in options_data.values():
+                if od.get('instrument_type') != instrument_type:
+                    continue
+                try:
+                    k = float(od.get('strike', 0) or 0)
+                except Exception:
+                    continue
+                diff = abs(k - atm_strike)
+                if best_diff is None or diff < best_diff:
+                    try:
+                        best_price = float(od.get('last_price', 0) or 0)
+                        best_diff = diff
+                    except Exception:
+                        pass
+            return best_price
+
+        ce_atm = _nearest_price('CE')
+        pe_atm = _nearest_price('PE')
+        tp_value = float(ce_atm) + float(pe_atm)
+
+    # Prepare daily open tracking for index/tp and load previous closes
+        date_key = timestamp.strftime('%Y-%m-%d')
+        # Ensure prev close values are available (best-effort)
+        try:
+            self._ensure_prev_close_loaded(index=index, date_key=date_key)
+        except Exception:
+            pass
+        if self._index_open_date.get(index) != date_key:
+            self._index_open_date[index] = date_key
+            self._index_open_price[index] = float(index_price or 0.0)
+        if self._tp_open_date.get(index) != date_key:
+            self._tp_open_date[index] = date_key
+            self._tp_open[index] = float(tp_value)
+
+        # Index price change calculations
+        prev_close_idx = self._index_prev_close.get(index)
+        index_net_change = float(index_price or 0.0) - float(prev_close_idx) if prev_close_idx is not None else 0.0
+        index_day_change = float(index_price or 0.0) - float(self._index_open_price.get(index, index_price or 0.0))
+
+        # TP change calculations
+        prev_close_tp = self._tp_prev_close.get(index)
+        tp_net_change = float(tp_value) - float(prev_close_tp) if prev_close_tp is not None else 0.0
+        tp_day_change = float(tp_value) - float(self._tp_open.get(index, tp_value))
 
         # ---------------- Mixed-expiry validation (Task 31 / 34) ----------------
         dropped = self._prune_mixed_expiry(options_data, exp_date, index=index, expiry_code=expiry_code)
 
         # ---------------- Expected-expiry presence advisory (Task 35) ----------------
         self._advise_missing_expiries(index=index, expiry_code=expiry_code, timestamp=timestamp)
-        
+
         # Update the overview file (segregated by index) unless suppressed for aggregation
         if not suppress_overview:
-            self._write_overview_file(index, expiry_code, pcr, day_width, timestamp, index_price)
-        
+            vix_val = None
+            try:
+                vix_val = _extra.get('vix')  # passed by collectors if available
+            except Exception:
+                vix_val = None
+            self._write_overview_file(
+                index, expiry_code, pcr, day_width, timestamp, index_price,
+                index_net_change=index_net_change, index_day_change=index_day_change,
+                tp_value=tp_value, tp_net_change=tp_net_change, tp_day_change=tp_day_change,
+                vix=vix_val,
+            )
+            if vix_val is not None:
+                try:
+                    self._last_vix = float(vix_val)
+                except Exception:
+                    pass
+
+        # Update last-seen values after write
+        try:
+            self._index_last_price[index] = float(index_price or 0.0)
+            self._tp_last[index] = float(tp_value)
+        except Exception:
+            pass
+
         # Group options by strike
         strike_data = self._group_by_strike(options_data)
         unique_strikes = len(strike_data)
 
         # ---------------- Schema Assertions Layer (Task 11) ----------------
         schema_issues = self._validate_schema(index=index, expiry_code=expiry_code, strike_data=strike_data)
-        
+        if return_metrics and schema_issues:
+            # When metrics requested, surface schema issue count minimally; continue writing otherwise
+            pass
+
         # Create expiry-specific directory
         expiry_dir = os.path.join(self.base_dir, index, expiry_code)
         os.makedirs(expiry_dir, exist_ok=True)
-        
+
         # Create debug file
         debug_file = os.path.join(expiry_dir, f"{timestamp.strftime('%Y-%m-%d')}_debug.json")
-        
+
         # Format timestamp for records - use actual collection time
         ts_str = timestamp.strftime('%Y-%m-%d %H:%M:%S')
-        
+
         # Unified IST 30s rounding + formatting (Task 12)
         try:
             ts_str_rounded = format_ist_dt_30s(timestamp)  # dd-mm-YYYY HH:MM:SS in IST
@@ -311,7 +426,7 @@ class CsvSink:
             # Fallback to previous logic on unexpected failure
             rounded_timestamp = round_timestamp(timestamp, step_seconds=30, strategy='nearest')
             ts_str_rounded = rounded_timestamp.strftime('%d-%m-%Y %H:%M:%S')
-        
+
         # Batching decision & strike processing moved to helper
         batching_enabled = self._batch_flush_threshold > 0
         batch_key = (index, expiry_code, timestamp.strftime('%Y-%m-%d'))
@@ -351,7 +466,7 @@ class CsvSink:
             except Exception:
                 if self.verbose:
                     self.logger.debug("Failed to write debug file", exc_info=True)
-        
+
         if self.verbose and not self._concise:
             self.logger.info(f"Data written for {index} {expiry_code} (unique_strikes={unique_strikes})")
         else:
@@ -370,9 +485,10 @@ class CsvSink:
                 'timestamp': timestamp,
                 'index_price': index_price
             }
+        return None
 
     # ------------------------- Helper Methods -------------------------
-    def _resolve_expiry_context(self, *, index: str, expiry, expiry_rule_tag: str | None, options_data: Dict[str, Any]):
+    def _resolve_expiry_context(self, *, index: str, expiry: Any, expiry_rule_tag: str | None, options_data: dict[str, Any]) -> tuple[datetime.date, str, str | None, str]:
         """Resolve expiry date, logical tag, and corrected monthly anchor.
 
         Mirrors legacy inlined logic in write_options_data (no behavior change):
@@ -441,7 +557,7 @@ class CsvSink:
             return "this_month"
         return "next_month"
 
-    def _prune_mixed_expiry(self, options_data: Dict[str, Dict[str, Any]] | None, exp_date: datetime.date, *, index: str, expiry_code: str) -> int:
+    def _prune_mixed_expiry(self, options_data: dict[str, dict[str, Any]] | None, exp_date: datetime.date, *, index: str, expiry_code: str) -> int:
         """Remove instruments whose embedded expiry does not match the expected expiry date.
 
         Mirrors legacy inlined mixed-expiry pruning logic (Task 31 / 34) without behavior change.
@@ -510,7 +626,7 @@ class CsvSink:
             # Lazy config load
             if not hasattr(self, '_config_cache'):
                 cfg_path = os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')), 'config', 'g6_config.json')
-                with open(cfg_path, 'r', encoding='utf-8') as _cf:
+                with open(cfg_path, encoding='utf-8') as _cf:
                     self._config_cache = json.load(_cf)
             indices_cfg = (self._config_cache or {}).get('indices', {})
             expected_tags = set(indices_cfg.get(index, {}).get('expiries') or [])
@@ -526,7 +642,7 @@ class CsvSink:
         except Exception:  # pragma: no cover
             pass
 
-    def _validate_schema(self, *, index: str, expiry_code: str, strike_data: Dict[float, Dict[str, Any]]) -> List[str]:
+    def _validate_schema(self, *, index: str, expiry_code: str, strike_data: dict[float, dict[str, Any]]) -> list[str]:
         """Validate grouped strike -> leg map structure and prune invalid entries.
 
         Mirrors legacy inline 'Schema Assertions Layer (Task 11)' logic:
@@ -535,7 +651,7 @@ class CsvSink:
         - Collect issue codes in list (ordering preserved by iteration)
         Returns list of issue identifiers.
         Mutates strike_data in-place (behavior-preserving)."""
-        schema_issues: List[str] = []
+        schema_issues: list[str] = []
         for strike_key, leg_map in list(strike_data.items()):
             try:
                 if strike_key <= 0:
@@ -576,10 +692,10 @@ class CsvSink:
         return schema_issues
 
     def _process_strikes_and_maybe_flush(self, *, index: str, expiry_code: str, expiry_str: str,
-                                         exp_date: datetime.date, strike_data: Dict[float, Dict[str, Any]],
+                                         exp_date: datetime.date, strike_data: dict[float, dict[str, Any]],
                                          atm_strike: float, index_price: float, ts_str_rounded: str,
                                          timestamp: datetime.datetime, batching_enabled: bool,
-                                         batch_key, exp_misclass_enabled_env: bool = True) -> tuple[int, int, bool]:
+                                         batch_key: tuple[str, str, str], exp_misclass_enabled_env: bool = True) -> tuple[int, int, bool]:
         """Process grouped strike data: build rows, apply misclassification remediation, junk & zero filters,
         duplicate suppression, batching/immediate writes, and possibly flush.
 
@@ -684,7 +800,7 @@ class CsvSink:
         return unique_strikes, mismatched_meta, flushed
 
     def _handle_zero_row(self, *, index: str, expiry_code: str, expiry_date_str: str, offset: int,
-                          call_data: Dict[str, Any] | None, put_data: Dict[str, Any] | None) -> tuple[bool, bool]:
+                          call_data: dict[str, Any] | None, put_data: dict[str, Any] | None) -> tuple[bool, bool]:
         """Detect zero option row and apply skip policy.
 
         Returns (is_zero_row, skip_row). Mirrors original inline logic:
@@ -719,7 +835,7 @@ class CsvSink:
                     pass
             return True, False
 
-    def _maybe_flush_batch(self, *, batching_enabled: bool, batch_key) -> bool:
+    def _maybe_flush_batch(self, *, batching_enabled: bool, batch_key: tuple[str, str, str]) -> bool:
         """Flush accumulated batch buffers if threshold or force flag met.
 
         Returns True if data considered flushed (immediate mode or performed flush), False otherwise.
@@ -757,9 +873,9 @@ class CsvSink:
             return False
 
     def _handle_duplicate_write_or_buffer(self, *, index: str, expiry_code: str, offset: int,
-                                           row: List[Any], row_sig: tuple, option_file: str,
-                                           header: List[str], file_exists: bool,
-                                           batching_enabled: bool, batch_key) -> bool:
+                                           row: list[Any], row_sig: tuple[str, int], option_file: str,
+                                           header: list[str], file_exists: bool,
+                                           batching_enabled: bool, batch_key: tuple[str, str, str]) -> bool:
         """Handle duplicate suppression and either buffer or write the row.
 
         Returns True if the caller should continue (i.e., row was duplicate and skipped),
@@ -794,7 +910,7 @@ class CsvSink:
         return False
 
     def _maybe_skip_as_junk(self, *, index: str, expiry_code: str, offset: int,
-                             call_data: Dict[str, Any] | None, put_data: Dict[str, Any] | None,
+                             call_data: dict[str, Any] | None, put_data: dict[str, Any] | None,
                              row_ts: str) -> bool:
         """Delegate to JunkFilter (extracted). Returns True if row should be skipped.
 
@@ -817,7 +933,7 @@ class CsvSink:
                 rebuild = True
             if rebuild:
                 # Lazy import & init
-                from src.filters.junk_filter import JunkFilterConfig, JunkFilter, JunkFilterCallbacks
+                from src.filters.junk_filter import JunkFilter, JunkFilterCallbacks, JunkFilterConfig
                 cfg = JunkFilterConfig.from_env(_os_env.environ)
                 callbacks = JunkFilterCallbacks(
                     log_info=lambda m: self.logger.info(m) if self.logger else None,
@@ -827,7 +943,7 @@ class CsvSink:
                 # Mark config loaded for legacy test hooks and record whitelist snapshot
                 self._junk_cfg_loaded = True
                 self._junk_cfg_whitelist_val = current_whitelist_env
-            jf = getattr(self, '_junk_filter')
+            jf = self._junk_filter
             skip, decision = jf.should_skip(index, expiry_code, offset, call_data, put_data, row_ts)
             if not skip:
                 return False
@@ -859,10 +975,9 @@ class CsvSink:
             return True
         except Exception:
             return False
-        return False
 
     def _handle_expiry_misclassification(self, *, index: str, expiry_code: str, expiry_str: str,
-                                         offset: int, row: List[Any], atm_strike: float,
+                                         offset: int, row: list[Any], atm_strike: float,
                                          index_price: float) -> tuple[str, bool]:
         """Handle expiry misclassification remediation logic.
 
@@ -1012,8 +1127,8 @@ class CsvSink:
             return round(index_price / 100) * 100
         return round(index_price / 50) * 50
 
-    def _group_by_strike(self, options_data: Dict[str, Dict[str, Any]]) -> Dict[float, Dict[str, Any]]:
-        grouped: Dict[float, Dict[str, Any]] = {}
+    def _group_by_strike(self, options_data: dict[str, dict[str, Any]]) -> dict[float, dict[str, Any]]:
+        grouped: dict[float, dict[str, Any]] = {}
         for symbol, data in options_data.items():
             strike = float(data.get('strike', 0))
             opt_type = data.get('instrument_type', '')
@@ -1023,8 +1138,50 @@ class CsvSink:
             grouped[strike][f"{opt_type}_symbol"] = symbol
         return grouped
 
+    # ----- Per-offset TP previous close loader -----
+    def _ensure_tp_prev_close_for_key(self, *, index: str, expiry_code: str, offset: int, date_key: str) -> None:
+        """Load previous day's TP close for specific (index, expiry_code, offset) series.
+
+        Reads the last row's 'tp' from the most recent prior date's options data file.
+        Caches per series per day.
+        """
+        try:
+            key = (index, expiry_code, int(offset))
+            if self._tp_prev_loaded_date_by_key.get(key) == date_key:
+                return
+            # Walk back up to 5 prior days
+            today = datetime.datetime.strptime(date_key, '%Y-%m-%d').date()
+            for back in range(1, 6):
+                prev_day = today - datetime.timedelta(days=back)
+                # Build option file path for this series
+                offset_dir = f"+{offset}" if int(offset) > 0 else f"{int(offset)}"
+                option_file = os.path.join(self.base_dir, index, expiry_code, offset_dir, f"{prev_day.strftime('%Y-%m-%d')}.csv")
+                if not os.path.isfile(option_file):
+                    continue
+                try:
+                    with open(option_file, encoding='utf-8') as fh:
+                        rdr = csv.DictReader(fh)
+                        last = None
+                        for r in rdr:
+                            last = r
+                        if last is None:
+                            continue
+                        try:
+                            prev_tp = float(last.get('tp', '') or 0.0)
+                        except Exception:
+                            prev_tp = None
+                        if prev_tp is not None:
+                            self._tp_prev_close_by_key[key] = prev_tp
+                            break
+                except Exception:
+                    continue
+            self._tp_prev_loaded_date_by_key[key] = date_key
+        except Exception:
+            fallback_key = (index, expiry_code, int(offset))
+            self._tp_prev_loaded_date_by_key[fallback_key] = date_key
+
     def _prepare_option_row(self, index: str, expiry_code: str, *, expiry_date_str: str, offset: int, index_price: float, atm_strike: float,
-                              call_data: Dict[str, Any] | None, put_data: Dict[str, Any] | None, ts_str_rounded: str) -> Tuple[List[Any], List[str]]:
+                              call_data: dict[str, Any] | None, put_data: dict[str, Any] | None, ts_str_rounded: str) -> tuple[list[Any], list[str]]:
         offset_price = atm_strike + offset
         # Call side values
         def f(d, k, default=0):
@@ -1066,18 +1223,73 @@ class CsvSink:
             'ce', 'pe', 'tp', 'avg_ce', 'avg_pe', 'avg_tp',
             'ce_vol', 'pe_vol', 'ce_oi', 'pe_oi',
             'ce_iv', 'pe_iv', 'ce_delta', 'pe_delta', 'ce_theta', 'pe_theta',
-            'ce_vega', 'pe_vega', 'ce_gamma', 'pe_gamma', 'ce_rho', 'pe_rho'
+            'ce_vega', 'pe_vega', 'ce_gamma', 'pe_gamma', 'ce_rho', 'pe_rho',
+            'tp_net_change', 'tp_day_change'
         ]
+        # Compute per-offset tp changes using per-series open and prev close caches
+        date_key: str | None = None
+        try:
+            # ts_str_rounded: dd-mm-YYYY HH:MM:SS; we also have expiry_date_str as YYYY-MM-DD; we want file date == expiry collection date
+            # Use the date part from ts_str_rounded (dd-mm-YYYY) to derive date_key
+            d,m,y = ts_str_rounded.split(' ')[0].split('-')
+            date_key = f"{y}-{m}-{d}"
+        except Exception:
+            date_key = datetime.date.today().isoformat()
+        try:
+            self._ensure_tp_prev_close_for_key(index=index, expiry_code=expiry_code, offset=offset, date_key=date_key)
+        except Exception:
+            pass
+        series_key = (index, expiry_code, int(offset))
+        # Initialize per-day open if needed
+        if self._tp_open_date_by_key.get(series_key) != date_key:
+            self._tp_open_date_by_key[series_key] = date_key
+            self._tp_open_by_key[series_key] = float(tp_price)
+        prev_tp_close = self._tp_prev_close_by_key.get(series_key)
+        tp_net_change = float(tp_price) - float(prev_tp_close) if prev_tp_close is not None else 0.0
+        tp_day_change = float(tp_price) - float(self._tp_open_by_key.get(series_key, tp_price))
+
         row = [
             ts_str_rounded, index, expiry_code, expiry_date_str, offset, index_price, atm_strike, offset_price,
             ce_price, pe_price, tp_price, ce_avg, pe_avg, avg_tp,
             ce_vol, pe_vol, ce_oi, pe_oi,
             ce_iv, pe_iv, ce_delta, pe_delta, ce_theta, pe_theta,
-            ce_vega, pe_vega, ce_gamma, pe_gamma, ce_rho, pe_rho
+            ce_vega, pe_vega, ce_gamma, pe_gamma, ce_rho, pe_rho,
+            tp_net_change, tp_day_change
         ]
+        # Update greek Prometheus metrics (Option B mapping) for ATM offset only.
+        # We map CE/PE side greeks into existing g6_option_<greek>{index, expiry, strike, type} metrics.
+        # Guard import errors or missing registry gracefully.
+        try:
+            if offset == 0:  # only emit ATM row to avoid cardinality explosion
+                from src.metrics import get_registry  # type: ignore
+                reg = get_registry()
+                # Determine expiry label: prefer expiry_code (expiry_tag) or fallback to expiry_date_str
+                expiry_label = expiry_code or expiry_date_str
+                strike_label = str(offset_price)  # strike/offset price chosen for consistency with csv
+                # Helper to set a metric if present
+                def _set(greek_name: str, ce_val: float, pe_val: float) -> None:
+                    attr = f"option_{greek_name}"
+                    m = getattr(reg, attr, None)
+                    if m is None:
+                        return
+                    try:
+                        # CE side
+                        m.labels(index=index, expiry=expiry_label, strike=strike_label, type='CE').set(ce_val)
+                        # PE side
+                        m.labels(index=index, expiry=expiry_label, strike=strike_label, type='PE').set(pe_val)
+                    except Exception:
+                        pass
+                _set('delta', ce_delta, pe_delta)
+                _set('theta', ce_theta, pe_theta)
+                _set('gamma', ce_gamma, pe_gamma)
+                _set('vega', ce_vega, pe_vega)
+                _set('rho', ce_rho, pe_rho)
+                _set('iv', ce_iv, pe_iv)
+        except Exception:
+            pass
         return row, header
 
-    def _append_csv_row(self, filepath: str, row: List[Any], header: List[str] | None):
+    def _append_csv_row(self, filepath: str, row: list[Any], header: list[str] | None) -> None:
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
         file_exists = os.path.isfile(filepath)
         # Lightweight write lock gate using .lock sentinel (best-effort, non-blocking if exists)
@@ -1110,7 +1322,7 @@ class CsvSink:
                 except Exception:
                     pass
 
-    def _append_many_csv_rows(self, filepath: str, rows: List[List[Any]], header: List[str] | None):
+    def _append_many_csv_rows(self, filepath: str, rows: list[list[Any]], header: list[str] | None) -> None:
         if not rows:
             return
         os.makedirs(os.path.dirname(filepath), exist_ok=True)
@@ -1145,16 +1357,16 @@ class CsvSink:
                     pass
 
     # ---------------- Aggregation Support -----------------
-    def _update_aggregation_state(self, index: str, expiry_code: str, pcr: float, day_width: float, timestamp: datetime.datetime):
+    def _update_aggregation_state(self, index: str, expiry_code: str, pcr: float, day_width: float, timestamp: datetime.datetime) -> None:
         snap = self._agg_pcr_snapshot.setdefault(index, {})
         snap[expiry_code] = pcr
         # Track max day_width across expiries (or last non-zero)
-        prev = self._agg_day_width.get(index, 0.0)
+        prev: float = self._agg_day_width.get(index, 0.0)
         if day_width >= prev:
             self._agg_day_width[index] = day_width
         self._agg_last_write.setdefault(index, timestamp)
 
-    def _maybe_write_aggregated_overview(self, index: str, timestamp: datetime.datetime):
+    def _maybe_write_aggregated_overview(self, index: str, timestamp: datetime.datetime) -> None:
         last = self._agg_last_write.get(index)
         if not last:
             self._agg_last_write[index] = timestamp
@@ -1200,7 +1412,7 @@ class CsvSink:
                     rounded_timestamp = timestamp.replace(second=rounded_second, microsecond=0)
             return rounded_timestamp.strftime('%d-%m-%Y %H:%M:%S')
 
-    def _overview_compute_masks(self, collected_keys: List[str], expected_keys: List[str] | None) -> tuple[int,int,int,int,int]:
+    def _overview_compute_masks(self, collected_keys: list[str], expected_keys: list[str] | None) -> tuple[int,int,int,int,int]:
         """Compute bit masks and counts for expiry coverage summary.
 
         Returns (expected_mask, collected_mask, missing_mask, expiries_expected, expiries_collected)."""
@@ -1218,58 +1430,114 @@ class CsvSink:
             expiries_expected = len(collected_keys)
         missing_mask = expected_mask & (~collected_mask)
         return expected_mask, collected_mask, missing_mask, expiries_expected, len(collected_keys)
-    
-    def _write_overview_file(self, index, expiry_code, pcr, day_width, timestamp, index_price):
+
+    # ---------------- Previous Close Helpers -----------------
+    def _ensure_prev_close_loaded(self, *, index: str, date_key: str) -> None:
+        """Load previous day's close values for index_price and tp from overview CSV.
+
+        Caches results per (index, date_key) to avoid repeated disk I/O.
+        Falls back gracefully if no file or columns present.
+        """
+        try:
+            if self._prev_close_loaded_date.get(index) == date_key:
+                return
+            # Walk back up to 5 prior calendar days to find the last available overview file
+            today = datetime.datetime.strptime(date_key, '%Y-%m-%d').date()
+            base_dir = os.path.join(self.base_dir, 'overview', index)
+            prev_idx_close = None
+            prev_tp_close = None
+            for back in range(1, 6):
+                prev_day = today - datetime.timedelta(days=back)
+                fp = os.path.join(base_dir, f"{prev_day.strftime('%Y-%m-%d')}.csv")
+                if not os.path.isfile(fp):
+                    continue
+                try:
+                    with open(fp, encoding='utf-8') as fh:
+                        rdr = csv.DictReader(fh)
+                        last_row = None
+                        for r in rdr:
+                            last_row = r
+                        if last_row:
+                            # index_price prev close
+                            try:
+                                prev_idx_close = float(last_row.get('index_price', '') or 0.0)
+                            except Exception:
+                                prev_idx_close = None
+                            # tp prev close (may be absent on older schema)
+                            try:
+                                prev_tp_close = float(last_row.get('tp', '') or 0.0)
+                            except Exception:
+                                prev_tp_close = None
+                            break
+                except Exception:
+                    continue
+            if prev_idx_close is not None:
+                self._index_prev_close[index] = prev_idx_close
+            if prev_tp_close is not None:
+                self._tp_prev_close[index] = prev_tp_close
+            self._prev_close_loaded_date[index] = date_key
+        except Exception:
+            # Best-effort; leave unset on failure
+            self._prev_close_loaded_date[index] = date_key
+
+    def _write_overview_file(self, index: str, expiry_code: str, pcr: float, day_width: float, timestamp: datetime.datetime, index_price: float,
+                             *, index_net_change: float = 0.0, index_day_change: float = 0.0,
+                             tp_value: float = 0.0, tp_net_change: float = 0.0, tp_day_change: float = 0.0,
+                             vix: float | None = None):
         """Write overview file for a specific index."""
         # Create overview directory for this index
         overview_dir = os.path.join(self.base_dir, "overview", index)
         os.makedirs(overview_dir, exist_ok=True)
-        
+
         # Determine file path
         overview_file = os.path.join(overview_dir, f"{timestamp.strftime('%Y-%m-%d')}.csv")
-        
+
         # Check if file exists
         file_exists = os.path.isfile(overview_file)
-        
+
         # Unified IST 30s rounding for overview timestamp (DRY helper)
         ts_str = self._overview_round_ts(timestamp)
-        
+
         # Read existing data to update PCR values
         pcr_values = {
-            'pcr_this_week': 0,
-            'pcr_next_week': 0,
-            'pcr_this_month': 0,
-            'pcr_next_month': 0
+            'pcr_this_week': 0.0,
+            'pcr_next_week': 0.0,
+            'pcr_this_month': 0.0,
+            'pcr_next_month': 0.0,
         }
-        
+
         # Update the specific expiry code's PCR
         pcr_values[f'pcr_{expiry_code}'] = pcr
-        
+
         # Write to CSV
         with open(overview_file, 'a' if file_exists else 'w', newline='') as f:
             writer = csv.writer(f)
-            
+
             # Write header if new file
             if not file_exists:
                 writer.writerow([
-                    'timestamp', 'index', 
+                    'timestamp', 'index',
                     'pcr_this_week', 'pcr_next_week', 'pcr_this_month', 'pcr_next_month',
-                    'day_width'
+                    'day_width',
+                    'index_price', 'index_net_change', 'index_day_change',
+                    'VIX',
                 ])
-            
+
             # Write data row
             writer.writerow([
                 ts_str, index,
                 pcr_values['pcr_this_week'], pcr_values['pcr_next_week'],
                 pcr_values['pcr_this_month'], pcr_values['pcr_next_month'],
-                day_width
+                day_width,
+                float(index_price or 0.0), float(index_net_change), float(index_day_change),
+                float(vix or 0.0),
             ])
-        
+
         self.logger.info(f"Overview data written to {overview_file}")
         # Metric (wrapper)
         self._metric_inc('csv_overview_writes', 1, {'index': index})
 
-    def write_overview_snapshot(self, index: str, pcr_snapshot: Dict[str, float], timestamp, day_width: float = 0, expected_expiries: List[str] | None = None):
+    def write_overview_snapshot(self, index: str, pcr_snapshot: dict[str, float], timestamp: datetime.datetime, day_width: float = 0.0, expected_expiries: list[str] | None = None, *, vix: float | None = None) -> None:
         """Write a single aggregated overview row with multiple expiry PCRs.
 
         Args:
@@ -1295,17 +1563,36 @@ class CsvSink:
                 writer.writerow([
                     'timestamp', 'index',
                     'pcr_this_week', 'pcr_next_week', 'pcr_this_month', 'pcr_next_month',
-                    'day_width', 'expiries_expected', 'expiries_collected',
+                    'day_width',
+                    'index_price', 'index_net_change', 'index_day_change',
+                    'VIX',
+                    'expiries_expected', 'expiries_collected',
                     'expected_mask', 'collected_mask', 'missing_mask'
                 ])
 
+            # Use last seen index/tp values and prev closes tracked during write_options_data calls
+            date_key = timestamp.strftime('%Y-%m-%d')
+            try:
+                self._ensure_prev_close_loaded(index=index, date_key=date_key)
+            except Exception:
+                pass
+            idx_price = float(self._index_last_price.get(index, 0.0))
+            idx_day_ch = float(idx_price - float(self._index_open_price.get(index, idx_price)))
+            idx_prev_close = self._index_prev_close.get(index)
+            idx_net = float(idx_price - float(idx_prev_close)) if idx_prev_close is not None else 0.0
+            # TP fields removed from overview (per request)
+
+            use_vix = float(vix) if vix is not None else float(self._last_vix or 0.0)
             writer.writerow([
                 ts_str, index,
                 pcr_snapshot.get('this_week', 0),
                 pcr_snapshot.get('next_week', 0),
                 pcr_snapshot.get('this_month', 0),
                 pcr_snapshot.get('next_month', 0),
-                day_width, expiries_expected, expiries_collected,
+                day_width,
+                idx_price, idx_net, idx_day_ch,
+                use_vix,
+                expiries_expected, expiries_collected,
                 expected_mask, collected_mask, missing_mask
             ])
 
@@ -1315,8 +1602,8 @@ class CsvSink:
             self.logger.info(f"Aggregated overview snapshot written for {index} -> {overview_file}")
         # Metric (wrapper)
         self._metric_inc('csv_overview_aggregate_writes', 1, {'index': index})
-    
-    def read_options_overview(self, index, date=None):
+
+    def read_options_overview(self, index: str, date: datetime.date | str | None = None) -> dict[str, dict[str, Any]]:
         """
         Read overview data from CSV file.
         
@@ -1330,21 +1617,21 @@ class CsvSink:
         # Use today's date if not specified
         if date is None:
             date = datetime.date.today()
-            
+
         # Format date as string
         date_str = date.strftime('%Y-%m-%d') if isinstance(date, datetime.date) else date
-        
+
         # Build file path
         overview_file = os.path.join(self.base_dir, "overview", index, f"{date_str}.csv")
-        
+
         # Check if file exists
         if not os.path.exists(overview_file):
             self.logger.warning(f"No overview file found for {index} on {date_str}")
             return {}
-        
+
         # Read CSV file
         overview_data = {}
-        with open(overview_file, 'r') as f:
+        with open(overview_file) as f:
             reader = csv.DictReader(f)
             for row in reader:
                 timestamp = row['timestamp']
@@ -1361,11 +1648,11 @@ class CsvSink:
                     'collected_mask': int(row.get('collected_mask', 0)) if 'collected_mask' in row else 0,
                     'missing_mask': int(row.get('missing_mask', 0)) if 'missing_mask' in row else 0
                 }
-        
+
         self.logger.info(f"Read overview data from {overview_file}")
         return overview_data
-        
-    def read_option_data(self, index, expiry_code, offset, date=None):
+
+    def read_option_data(self, index: str, expiry_code: str, offset: int | str, date: datetime.date | str | None = None) -> list[dict[str, Any]]:
         """
         Read option data for a specific offset.
         
@@ -1381,27 +1668,27 @@ class CsvSink:
         # Use today's date if not specified
         if date is None:
             date = datetime.date.today()
-            
+
         # Format date as string
         date_str = date.strftime('%Y-%m-%d') if isinstance(date, datetime.date) else date
-        
+
         # Format offset for directory name
         if int(offset) > 0:
             offset_dir = f"+{int(offset)}"
         else:
             offset_dir = f"{int(offset)}"
-            
+
         # Build file path
         option_file = os.path.join(self.base_dir, index, expiry_code, offset_dir, f"{date_str}.csv")
-        
+
         # Check if file exists
         if not os.path.exists(option_file):
             self.logger.warning(f"No option file found for {index} {expiry_code} offset {offset} on {date_str}")
             return []
-        
+
         # Read CSV file
         option_data = []
-        with open(option_file, 'r') as f:
+        with open(option_file) as f:
             reader = csv.DictReader(f)
             for row in reader:
                 option_data.append({
@@ -1436,13 +1723,13 @@ class CsvSink:
                     'ce_rho': float(row.get('ce_rho', 0)),
                     'pe_rho': float(row.get('pe_rho', 0))
                 })
-        
+
         self.logger.info(f"Read {len(option_data)} option records from {option_file}")
         return option_data
-        
+
     # Add this method to the CsvSink class
 
-    def check_health(self):
+    def check_health(self) -> dict[str, Any]:
         """
         Check if the CSV sink is healthy.
         
@@ -1450,7 +1737,7 @@ class CsvSink:
             Dict with health status information
         """
         try:
-            components: List[Dict[str, Any]] = []
+            components: list[dict[str, Any]] = []
             status_ok = True
             # Ensure base dir exists
             if not os.path.exists(self.base_dir):
@@ -1537,11 +1824,11 @@ class CsvSink:
             except Exception:
                 pass
             # ---------------- Advanced Diagnostics (opt-in via G6_HEALTH_ADVANCED) ----------------
-            issues: List[Dict[str, Any]] = []
+            issues: list[dict[str, Any]] = []
             health_score = 100 if status_ok else 0
             if _os_env.environ.get('G6_HEALTH_ADVANCED','0').lower() in ('1','true','yes','on'):
                 now_ts = time.time()
-                adv_components: List[Dict[str, Any]] = []
+                adv_components: list[dict[str, Any]] = []
                 # Backlog stats
                 try:
                     backlog = self._collect_backlog_stats()
@@ -1606,7 +1893,7 @@ class CsvSink:
             }
 
     # ---------------- Advanced Health Helper Methods ----------------
-    def _collect_backlog_stats(self) -> Dict[str, Any]:
+    def _collect_backlog_stats(self) -> dict[str, Any]:
         """Compute backlog statistics for batched writes.
 
         Returns mapping with queued_rows, buffer_files, flush_threshold.
@@ -1632,7 +1919,7 @@ class CsvSink:
             pass
         return {'queued_rows': queued_rows, 'buffer_files': buffer_files, 'flush_threshold': flush_threshold}
 
-    def _detect_idle(self, now_ts: float) -> Dict[str, Any]:
+    def _detect_idle(self, now_ts: float) -> dict[str, Any]:
         """Detect idle state based on last aggregated write per index.
 
         Uses env G6_HEALTH_IDLE_MAX_SEC (disabled if unset/zero)."""
@@ -1655,7 +1942,7 @@ class CsvSink:
         stale = bool(max_idle_sec and idle_for > max_idle_sec)
         return {'stale': stale, 'idle_for_sec': round(idle_for, 2), 'max_idle_sec': max_idle_sec}
 
-    def _scan_stale_locks(self, now_ts: float) -> Dict[str, Any]:
+    def _scan_stale_locks(self, now_ts: float) -> dict[str, Any]:
         """Scan .lock files under base_dir and count stale ones.
 
         Staleness threshold controlled by G6_HEALTH_LOCK_STALE_SEC (default 300)."""
@@ -1684,7 +1971,7 @@ class CsvSink:
             pass
         return {'total_locks': total, 'stale_count': stale_count, 'stale_threshold_sec': stale_threshold}
 
-    def _validate_config(self) -> Dict[str, Any]:
+    def _validate_config(self) -> dict[str, Any]:
         """Validate presence & basic structure of primary config file.
 
         Looks for config/g6_config.json relative to project root (two levels up)."""
@@ -1695,7 +1982,7 @@ class CsvSink:
         if not os.path.exists(cfg_path):
             return {'valid': False, 'error': 'missing'}
         try:
-            with open(cfg_path, 'r', encoding='utf-8') as f:
+            with open(cfg_path, encoding='utf-8') as f:
                 data = json.load(f)
             indices = data.get('indices', {}) if isinstance(data, dict) else {}
             summary = {k: len(v.get('expiries', []) or []) for k, v in indices.items() if isinstance(v, dict)}

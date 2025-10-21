@@ -8,9 +8,10 @@ All helpers swallow exceptions defensively to avoid secondary failures in the
 error path. Logging behavior mirrors prior inline usage.
 """
 from __future__ import annotations
-from typing import Any, Dict
+
 import importlib
 import logging
+from typing import Any
 
 try:  # direct import if available
     from src.error_handling import handle_collector_error
@@ -34,7 +35,7 @@ __all__ = [
 _COMPONENT = "collectors.unified_collectors"
 
 
-def _safe_handle(exc: Exception, context: Dict[str, Any]) -> None:
+def _safe_handle(exc: Exception, context: dict[str, Any]) -> None:
     if handle_collector_error is None:  # pragma: no cover
         logger.debug("handle_collector_error_unavailable", exc_info=True)
         return
@@ -52,10 +53,9 @@ def report_quote_enrich_error(exc: Exception, index: str, rule: str, expiry: Any
     _safe_handle(exc, {"stage": "enrich_with_quotes", "rule": rule, "expiry": str(expiry), "instrument_count": instrument_count, "index": index})
 
 
-from typing import Type
 
 
-def report_no_instruments(index: str, rule: str, expiry: Any, strikes: Any, exc_type: Type[Exception]) -> None:
+def report_no_instruments(index: str, rule: str, expiry: Any, strikes: Any, exc_type: type[Exception]) -> None:
     try:
         exc = exc_type(f"No instruments for {index} expiry {expiry} (rule: {rule}) with strikes={strikes}")
     except Exception:  # pragma: no cover

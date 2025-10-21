@@ -24,20 +24,25 @@ Phase 2 extends extraction to include:
 """
 from __future__ import annotations
 
+import hashlib
+import json
+import logging
+import os
+import time
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Iterable, Optional, Dict, Set, Any, Tuple
-import os, time, hashlib, logging, json
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass
 class SecurityConfig:
-    token_required: Optional[str]
-    allow_ips: Set[str]
+    token_required: str | None
+    allow_ips: set[str]
     rate_spec: str
     ua_allow: str  # raw comma list (kept string for parity)
-    allow_origin: Optional[str]
+    allow_origin: str | None
 
 
 def load_security_config() -> SecurityConfig:
@@ -71,7 +76,7 @@ def load_security_config() -> SecurityConfig:
     return SecurityConfig(token_required, allow_ips, rate_spec, ua_allow, allow_origin_cfg)
 
 
-def parse_rate_spec(rate_spec: str) -> Tuple[int, int]:
+def parse_rate_spec(rate_spec: str) -> tuple[int, int]:
     """Parse rate spec of form 'X:Y' or 'X/Y' (max_conn_ip : window_seconds).
     Falls back gracefully on malformed inputs (returns (0, 60) meaning disabled).
     """
@@ -99,11 +104,11 @@ def enforce_auth_and_rate(
     handler: Any,
     cfg: SecurityConfig,
     *,
-    ip_conn_window: Dict[str, list],
-    handlers_ref: Optional[Iterable[Any]] = None,
-    metrics: Optional[Dict[str, Any]] = None,
+    ip_conn_window: dict[str, list],
+    handlers_ref: Iterable[Any] | None = None,
+    metrics: dict[str, Any] | None = None,
     debug_env: str = 'G6_SSE_DEBUG',
-) -> Optional[int]:
+) -> int | None:
     """Apply auth (token), IP allow list, UA allow list, and per-IP rate limiting.
 
     Returns HTTP status code on rejection (already written to client) else None.
@@ -121,7 +126,15 @@ def enforce_auth_and_rate(
             _plain(handler, 401, 'unauthorized')
             return 401
 
-    client_ip = handler.client_address[0] if isinstance(getattr(handler, 'client_address', None), tuple) else getattr(handler, 'client_address', ('',))[0] if getattr(handler, 'client_address', None) else ''
+    client_ip = (
+        handler.client_address[0]
+        if isinstance(getattr(handler, 'client_address', None), tuple)
+        else (
+            getattr(handler, 'client_address', ('',))[0]
+            if getattr(handler, 'client_address', None)
+            else ''
+        )
+    )
 
     # IP allow list
     if cfg.allow_ips and client_ip not in cfg.allow_ips:
@@ -151,17 +164,21 @@ def enforce_auth_and_rate(
             window.pop(0)
         if len(window) > max_conn_ip:
             del window[:-max_conn_ip]
-        _debug_active = os.getenv(debug_env, '') not in ('', '0', 'false', 'no', 'off') or os.getenv('PYTEST_CURRENT_TEST')
+        _debug_active = (
+            os.getenv(debug_env, '') not in ('', '0', 'false', 'no', 'off')
+            or os.getenv('PYTEST_CURRENT_TEST')
+        )
         if len(window) >= max_conn_ip:
             # Second‑chance pruning based on active handlers
-            try:
+            try:  # noqa: PERF203 - per-item isolation to avoid aborting loop on one bad handler
                 if handlers_ref is not None:
                     active_for_ip = 0
                     for _h in list(handlers_ref):
                         try:
-                            if getattr(_h, 'client_address', None) and getattr(_h, 'client_address')[0] == client_ip:
+                            if getattr(_h, 'client_address', None) and _h.client_address[0] == client_ip:
                                 active_for_ip += 1
-                        except Exception:
+                        except Exception:  # noqa: PERF203 - robustness over micro-optimization
+                            # Defensive: single bad handler shouldn't break pruning evaluation
                             pass
                     if active_for_ip < max_conn_ip:
                         target = max(0, max_conn_ip - 1)
@@ -172,7 +189,11 @@ def enforce_auth_and_rate(
         if len(window) >= max_conn_ip:
             if _debug_active:
                 try:
-                    print(f"[sse-debug][shared] rate_limit_block ip={client_ip} attempts={len(window)} max={max_conn_ip} window={window} now={now:.6f}")
+                    print(
+                        f"[sse-debug][shared] rate_limit_block ip={client_ip} "
+                        f"attempts={len(window)} max={max_conn_ip} "
+                        f"window={window} now={now:.6f}"
+                    )
                 except Exception:
                     pass
             _inc(metrics.get('rate_limited_conn'))
@@ -181,13 +202,17 @@ def enforce_auth_and_rate(
         window.append(now)
         if _debug_active:
             try:
-                print(f"[sse-debug][shared] rate_limit_allow ip={client_ip} size={len(window)}/{max_conn_ip} window={window} now={now:.6f}")
+                print(
+                    f"[sse-debug][shared] rate_limit_allow ip={client_ip} "
+                    f"size={len(window)}/{max_conn_ip} window={window} "
+                    f"now={now:.6f}"
+                )
             except Exception:
                 pass
     return None
 
 
-def _plain(handler: Any, code: int, body: str, *, headers: Optional[Dict[str, str]] = None) -> None:
+def _plain(handler: Any, code: int, body: str, *, headers: dict[str, str] | None = None) -> None:
     try:
         handler.send_response(code)
         handler.send_header('Content-Type', 'text/plain')
@@ -206,13 +231,13 @@ def _plain(handler: Any, code: int, body: str, *, headers: Optional[Dict[str, st
 
 def write_sse_event(
     handler: Any,
-    evt: Dict[str, Any],
+    evt: dict[str, Any],
     *,
     max_bytes_env: str = 'G6_SSE_MAX_EVENT_BYTES',
-    security_metric=None,
-    events_sent_metric=None,
-    h_event_size=None,
-    h_event_latency=None,
+    security_metric: Any | None = None,
+    events_sent_metric: Any | None = None,
+    h_event_size: Any | None = None,
+    h_event_latency: Any | None = None,
     debug_log_path: str = 'data/panels/_sse_debug_events.log',
 ) -> None:
     """Frame and write a single SSE event with metrics & truncation parity.
@@ -286,8 +311,10 @@ def allow_event_token_bucket(
     state = getattr(handler, '_rl', None)
     if state is None:
         state = [limit * burst_factor, now]
-        try: setattr(handler, '_rl', state)
-        except Exception: pass
+        try:
+            handler._rl = state
+        except Exception:
+            pass
     tokens, last = state
     elapsed = now - last
     if elapsed > 0:

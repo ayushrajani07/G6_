@@ -12,13 +12,14 @@ when the singleton is absent; import order remains unchanged.
 """
 from __future__ import annotations
 
-import os
 import logging
-from typing import Callable, Tuple
-from prometheus_client import start_http_server, CollectorRegistry, REGISTRY  # type: ignore
+import os
+from collections.abc import Callable
 
-from .metrics import MetricsRegistry  # local import to avoid circular: class defined there
+from prometheus_client import REGISTRY, CollectorRegistry, start_http_server  # type: ignore
+
 from . import _singleton  # central singleton anchor
+from .metrics import MetricsRegistry  # local import to avoid circular: class defined there
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ def setup_metrics_server(port: int = 9108, host: str = "0.0.0.0", *,
                          enable_resource_sampler: bool = True,
                          sampler_interval: int = 10,
                          use_custom_registry: bool | None = None,
-                         reset: bool = False) -> Tuple[MetricsRegistry, Callable[[], None]]:
+                         reset: bool = False) -> tuple[MetricsRegistry, Callable[[], None]]:
     """Start metrics HTTP endpoint and initialize the MetricsRegistry singleton.
 
     Returns the registry and a no-op shutdown callable (reserved for future lifecycle hooks).
@@ -81,9 +82,10 @@ def setup_metrics_server(port: int = 9108, host: str = "0.0.0.0", *,
     if use_custom_registry is None:
         use_custom_registry = False
 
+    custom_reg = None
     if use_custom_registry:
-        registry = CollectorRegistry()
-        start_http_server(port, addr=host, registry=registry)
+        custom_reg = CollectorRegistry()
+        start_http_server(port, addr=host, registry=custom_reg)
     else:
         start_http_server(port, addr=host)
     _METRICS_PORT = port
@@ -99,6 +101,50 @@ def setup_metrics_server(port: int = 9108, host: str = "0.0.0.0", *,
         return MetricsRegistry()
     metrics = _singleton.create_if_absent(_build)
     _METRICS_SINGLETON = metrics
+
+    # Best-effort: seed baseline governance metrics (spec/build hash) so g6_* names
+    # are visible to scrapers and dashboards even before producers run. The generated
+    # module emits static gauges at import time when available. Safe to ignore failures.
+    try:  # pragma: no cover - behavior validated via integration
+        import src.metrics.generated  # type: ignore  # noqa: F401
+    except Exception:
+        logger.debug("metrics.generated import failed (non-fatal)", exc_info=True)
+
+    # If a custom CollectorRegistry is used, the import above registers into the default
+    # registry and will not show up on this endpoint. Seed the governance gauges directly
+    # into the custom registry as well.
+    if use_custom_registry and custom_reg is not None:
+        try:  # pragma: no cover - thin wiring, exercised in integration
+            import os as _os
+
+            from prometheus_client import Gauge  # type: ignore
+
+            from src.metrics.generated import SPEC_HASH  # type: ignore
+            # Spec hash
+            try:
+                _g1 = Gauge(
+                    'g6_metrics_spec_hash_info',
+                    'Static gauge labeled with current metrics spec content hash (value always 1)',
+                    ['hash'],
+                    registry=custom_reg,
+                )
+                _g1.labels(hash=SPEC_HASH).set(1)
+            except Exception:
+                logger.debug("seed custom-registry spec hash failed", exc_info=True)
+            # Build/config hash (falls back to spec hash if unset)
+            try:
+                _bh = _os.getenv('G6_BUILD_CONFIG_HASH', SPEC_HASH)
+                _g2 = Gauge(
+                    'g6_build_config_hash_info',
+                    'Static gauge labeled with current build/config content hash (value always 1)',
+                    ['hash'],
+                    registry=custom_reg,
+                )
+                _g2.labels(hash=_bh).set(1)
+            except Exception:
+                logger.debug("seed custom-registry build hash failed", exc_info=True)
+        except Exception:
+            logger.debug("custom-registry governance seeding failed", exc_info=True)
 
     # Background threads
     if enable_resource_sampler:

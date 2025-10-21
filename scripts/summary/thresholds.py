@@ -23,20 +23,24 @@ Design Notes:
 """
 from __future__ import annotations
 
+import json
+import logging
+import os
+import threading
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
-import json, os, threading, logging
+from typing import Any
+
 from scripts.summary.env_config import load_summary_env
 
 _LOCK = threading.RLock()
 _LOADED = False
-_OVERRIDES: Dict[str, Any] = {}
+_OVERRIDES: dict[str, Any] = {}
 _UNKNOWN_LOGGED: set[str] = set()
-_ALIAS_MAP: Dict[str, str] = {}  # attribute_name -> registry key
+_ALIAS_MAP: dict[str, str] = {}  # attribute_name -> registry key
 
 # Core registry of default thresholds.
 # NOTE: Adjusting these defaults should be accompanied by doc update & changelog entry.
-REGISTRY: Dict[str, Any] = {
+REGISTRY: dict[str, Any] = {
     # Data Quality display bucket boundaries (percent)
     "dq.warn": 85.0,
     "dq.error": 70.0,
@@ -53,7 +57,7 @@ REGISTRY: Dict[str, Any] = {
 
 @dataclass(frozen=True)
 class _ThresholdsAccessor:
-    def get(self, key: str, default: Optional[Any] = None) -> Any:
+    def get(self, key: str, default: Any | None = None) -> Any:
         _ensure_loaded()
         if key in _OVERRIDES:
             return _coerce_type(key, _OVERRIDES[key], REGISTRY.get(key))
@@ -75,7 +79,7 @@ class _ThresholdsAccessor:
 
 T = _ThresholdsAccessor()
 
-def _ensure_loaded():
+def _ensure_loaded() -> None:
     global _LOADED
     if _LOADED:
         return
@@ -135,7 +139,7 @@ def _coerce_type(key: str, value: Any, default: Any) -> Any:
         return default
     return value
 
-def dump_effective() -> Dict[str, Any]:
+def dump_effective() -> dict[str, Any]:
     """Return merged effective thresholds (defaults + applied overrides)."""
     _ensure_loaded()
     eff = dict(REGISTRY)
@@ -143,7 +147,7 @@ def dump_effective() -> Dict[str, Any]:
         eff[k] = _coerce_type(k, v, REGISTRY.get(k))
     return eff
 
-def reset_for_tests():  # pragma: no cover - only for test harness
+def reset_for_tests() -> None:  # pragma: no cover - only for test harness
     global _LOADED, _OVERRIDES, _UNKNOWN_LOGGED, _ALIAS_MAP
     with _LOCK:
         _LOADED = False

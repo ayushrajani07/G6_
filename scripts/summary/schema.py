@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Schema constants for Summary/Unified HTTP.
 
 Kept intentionally minimal for test usage.

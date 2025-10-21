@@ -7,12 +7,18 @@ Future expansion:
   * Verify env var catalog up to date.
 """
 from __future__ import annotations
-import json, sys, os, subprocess, re
+
+import json
+import os
+import re
+import subprocess
+import sys
 from pathlib import Path
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 
-def load_json(path: Path):
+def load_json(path: Path) -> Any | None:
     if not path.exists():
         return None
     try:

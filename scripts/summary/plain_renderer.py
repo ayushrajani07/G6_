@@ -3,16 +3,17 @@
 Activated when the rewrite flag is enabled and rich mode is disabled.
 """
 from __future__ import annotations
-from typing import Mapping, Any
-import sys
-import os
-from scripts.summary.env_config import load_summary_env
+
 import hashlib
+import os
+import sys
+from collections.abc import Mapping
+from typing import Any
 
-from .panel_registry import build_all_panels
 from .domain import build_domain_snapshot
-
+from .panel_registry import build_all_panels
 from .plugins.base import OutputPlugin, SummarySnapshot  # reuse existing snapshot container
+
 
 class PlainRenderer(OutputPlugin):
     name = "plain_renderer"

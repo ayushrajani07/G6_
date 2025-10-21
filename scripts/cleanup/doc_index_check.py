@@ -7,7 +7,8 @@ Env:
   G6_DOC_INDEX_REQUIRED (csv override of required doc basenames)
 """
 from __future__ import annotations
-import os, sys
+
+import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -17,7 +18,7 @@ DEFAULT_REQUIRED = [
     'SSE.md', 'UNIFIED_MODEL.md', 'PANELS_FACTORY.md', 'CONFIGURATION.md'
 ]
 
-def main():
+def main() -> int:
     req_csv = os.getenv('G6_DOC_INDEX_REQUIRED')
     required = [r.strip() for r in req_csv.split(',')] if req_csv else DEFAULT_REQUIRED
     if not INDEX.exists():

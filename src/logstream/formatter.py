@@ -19,10 +19,11 @@ Parsing: split once on first space for type token, then key=value pairs.
 Durable: avoid removal of keys; add new keys at end to preserve backward compat.
 """
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Optional, Dict, Any
+
 import time
-from src.utils.color import colorize, severity_color, colors_enabled
+from typing import Any
+
+from src.utils.color import colorize, severity_color
 
 ISO_TS = False  # if True, include human time; keep false for headless ingestion
 
@@ -42,7 +43,7 @@ def format_cycle(
     collection_success_pct: float | None,
     indices: int,
     stall_flag: int | None = None,
-    extra: Optional[Dict[str, Any]] = None,
+    extra: dict[str, Any] | None = None,
 ) -> str:
     parts = ["CYCLE", f"ts={_ts()}"]
     parts.append(f"dur={duration_s:.2f}")
@@ -86,7 +87,7 @@ def format_index(
     atm: float | None,
     err: str | None,
     status: str,
-    extra: Optional[Dict[str, Any]] = None,
+    extra: dict[str, Any] | None = None,
 ) -> str:
     parts = ["INDEX", f"ts={_ts()}", f"idx={index}", f"legs={legs}"]
     if legs_avg is not None:
@@ -117,7 +118,7 @@ def format_index(
                 parts.append(f"{k}={v}")
     return ' '.join(parts)
 
-def format_start(*, version: str, indices: int, interval_s: int, concise: bool, extra: Optional[Dict[str, Any]] = None) -> str:
+def format_start(*, version: str, indices: int, interval_s: int, concise: bool, extra: dict[str, Any] | None = None) -> str:
     parts = ["START", f"ts={_ts()}", f"ver={version}", f"indices={indices}", f"interval_s={interval_s}", f"concise={'1' if concise else '0'}"]
     if extra:
         for k,v in extra.items():

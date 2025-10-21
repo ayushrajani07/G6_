@@ -13,17 +13,18 @@ Behavior:
   - Never raises; mirrors legacy defensive posture.
 """
 from __future__ import annotations
-from typing import Any, List, Optional, Tuple
+
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
-ClampMeta = Tuple[int, int, int, bool]
+ClampMeta = tuple[int, int, int, bool]
 
 __all__ = ["run_prefilter_clamp"]
 
 
-def run_prefilter_clamp(index_symbol: str, expiry_rule: str, expiry_date: Any, instruments: List[dict]) -> Tuple[List[dict], Optional[ClampMeta]]:
+def run_prefilter_clamp(index_symbol: str, expiry_rule: str, expiry_date: Any, instruments: list[dict]) -> tuple[list[dict], ClampMeta | None]:
     try:
         from src.collectors.modules.prefilter import apply_prefilter_clamp
     except Exception:  # pragma: no cover - import error path

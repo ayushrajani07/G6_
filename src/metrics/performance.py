@@ -3,13 +3,15 @@
 Refactor only: metric names, labels, ordering, and semantics unchanged.
 """
 from __future__ import annotations
+
 import logging
+
 from prometheus_client import Counter, Gauge, Histogram
 
 logger = logging.getLogger(__name__)
 
 
-def init_performance_metrics(registry: "MetricsRegistry") -> None:
+def init_performance_metrics(registry: MetricsRegistry) -> None:
     core = registry._core_reg  # type: ignore[attr-defined]
     core('uptime_seconds', Gauge, 'g6_uptime_seconds', 'Process uptime in seconds')
     core('avg_cycle_time', Gauge, 'g6_collection_cycle_time_seconds', 'Average end-to-end collection cycle time (sliding)')
@@ -23,7 +25,8 @@ def init_performance_metrics(registry: "MetricsRegistry") -> None:
     core('collection_success_rate', Gauge, 'g6_collection_success_rate_percent', 'Successful collection cycle percentage (rolling window)')
     core('data_quality_score', Gauge, 'g6_data_quality_score_percent', 'Composite data quality score (validation completeness)')
     # Per-index data quality metrics (duplicate-safe direct instantiation preserves original semantics)
-    from prometheus_client import Counter as _C, Gauge as _G  # local alias to avoid overshadow
+    from prometheus_client import Counter as _C  # local alias to avoid overshadow
+    from prometheus_client import Gauge as _G
     try:
         registry.index_data_quality_score = _G('g6_index_data_quality_score_percent', 'Per-index data quality score percent', ['index'])
     except ValueError:

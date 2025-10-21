@@ -1,8 +1,9 @@
 from __future__ import annotations
-import os
+
 import json
+import os
 import re
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .env_config import load_summary_env
 
@@ -54,23 +55,35 @@ def _use_panels_json() -> bool:  # backward compatibility internal name
 def _panels_dir() -> str:
     # Centralized via SummaryEnv (panels_dir)
     try:
-        return load_summary_env().panels_dir
+        val = load_summary_env().panels_dir
+        return str(val)
     except Exception:
         return os.path.join("data", "panels")
 
 
-def _read_json_with_retries(path: str, retries: int = 3, delay: float = 0.05) -> Optional[Any]:
+def _read_json_with_retries(path: str, retries: int = 3, delay: float = 0.05) -> Any | None:
     """Read JSON file with small retry loop to avoid transient partial reads.
 
     This is a defensive reader-side safeguard. Writers already use atomic
     replace, but on some platforms readers can still see brief windows where
     open/parse fails. We keep this light to avoid masking real errors.
     """
+    # First attempt: use centralized cached reader if available
+    try:
+        from pathlib import Path as _Path
+
+        from src.utils.csv_cache import read_json_cached as _read_json_cached
+        data = _read_json_cached(_Path(path))
+        # Maintain previous semantics: return None on missing/empty to trigger retries if desired
+        if data is not None:
+            return data
+    except Exception:
+        pass
     for attempt in range(max(1, retries)):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
+        try:  # noqa: PERF203 - per-attempt isolation for transient read/parse failures
+            with open(path, encoding="utf-8") as f:
                 return json.load(f)
-        except Exception:
+        except Exception:  # noqa: PERF203 - retry loop intentionally isolates per-attempt failures
             if attempt == retries - 1:
                 break
             try:
@@ -81,12 +94,12 @@ def _read_json_with_retries(path: str, retries: int = 3, delay: float = 0.05) ->
     return None
 
 
-def _read_panel_json(name: str) -> Optional[Any]:
+def _read_panel_json(name: str) -> Any | None:
     if not _use_panels_json():
         return None
     # Use centralized unified data source for caching + change detection
     try:
-        from src.data_access.unified_source import UnifiedDataSource, DataSourceConfig
+        from src.data_access.unified_source import DataSourceConfig, UnifiedDataSource
         uds = UnifiedDataSource()
         cfg = DataSourceConfig(
             panels_dir=_panels_dir(),
@@ -117,7 +130,7 @@ def _read_panel_json(name: str) -> Optional[Any]:
 
 # Log parsing support for indices metrics
 
-def _tail_read(path: str, max_bytes: int = 65536) -> Optional[str]:
+def _tail_read(path: str, max_bytes: int = 65536) -> str | None:
     try:
         sz = os.path.getsize(path)
         with open(path, "rb") as f:
@@ -132,19 +145,22 @@ def _tail_read(path: str, max_bytes: int = 65536) -> Optional[str]:
         return None
 
 
-def _parse_indices_metrics_from_text(text: str) -> Dict[str, Dict[str, Any]]:
-    out: Dict[str, Dict[str, Any]] = {}
+def _parse_indices_metrics_from_text(text: str) -> dict[str, dict[str, Any]]:
+    out: dict[str, dict[str, Any]] = {}
     if not text:
         return out
-    pat = re.compile(r"(?P<idx>[A-Z]{3,10})\s+TOTAL\s+LEGS:\s+(?P<legs>\d+)\s*\|\s*FAILS:\s+(?P<fails>\d+)\s*\|\s*STATUS:\s*(?P<status>[A-Z_]+)")
+    pat = re.compile(
+        r"(?P<idx>[A-Z]{3,10})\s+TOTAL\s+LEGS:\s+(?P<legs>\d+)"
+        r"\s*\|\s*FAILS:\s+(?P<fails>\d+)\s*\|\s*STATUS:\s*(?P<status>[A-Z_]+)"
+    )
     for m in pat.finditer(text):
         idx = m.group("idx").strip().upper()
-        legs: Optional[int]
+        legs: int | None
         try:
             legs = int(m.group("legs"))
         except Exception:
             legs = None
-        fails: Optional[int]
+        fails: int | None
         try:
             fails = int(m.group("fails"))
         except Exception:
@@ -154,7 +170,7 @@ def _parse_indices_metrics_from_text(text: str) -> Dict[str, Dict[str, Any]]:
     return out
 
 
-def _get_indices_metrics_from_log() -> Dict[str, Dict[str, Any]]:
+def _get_indices_metrics_from_log() -> dict[str, dict[str, Any]]:
     try:
         cfg = load_summary_env()
         p = cfg.indices_panel_log
@@ -171,14 +187,14 @@ def _get_indices_metrics_from_log() -> Dict[str, Dict[str, Any]]:
     return {}
 
 
-def _get_indices_metrics() -> Dict[str, Dict[str, Any]]:
+def _get_indices_metrics() -> dict[str, dict[str, Any]]:
     # Prefer unified data source to eliminate duplicate path logic
     try:
         from src.data_access.unified_source import data_source
         data = data_source.get_indices_data()
         if isinstance(data, dict) and data:
             # Normalize to Dict[str, Dict[str, Any]]
-            out: Dict[str, Dict[str, Any]] = {}
+            out: dict[str, dict[str, Any]] = {}
             for k, v in data.items():
                 if isinstance(v, dict):
                     out[str(k)] = {**v}
@@ -190,7 +206,7 @@ def _get_indices_metrics() -> Dict[str, Dict[str, Any]]:
     if _use_panels_json():
         pj = _read_panel_json("indices")
         if isinstance(pj, dict) and pj:
-            out2: Dict[str, Dict[str, Any]] = {}
+            out2: dict[str, dict[str, Any]] = {}
             for k, v in pj.items():
                 if isinstance(v, dict):
                     out2[str(k)] = {**v}

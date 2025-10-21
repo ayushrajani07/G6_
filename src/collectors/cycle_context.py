@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Cycle context utilities for unified collectors.
 
 Encapsulates shared objects (providers, sinks, metrics) and provides
@@ -7,26 +6,26 @@ phase timing instrumentation for lightweight profiling.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-import time
 import datetime
-from typing import Any, Dict, Optional, Tuple
 import logging
+import time
+from dataclasses import dataclass, field
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 @dataclass
 class CycleContext:
-    index_params: Dict[str, Any]
+    index_params: dict[str, Any]
     providers: Any
     csv_sink: Any
     influx_sink: Any | None
     metrics: Any | None
     start_wall: float = field(default_factory=time.time)
-    start_ts: datetime.datetime = field(default_factory=lambda: datetime.datetime.now(datetime.timezone.utc))
-    phase_times: Dict[str, float] = field(default_factory=dict)
-    phase_failures: Dict[str, int] = field(default_factory=dict)
-    _phase_stack: list[Tuple[str, float]] = field(default_factory=list)
+    start_ts: datetime.datetime = field(default_factory=lambda: datetime.datetime.now(datetime.UTC))
+    phase_times: dict[str, float] = field(default_factory=dict)
+    phase_failures: dict[str, int] = field(default_factory=dict)
+    _phase_stack: list[tuple[str, float]] = field(default_factory=list)
     # Phase 10 reliability: per-cycle deduplication set for "no instruments" warnings
     # Key format: f"{index}|{expiry_rule}|{expiry}" (string expiry)
     no_instruments_dedup: set[str] = field(default_factory=set)
@@ -102,7 +101,7 @@ class ExpiryContext:
     compute_greeks: bool = True
     # Future: coverage_pct: float | None = None, classification: str | None = None
 
-    def as_tags(self) -> Dict[str, Any]:  # small convenience for metrics/logs
+    def as_tags(self) -> dict[str, Any]:  # small convenience for metrics/logs
         return {
             'index': self.index_symbol,
             'expiry_rule': self.expiry_rule,
@@ -113,7 +112,7 @@ class _PhaseTimer:
     def __init__(self, ctx: CycleContext, name: str):
         self.ctx = ctx; self.name = name; self.t0 = 0.0
     def __enter__(self):
-        self.t0 = time.time();
+        self.t0 = time.time()
         return self
     def __exit__(self, exc_type, exc, tb):
         dt = time.time() - self.t0

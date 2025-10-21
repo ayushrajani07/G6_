@@ -17,11 +17,12 @@ Public API:
 Tests should cover pruning rules and critical alert retention.
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import List, Callable, Optional, Dict, Any
+
 import os
 import shutil
-import math
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import Any
 
 TRUE_SET = {"1","true","yes","on"}
 
@@ -32,10 +33,10 @@ def env_true(name: str) -> bool:
 class Block:
     key: str
     importance: int
-    lines: List[str]
+    lines: list[str]
     shrinkable: bool = False
     # shrink() should mutate lines to a more compact representation (<= previous lines)
-    shrink: Optional[Callable[["Block"], None]] = None
+    shrink: Callable[[Block], None] | None = None
 
     def current_height(self) -> int:
         return len(self.lines)
@@ -43,50 +44,50 @@ class Block:
 @dataclass
 class SummaryState:
     # Minimal typed subset used for curated layout summarization
-    run_id: Optional[str] = None
-    version: Optional[str] = None
+    run_id: str | None = None
+    version: str | None = None
     market_state: str = "?"
     market_extra: str = ""
-    cycle_number: Optional[int] = None
-    cycle_last_duration_ms: Optional[float] = None
-    cycle_p95_ms: Optional[float] = None
-    cycle_interval: Optional[float] = None
-    sla_ms: Optional[float] = None
+    cycle_number: int | None = None
+    cycle_last_duration_ms: float | None = None
+    cycle_p95_ms: float | None = None
+    cycle_interval: float | None = None
+    sla_ms: float | None = None
     sla_breach_streak: int = 0
     misses: int = 0
-    on_time_pct: Optional[float] = None
-    next_run_in: Optional[float] = None
-    indices: List[Dict[str, Any]] = field(default_factory=list)  # each: {name, dq, rows, ok_pct, change_pct}
-    provider: Dict[str, Any] = field(default_factory=dict)
-    influx: Dict[str, Any] = field(default_factory=dict)
-    dq_score: Optional[float] = None
-    dq_warn: Optional[float] = None
-    dq_err: Optional[float] = None
-    card_active: Optional[int] = None
-    card_budget: Optional[int] = None
-    card_disabled: Optional[int] = None
-    atm_window: Optional[int] = None
-    emit_rate: Optional[float] = None
-    rss_mb: Optional[float] = None
-    mem_tier: Optional[str] = None
-    headroom_pct: Optional[float] = None
-    cpu_pct: Optional[float] = None
-    rollback_in: Optional[int] = None
-    alerts_counts: Dict[str,int] = field(default_factory=dict)  # keys: info,warn,critical
+    on_time_pct: float | None = None
+    next_run_in: float | None = None
+    indices: list[dict[str, Any]] = field(default_factory=list)  # each: {name, dq, rows, ok_pct, change_pct}
+    provider: dict[str, Any] = field(default_factory=dict)
+    influx: dict[str, Any] = field(default_factory=dict)
+    dq_score: float | None = None
+    dq_warn: float | None = None
+    dq_err: float | None = None
+    card_active: int | None = None
+    card_budget: int | None = None
+    card_disabled: int | None = None
+    atm_window: int | None = None
+    emit_rate: float | None = None
+    rss_mb: float | None = None
+    mem_tier: str | None = None
+    headroom_pct: float | None = None
+    cpu_pct: float | None = None
+    rollback_in: int | None = None
+    alerts_counts: dict[str,int] = field(default_factory=dict)  # keys: info,warn,critical
     alerts_types: int = 0
     alerts_resolved: int = 0
-    adaptive_mode: Optional[str] = None
-    demote_in: Optional[int] = None
-    promote_in: Optional[int] = None
-    adaptive_reasons: List[str] = field(default_factory=list)
-    vol_surface: Dict[str, Any] = field(default_factory=dict)  # {cov, interp, atm_iv}
-    risk: Dict[str, Any] = field(default_factory=dict)  # {delta, vega, drift}
-    followups: List[Dict[str, Any]] = field(default_factory=list)
-    heartbeat: Dict[str, Any] = field(default_factory=dict)  # {last_event_s, metrics_age_s, p95_spark: str}
+    adaptive_mode: str | None = None
+    demote_in: int | None = None
+    promote_in: int | None = None
+    adaptive_reasons: list[str] = field(default_factory=list)
+    vol_surface: dict[str, Any] = field(default_factory=dict)  # {cov, interp, atm_iv}
+    risk: dict[str, Any] = field(default_factory=dict)  # {delta, vega, drift}
+    followups: list[dict[str, Any]] = field(default_factory=list)
+    heartbeat: dict[str, Any] = field(default_factory=dict)  # {last_event_s, metrics_age_s, p95_spark: str}
 
 # -------- state collection (lightweight, defensive) --------
 
-def collect_state(status: Dict[str, Any] | None) -> SummaryState:
+def collect_state(status: dict[str, Any] | None) -> SummaryState:
     st = SummaryState()
     if not isinstance(status, dict):
         return st
@@ -212,12 +213,12 @@ def collect_state(status: Dict[str, Any] | None) -> SummaryState:
 
 # -------- rendering helpers --------
 
-def _coerce_ms(v: Any) -> Optional[float]:
+def _coerce_ms(v: Any) -> float | None:
     if isinstance(v, (int, float)):
         return float(v) * (1000.0 if v < 50 else 1.0)  # heuristic if seconds given
     return None
 
-def _to_float(v: Any) -> Optional[float]:
+def _to_float(v: Any) -> float | None:
     try:
         if isinstance(v, (int, float)):
             return float(v)
@@ -378,8 +379,8 @@ class CuratedLayout:
     def __init__(self):
         pass
 
-    def build_blocks(self, st: SummaryState) -> List[Block]:
-        blocks: List[Block] = []
+    def build_blocks(self, st: SummaryState) -> list[Block]:
+        blocks: list[Block] = []
         # Earlier heuristic auto-hid empty blocks when curated mode active even if explicit hide flag unset.
         # This prevented tests from seeing 'FUP none' after unsetting G6_SUMMARY_HIDE_EMPTY_BLOCKS.
         # New rule: only hide when explicit env set true (no implicit curated-mode auto hide).
@@ -415,7 +416,7 @@ class CuratedLayout:
         blocks.append(build_heartbeat(st))
         return blocks
 
-    def render(self, st: SummaryState, term_cols: Optional[int] = None, term_rows: Optional[int] = None) -> str:
+    def render(self, st: SummaryState, term_cols: int | None = None, term_rows: int | None = None) -> str:
         if term_cols is None or term_rows is None:
             try:
                 size = shutil.get_terminal_size()

@@ -40,9 +40,8 @@ may integrate memory profiler hooks, IV solver iteration stress, junk row volume
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
-from typing import Optional, Dict, Any
+from dataclasses import dataclass
 
 
 @dataclass
@@ -140,8 +139,8 @@ def evaluate_adaptive_controller(ctx, elapsed: float, interval: float) -> None: 
         cardinality_active = False
 
     # Decision logic
-    action: Optional[str] = None
-    reason: Optional[str] = None
+    action: str | None = None
+    reason: str | None = None
     # Demotion triggers
     if state.detail_mode < min_detail_mode:
         if state.sla_breach_streak >= breach_streak_target:

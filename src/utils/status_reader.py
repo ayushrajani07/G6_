@@ -9,20 +9,20 @@ simple, consistent helpers for commonly accessed sections.
 
 import os
 import threading
-from datetime import datetime, timezone
-from typing import Any, Dict, Optional, TypeVar, cast, overload
+from datetime import UTC, datetime
+from typing import Any, TypeVar, overload
 
-from src.data_access.unified_source import UnifiedDataSource, DataSourceConfig
+from src.data_access.unified_source import DataSourceConfig, UnifiedDataSource
 
 T = TypeVar("T")
 
 
 class StatusReader:
-    _singleton: Optional["StatusReader"] = None
+    _singleton: StatusReader | None = None
     _lock = threading.RLock()
 
     @classmethod
-    def get_instance(cls, status_path: Optional[str] = None) -> "StatusReader":
+    def get_instance(cls, status_path: str | None = None) -> StatusReader:
         with cls._lock:
             if cls._singleton is None:
                 cls._singleton = StatusReader(status_path)
@@ -30,14 +30,14 @@ class StatusReader:
                 cls._singleton._update_path(status_path)
             return cls._singleton
 
-    def __init__(self, status_path: Optional[str] = None) -> None:
+    def __init__(self, status_path: str | None = None) -> None:
         self._path = self._resolve_path(status_path)
         self._uds = UnifiedDataSource()
         # Configure data source to our preferred path; keep other defaults
         cfg = DataSourceConfig(runtime_status_path=self._path)
         self._uds.reconfigure(cfg)
 
-    def _resolve_path(self, path: Optional[str]) -> str:
+    def _resolve_path(self, path: str | None) -> str:
         if path:
             return path
         env_val = os.environ.get("G6_RUNTIME_STATUS")
@@ -57,14 +57,14 @@ class StatusReader:
         except Exception:
             return False
 
-    def get_raw_status(self) -> Dict[str, Any]:
+    def get_raw_status(self) -> dict[str, Any]:
         try:
             return self._uds.get_runtime_status() or {}
         except Exception:
             return {}
 
     # ------------ Common sections ------------
-    def get_cycle_data(self) -> Dict[str, Any]:
+    def get_cycle_data(self) -> dict[str, Any]:
         try:
             d = self._uds.get_cycle_data() or {}
             if isinstance(d, dict):
@@ -73,7 +73,7 @@ class StatusReader:
             pass
         return {"cycle": None, "last_start": None, "last_duration": None, "success_rate": None}
 
-    def get_indices_data(self) -> Dict[str, Any]:
+    def get_indices_data(self) -> dict[str, Any]:
         try:
             d = self._uds.get_indices_data() or {}
             if isinstance(d, dict):
@@ -82,7 +82,7 @@ class StatusReader:
             pass
         return {}
 
-    def get_resources_data(self) -> Dict[str, Any]:
+    def get_resources_data(self) -> dict[str, Any]:
         try:
             d = self._uds.get_resources_data() or {}
             if isinstance(d, dict):
@@ -91,7 +91,7 @@ class StatusReader:
             pass
         return {"cpu": None, "memory_mb": None}
 
-    def get_provider_data(self) -> Dict[str, Any]:
+    def get_provider_data(self) -> dict[str, Any]:
         try:
             d = self._uds.get_provider_data() or {}
             if isinstance(d, dict):
@@ -100,7 +100,7 @@ class StatusReader:
             pass
         return {}
 
-    def get_health_data(self) -> Dict[str, Any]:
+    def get_health_data(self) -> dict[str, Any]:
         try:
             d = self._uds.get_health_data() or {}
             if isinstance(d, dict):
@@ -127,14 +127,14 @@ class StatusReader:
             cur = cur.get(part)
         return cur
 
-    def get_status_age_seconds(self) -> Optional[float]:
+    def get_status_age_seconds(self) -> float | None:
         try:
             st = self.get_raw_status()
             ts = st.get("timestamp") if isinstance(st, dict) else None
             if isinstance(ts, str):
                 try:
                     dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                    now = datetime.now(timezone.utc)
+                    now = datetime.now(UTC)
                     return (now - dt).total_seconds()
                 except Exception:
                     pass
@@ -147,5 +147,5 @@ class StatusReader:
         return None
 
 
-def get_status_reader(status_path: Optional[str] = None) -> StatusReader:
+def get_status_reader(status_path: str | None = None) -> StatusReader:
     return StatusReader.get_instance(status_path)

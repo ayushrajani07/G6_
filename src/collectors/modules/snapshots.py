@@ -3,13 +3,14 @@
 Separated from legacy unified_collectors to reduce inline complexity.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Optional
+
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 try:  # domain models may not be present in some reduced test contexts
-    from src.domain.models import OptionQuote, ExpirySnapshot  # pragma: no cover
+    from src.domain.models import ExpirySnapshot, OptionQuote  # pragma: no cover
 except Exception:  # pragma: no cover
     OptionQuote = None  # sentinel when models unavailable
     ExpirySnapshot = None  # sentinel when models unavailable
@@ -20,9 +21,9 @@ def build_expiry_snapshot(
     expiry_rule: str,
     expiry_date: Any,
     atm_strike: float | int | None,
-    enriched_data: Dict[str, Dict[str, Any]],
+    enriched_data: dict[str, dict[str, Any]],
     generated_at: Any,
-) -> Optional[Any]:
+) -> Any | None:
     """Build an ExpirySnapshot object from enriched option data.
 
     Returns the snapshot instance or None if construction failed or models unavailable.
@@ -32,7 +33,7 @@ def build_expiry_snapshot(
         logger.debug('Snapshot models unavailable; skipping snapshot build index=%s rule=%s', index, expiry_rule)
         return None
     try:
-        option_objs: List[Any] = []
+        option_objs: list[Any] = []
         for sym, q in enriched_data.items():
             if OptionQuote is None:
                 break  # no model available; skip building individual option quotes

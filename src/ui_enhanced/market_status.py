@@ -2,17 +2,20 @@
 Provides simplified open/close state plus next session countdown.
 """
 from __future__ import annotations
+
 import datetime
 from dataclasses import dataclass
-from typing import Optional
-from .color import colorize, FG_GREEN, FG_RED, FG_YELLOW
-from src.utils.market_hours import is_market_open, get_next_market_open
+
+from src.utils.market_hours import get_next_market_open, is_market_open
+
+from .color import FG_GREEN, FG_RED, FG_YELLOW, colorize
+
 
 @dataclass
 class MarketStatus:
     is_open: bool
-    next_open_utc: Optional[datetime.datetime]
-    seconds_to_open: Optional[int]
+    next_open_utc: datetime.datetime | None
+    seconds_to_open: int | None
 
     def render_line(self) -> str:
         if self.is_open:
@@ -29,7 +32,7 @@ def snapshot() -> MarketStatus:
     if not open_now:
         try:
             nxt = get_next_market_open()
-            secs = int((nxt - datetime.datetime.now(datetime.timezone.utc)).total_seconds())
+            secs = int((nxt - datetime.datetime.now(datetime.UTC)).total_seconds())
         except Exception:
             nxt = None
             secs = None

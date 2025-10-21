@@ -4,8 +4,10 @@ Provides ensure_spec_minimum(registry) which was previously
 MetricsRegistry._ensure_spec_minimum. Behavior and logging preserved.
 """
 from __future__ import annotations
-import os
+
 import logging
+import os
+
 from prometheus_client import REGISTRY
 
 logger = logging.getLogger(__name__)
@@ -20,7 +22,8 @@ _SPEC_REQUIRED = [
 
 def ensure_spec_minimum(registry) -> None:
     try:
-        from prometheus_client import Counter as _C, Gauge as _G  # type: ignore
+        from prometheus_client import Counter as _C  # type: ignore
+        from prometheus_client import Gauge as _G
     except Exception as e:  # pragma: no cover - defensive
         logger.warning("Spec minimum import failed; prometheus_client missing? %s", e)
         return

@@ -64,10 +64,17 @@ Limitations:
 
 """
 from __future__ import annotations
-import argparse, json, math, os, random, statistics, sys, time
+
+import argparse
+import json
+import math
+import random
+import statistics
+import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 # Local import (runtime path assumes repo root execution) – fallback safe if not present.
 try:
@@ -77,26 +84,26 @@ except Exception:  # pragma: no cover
 
 @dataclass
 class Sample:
-    components: Dict[str, float]
-    missing: List[str]
+    components: dict[str, float]
+    missing: list[str]
 
 # ---------------- I/O helpers -----------------
 
-def _load_json(path: str) -> Dict[str, Any]:
+def _load_json(path: str) -> dict[str, Any]:
     return json.loads(Path(path).read_text(encoding="utf-8"))
 
 # ---------------- Synthetic generator -----------------
 
-def _synthetic_pairs(n: int, *, base_components: List[str], noise: float, missing_prob: float) -> List[Sample]:
+def _synthetic_pairs(n: int, *, base_components: list[str], noise: float, missing_prob: float) -> list[Sample]:
     """Generate synthetic component similarity values around 0.9..1.0 with noise.
 
     noise: amplitude of uniform perturbation (value = 1 - U(0, noise)).
     missing_prob: probability a component is marked missing (simulates absent data).
     """
-    out: List[Sample] = []
+    out: list[Sample] = []
     for _ in range(n):
-        comps: Dict[str, float] = {}
-        missing: List[str] = []
+        comps: dict[str, float] = {}
+        missing: list[str] = []
         for name in base_components:
             if random.random() < missing_prob:
                 missing.append(name)
@@ -110,8 +117,8 @@ def _synthetic_pairs(n: int, *, base_components: List[str], noise: float, missin
 
 # ---------------- Study core -----------------
 
-def _collect_samples(paths: List[Tuple[str, str]]) -> List[Sample]:
-    samples: List[Sample] = []
+def _collect_samples(paths: list[tuple[str, str]]) -> list[Sample]:
+    samples: list[Sample] = []
     if compute_parity_score is None:
         raise RuntimeError("compute_parity_score import failed; cannot run study")
     for legacy_path, pipeline_path in paths:
@@ -126,7 +133,7 @@ def _collect_samples(paths: List[Tuple[str, str]]) -> List[Sample]:
 
 # ---------------- Statistics -----------------
 
-def _percentile(sorted_values: List[float], pct: float) -> float:
+def _percentile(sorted_values: list[float], pct: float) -> float:
     if not sorted_values:
         return 0.0
     if len(sorted_values) == 1:
@@ -139,12 +146,12 @@ def _percentile(sorted_values: List[float], pct: float) -> float:
     d1 = sorted_values[c] * (k - f)
     return d0 + d1
 
-from typing import Tuple as _Tuple
 
-def _summarize(samples: List[Sample], method: str) -> _Tuple[Dict[str, Any], Dict[str, float], Dict[str, float]]:
+
+def _summarize(samples: list[Sample], method: str) -> tuple[dict[str, Any], dict[str, float], dict[str, float]]:
     # Gather per-component lists
-    value_map: Dict[str, List[float]] = {}
-    missing_counts: Dict[str, int] = {}
+    value_map: dict[str, list[float]] = {}
+    missing_counts: dict[str, int] = {}
     for s in samples:
         present = set(s.components.keys())
         for comp, val in s.components.items():
@@ -156,9 +163,9 @@ def _summarize(samples: List[Sample], method: str) -> _Tuple[Dict[str, Any], Dic
                 missing_counts[comp] = missing_counts.get(comp, 0) + 1
             else:
                 missing_counts.setdefault(comp, 0)
-    comp_stats: Dict[str, Any] = {}
+    comp_stats: dict[str, Any] = {}
     # Preliminary weight raw store
-    prelim_weights: Dict[str, float] = {}
+    prelim_weights: dict[str, float] = {}
     for comp, vals in value_map.items():
         vals_sorted = sorted(vals)
         count = len(vals)
@@ -227,12 +234,12 @@ def main(argv=None) -> int:
     args = parse_args(argv)
     if args.seed is not None:
         random.seed(args.seed)
-    samples: List[Sample] = []
+    samples: list[Sample] = []
     mode = None
-    params: Dict[str, Any] = {}
+    params: dict[str, Any] = {}
 
     if args.pairs:
-        pairs: List[Tuple[str, str]] = []
+        pairs: list[tuple[str, str]] = []
         for p in args.pairs:
             if ':' not in p:
                 print(f"ERROR invalid pair format: {p}", file=sys.stderr)

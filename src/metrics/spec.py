@@ -8,11 +8,12 @@ ported initially; further migration can be incremental.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
-from typing import Sequence, Callable, Any, List, Optional
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from typing import Any
 
-from prometheus_client import Gauge, Counter, Histogram, Summary  # type: ignore
+from prometheus_client import Counter, Gauge, Histogram, Summary  # type: ignore
 
 from .groups import MetricGroup
 
@@ -26,7 +27,7 @@ class MetricDef:
     labels: Sequence[str] | None = None
     group: MetricGroup | None = None
     kwargs: dict | None = None
-    predicate: Optional[Callable[[Any], bool]] = None  # Called with registry; if returns False registration skipped
+    predicate: Callable[[Any], bool] | None = None  # Called with registry; if returns False registration skipped
 
     def register(self, registry):  # pragma: no cover - thin wrapper
         if self.predicate is not None:
@@ -46,7 +47,7 @@ class MetricDef:
                     current = getattr(metric, '_name', None)
                     if current != self.name and isinstance(current, str):
                         try:
-                            setattr(metric, '_name', self.name)
+                            metric._name = self.name
                             # Re-read to confirm; if still mismatched attempt hard replacement.
                             if getattr(metric, '_name', None) != self.name:
                                 raise RuntimeError('rename_did_not_stick')
@@ -101,7 +102,7 @@ class MetricDef:
             if isinstance(self.kind, type) and self.name.endswith('_total') and metric is not None:
                 try:  # pragma: no cover - defensive
                     if getattr(metric, '_name', None) != self.name:
-                        setattr(metric, '_name', self.name)
+                        metric._name = self.name
                 except Exception:
                     pass
             setattr(registry, self.attr, metric)
@@ -114,7 +115,7 @@ class MetricDef:
 
 
 # Starter subset: provider mode, deprecated config keys, index gauges & collection basics
-METRIC_SPECS: List[MetricDef] = [
+METRIC_SPECS: list[MetricDef] = [
     MetricDef(
         attr="collection_duration",
         name="g6_collection_duration_seconds",
@@ -320,7 +321,7 @@ METRIC_SPECS: List[MetricDef] = [
 # therefore NOT included here yet to avoid altering lazy semantics. They can be
 # migrated later with an optional predicate hook in MetricDef if desired.
 
-GROUPED_METRIC_SPECS: List[MetricDef] = [
+GROUPED_METRIC_SPECS: list[MetricDef] = [
     # panel_diff group migrated to YAML spec (2025-10-05). The dynamic definitions
     # were removed to avoid duplicate registration. If rollback is required,
     # reintroduce the MetricDef entries here or enable a temporary guard flag.

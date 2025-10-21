@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 Resilience helpers for panel publishing and bridge I/O.
 
@@ -6,8 +7,7 @@ Goals:
 - Guard against exceptions on panel_update/append so one bad write doesn't break the loop.
 - Provide a consistent cap for stream-like panels to limit memory/IO churn.
 """
-from typing import Any, Mapping
-
+from typing import Any
 
 DEFAULT_STREAM_CAP = 200  # global soft cap for stream panels
 

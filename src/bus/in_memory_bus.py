@@ -1,15 +1,18 @@
 from __future__ import annotations
+
 import threading
 import time
-import math
-from typing import Callable, Deque, Dict, List, Optional
 from collections import deque
-from .event import Event
+from collections.abc import Callable
+
 from src.metrics import generated as m
 from src.metrics.safe_emit import safe_emit
 
+from .event import Event
+
+
 class Subscriber:
-    def __init__(self, bus: 'InMemoryBus', name: str, filter_fn: Optional[Callable[[str], bool]], start_id: Optional[int]):
+    def __init__(self, bus: InMemoryBus, name: str, filter_fn: Callable[[str], bool] | None, start_id: int | None):
         self._bus = bus
         self.name = name
         self._filter = filter_fn
@@ -20,7 +23,7 @@ class Subscriber:
 
     def poll(self, batch_size: int = 100, timeout: float = 0.0):
         deadline = time.time() + timeout if timeout > 0 else None
-        out: List[Event] = []
+        out: list[Event] = []
         while True:
             with self._bus._lock:
                 if self._next_id >= self._bus._next_id:
@@ -61,12 +64,12 @@ class InMemoryBus:
         self.name = name
         self.max_retained = max_retained
         self._lock = threading.RLock()
-        self._events: Deque[Event] = deque()
+        self._events: deque[Event] = deque()
         self._next_id = 0
         self._head_id = 0
         self._sub_counter = 0
 
-    def publish(self, event_type: str, payload: dict, key: Optional[str] = None, meta: Optional[dict] = None) -> int:
+    def publish(self, event_type: str, payload: dict, key: str | None = None, meta: dict | None = None) -> int:
         start = time.perf_counter()
         with self._lock:
             ev_id = self._next_id
@@ -95,7 +98,7 @@ class InMemoryBus:
             pass
         return ev_id
 
-    def subscribe(self, filter_fn: Optional[Callable[[str], bool]] = None, from_id: Optional[int] = None) -> Subscriber:
+    def subscribe(self, filter_fn: Callable[[str], bool] | None = None, from_id: int | None = None) -> Subscriber:
         with self._lock:
             sub_id = self._sub_counter
             self._sub_counter += 1
@@ -111,7 +114,7 @@ class InMemoryBus:
             return self._next_id - 1
 
 # Simple factory / registry
-_BUSES: Dict[str, InMemoryBus] = {}
+_BUSES: dict[str, InMemoryBus] = {}
 
 def get_bus(name: str = 'core') -> InMemoryBus:
     if name not in _BUSES:

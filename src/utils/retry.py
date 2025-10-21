@@ -17,8 +17,10 @@ from __future__ import annotations
 import importlib
 import logging
 import os
+
 try:
-    from src.collectors.env_adapter import get_str as _env_get_str, get_bool as _env_get_bool  # type: ignore
+    from src.collectors.env_adapter import get_bool as _env_get_bool
+    from src.collectors.env_adapter import get_str as _env_get_str  # type: ignore
 except Exception:  # pragma: no cover
     def _env_get_str(name: str, default: str = "") -> str:
         try:
@@ -34,24 +36,33 @@ except Exception:  # pragma: no cover
             return str(v).strip().lower() in {"1","true","yes","on","y"}
         except Exception:
             return default
-from typing import Any, Callable, Iterable, Optional, Sequence, Type
+from collections.abc import Callable
+from typing import Any, ParamSpec, TypeVar, cast, overload
 
 from tenacity import (
-    retry, Retrying, stop_after_attempt, stop_after_delay,
-    wait_exponential, wait_chain, wait_fixed, wait_random,
-    retry_if_exception, retry_if_exception_type,
+    Retrying,
+    retry,
+    retry_if_exception,
+    stop_after_attempt,
+    stop_after_delay,
+    wait_exponential,
+    wait_random,
 )
 
+from src.error_handling import ErrorCategory, ErrorSeverity, get_error_handler
+
 from .exceptions import RetryError
-from src.error_handling import get_error_handler, ErrorCategory, ErrorSeverity
 
 logger = logging.getLogger(__name__)
 
+P = ParamSpec("P")
+R = TypeVar("R")
 
-def _parse_exception_list(csv: str | None) -> list[Type[BaseException]]:
+
+def _parse_exception_list(csv: str | None) -> list[type[BaseException]]:
     if not csv:
         return []
-    out: list[Type[BaseException]] = []
+    out: list[type[BaseException]] = []
     for name in (x.strip() for x in csv.split(',') if x.strip()):
         try:
             # support builtins like TimeoutError and fully qualified names
@@ -121,7 +132,13 @@ def build_stop_strategy() -> Any:
     return stop_after_attempt(attempts) | stop_after_delay(max_seconds)
 
 
-def retryable(func: Optional[Callable[..., Any]] = None, *, reraise: bool = True):
+@overload
+def retryable(func: None = None, *, reraise: bool = True) -> Callable[[Callable[P, R]], Callable[P, R]]: ...
+
+@overload
+def retryable(func: Callable[P, R], *, reraise: bool = True) -> Callable[P, R]: ...
+
+def retryable(func: Callable[P, R] | None = None, *, reraise: bool = True) -> Callable[[Callable[P, R]], Callable[P, R]] | Callable[P, R]:
     """Decorator to apply retry with default env-configured strategies.
 
     Example:
@@ -132,17 +149,25 @@ def retryable(func: Optional[Callable[..., Any]] = None, *, reraise: bool = True
     predicate = build_retry_predicate()
     wait = build_wait_strategy()
     stop = build_stop_strategy()
-    def _safe_reason(rs: Any) -> Any:
+    def _safe_reason(rs: object) -> object | None:
         try:
             outcome = getattr(rs, 'outcome', None)
             if outcome and getattr(outcome, 'failed', False):
-                return outcome.exception()
+                exc = getattr(outcome, 'exception', None)
+                if callable(exc):
+                    # exc() can be Any; cast to object to satisfy the return type
+                    try:
+                        v = exc()
+                    except Exception:
+                        return None
+                    return cast(object, v)
+                return None
         except Exception:
             return None
         return None
 
-    def _decorator(f: Callable[..., Any]):
-        return retry(
+    def _decorator(f: Callable[P, R]) -> Callable[P, R]:
+        wrapped = retry(
             retry=retry_if_exception(predicate),
             wait=wait,
             stop=stop,
@@ -151,12 +176,13 @@ def retryable(func: Optional[Callable[..., Any]] = None, *, reraise: bool = True
                 "retrying %s after %s due to %s",
                 f.__name__, getattr(rs, 'idle_for', None), _safe_reason(rs)),
         )(f)
+        return cast(Callable[P, R], wrapped)
     if func is not None:
         return _decorator(func)
     return _decorator
 
 
-def call_with_retry(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
+def call_with_retry(fn: Callable[P, R], *args: P.args, **kwargs: P.kwargs) -> R:
     """Call a function with retry using env-configured strategies.
 
     Raises RetryError if operation ultimately fails.
@@ -175,6 +201,8 @@ def call_with_retry(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
                 return fn(*args, **kwargs)
     except Exception as e:  # underlying exception
         raise RetryError(str(e)) from e
+    # Should be unreachable: Retrying either returns or raises
+    raise RetryError("Operation did not execute")
 
 
 __all__ = ["retryable", "call_with_retry", "build_retry_predicate", "build_wait_strategy", "build_stop_strategy"]

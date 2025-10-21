@@ -19,9 +19,12 @@ The synthetic fallback generation and preventive validation stage remain in the
 legacy path until subsequent extraction phases; this module stays minimal.
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Callable
-import time, logging
+
+import logging
+import time
+from collections.abc import Callable
 from importlib import import_module
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -38,12 +41,12 @@ def _resolve_noquotes_error() -> type[Exception]:  # pragma: no cover - trivial 
     return Exception
 
 
-def _resolve_handle_error() -> Callable[[Exception, str, str, Dict[str, Any]], Any]:  # pragma: no cover - wrapper
+def _resolve_handle_error() -> Callable[[Exception, str, str, dict[str, Any]], Any]:  # pragma: no cover - wrapper
     try:
         mod = import_module('src.collectors.unified_collectors')
         fn = getattr(mod, 'handle_collector_error', None)
         if callable(fn):
-            def _adapter(exc: Exception, component: str, index_name: str, context: Dict[str, Any]) -> Any:
+            def _adapter(exc: Exception, component: str, index_name: str, context: dict[str, Any]) -> Any:
                 try:
                     return fn(exc, component=component, index_name=index_name, context=context)
                 except TypeError:
@@ -54,20 +57,20 @@ def _resolve_handle_error() -> Callable[[Exception, str, str, Dict[str, Any]], A
             return _adapter
     except Exception:
         pass
-    def _fallback(exc: Exception, component: str, index_name: str, context: Dict[str, Any]) -> None:
+    def _fallback(exc: Exception, component: str, index_name: str, context: dict[str, Any]) -> None:
         logger.debug("handle_collector_error_fallback", exc_info=True)
         return None
     return _fallback
 
 
-def enrich_quotes(index_symbol: str, expiry_rule: str, expiry_date: Any, instruments: List[Dict[str, Any]], providers: Any, metrics: Any) -> Dict[str, Any]:
+def enrich_quotes(index_symbol: str, expiry_rule: str, expiry_date: Any, instruments: list[dict[str, Any]], providers: Any, metrics: Any) -> dict[str, Any]:
     start = time.time()
-    enriched_data: Dict[str, Any] = {}
+    enriched_data: dict[str, Any] = {}
     NoQuotesError = _resolve_noquotes_error()
     handle_collector_error = _resolve_handle_error()
     try:
         enriched_data = providers.enrich_with_quotes(instruments)
-    except (NoQuotesError,) as enrich_err:  # domain-specific path
+    except NoQuotesError as enrich_err:  # domain-specific path
         handle_collector_error(
             enrich_err,
             "collectors.unified_collectors",

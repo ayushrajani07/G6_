@@ -1,24 +1,27 @@
 from __future__ import annotations
-from typing import Any, Dict, TYPE_CHECKING
+
 import os
+from datetime import UTC
+from typing import TYPE_CHECKING, Any
+
 from scripts.summary.env_config import load_summary_env
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rich.panel import Panel as _Panel
+    pass
 
-def sinks_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, show_title: bool = True) -> Any:
-    from rich.panel import Panel
-    from rich.table import Table
+def sinks_panel(status: dict[str, Any] | None, *, low_contrast: bool = False, show_title: bool = True) -> Any:
     from rich import box
     from rich.console import Group
+    from rich.panel import Panel
+    from rich.table import Table
+
     from scripts.summary.data_source import (
-        _use_panels_json,
         _read_panel_json,
+        _use_panels_json,
     )
     from scripts.summary.derive import (
         clip,
         parse_iso,
-        fmt_timedelta_secs,
     )
     def _dot(st: str) -> str:
         s = (st or "").upper()
@@ -79,7 +82,12 @@ def sinks_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, sh
                             metric = str(it.get("metric", ""))
                             val = it.get("value", it.get("val", ""))
                             st = str(it.get("status", it.get("state", "")))
-                            rtbl.add_row(clip(str(it.get("component", it.get("name", "")))), clip(metric), clip(str(val)), _dot(st))
+                            rtbl.add_row(
+                                clip(str(it.get("component", it.get("name", "")))),
+                                clip(metric),
+                                clip(str(val)),
+                                _dot(st),
+                            )
                             if any(t in metric.lower() for t in ["disk", "size", "storage", "usage"]):
                                 total_mb += parse_mb(val)
                             if st.upper() in ("WARN", "WARNING") and overall_status == "OK":
@@ -93,7 +101,11 @@ def sinks_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, sh
                 if total_mb > 0:
                     parts.append(f"Total Storage: {total_mb:.1f} MB")
                 if overall_status:
-                    color = "green" if overall_status == "OK" else ("yellow" if overall_status.startswith("WARN") else "red")
+                    color = (
+                        "green"
+                        if overall_status == "OK"
+                        else ("yellow" if overall_status.startswith("WARN") else "red")
+                    )
                     parts.append(f"Status: [{color}]{overall_status.lower()}[/]")
                 if parts:
                     footer.add_row("[dim]" + clip(" | ".join(parts)) + "[/dim]")
@@ -129,11 +141,18 @@ def sinks_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, sh
             if last:
                 dt = parse_iso(last)
                 if dt:
-                    from datetime import datetime, timezone
-                    from scripts.summary.derive import fmt_hms_from_dt, fmt_timedelta_secs as _fmt
-                    now_utc = datetime.now(timezone.utc)
+                    from datetime import datetime
+
+                    from scripts.summary.derive import fmt_hms_from_dt
+                    from scripts.summary.derive import fmt_timedelta_secs as _fmt
+                    now_utc = datetime.now(UTC)
                     age = (now_utc - dt).total_seconds()
                     age_str = f" ({_fmt(age)} ago)"
                     last = fmt_hms_from_dt(dt)
             tbl.add_row(clip(f"• {k}: last write {last or '—'}{age_str}"))
-    return Panel(tbl, title=("Sinks" if show_title else None), border_style=("white" if low_contrast else "cyan"), expand=True)
+    return Panel(
+        tbl,
+        title=("Sinks" if show_title else None),
+        border_style=("white" if low_contrast else "cyan"),
+        expand=True,
+    )

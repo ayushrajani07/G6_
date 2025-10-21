@@ -21,9 +21,8 @@ The script intentionally avoids heavy parsing; it provides a fast signal for CI 
 from __future__ import annotations
 
 import argparse
-import os
-import re
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent

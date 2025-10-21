@@ -8,13 +8,15 @@ Currently a thin wrapper that will later encapsulate:
   * Graceful shutdown signaling
 """
 from __future__ import annotations
+
 import logging
-import time
-from typing import Callable
 import os
-from src.utils.env_flags import is_truthy_env  # type: ignore
+import time
+from collections.abc import Callable
 
 from src.orchestrator.context import RuntimeContext
+from src.utils.env_flags import is_truthy_env  # type: ignore
+
 try:  # optional gating utilities (early slice)
     from src.orchestrator.gating import should_skip_cycle_market_hours  # type: ignore
 except Exception:  # pragma: no cover
@@ -32,11 +34,15 @@ def run_loop(ctx: RuntimeContext, *, cycle_fn: Callable[[RuntimeContext], None],
     future pluggable behaviors (e.g., adaptive interval, partial refresh).
     """
     logger.info("Starting orchestration loop interval=%s", interval)
-    # Market hours gating (env opt-in for new loop path)
+    # Micro-cache frequently-read environment flags at loop startup to avoid
+    # repeated os.getenv calls inside the loop.
     market_hours_only = is_truthy_env('G6_LOOP_MARKET_HOURS')
     # Optional max cycles (dev/test convenience) - only counts executed (non-skipped) cycles
     # Support legacy alias G6_MAX_CYCLES (prefer new name if both present)
-    max_cycles_raw = os.environ.get('G6_LOOP_MAX_CYCLES') or os.environ.get('G6_MAX_CYCLES')
+    try:
+        max_cycles_raw = os.environ.get('G6_LOOP_MAX_CYCLES') or os.environ.get('G6_MAX_CYCLES')
+    except Exception:
+        max_cycles_raw = None
     max_cycles: int | None = None
     if max_cycles_raw:
         try:

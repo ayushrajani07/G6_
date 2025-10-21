@@ -1,24 +1,26 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Health monitoring system for G6 Platform.
 """
 
-import os
-import time
-import logging
-from src.utils.color import colorize, FG_GREEN, FG_RED
 import datetime
-import threading
 import json
-from typing import Dict, Any, List, Optional, Callable
+import logging
+import os
+import threading
+import time
+from collections.abc import Callable
+from typing import Any
+
+from src.utils.color import FG_GREEN, FG_RED, colorize
 
 logger = logging.getLogger(__name__)
-from src.error_handling import get_error_handler, ErrorCategory, ErrorSeverity
+from src.error_handling import ErrorCategory, ErrorSeverity, get_error_handler
+
 
 class HealthMonitor:
     """System health monitoring for G6 Platform."""
-    
+
     def __init__(self, check_interval=60):
         """
         Initialize health monitor.
@@ -33,10 +35,10 @@ class HealthMonitor:
         self.monitor_thread = None
         self.health_checks = []
         self.logger = logging.getLogger(__name__)
-        
+
         # Create health dir if it doesn't exist
         os.makedirs("data/health", exist_ok=True)
-    
+
     def register_component(self, name, component, check_method=None):
         """
         Register a component for health monitoring.
@@ -56,8 +58,8 @@ class HealthMonitor:
         self.logger.debug(
             colorize(f"Registered component for health monitoring: {name}", FG_GREEN, bold=False)
         )
-    
-    def register_health_check(self, name: str, check_fn: Callable[[], Dict[str, Any]]):
+
+    def register_health_check(self, name: str, check_fn: Callable[[], dict[str, Any]]):
         """
         Register a custom health check function.
         
@@ -73,12 +75,12 @@ class HealthMonitor:
         })
         # Log registration at DEBUG to avoid noisy startup
         self.logger.debug(colorize(f"Registered health check: {name}", FG_GREEN, bold=False))
-    
+
     def start(self):
         """Start health monitoring thread."""
         if self.running:
             return
-            
+
         self.running = True
         self.monitor_thread = threading.Thread(target=self._monitor_loop)
         self.monitor_thread.daemon = True
@@ -91,14 +93,14 @@ class HealthMonitor:
                 bold=False,
             )
         )
-    
+
     def stop(self):
         """Stop health monitoring thread."""
         self.running = False
         if self.monitor_thread:
             self.monitor_thread.join(timeout=5.0)
         self.logger.info("Health monitoring stopped")
-    
+
     def _monitor_loop(self):
         """Main monitoring loop."""
         while self.running:
@@ -120,17 +122,17 @@ class HealthMonitor:
                 except Exception:
                     pass
                 self.logger.error(f"Error in health monitoring: {e}")
-                
+
             # Sleep until next check
             time.sleep(self.check_interval)
-    
+
     def _check_all_components(self):
         """Check health of all registered components."""
         for name, data in self.components.items():
             try:
                 status = 'healthy'
                 message = 'OK'
-                
+
                 if data['check_method'] and hasattr(data['instance'], data['check_method']):
                     # Call component's health check method
                     check_result = getattr(data['instance'], data['check_method'])()
@@ -140,19 +142,19 @@ class HealthMonitor:
                     else:
                         status = 'healthy' if check_result else 'unhealthy'
                         message = 'Check failed' if not check_result else 'OK'
-                
+
                 # Update component status
                 self.components[name]['last_check'] = datetime.datetime.now()  # local-ok
                 self.components[name]['status'] = status
                 self.components[name]['message'] = message
-                
+
                 if status != 'healthy':
                     # Unhealthy -> red WARNING
                     self.logger.warning(colorize(f"Component {name} health check: {status} - {message}", FG_RED, bold=True))
                 else:
                     # Healthy -> DEBUG (reduce normal noise); warnings stay INFO/ERROR paths
                     self.logger.debug(colorize(f"Component {name} health check: {status}", FG_GREEN, bold=False))
-                    
+
             except Exception as e:
                 try:
                     get_error_handler().handle_error(
@@ -170,14 +172,14 @@ class HealthMonitor:
                 self.components[name]['last_check'] = datetime.datetime.now()  # local-ok
                 self.components[name]['status'] = 'error'
                 self.components[name]['message'] = str(e)
-    
+
     def _run_health_checks(self):
         """Run all registered custom health checks."""
         for check in self.health_checks:
             try:
                 result = check['function']()
                 check['last_check'] = datetime.datetime.now()  # local-ok
-                
+
                 if isinstance(result, dict):
                     check['status'] = result.get('status', 'unknown')
                     check['message'] = result.get('message', '')
@@ -185,13 +187,13 @@ class HealthMonitor:
                 else:
                     check['status'] = 'error'
                     check['message'] = 'Invalid check result format'
-                
+
                 if check['status'] != 'healthy':
                     self.logger.warning(colorize(f"Health check {check['name']}: {check['status']} - {check['message']}", FG_RED, bold=True))
                 else:
                     # Downgrade healthy pass logs to DEBUG
                     self.logger.debug(colorize(f"Health check {check['name']}: healthy", FG_GREEN, bold=False))
-                
+
             except Exception as e:
                 try:
                     get_error_handler().handle_error(
@@ -209,21 +211,21 @@ class HealthMonitor:
                 check['last_check'] = datetime.datetime.now()  # local-ok
                 check['status'] = 'error'
                 check['message'] = str(e)
-    
+
     def _save_health_status(self):
         """Save current health status to file."""
         try:
-            from src.utils.timeutils import utc_now, isoformat_z  # type: ignore
+            from src.utils.timeutils import isoformat_z, utc_now  # type: ignore
             ts = isoformat_z(utc_now())
         except Exception:
             # Fallback: still produce an aware UTC ISO8601 with Z while avoiding forbidden utcnow
-            ts = datetime.datetime.now(datetime.timezone.utc).isoformat().replace('+00:00', 'Z')  # fallback aware
+            ts = datetime.datetime.now(datetime.UTC).isoformat().replace('+00:00', 'Z')  # fallback aware
         status = {
             'timestamp': ts,
             'components': {},
             'health_checks': {}
         }
-        
+
         # Add component statuses
         for name, data in self.components.items():
             status['components'][name] = {
@@ -231,7 +233,7 @@ class HealthMonitor:
                 'message': data.get('message', ''),
                 'last_check': data['last_check'].isoformat() if data['last_check'] else None
             }
-            
+
         # Add health check results
         for check in self.health_checks:
             status['health_checks'][check['name']] = {
@@ -240,7 +242,7 @@ class HealthMonitor:
                 'last_check': check['last_check'].isoformat() if check['last_check'] else None,
                 'data': check.get('data', {})
             }
-            
+
         # Save to file
         health_file = f"data/health/status_{datetime.datetime.now().strftime('%Y-%m-%d')}.json"  # local-ok
         try:
@@ -260,10 +262,10 @@ class HealthMonitor:
             except Exception:
                 pass
             self.logger.error(f"Error saving health status: {e}")
-        
+
         # Update last status
         self.last_status = status
-    
+
     def get_health_status(self):
         """
         Get current health status.
@@ -272,7 +274,7 @@ class HealthMonitor:
             Dict with health status information
         """
         return self.last_status
-    
+
     def is_healthy(self):
         """
         Check if system is healthy overall.
@@ -284,10 +286,10 @@ class HealthMonitor:
         for name, data in self.components.items():
             if data['status'] != 'healthy':
                 return False
-                
+
         # Check custom health checks
         for check in self.health_checks:
             if check['status'] != 'healthy':
                 return False
-                
+
         return True

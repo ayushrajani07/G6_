@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Generate Markdown docs for environment variables from the registry.
 
 Writes docs/ENVIRONMENT.md.

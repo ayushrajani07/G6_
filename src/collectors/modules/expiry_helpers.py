@@ -5,13 +5,16 @@ Functions keep the same names (without leading underscore externally) and are
 re-exported via __all__ so legacy wrappers in unified_collectors can delegate.
 """
 from __future__ import annotations
-from typing import Any, List, Sequence, Iterable
-import os, time, datetime, logging
 
-from src.collectors.cycle_context import CycleContext
+import logging
+import os
+import time
+from collections.abc import Sequence
+from typing import Any
+
 from src.collectors.persist_result import PersistResult  # noqa: F401 (may be used by callers indirectly)
-from src.utils.exceptions import ResolveExpiryError, NoInstrumentsError, NoQuotesError
 from src.error_handling import handle_collector_error
+from src.utils.exceptions import NoInstrumentsError, NoQuotesError, ResolveExpiryError
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +32,7 @@ def _get_expiry_service() -> Any:  # lazy import + build to avoid overhead
     return _EXPIRY_SERVICE_SINGLETON
 
 
-def fetch_option_instruments(index_symbol: str, expiry_rule: str, expiry_date: Any, strikes: Sequence[float], providers: Any, metrics: Any) -> List[dict]:
+def fetch_option_instruments(index_symbol: str, expiry_rule: str, expiry_date: Any, strikes: Sequence[float], providers: Any, metrics: Any) -> list[dict]:
     _t_api = time.time(); instruments = []; primary_err: Exception | None = None
     try:
         logger.debug(
@@ -45,7 +48,7 @@ def fetch_option_instruments(index_symbol: str, expiry_rule: str, expiry_date: A
     universe_fallback_enabled = os.environ.get('G6_UNIVERSE_FALLBACK','').lower() in ('1','true','yes','on')
     try:
         instruments = providers.get_option_instruments(index_symbol, expiry_date, strikes)
-    except (NoInstrumentsError,) as inst_err:
+    except NoInstrumentsError as inst_err:
         primary_err = inst_err
         try:
             from src.collectors.modules.error_bridge import report_instrument_fetch_error  # optional
@@ -108,12 +111,12 @@ def fetch_option_instruments(index_symbol: str, expiry_rule: str, expiry_date: A
         metrics.mark_api_call(success=bool(instruments), latency_ms=(time.time()-_t_api)*1000.0)
     return instruments
 
-def enrich_quotes(index_symbol: str, expiry_rule: str, expiry_date: Any, instruments: Sequence[dict], providers: Any, metrics: Any) -> List[dict] | dict:
+def enrich_quotes(index_symbol: str, expiry_rule: str, expiry_date: Any, instruments: Sequence[dict], providers: Any, metrics: Any) -> list[dict] | dict:
     """Enrich instruments with live quotes; tolerant of partial failures."""
     _t_enrich = time.time()
     try:
-        enriched_data: List[dict] | dict = providers.enrich_with_quotes(instruments)
-    except (NoQuotesError,) as enrich_err:  # expected domain error
+        enriched_data: list[dict] | dict = providers.enrich_with_quotes(instruments)
+    except NoQuotesError as enrich_err:  # expected domain error
         try:
             from src.collectors.modules.error_bridge import report_quote_enrich_error  # optional
             report_quote_enrich_error(enrich_err, index_symbol, expiry_rule, expiry_date, len(instruments))
@@ -143,7 +146,8 @@ def resolve_expiry(index_symbol: str, expiry_rule: str, providers: Any, metrics:
          next_month = monthly after this_month (needs >=2 monthly buckets with at least one >= today).
       4. Anything else => ResolveExpiryError.
     """
-    import datetime as _dt, time as _time
+    import datetime as _dt
+    import time as _time
     start = _time.time()
     try:
         prov_obj = getattr(providers, 'primary_provider', providers)
@@ -255,7 +259,7 @@ def synthetic_metric_pop(ctx: Any, index_symbol: str, expiry_date: Any) -> None:
         m = getattr(ctx, 'metrics', None)
         if m and hasattr(m, 'synthetic_quotes_used_total'):
             try:
-                getattr(m, 'synthetic_quotes_used_total').inc()
+                m.synthetic_quotes_used_total.inc()
             except Exception:
                 pass
     except Exception:

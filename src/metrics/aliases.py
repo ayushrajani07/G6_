@@ -8,8 +8,12 @@ when missing and leaves legacy ones in place (spec phase tolerates extras).
 Idempotent: safe to call multiple times.
 """
 from __future__ import annotations
-from prometheus_client import Counter, REGISTRY  # type: ignore
-import logging, os
+
+import logging
+from collections.abc import MutableMapping
+from typing import Any, cast
+
+from prometheus_client import REGISTRY, Counter  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +34,7 @@ _CANONICAL_COUNTERS = [
 ]
 
 
-def ensure_canonical_counters(reg) -> None:  # pragma: no cover - wiring + light mutation
+def ensure_canonical_counters(reg: Any) -> None:  # pragma: no cover - wiring + light mutation
     """Guarantee canonical *_total counters exist and registry attributes point to them.
 
     Behavior:
@@ -40,7 +44,7 @@ def ensure_canonical_counters(reg) -> None:  # pragma: no cover - wiring + light
       * For labeled counters, seed an initial zero-sample so global REGISTRY.collect() surfaces
         the metric family (tests enumerate names only).
     """
-    names_map = getattr(REGISTRY, "_names_to_collectors", {})
+    names_map = cast(MutableMapping[str, Any], getattr(REGISTRY, "_names_to_collectors", {}))
     if not hasattr(reg, '_legacy_metrics'):
         try:
             reg._legacy_metrics = {}
@@ -106,11 +110,12 @@ def ensure_canonical_counters(reg) -> None:  # pragma: no cover - wiring + light
                 new_counter = Counter(canonical, doc)
         except ValueError:
             # Race: another path created it after check; recover reference
-            new_counter = names_map.get(canonical)
+            nc = names_map.get(canonical)
+            new_counter = cast(Any, nc)
         except Exception:
             continue
 
-        if new_counter is None:
+        if not isinstance(new_counter, Counter):
             continue
 
         # Seed a child sample for labeled counters by mirroring one legacy sample's label values if available

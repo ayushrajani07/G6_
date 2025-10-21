@@ -17,15 +17,22 @@ Notes:
 - Designed to be fast: typical iterations=50 across small panels completes quickly (<1s on SSD).
 """
 from __future__ import annotations
-import os, time, json, argparse, statistics, pathlib, sys
-from typing import Dict, Any, List
+
+import argparse
+import json
+import os
+import pathlib
+import statistics
+import sys
+import time
+from typing import Any
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 
-def _p95(values: List[float]) -> float:
+def _p95(values: list[float]) -> float:
     if not values:
         return 0.0
     if len(values) == 1:
@@ -35,21 +42,21 @@ def _p95(values: List[float]) -> float:
     return values_sorted[idx]
 
 
-def benchmark(panels_dir: str, iterations: int) -> Dict[str, Any]:
+def benchmark(panels_dir: str, iterations: int) -> dict[str, Any]:
     panels_dir = os.path.abspath(panels_dir)
     # Discover panel files once (restrict to enveloped)
     try:
         all_files = [f for f in os.listdir(panels_dir) if f.endswith('_enveloped.json')]
     except FileNotFoundError:
         raise SystemExit(f"Panels directory not found: {panels_dir}")
-    per_panel: Dict[str, List[float]] = {f: [] for f in all_files}
+    per_panel: dict[str, list[float]] = {f: [] for f in all_files}
     missing_during = 0
     for _ in range(iterations):
         for fname in all_files:
             path = os.path.join(panels_dir, fname)
             start = time.perf_counter()
             try:
-                with open(path, 'r', encoding='utf-8') as fh:
+                with open(path, encoding='utf-8') as fh:
                     raw = fh.read()
                 json.loads(raw)
                 elapsed = time.perf_counter() - start
@@ -59,14 +66,14 @@ def benchmark(panels_dir: str, iterations: int) -> Dict[str, Any]:
             except Exception:
                 # Skip but still record a sentinel (omit from stats to avoid skew)
                 pass
-    report: Dict[str, Any] = {
+    report: dict[str, Any] = {
         'panels_dir': panels_dir,
         'iterations': iterations,
         'generated_at': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
         'missing_read_errors': missing_during,
         'panels': {},
     }
-    agg_all: List[float] = []
+    agg_all: list[float] = []
     for fname, vals in per_panel.items():
         if not vals:
             continue

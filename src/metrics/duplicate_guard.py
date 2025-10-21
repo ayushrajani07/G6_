@@ -23,8 +23,9 @@ avoid having to wire spec entry for a low-volume governance metric.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple
-import os, logging
+import logging
+import os
+from typing import Any
 
 try:  # import only the needed primitive types for isinstance guards
     from prometheus_client.core import CollectorRegistry  # type: ignore
@@ -69,7 +70,7 @@ def _ensure_duplicates_gauge(registry: Any):  # pragma: no cover - trivial
 def check_duplicates(registry: Any) -> dict | None:
     # Heuristic: look at attributes of registry ending with known metric suffixes or having a _type attribute
     attrs = dir(registry)
-    metric_like: Dict[int, List[Tuple[str, Any]]] = {}
+    metric_like: dict[int, list[tuple[str, Any]]] = {}
     total = 0
     for name in attrs:
         if name.startswith('_'):
@@ -101,7 +102,7 @@ def check_duplicates(registry: Any) -> dict | None:
     else:
         _allow_alias = _parse_bool(_env_alias)
 
-    duplicates: List[Dict[str, Any]] = []
+    duplicates: list[dict[str, Any]] = []
     for ident, entries in metric_like.items():
         if len(entries) <= 1:
             continue

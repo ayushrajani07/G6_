@@ -22,8 +22,13 @@ Usage examples:
   python scripts/generate_mock_option_universe.py --inject-mixed-expiry --inject-bad-strikes --inject-dummy-expiry
 """
 from __future__ import annotations
-import argparse, os, json, random, datetime, math
-from typing import List, Dict, Any
+
+import argparse
+import datetime
+import json
+import os
+import random
+from typing import Any, cast
 
 VALID_INDICES = ["NIFTY","BANKNIFTY","FINNIFTY","SENSEX","MIDCPNIFTY"]
 DEFAULT_EXPIRY_TAGS = ["this_week","next_week","this_month","next_month"]
@@ -48,7 +53,7 @@ WEEKLY_STEP = {
 }
 
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="Generate mock option universe")
     ap.add_argument("--indices", default=",".join(VALID_INDICES), help="Comma separated indices")
     ap.add_argument("--expiry-tags", default=",".join(DEFAULT_EXPIRY_TAGS), help="Comma separated expiry tags")
@@ -86,12 +91,12 @@ def compute_expiry(base: datetime.date, tag: str) -> datetime.date:
     return last_next
 
 
-def generate_index_tag(index: str, tag: str, offsets: List[int], today: datetime.date, args) -> Dict[str, Any]:
+def generate_index_tag(index: str, tag: str, offsets: list[int], today: datetime.date, args: argparse.Namespace) -> dict[str, Any]:
     atm = ATM_BASE.get(index, 10000)
     step = WEEKLY_STEP.get(index, 50)
     expiry_date = compute_expiry(today, tag)
-    instruments = []
-    quotes = {}
+    instruments: list[dict[str, Any]] = []
+    quotes: dict[str, dict[str, Any]] = {}
     for off in offsets:
         strike = atm + off
         ce_symbol = f"{index}{expiry_date.strftime('%y%m%d')}{int(strike)}CE"
@@ -120,7 +125,9 @@ def generate_index_tag(index: str, tag: str, offsets: List[int], today: datetime
         for inst in instruments[::7]:
             inst['expiry'] = corrupt_expiry
         for sym in list(quotes.keys())[::11]:
-            quotes[sym]['expiry'] = corrupt_expiry
+            q = quotes.get(sym)
+            if q is not None:
+                q['expiry'] = corrupt_expiry
     if args.inject_bad_strikes and instruments:
         instruments[0]['strike'] = 'BAD'
         instruments[-1]['strike'] = -123
@@ -133,7 +140,9 @@ def generate_index_tag(index: str, tag: str, offsets: List[int], today: datetime
             'instrument_type': 'CE'
         }
         instruments.append(inst)
-        quotes[inst['tradingsymbol']] = {
+        ts_val = inst.get('tradingsymbol')
+        ts = ts_val if isinstance(ts_val, str) else f"{index}{dummy.replace('-','')}DUMMYCE"
+        quotes[ts] = {
             'last_price': 1.0,
             'oi': 0,
             'volume': 0,
@@ -149,7 +158,7 @@ def generate_index_tag(index: str, tag: str, offsets: List[int], today: datetime
     }
 
 
-def main():
+def main() -> None:
     args = parse_args()
     today = datetime.date.today()
     indices = [i.strip() for i in args.indices.split(',') if i.strip()]
@@ -167,10 +176,14 @@ def main():
             with open(os.path.join(out_dir, 'quotes.json'),'w') as f:
                 json.dump({'index': index, 'expiry_tag': tag, 'quotes': data['quotes']}, f, indent=2)
             # merged view
-            merged = []
-            for inst in data['instruments']:
-                sym = inst['tradingsymbol']
-                q = data['quotes'].get(sym, {})
+            merged: list[dict[str, Any]] = []
+            inst_list = cast(list[dict[str, Any]], data['instruments'])
+            quotes_map = cast(dict[str, dict[str, Any]], data['quotes']) if isinstance(data.get('quotes'), dict) else {}
+            for inst in inst_list:
+                sym_val = inst.get('tradingsymbol')
+                sym: str | None = sym_val if isinstance(sym_val, str) else None
+                q = quotes_map.get(sym) if sym is not None else None
+                q = q if isinstance(q, dict) else {}
                 merged.append({**inst, **q})
             with open(os.path.join(out_dir, 'merged.json'),'w') as f:
                 json.dump({'index': index, 'expiry_tag': tag, 'records': merged}, f, indent=2)

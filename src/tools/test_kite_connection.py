@@ -13,26 +13,27 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import List, Any, Dict, Callable, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any, cast
+
 from dotenv import load_dotenv
 
 from src.broker.kite_provider import KiteProvider
 from src.provider.config import get_provider_config
-from typing import cast, TYPE_CHECKING
 
 if TYPE_CHECKING:
     # For type checking only; at runtime we'll attempt a guarded import
-    from src.error_handling import handle_api_error as _handle_api_error_t, handle_provider_error as _handle_provider_error_t
     HandleApiFn = Callable[..., Any]
     HandleProviderFn = Callable[..., Any]
 else:
     HandleApiFn = Callable[..., Any]
     HandleProviderFn = Callable[..., Any]
 
-handle_api_error: Optional[HandleApiFn]
-handle_provider_error: Optional[HandleProviderFn]
+handle_api_error: HandleApiFn | None
+handle_provider_error: HandleProviderFn | None
 try:
-    from src.error_handling import handle_api_error as _rt_handle_api_error, handle_provider_error as _rt_handle_provider_error
+    from src.error_handling import handle_api_error as _rt_handle_api_error
+    from src.error_handling import handle_provider_error as _rt_handle_provider_error
     handle_api_error = _rt_handle_api_error  # runtime assignment (types align via Callable[..., Any])
     handle_provider_error = _rt_handle_provider_error
 except Exception:  # pragma: no cover
@@ -46,7 +47,7 @@ def setup_logging() -> None:
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 
-def get_expiry(kite_provider: KiteProvider) -> List[str]:
+def get_expiry(kite_provider: KiteProvider) -> list[str]:
     """Return list of expiries for NIFTY or [] on failure.
 
     Uses getattr to avoid attr-defined ignores if provider surface differs.

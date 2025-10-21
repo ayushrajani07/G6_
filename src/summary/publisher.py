@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """
 G6 Platform Panel Publisher - Enhanced with High-Level Metrics Processing
 
@@ -20,9 +21,12 @@ Enable with environment:
 Consumers: scripts/summary/* panels read these JSONs when enabled (mode 'on' or 'auto').
 """
 import os
-from typing import Any, Dict, Iterable, Mapping, Optional
-from .resilience import safe_update, safe_append
+from collections.abc import Iterable, Mapping
+from typing import Any
+
 from src.utils.metrics_adapter import get_metrics_adapter
+
+from .resilience import safe_append, safe_update
 
 
 def _truthy(name: str, default: bool = False) -> bool:
@@ -32,7 +36,7 @@ def _truthy(name: str, default: bool = False) -> bool:
     return str(v).strip().lower() in ("1", "true", "yes", "on")
 
 
-def _ensure_panels_sink_active() -> Optional[Any]:
+def _ensure_panels_sink_active() -> Any | None:
     """Ensure the OutputRouter is configured with a panels sink.
 
     Returns the router instance, or None if OutputRouter unavailable.
@@ -58,12 +62,12 @@ def publish_cycle_panels(
     indices: Iterable[str],
     cycle: int,
     elapsed_sec: float,
-    interval_sec: Optional[float],
-    success_rate_pct: Optional[float],
-    metrics: Optional[Any] = None,
-    csv_sink: Optional[Any] = None,
-    influx_sink: Optional[Any] = None,
-    providers: Optional[Any] = None,
+    interval_sec: float | None,
+    success_rate_pct: float | None,
+    metrics: Any | None = None,
+    csv_sink: Any | None = None,
+    influx_sink: Any | None = None,
+    providers: Any | None = None,
 ) -> None:
     """Publish panel data using the high-level metrics processor.
 
@@ -89,7 +93,7 @@ def publish_cycle_panels(
     with router.begin_panels_txn():
         # Loop panel with enhanced metrics
         if platform_metrics:
-            loop_payload: Dict[str, Any] = {
+            loop_payload: dict[str, Any] = {
                 "cycle": platform_metrics.collection_cycle,
                 "last_start": None,  # Not available at this level
                 "last_duration": platform_metrics.performance.collection_cycle_time,
@@ -111,7 +115,7 @@ def publish_cycle_panels(
             if interval_sec is not None:
                 loop_payload["avg"] = float(elapsed_sec)
                 loop_payload["p95"] = None
-        
+
         safe_update(router, "loop", loop_payload)
 
         # Provider panel using processed metrics
@@ -134,7 +138,7 @@ def publish_cycle_panels(
                 pass
             try:
                 if metrics and hasattr(metrics, "_api_latency_ema"):
-                    latency = getattr(metrics, "_api_latency_ema")
+                    latency = metrics._api_latency_ema
             except Exception:
                 pass
             payload = {k: v for k, v in {"name": prov_name, "latency_ms": latency}.items() if v is not None}
@@ -172,7 +176,7 @@ def publish_cycle_panels(
                 safe_update(router, "resources", payload)
 
     # Sinks panel
-    sinks_payload: Dict[str, Dict[str, Any]] = {}
+    sinks_payload: dict[str, dict[str, Any]] = {}
     try:
         if csv_sink is not None:
             ts = getattr(csv_sink, "last_write_ts", None)
@@ -211,7 +215,7 @@ def publish_cycle_panels(
     # Enhanced indices panel using processed metrics
         if platform_metrics and platform_metrics.indices:
             # Use the processed index metrics directly
-            index_metrics: Dict[str, Dict[str, Any]] = {}
+            index_metrics: dict[str, dict[str, Any]] = {}
             for idx_name, idx_data in platform_metrics.indices.items():
                 if idx_name in indices:
                     # Format: current_legs (cumulative_avg) - use cycles completed as proxy for total_cycles
@@ -219,10 +223,10 @@ def publish_cycle_panels(
                     cumulative_legs = idx_data.cumulative_legs
                     cycles_completed = platform_metrics.collection_cycle or 1
                     avg_legs = round(cumulative_legs / cycles_completed) if cycles_completed > 0 else 0
-                    
+
                     # Determine status based on success rate
                     status = "OK" if idx_data.success_rate >= 0.8 else "WARN"
-                    
+
                     row = {
                         "legs": f"{current_legs} ({avg_legs})",
                         "fails": idx_data.data_quality_issues,
@@ -232,7 +236,7 @@ def publish_cycle_panels(
                         "success_rate": idx_data.success_rate,
                     }
                     index_metrics[str(idx_name)] = row
-            
+
             if index_metrics:
                 safe_update(router, "indices", index_metrics)
         else:
@@ -240,7 +244,7 @@ def publish_cycle_panels(
             per_index_last: Mapping[str, Any] | None = None
             try:
                 if metrics and hasattr(metrics, "_per_index_last_cycle_options"):
-                    per_index_last = getattr(metrics, "_per_index_last_cycle_options")
+                    per_index_last = metrics._per_index_last_cycle_options
             except Exception:
                 per_index_last = None
 
@@ -258,7 +262,7 @@ def publish_cycle_panels(
                 index_metrics[str(idx)] = row
             if index_metrics:
                 safe_update(router, "indices", index_metrics)
-    
+
     # Analytics panel using processed metrics
         if platform_metrics:
             analytics_payload = {
@@ -272,8 +276,8 @@ def publish_cycle_panels(
                 "error_rate": platform_metrics.collection.error_rate_per_hour,
             }
             safe_update(router, "analytics", analytics_payload)
-    
-    # Storage panel using processed storage metrics  
+
+    # Storage panel using processed storage metrics
         if platform_metrics:
             storage_payload = {
                 "csv_files_created": platform_metrics.storage.csv_files_created,
@@ -296,15 +300,15 @@ def publish_cycle_panels(
                 sr_int = int(round(success_rate_pct))
         except Exception:
             sr_int = None
-        
+
         # Get per-index data for streaming
         per_index_last: Mapping[str, Any] | None = None
         try:
             if metrics and hasattr(metrics, "_per_index_last_cycle_options"):
-                per_index_last = getattr(metrics, "_per_index_last_cycle_options")
+                per_index_last = metrics._per_index_last_cycle_options
         except Exception:
             per_index_last = None
-        
+
         if emit_stream:
             for idx in indices:
                 legs = None

@@ -16,8 +16,10 @@ Behavior Notes (mirrors legacy):
   - All exceptions suppressed with debug log.
 """
 from __future__ import annotations
-from typing import Any, Dict, Callable
+
 import logging
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +29,12 @@ __all__ = ["apply_data_quality"]
 def apply_data_quality(
     dq_checker: Any,
     dq_enabled: bool,
-    enriched_data: Dict[str, Any],
+    enriched_data: dict[str, Any],
     *,
     index_symbol: str,
     expiry_rule: str,
     index_price: float | None,
-    expiry_rec: Dict[str, Any],
+    expiry_rec: dict[str, Any],
     run_option_quality: Callable[..., Any],
     run_expiry_consistency: Callable[..., Any],
 ) -> None:

@@ -8,6 +8,15 @@
   "collection": {
     "interval_seconds": 60
   },
+  "greeks": {
+    "enabled": true,
+    "estimate_iv": true,
+    "risk_free_rate": 0.05,
+    "iv_max_iterations": 100,
+    "iv_min": 0.01,
+    "iv_max": 3.0,
+    "iv_precision": 1e-5
+  },
   "storage": {
     "csv_dir": "data/g6_data",
     "influx": {

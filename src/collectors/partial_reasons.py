@@ -5,35 +5,34 @@ Backward compatible: legacy flat counts remain unchanged; new grouped structure
 is additive and optional for downstream consumers.
 """
 from __future__ import annotations
-from typing import Dict, List, Tuple
 
 # Ordered group definitions (group_name, reasons in display order)
-REASON_GROUPS: List[Tuple[str, List[str]]] = [
+REASON_GROUPS: list[tuple[str, list[str]]] = [
     ("coverage_low", ["low_strike", "low_field", "low_both"]),
     ("prefilter", ["prefilter_clamp"]),  # emitted when strict prefilter clamp or clamp fallback
     ("other", ["unknown"]),
 ]
 
 # Build reverse lookup reason -> group
-_REASON_TO_GROUP: Dict[str, str] = {}
+_REASON_TO_GROUP: dict[str, str] = {}
 for g, reasons in REASON_GROUPS:
     for r in reasons:
         _reason = r.strip()
         if _reason:
             _REASON_TO_GROUP[_reason] = g
 
-STABLE_REASON_ORDER: List[str] = [r for _, rs in REASON_GROUPS for r in rs]
-STABLE_GROUP_ORDER: List[str] = [g for g, _ in REASON_GROUPS]
+STABLE_REASON_ORDER: list[str] = [r for _, rs in REASON_GROUPS for r in rs]
+STABLE_GROUP_ORDER: list[str] = [g for g, _ in REASON_GROUPS]
 
 
-def group_reason_counts(flat_counts: Dict[str, int] | None) -> Dict[str, Dict[str, object]]:
+def group_reason_counts(flat_counts: dict[str, int] | None) -> dict[str, dict[str, object]]:
     """Return grouped structure:
     {
        group: { 'total': int, 'reasons': { reason: count, ... } }, ...
     }
     Only include groups that have any member reason present (>0 or explicitly in flat counts).
     """
-    grouped: Dict[str, Dict[str, object]] = {}
+    grouped: dict[str, dict[str, object]] = {}
     if not flat_counts:
         return grouped
     for reason, cnt in flat_counts.items():
@@ -44,7 +43,7 @@ def group_reason_counts(flat_counts: Dict[str, int] | None) -> Dict[str, Dict[st
     # Ensure deterministic ordering of reasons inside each group
     for g, data in grouped.items():
         reasons_map = data['reasons']  # type: ignore
-        ordered: Dict[str, int] = {}
+        ordered: dict[str, int] = {}
         for r in [r for grp, rs in REASON_GROUPS if grp == g for r in rs]:
             if r in reasons_map:
                 ordered[r] = int(reasons_map[r])  # type: ignore[index]

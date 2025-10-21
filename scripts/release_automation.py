@@ -38,13 +38,18 @@ Exit codes:
 """
 from __future__ import annotations
 
-import argparse, json, os, subprocess, sys, shutil
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
 from pathlib import Path
-from typing import Dict, Any, List
+from typing import Any
 
 REPO = Path(__file__).resolve().parent.parent
 
-def run_cmd(cmd: List[str], timeout: int | None = None) -> subprocess.CompletedProcess:
+def run_cmd(cmd: list[str], timeout: int | None = None) -> subprocess.CompletedProcess:
   return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
 
 def detect_version() -> str:
@@ -60,7 +65,7 @@ def detect_version() -> str:
     pass
   return 'dev'
 
-def stage_readiness(args) -> Dict[str, Any]:
+def stage_readiness(args) -> dict[str, Any]:
   cmd = [sys.executable, 'scripts/release_readiness.py', '--check-env', '--check-deprecations', '--strict']
   if args.perf_budget_p95_ms is not None:
     cmd.extend([
@@ -80,7 +85,7 @@ def stage_readiness(args) -> Dict[str, Any]:
     'stderr': r.stderr.strip(),
   }
 
-def stage_dashboards(args, version: str) -> Dict[str, Any]:
+def stage_dashboards(args, version: str) -> dict[str, Any]:
   out_dir = args.out
   cmd = [sys.executable, 'scripts/package_dashboards.py', '--out', out_dir, '--version', version]
   if args.manifest_only:
@@ -110,7 +115,7 @@ def stage_dashboards(args, version: str) -> Dict[str, Any]:
     'stderr': r.stderr.strip(),
   }
 
-def stage_sign(args, archive_path: str | None) -> Dict[str, Any]:
+def stage_sign(args, archive_path: str | None) -> dict[str, Any]:
   if not archive_path:
     return {'ok': True, 'skipped': True, 'reason': 'no archive'}
   if not args.sign:
@@ -129,7 +134,7 @@ def stage_sign(args, archive_path: str | None) -> Dict[str, Any]:
     'stderr': r.stderr.strip(),
   }
 
-def stage_sbom(args, version: str) -> Dict[str, Any]:
+def stage_sbom(args, version: str) -> dict[str, Any]:
   if not args.sbom:
     return {'ok': True, 'skipped': True}
   out_dir = Path(args.out)
@@ -165,7 +170,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:  # pragma: no cover - exercised via integration
   args = parse_args()
   version = args.version or detect_version()
-  summary: Dict[str, Any] = {
+  summary: dict[str, Any] = {
     'version': version,
     'stages': {},
   }
@@ -201,7 +206,7 @@ def main() -> int:  # pragma: no cover - exercised via integration
     return 5
 
   # Stage: provenance (optional, depends on dashboards + sbom presence)
-  prov_res: Dict[str, Any] = {'ok': True, 'skipped': True}
+  prov_res: dict[str, Any] = {'ok': True, 'skipped': True}
   if args.provenance:
     prov_cmd = [
       sys.executable, 'scripts/gen_provenance.py', '--version', version,

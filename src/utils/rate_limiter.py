@@ -9,14 +9,16 @@ Usage:
 Thread-safe (uses a lock) and low overhead. Stores last emit timestamp.
 """
 from __future__ import annotations
-import time
+
 import threading
-from typing import Optional
+import time
+from collections.abc import Callable
+
 
 class RateLimiter:
     __slots__ = ("_min_interval", "_last", "_lock")
 
-    def __init__(self, min_interval: float = 60.0):
+    def __init__(self, min_interval: float = 60.0) -> None:
         self._min_interval = float(min_interval)
         self._last: float = 0.0
         self._lock = threading.Lock()
@@ -32,7 +34,7 @@ class RateLimiter:
     # Allow instance to be called directly
     __call__ = ready
 
-def rate_limited(min_interval: float):
+def rate_limited(min_interval: float) -> Callable[[], bool]:
     """Decorator returning a predicate wrapper you can call to decide logging.
 
     Example:

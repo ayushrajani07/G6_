@@ -31,8 +31,12 @@ Environment Flags:
 Parity harness hashing removed (Phase 2 cleanup); parity_check now only dual-runs for basic diagnostics.
 """
 from __future__ import annotations
-from typing import Any, Dict
-import os, logging, copy
+
+import copy
+import logging
+import os
+from typing import Any
+
 from src.utils.deprecations import check_pipeline_flag_deprecation, emit_deprecation  # type: ignore
 
 logger = logging.getLogger(__name__)
@@ -70,7 +74,7 @@ def _select_mode(requested: str) -> str:
 
 
 def run_collect_cycle(index_params, providers, csv_sink, influx_sink, metrics=None, *,
-                      mode: str = "auto", parity_check: bool = False, **kwargs) -> Dict[str, Any]:
+                      mode: str = "auto", parity_check: bool = False, **kwargs) -> dict[str, Any]:
     """Run a collection cycle via selected orchestration backend.
 
     Parameters mirror legacy for forward compatibility. Extra kwargs passed through.

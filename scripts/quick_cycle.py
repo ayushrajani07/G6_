@@ -4,7 +4,10 @@ Former helper to run a single orchestrator cycle. Replaced by the multi-tool.
 This file intentionally left minimal to reduce maintenance surface.
 """
 from __future__ import annotations
-import os, sys, runpy
+
+import os
+import runpy
+import sys
 
 if not os.getenv("G6_SUPPRESS_DEPRECATIONS"):
 	try:

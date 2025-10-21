@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Lightweight circuit breaker for Influx write path.
 
@@ -12,9 +11,8 @@ This module intentionally avoids external deps; thread-safe via a simple lock.
 """
 from __future__ import annotations
 
-import time
 import threading
-from typing import Optional
+import time
 
 
 class InfluxCircuitBreaker:
@@ -24,7 +22,7 @@ class InfluxCircuitBreaker:
         self._lock = threading.Lock()
         self._state = "CLOSED"  # CLOSED | OPEN | HALF_OPEN
         self._consecutive_failures = 0
-        self._opened_at: Optional[float] = None
+        self._opened_at: float | None = None
         self._half_open_in_flight = False
 
     @property

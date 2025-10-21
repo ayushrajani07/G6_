@@ -4,8 +4,11 @@ These types provide an intermediate representation between the domain snapshot
 and specific render targets (Rich panels, plain text tables, JSON panels).
 """
 from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Protocol, Mapping, Any, Sequence, Optional
+from typing import Any, Protocol
+
 
 @dataclass(frozen=True)
 class PanelData:
@@ -24,7 +27,7 @@ class PanelData:
 
 class PanelProvider(Protocol):
     key: str
-    def build(self, snapshot: "SummaryDomainSnapshot") -> PanelData: ...  # pragma: no cover - interface only
+    def build(self, snapshot: SummaryDomainSnapshot) -> PanelData: ...  # pragma: no cover - interface only
 
 # Forward reference import hint (avoids runtime import cycle)
 try:  # pragma: no cover

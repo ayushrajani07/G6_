@@ -1,0 +1,17 @@
+{
+	"ulid": "01K7EW4VMW31416CA9KS4GM7MA",
+	"minTime": 1760351316098,
+	"maxTime": 1760356800000,
+	"stats": {
+		"numSamples": 3795,
+		"numSeries": 15,
+		"numChunks": 30
+	},
+	"compaction": {
+		"level": 1,
+		"sources": [
+			"01K7EW4VMW31416CA9KS4GM7MA"
+		]
+	},
+	"version": 1
+}

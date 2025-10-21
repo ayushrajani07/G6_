@@ -1,17 +1,20 @@
 from __future__ import annotations
+
 """Helper utilities for structured phase error recording.
 
 Maintains backward compatibility with legacy `state.errors` string tokens while
 appending rich `PhaseErrorRecord` objects to `state.error_records`.
 """
-from typing import Optional
-import os, traceback, re
-from .state import ExpiryState
+import os
+import re
+import traceback
+
 from .error_records import PhaseErrorRecord
+from .state import ExpiryState
 
 # Token format remains <classification>:<phase>:<message>
 
-def add_phase_error(state: ExpiryState, phase: str, classification: str, message: str, *, detail: Optional[str]=None, attempt: int=1, token: Optional[str]=None, extra: Optional[dict]=None) -> None:
+def add_phase_error(state: ExpiryState, phase: str, classification: str, message: str, *, detail: str | None=None, attempt: int=1, token: str | None=None, extra: dict | None=None) -> None:
     """Record a phase error in both legacy token list and structured records.
 
     Parameters:

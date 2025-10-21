@@ -21,12 +21,14 @@ Environment respected:
 Exit code 0 on success.
 """
 from __future__ import annotations
+
 import argparse
 import os
+import pathlib
 import random
+import sys
 import time
-from typing import Dict, Any, List
-import sys, pathlib
+from typing import Any
 
 # Ensure project root (2 levels up from this file) is on sys.path when executed
 # as a script (python scripts/summary/demo_rich_diff.py). Without this, running
@@ -61,12 +63,12 @@ MUTATIONS_ORDERED = [
 RANDOM_MUTATORS = [m for m in MUTATIONS_ORDERED]
 
 
-def clone_status() -> Dict[str, Any]:
+def clone_status() -> dict[str, Any]:
     import copy
     return copy.deepcopy(BASE_STATUS)
 
 
-def compute_changes(prev: Dict[str,str] | None, current: Dict[str,str]) -> List[str]:
+def compute_changes(prev: dict[str,str] | None, current: dict[str,str]) -> list[str]:
     if prev is None:
         return list(current.keys())
     return [k for k,v in current.items() if prev.get(k) != v]

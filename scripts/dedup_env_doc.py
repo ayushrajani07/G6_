@@ -6,6 +6,7 @@
 Safe: writes to a temp file then replaces original.
 """
 from __future__ import annotations
+
 import re
 from pathlib import Path
 
@@ -87,8 +88,7 @@ def main():
             elif name == 'G6_CSV_DEMO_DIR':
                 desc = 'path – (none) – Demo/sample CSV output directory used by test/demo scripts.'
             elif name == 'G6_CSV_VERBOSE':
-                desc = 'bool – off – Emit extra verbose CSV writer debug logs (per-row decisions).'\
-                
+                desc = 'bool – off – Emit extra verbose CSV writer debug logs (per-row decisions).'
             elif name == 'G6_METRICS_URL':
                 desc = 'url – (none) – Explicit Prometheus scrape base URL override for tooling/tests.'
             elif name == 'G6_PANELS_VALIDATE':

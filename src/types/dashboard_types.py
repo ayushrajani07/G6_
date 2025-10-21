@@ -4,7 +4,16 @@ Centralizes common TypedDicts / Protocols used across metrics cache, panel updat
 and FastAPI dashboard app to reduce widespread Dict[str, Any] usage.
 """
 from __future__ import annotations
-from typing import TypedDict, Protocol, runtime_checkable, Iterable, Mapping, Any, ContextManager, Sequence, Optional, Literal
+
+from collections.abc import Mapping
+from typing import (
+    Any,
+    ContextManager,
+    Literal,
+    Protocol,
+    TypedDict,
+    runtime_checkable,
+)
 
 # -------------------- Panel / Metrics Row Structures --------------------
 
@@ -149,7 +158,7 @@ class UnifiedSourceProtocol(Protocol):
 @runtime_checkable
 class PanelsTransaction(Protocol):
     def __enter__(self) -> object: ...
-    def __exit__(self, exc_type, exc, tb) -> Optional[bool]: ...
+    def __exit__(self, exc_type, exc, tb) -> bool | None: ...
 
 @runtime_checkable
 class OutputRouterProtocol(Protocol):

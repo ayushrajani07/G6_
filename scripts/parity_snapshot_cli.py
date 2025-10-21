@@ -26,31 +26,33 @@ Schema (baseline):
 }
 """
 from __future__ import annotations
+
 import argparse
 import json
 import os
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Tuple
-from datetime import datetime, timezone
+from typing import Any, cast
 
 from src.collectors.pipeline.parity import compute_parity_score, record_parity_score
 
 # ---------------- Helpers -----------------
 
-def _load_json(path: str | None) -> Dict[str, Any] | None:
+def _load_json(path: str | None) -> dict[str, Any] | None:
     if not path:
         return None
     p = Path(path)
     if not p.exists():
         raise FileNotFoundError(f"Input file not found: {path}")
     with p.open('r', encoding='utf-8') as f:
-        return json.load(f)
+        obj: Any = json.load(f)
+        return cast(dict[str, Any], obj)
 
 
-def _parse_weights(raw: str | None) -> Dict[str,float] | None:
+def _parse_weights(raw: str | None) -> dict[str,float] | None:
     if not raw:
         return None
-    out: Dict[str,float] = {}
+    out: dict[str,float] = {}
     for part in raw.split(','):
         part = part.strip()
         if not part:
@@ -65,14 +67,14 @@ def _parse_weights(raw: str | None) -> Dict[str,float] | None:
     return out
 
 
-def _extract_alert_categories(root: Dict[str, Any] | None) -> Dict[str,int]:
+def _extract_alert_categories(root: dict[str, Any] | None) -> dict[str,int]:
     if not root or not isinstance(root, dict):
         return {}
     alerts_block = root.get('alerts')
     if isinstance(alerts_block, dict):
         cats = alerts_block.get('categories')
         if isinstance(cats, dict):
-            out: Dict[str,int] = {}
+            out: dict[str,int] = {}
             for k,v in cats.items():
                 try:
                     out[str(k)] = int(v)
@@ -94,7 +96,7 @@ def _extract_alert_categories(root: Dict[str, Any] | None) -> Dict[str,int]:
     return {t:1 for t in tokens}
 
 
-def _simple_alert_token_set(root: Dict[str,Any] | None) -> set[str]:
+def _simple_alert_token_set(root: dict[str,Any] | None) -> set[str]:
     if not root or not isinstance(root, dict):
         return set()
     alerts_block = root.get('alerts')
@@ -112,22 +114,28 @@ def _simple_alert_token_set(root: Dict[str,Any] | None) -> set[str]:
     return out
 
 
-def build_snapshot(legacy: Dict[str,Any] | None, pipeline: Dict[str,Any] | None, *, weights: Dict[str,float] | None, rolling_window: int) -> Dict[str,Any]:
+def build_snapshot(legacy: dict[str,Any] | None, pipeline: dict[str,Any] | None, *, weights: dict[str,float] | None, rolling_window: int) -> dict[str,Any]:
     parity_obj = compute_parity_score(legacy, pipeline, weights=weights)
 
     # Rolling score simulation (does not persist across runs; single insertion)
-    rolling_info = {"window": rolling_window, "avg": None, "count": 0}
-    if rolling_window > 1 and isinstance(parity_obj.get('score'), (int,float)):
+    rolling_info: dict[str, Any] = {"window": rolling_window, "avg": None, "count": 0}
+    score_val = parity_obj.get('score')
+    if rolling_window > 1 and isinstance(score_val, (int, float)):
         # Set env for this call only
         os.environ['G6_PARITY_ROLLING_WINDOW'] = str(rolling_window)
-        rec = record_parity_score(parity_obj['score'])
-        rolling_info = {k: rec.get(k) for k in ('window','avg','count')}
+        rec = record_parity_score(float(score_val))
+        # Normalize to expected keys and basic types
+        rolling_info = {
+            "window": int(rec.get("window", rolling_window)),
+            "avg": rec.get("avg"),
+            "count": int(rec.get("count", 0)),
+        }
 
     # Alert categories & diff
     cats_a = _extract_alert_categories(legacy)
     cats_b = _extract_alert_categories(pipeline)
     cat_names = sorted(set(cats_a) | set(cats_b))
-    categories: Dict[str, Dict[str,int]] = {}
+    categories: dict[str, dict[str,int]] = {}
     for name in cat_names:
         a = cats_a.get(name,0)
         b = cats_b.get(name,0)
@@ -140,7 +148,7 @@ def build_snapshot(legacy: Dict[str,Any] | None, pipeline: Dict[str,Any] | None,
     union_count = len(tokens_a | tokens_b)
 
     return {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "parity": parity_obj,
         "rolling": rolling_info,
         "alerts": {
@@ -153,7 +161,7 @@ def build_snapshot(legacy: Dict[str,Any] | None, pipeline: Dict[str,Any] | None,
 
 # ---------------- CLI -----------------
 
-def parse_args(argv=None):
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Generate parity snapshot JSON")
     p.add_argument('--legacy', help='Legacy baseline JSON file')
     p.add_argument('--pipeline', help='Pipeline JSON file')
@@ -168,7 +176,7 @@ def parse_args(argv=None):
     return p.parse_args(argv)
 
 
-def main(argv=None) -> int:
+def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
         weights = _parse_weights(args.weights)

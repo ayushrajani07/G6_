@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Debug collector script to force data collection and verify storage.
 """
 
-import os
-import sys
-import logging
 import datetime
+import logging
+import sys
+
 from dotenv import load_dotenv
 
 # Configure logging
@@ -20,11 +19,12 @@ This script assumes execution via the project root (e.g. `python -m src.src_debu
 """
 
 from src.broker.kite_provider import KiteProvider
-from src.provider.config import get_provider_config
 from src.collectors.providers_interface import Providers
+from src.provider.config import get_provider_config
 from src.storage.csv_sink import CsvSink
+
 try:
-    from src.error_handling import handle_provider_error, handle_collector_error  # type: ignore
+    from src.error_handling import handle_collector_error, handle_provider_error  # type: ignore
 except Exception:  # pragma: no cover
     handle_provider_error = None  # type: ignore
     handle_collector_error = None  # type: ignore
@@ -34,7 +34,7 @@ def main():
     # Load environment variables
     load_dotenv()
     logger.info("Environment variables loaded from .env file")
-    
+
     # Initialize provider
     try:
         snap = get_provider_config()
@@ -49,20 +49,20 @@ def main():
         except Exception:
             pass
         return 1
-    
+
     # Initialize storage
     csv_sink = CsvSink(base_dir='data/g6_debug_data')
     logger.info("CSV storage initialized")
-    
+
     # Get current time
     timestamp = datetime.datetime.now()  # local-ok
-    
+
     # Test indices
     indices = ['NIFTY', 'BANKNIFTY', 'FINNIFTY', 'SENSEX']
-    
+
     for index_symbol in indices:
         logger.info(f"===== Testing {index_symbol} =====")
-        
+
         # Derive ATM strike using Providers.get_ltp (facade method)
         try:
             atm_strike = providers.get_ltp(index_symbol)
@@ -75,7 +75,7 @@ def main():
             except Exception:
                 pass
             continue
-        
+
         # Get this week's expiry
         try:
             expiry_date = providers.resolve_expiry(index_symbol, 'this_week')
@@ -88,30 +88,30 @@ def main():
             except Exception:
                 pass
             continue
-        
+
         # Calculate strikes
         strike_step = 50.0  # Default step
         if index_symbol == 'BANKNIFTY':
             strike_step = 100.0
         elif index_symbol == 'SENSEX':
             strike_step = 100.0
-        
+
         strikes = []
         # Add 5 ITM strikes
         for i in range(1, 6):
             strikes.append(atm_strike - (i * strike_step))
-        
+
         # Add ATM strike
         strikes.append(atm_strike)
-        
+
         # Add 5 OTM strikes
         for i in range(1, 6):
             strikes.append(atm_strike + (i * strike_step))
-        
+
         # Sort strikes
         strikes.sort()
         logger.info(f"Strikes to check: {strikes}")
-        
+
         # Get option instruments via provider if available
         try:
             logger.info(f"Fetching option instruments for {index_symbol} with expiry {expiry_date}")
@@ -140,14 +140,14 @@ def main():
             except Exception:
                 pass
             continue
-        
+
         # Convert instruments to dictionary
         options_data = {}
         for instrument in instruments:
             symbol = instrument.get('tradingsymbol', '')
             if symbol:
                 options_data[symbol] = instrument
-        
+
         # Try to get quotes
         if options_data:
             try:
@@ -155,16 +155,16 @@ def main():
                 quote_instruments = []
                 for symbol in options_data.keys():
                     quote_instruments.append(('NFO', symbol))
-                
+
                 logger.info(f"Getting quotes for {len(quote_instruments)} instruments")
                 quotes = providers.get_quote(quote_instruments[:5])  # Just get first 5 for testing
-                
+
                 logger.info(f"Got quotes: {len(quotes)} items")
                 if quotes:
                     # Show a sample
                     sample_key = next(iter(quotes))
                     logger.info(f"Sample quote: {sample_key} = {quotes[sample_key]}")
-                    
+
                 # Update options data with quotes
                 for exchange, symbol in quote_instruments[:5]:
                     key = f"{exchange}:{symbol}"
@@ -181,7 +181,7 @@ def main():
                         handle_provider_error(e, component="debug_collector", index_name=index_symbol, context={"op": "get_quote_options"})
                 except Exception:
                     pass
-        
+
         # Write to CSV
         try:
             logger.info(f"Writing {len(options_data)} records to CSV")
@@ -194,7 +194,7 @@ def main():
                     handle_collector_error(e, component="debug_collector", index_name=index_symbol, context={"op": "csv_write"})
             except Exception:
                 pass
-    
+
     logger.info("Debug collection completed")
     return 0
 

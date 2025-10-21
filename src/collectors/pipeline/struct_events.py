@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """Lightweight structured event emitter for pipeline observability.
 
 Features:
@@ -11,8 +12,11 @@ Env flags:
 - G6_PIPELINE_STRUCT_EVENTS_STDOUT: also print to stdout (default off)
 - G6_PIPELINE_STRUCT_EVENTS_BUFFER: integer size of ring buffer; if >0 and state provided, keep last N events.
 """
-from typing import Any, Optional
-import os, json, logging, time
+import json
+import logging
+import os
+import time
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

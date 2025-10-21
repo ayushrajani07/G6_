@@ -4,8 +4,9 @@ Encapsulates optional import of the preventive validator and standardized
 fallback semantics so the main collector loop stays slimmer.
 """
 from __future__ import annotations
-from typing import Any, Dict, Tuple
-import logging, os
+
+import logging
+import os
 
 logger = logging.getLogger(__name__)
 

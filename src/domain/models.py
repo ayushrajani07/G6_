@@ -5,9 +5,11 @@ into strongly typed dataclasses that can later support validation and richer
 analytics without mutating original collector logic.
 """
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Optional, Dict, Any, List, Iterable
+
 import datetime as dt
+from collections.abc import Iterable
+from dataclasses import dataclass, field
+from typing import Any
 
 ISO8601_FORMATS = [
     "%Y-%m-%dT%H:%M:%S.%fZ",
@@ -16,7 +18,7 @@ ISO8601_FORMATS = [
     "%Y-%m-%dT%H:%M:%SZ",
 ]
 
-def _parse_ts(ts: str) -> Optional[dt.datetime]:
+def _parse_ts(ts: str) -> dt.datetime | None:
     if not ts:
         return None
     for fmt in ISO8601_FORMATS:
@@ -39,11 +41,11 @@ class OptionQuote:
     last_price: float
     volume: int = 0
     oi: int = 0
-    timestamp: Optional[dt.datetime] = None
-    raw: Dict[str, Any] = field(default_factory=dict)
+    timestamp: dt.datetime | None = None
+    raw: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def from_raw(cls, key: str, data: Dict[str, Any]) -> "OptionQuote":
+    def from_raw(cls, key: str, data: dict[str, Any]) -> OptionQuote:
         # key form: EXCHANGE:TRADINGSYMBOL
         exchange, symbol = ("NSE", key)
         if ":" in key:
@@ -60,7 +62,7 @@ class OptionQuote:
             raw=data,
         )
 
-    def as_dict(self) -> Dict[str, Any]:  # OptionQuoteDict at runtime
+    def as_dict(self) -> dict[str, Any]:  # OptionQuoteDict at runtime
         return {
             "symbol": self.symbol,
             "exchange": self.exchange,
@@ -72,14 +74,14 @@ class OptionQuote:
 
 @dataclass(slots=True)
 class EnrichedOption(OptionQuote):
-    iv: Optional[float] = None  # percentage (e.g. 25.4)
-    delta: Optional[float] = None
-    gamma: Optional[float] = None
-    theta: Optional[float] = None
-    vega: Optional[float] = None
+    iv: float | None = None  # percentage (e.g. 25.4)
+    delta: float | None = None
+    gamma: float | None = None
+    theta: float | None = None
+    vega: float | None = None
 
     @classmethod
-    def from_quote(cls, q: OptionQuote, enriched: Dict[str, Any]) -> "EnrichedOption":
+    def from_quote(cls, q: OptionQuote, enriched: dict[str, Any]) -> EnrichedOption:
         return cls(
             symbol=q.symbol,
             exchange=q.exchange,
@@ -101,14 +103,14 @@ class ExpirySnapshot:
     expiry_rule: str
     expiry_date: dt.date
     atm_strike: float
-    options: List[OptionQuote]
+    options: list[OptionQuote]
     generated_at: dt.datetime
 
     @property
     def option_count(self) -> int:
         return len(self.options)
 
-    def as_dict(self) -> Dict[str, Any]:  # ExpirySnapshotDict at runtime
+    def as_dict(self) -> dict[str, Any]:  # ExpirySnapshotDict at runtime
         return {
             "index": self.index,
             "expiry_rule": self.expiry_rule,
@@ -131,11 +133,11 @@ class OverviewSnapshot:
     total_indices: int
     total_expiries: int
     total_options: int
-    put_call_ratio: Optional[float]
-    max_pain_strike: Optional[float]
+    put_call_ratio: float | None
+    max_pain_strike: float | None
 
     @classmethod
-    def from_expiry_snapshots(cls, snaps: Iterable[ExpirySnapshot]) -> "OverviewSnapshot":  # type: ignore[name-defined]
+    def from_expiry_snapshots(cls, snaps: Iterable[ExpirySnapshot]) -> OverviewSnapshot:  # type: ignore[name-defined]
         snaps_list = list(snaps)
         total_indices = len({s.index for s in snaps_list})
         total_expiries = len(snaps_list)
@@ -157,7 +159,7 @@ class OverviewSnapshot:
         strikes = [s.atm_strike for s in snaps_list if s.atm_strike]
         max_pain = sum(strikes) / len(strikes) if strikes else None
         return cls(
-            generated_at=dt.datetime.now(dt.timezone.utc),
+            generated_at=dt.datetime.now(dt.UTC),
             total_indices=total_indices,
             total_expiries=total_expiries,
             total_options=total_options,
@@ -165,7 +167,7 @@ class OverviewSnapshot:
             max_pain_strike=max_pain,
         )
 
-    def as_dict(self) -> Dict[str, Any]:  # OverviewSnapshotDict at runtime
+    def as_dict(self) -> dict[str, Any]:  # OverviewSnapshotDict at runtime
         return {
             "generated_at": self.generated_at.isoformat().replace('+00:00','Z'),
             "total_indices": self.total_indices,

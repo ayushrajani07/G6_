@@ -6,7 +6,9 @@ retains the previous public symbol (`register_cache_metrics`) so any
 third-party or legacy internal import continues to function.
 """
 from __future__ import annotations
-from typing import Any, Callable
+
+from collections.abc import Callable
+from typing import Any
 
 __all__ = ["register_cache_metrics"]
 

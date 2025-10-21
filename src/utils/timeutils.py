@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 """
 Time Utilities for G6 Platform
 Consolidated time utilities from various modules.
@@ -6,14 +5,14 @@ Consolidated time utilities from various modules.
 
 from __future__ import annotations
 
-from datetime import datetime, date, time as dt_time, timedelta, timezone
-import os
+from collections.abc import Callable
+from datetime import UTC as _UTC, date, datetime, timedelta
+from datetime import time as dt_time
 from zoneinfo import ZoneInfo
-from typing import Optional, Tuple, Union
 
 # Timezones (zoneinfo)
 IST = ZoneInfo('Asia/Kolkata')
-UTC = timezone.utc
+UTC = _UTC
 
 # Market hours (IST)
 MARKET_OPEN = dt_time(9, 15)  # 9:15 AM
@@ -28,7 +27,7 @@ def get_ist_now() -> datetime:
     return datetime.now(tz=IST)
 
 def get_utc_now() -> datetime:
-    """Get current time in UTC (aware).""" 
+    """Get current time in UTC (aware)."""
     return datetime.now(tz=UTC)
 
 def utc_now() -> datetime:
@@ -44,7 +43,7 @@ def isoformat_z(dt: datetime) -> str:
         return dt.replace(tzinfo=UTC).isoformat().replace('+00:00','Z')
     return dt.astimezone(UTC).isoformat().replace('+00:00','Z')
 
-def ensure_utc_helpers():
+def ensure_utc_helpers() -> tuple[Callable[[], datetime], Callable[[datetime], str]]:
     """Return (utc_now_fn, isoformat_z_fn) always available.
 
     Intended for early bootstrap contexts where importing this module may be
@@ -73,9 +72,14 @@ def _weekend_mode() -> bool:
     platform run gating. This is intended for demo / backtesting / continuous
     soak scenarios where collectors should keep cycling on weekends.
     """
-    return False
+    import os
+    try:
+        v = os.getenv('G6_WEEKEND_MODE', '').strip().lower()
+        return v in {'1','true','yes','on'}
+    except Exception:
+        return False
 
-def is_market_open(check_time: Optional[datetime] = None) -> bool:
+def is_market_open(check_time: datetime | None = None) -> bool:
     """Check if market is currently open.
 
     Weekend gating can be disabled via G6_WEEKEND_MODE to allow continuous
@@ -85,15 +89,15 @@ def is_market_open(check_time: Optional[datetime] = None) -> bool:
         check_time = get_ist_now()
     elif check_time.tzinfo != IST:
         check_time = check_time.astimezone(IST)
-    
+
     # Check weekday (Monday=0, Sunday=6)
     if check_time.weekday() >= 5:  # Saturday or Sunday
         return False
-        
+
     current_time = check_time.time()
     return MARKET_OPEN <= current_time <= MARKET_CLOSE
 
-def market_hours_check(check_time: Optional[datetime] = None) -> Tuple[bool, str]:
+def market_hours_check(check_time: datetime | None = None) -> tuple[bool, str]:
     """Detailed market hours check with status message.
 
     Respects G6_WEEKEND_MODE override: when enabled, weekend days are not
@@ -104,25 +108,24 @@ def market_hours_check(check_time: Optional[datetime] = None) -> Tuple[bool, str
         check_time = get_ist_now()
     elif check_time.tzinfo != IST:
         check_time = check_time.astimezone(IST)
-    
+
     weekday = check_time.weekday()
     current_time = check_time.time()
 
-    if weekday >= 5:  # Weekend
+    if weekday >= 5 and not _weekend_mode():  # Weekend unless override enabled
         return False, "market_closed_weekend"
-        
+
     if current_time < PRE_MARKET_START:
         return False, "before_premarket"
-    elif current_time < MARKET_OPEN:
+    if current_time < MARKET_OPEN:
         return False, "premarket"
-    elif current_time <= MARKET_CLOSE:
+    if current_time <= MARKET_CLOSE:
         return True, "market_open"
-    elif current_time <= POST_MARKET_END:
+    if current_time <= POST_MARKET_END:
         return False, "post_market"
-    else:
-        return False, "market_closed"
+    return False, "market_closed"
 
-def next_market_open(from_time: Optional[datetime] = None) -> datetime:
+def next_market_open(from_time: datetime | None = None) -> datetime:
     """Get next market opening time.
 
     In weekend mode, weekends are not skipped when computing the next open –
@@ -133,21 +136,20 @@ def next_market_open(from_time: Optional[datetime] = None) -> datetime:
         from_time = get_ist_now()
     elif from_time.tzinfo != IST:
         from_time = from_time.astimezone(IST)
-    
+
     # Start from next day if market is closed today
     check_date = from_time.date()
-    if from_time.time() > MARKET_CLOSE or from_time.weekday() >= 5:
+    if from_time.time() > MARKET_CLOSE or (from_time.weekday() >= 5 and not _weekend_mode()):
         check_date = from_time.date() + timedelta(days=1)
-        
-    # Find next weekday
-    
+
+    # Combine with open time for resulting datetime
     return datetime.combine(check_date, MARKET_OPEN, tzinfo=IST)
 
-def time_until_market_open(from_time: Optional[datetime] = None) -> float:
+def time_until_market_open(from_time: datetime | None = None) -> float:
     """Get seconds until market opens."""
     if from_time is None:
         from_time = get_ist_now()
-        
+
     next_open = next_market_open(from_time)
     return (next_open - from_time).total_seconds()
 
@@ -157,14 +159,14 @@ def format_ist_time(dt: datetime) -> str:
         dt = dt.astimezone(IST)
     return dt.strftime("%Y-%m-%d %H:%M:%S IST")
 
-def get_market_session_bounds(trade_date: Optional[date] = None) -> Tuple[datetime, datetime]:
+def get_market_session_bounds(trade_date: date | None = None) -> tuple[datetime, datetime]:
     """Get market session start and end times for a date."""
     if trade_date is None:
         trade_date = get_ist_now().date()
-        
+
     start = datetime.combine(trade_date, MARKET_OPEN, tzinfo=IST)
     end = datetime.combine(trade_date, MARKET_CLOSE, tzinfo=IST)
-    
+
     return start, end
 
 # Expiry calculation utilities
@@ -187,48 +189,48 @@ def _last_weekday_of_month(d: date, target_wd: int) -> date:
     days_back = (last_day.weekday() - target_wd) % 7
     return last_day - timedelta(days=days_back)
 
-def compute_weekly_expiry(now_date: Union[datetime, date], weekly_dow: int = 3) -> date:
+def compute_weekly_expiry(now_date: datetime | date, weekly_dow: int = 3) -> date:
     """Compute weekly expiry date (default Thursday)."""
     # Convert to date if datetime
     if isinstance(now_date, datetime):
         check_date = now_date.date()
     else:
         check_date = now_date
-        
+
     # If today is expiry day (e.g., Thursday) and before cutoff, return today
     # Otherwise return next week
     this_week_expiry = _next_weekday_on_or_after(check_date, weekly_dow)
-    
+
     if check_date == this_week_expiry:
         # For same-day expiry, would need to check time
         # But we're simplifying here
         return this_week_expiry
-        
+
     return this_week_expiry
 
-def compute_next_weekly_expiry(now_date: Union[datetime, date], weekly_dow: int = 3) -> date:
+def compute_next_weekly_expiry(now_date: datetime | date, weekly_dow: int = 3) -> date:
     """Compute next weekly expiry after the current one."""
     this_week = compute_weekly_expiry(now_date, weekly_dow)
     return this_week + timedelta(days=7)
 
-def compute_monthly_expiry(now_date: Union[datetime, date], monthly_dow: int = 3) -> date:
+def compute_monthly_expiry(now_date: datetime | date, monthly_dow: int = 3) -> date:
     """Compute monthly expiry (last Thursday of month by default)."""
     # Convert to date if datetime
     if isinstance(now_date, datetime):
         check_date = now_date.date()
     else:
         check_date = now_date
-        
+
     return _last_weekday_of_month(check_date, monthly_dow)
 
-def compute_next_monthly_expiry(now_date: Union[datetime, date], monthly_dow: int = 3) -> date:
+def compute_next_monthly_expiry(now_date: datetime | date, monthly_dow: int = 3) -> date:
     """Compute next month's expiry."""
     # Get first day of next month
     if isinstance(now_date, datetime):
         check_date = now_date.date()
     else:
         check_date = now_date
-        
+
     next_month = (check_date.replace(day=1) + timedelta(days=32)).replace(day=1)
     return _last_weekday_of_month(next_month, monthly_dow)
 
@@ -310,7 +312,7 @@ def format_ist_hms_30s(dt: datetime, strategy: str = 'nearest') -> str:
     return round_to_30s_ist(dt, strategy=strategy).strftime('%H:%M:%S')
 
 
-def format_any_to_ist_hms_30s(ts: Union[datetime, float, int, str], strategy: str = 'nearest') -> Optional[str]:
+def format_any_to_ist_hms_30s(ts: datetime | float | int | str, strategy: str = 'nearest') -> str | None:
     """Accept datetime/epoch/ISO and return IST HH:MM:SS with 30s rounding.
 
     - datetime: used as-is
@@ -332,7 +334,6 @@ def format_any_to_ist_hms_30s(ts: Union[datetime, float, int, str], strategy: st
             return format_ist_hms_30s(dt, strategy=strategy)
     except Exception:
         return None
-    return None
 
 # ---------------------------------------------------------------------------
 # Extended convenience: full date+time formatting (DD-MM-YYYY HH:MM:SS) in IST
@@ -352,7 +353,7 @@ def format_ist_dt_30s(dt: datetime, strategy: str = 'nearest', fmt: str = '%d-%m
     return round_to_30s_ist(dt, strategy=strategy).strftime(fmt)
 
 
-def format_any_to_ist_dt_30s(ts: Union[datetime, float, int, str], strategy: str = 'nearest', fmt: str = '%d-%m-%Y %H:%M:%S') -> Optional[str]:
+def format_any_to_ist_dt_30s(ts: datetime | float | int | str, strategy: str = 'nearest', fmt: str = '%d-%m-%Y %H:%M:%S') -> str | None:
     """Accept heterogeneous timestamp input and return IST date+time string (30s rounding).
 
     Returns None on parse failure.
@@ -370,7 +371,6 @@ def format_any_to_ist_dt_30s(ts: Union[datetime, float, int, str], strategy: str
             return format_ist_dt_30s(dt, strategy=strategy, fmt=fmt)
     except Exception:  # pragma: no cover - defensive
         return None
-    return None
 
 __all__ = [
     'IST','UTC','MARKET_OPEN','MARKET_CLOSE','PRE_MARKET_START','POST_MARKET_END',

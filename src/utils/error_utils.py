@@ -1,7 +1,9 @@
 from __future__ import annotations
+
 """Generic helpers for standardized try/except blocks using central handler."""
-from typing import Any, Callable, Dict, Optional, TypeVar
 import logging
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from src.error_handling import ErrorCategory, ErrorSeverity, get_error_handler
 
@@ -15,9 +17,9 @@ def try_with_central_handler(
     category: ErrorCategory = ErrorCategory.UNKNOWN,
     severity: ErrorSeverity = ErrorSeverity.MEDIUM,
     component: str = "",
-    context: Optional[Dict[str, Any]] = None,
+    context: dict[str, Any] | None = None,
     message: str = "",
-    log_message: Optional[str] = None,
+    log_message: str | None = None,
     reraise: bool = False,
 ) -> T:
     """Execute a function and route errors to central handler consistently.

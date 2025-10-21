@@ -59,36 +59,51 @@ Parity Note:
   benchmark/anomaly paths continue to pass (artifact emission unaffected).
 """
 from __future__ import annotations
-from typing import Any, Dict, List, Tuple, Protocol, Optional, TypedDict, Callable, Mapping, MutableMapping, Sequence, cast
-import time, os, logging, datetime
+
+import datetime
+import logging
+import os
+import time
+from collections.abc import Callable, Mapping
+from typing import (
+  Any,
+  Protocol,
+  TypedDict,
+  cast,
+)
+
+from src.collectors.pipeline.errors import PhaseFatalError, PhaseRecoverableError
+
 # Logging schema import (phase_log structure used for consistent event framing)
 from src.collectors.pipeline.logging_schema import phase_log
-from src.collectors.pipeline.errors import PhaseRecoverableError, PhaseFatalError
 
-from .context import build_collector_context, CollectorContext
+from .context import CollectorContext, build_collector_context
 from .strike_depth import compute_strike_universe
+
 # Optional dynamic helpers (annotated as Optional so None assignment type-safe)
-_resolve_strike_depth: Optional[Callable[[CollectorContext, str, Dict[str, Any]], Tuple[int, int]]] = None
+_resolve_strike_depth: Callable[[CollectorContext, str, dict[str, Any]], tuple[int, int]] | None = None
 try:  # optional runtime dependency
   from .strike_policy import resolve_strike_depth as _resolve_strike_depth  # noqa: F401
 except Exception:  # pragma: no cover
   _resolve_strike_depth = None  # fallback when unavailable
-from .expiry_universe import build_expiry_map
 from .coverage_eval import coverage_metrics, field_coverage_metrics
 from .enrichment import enrich_quotes
-_enrich_quotes_async: Optional[Callable[[str, str, datetime.date, List[Dict[str, Any]], Any, Any], Dict[str, Any]]] = None
+from .expiry_universe import build_expiry_map
+
+_enrich_quotes_async: Callable[[str, str, datetime.date, list[dict[str, Any]], Any, Any], dict[str, Any]] | None = None
 try:  # Phase 9 optional async enrichment (top-level import for clarity)
   from .enrichment_async import enrich_quotes_async as _enrich_quotes_async  # noqa: F401
 except Exception:  # pragma: no cover
   _enrich_quotes_async = None
 from .adaptive_adjust import adaptive_post_expiry
+
 # Phase 9 status finalization parity imports (lazy guarded inside loop if unavailable)
 try:  # compute PARTIAL / OK classification parity with legacy
   from src.collectors.helpers.status_reducer import compute_expiry_status as _compute_expiry_status  # noqa: F401
 except Exception:  # pragma: no cover
   # Optional – absence just disables status reduce refinement
   _compute_expiry_status = None
-_finalize_expiry: Optional[Callable[[Dict[str, Any], Dict[str, Any], List[int], str, datetime.date, str, Any], None]] = None
+_finalize_expiry: Callable[[dict[str, Any], dict[str, Any], list[int], str, datetime.date, str, Any], None] | None = None
 try:  # finalize_expiry attaches partial_reason + emits option_match stats (via facade)
   from .status_finalize_core import finalize_expiry as _finalize_expiry  # noqa: F401
 except Exception:  # pragma: no cover
@@ -123,9 +138,9 @@ class BenchMetricsLike(Protocol):  # minimal dynamic surface for benchmark gauge
   def __setattr__(self, name: str, value: Any) -> None: ...
 
 class BenchCycleResult(TypedDict, total=False):  # possible parsed JSON keys
-  legacy: Dict[str, Any]
-  pipeline: Dict[str, Any]
-  delta: Dict[str, Any]
+  legacy: dict[str, Any]
+  pipeline: dict[str, Any]
+  delta: dict[str, Any]
 
 def _parse_bench_output(out_txt: str) -> BenchCycleResult:
   """Parse bench harness JSON output defensively.
@@ -146,7 +161,10 @@ def _parse_bench_output(out_txt: str) -> BenchCycleResult:
     return {}
 
 def _maybe_run_benchmark_cycle(metrics: BenchMetricsLike | None) -> None:
-  import time, os, json, logging
+  import json
+  import logging
+  import os
+  import time
   global _last_bench_cycle_ts
   if os.getenv('G6_BENCH_CYCLE','0').lower() not in ('1','true','yes','on'):
     return
@@ -163,7 +181,7 @@ def _maybe_run_benchmark_cycle(metrics: BenchMetricsLike | None) -> None:
           g_pre.set(v_pre)
         except Exception:
           pass
-        setattr(metrics, 'bench_p95_regression_threshold_pct', g_pre)
+        metrics.bench_p95_regression_threshold_pct = g_pre
       except Exception:
         pass
   except Exception:
@@ -211,7 +229,8 @@ def _maybe_run_benchmark_cycle(metrics: BenchMetricsLike | None) -> None:
   if warmup > 10:
     warmup = 10
   # Execute harness capturing its stdout JSON (mirror bench_delta.run_bench logic)
-  import sys, io
+  import io
+  import sys
   argv_backup = sys.argv[:]
   sys.argv = [sys.argv[0], '--indices', indices_spec, '--cycles', str(cycles), '--warmup', str(warmup), '--json']
   buf = io.StringIO()
@@ -292,9 +311,9 @@ logger = logging.getLogger(__name__)
 # Any new phase must document classification here and in PIPELINE_DESIGN.md.
 # --------------------------------------------------
 
-def _detect_anomalies(series: List[float], threshold: float) -> Tuple[List[bool], List[float]]:
+def _detect_anomalies(series: list[float], threshold: float) -> tuple[list[bool], list[float]]:
   """Median+MAD robust z-score detector (small duplication to avoid legacy import)."""
-  import statistics, math
+  import statistics
   if not series:
     return [], []
   med = statistics.median(series)
@@ -308,7 +327,7 @@ def _detect_anomalies(series: List[float], threshold: float) -> Tuple[List[bool]
   return flags, scores
 
 def run_pipeline(
-    index_params: Mapping[str, Dict[str, Any]],
+    index_params: Mapping[str, dict[str, Any]],
     providers: Any,
     csv_sink: Any,
     influx_sink: Any,
@@ -322,24 +341,23 @@ def run_pipeline(
     iv_max: float | None = None,
     iv_precision: float | None = None,
     build_snapshots: bool = False,
-    legacy_baseline: Dict[str, Any] | None = None,
-) -> Dict[str, Any]:  # noqa: D401
+    legacy_baseline: dict[str, Any] | None = None,
+) -> dict[str, Any]:  # noqa: D401
   """Run collectors via staged pipeline (synthetic quote fallback removed)."""
   start_wall = time.time()
   phase_timings = {}
   ctx: CollectorContext = build_collector_context(index_params=index_params, metrics=metrics, debug=os.environ.get('G6_COLLECTOR_REFACTOR_DEBUG','').lower() in ('1','true','yes','on'))
-  indices_struct: List[Dict[str, Any]] = []
+  indices_struct: list[dict[str, Any]] = []
   # Partial reason tallies (may be replaced by snapshot summary; keep explicit type)
-  partial_reason_totals: Dict[str, int] = { 'low_strike': 0, 'low_field': 0, 'low_both': 0, 'unknown': 0 }
+  partial_reason_totals: dict[str, int] = { 'low_strike': 0, 'low_field': 0, 'low_both': 0, 'unknown': 0 }
   # Latency profiling accumulators (Phase 10 Task 7)
-  enrich_phase_durations: List[float] = []  # per-expiry enrichment duration
-  finalize_phase_durations: List[float] = []  # per-expiry finalize_expiry duration
-  provider_call_durations: Dict[str, List[float]] = { 'atm': [], 'instrument_fetch': [] }
+  enrich_phase_durations: list[float] = []  # per-expiry enrichment duration
+  finalize_phase_durations: list[float] = []  # per-expiry finalize_expiry duration
+  provider_call_durations: dict[str, list[float]] = { 'atm': [], 'instrument_fetch': [] }
   # Use taxonomy-aware phase_log
-  from src.collectors.pipeline.errors import PhaseRecoverableError, PhaseFatalError
   for index_symbol, cfg in index_params.items():
     index_start = time.time()
-    expiries_out: List[Dict[str, Any]] = []
+    expiries_out: list[dict[str, Any]] = []
     failures = 0
     attempts = 0
     option_count_total = 0
@@ -353,7 +371,7 @@ def run_pipeline(
             atm = providers.get_atm_strike(index_symbol)
             provider_call_durations['atm'].append(time.time() - _t0_atm)
             rec.add_meta(found=bool(atm))
-        except Exception as e:
+        except Exception:
             atm = None
             rec.warn(reason='fetch_error')
             logger.debug('pipeline_atm_failed', exc_info=True)
@@ -442,7 +460,7 @@ def run_pipeline(
         with phase_log('coverage', index=index_symbol, rule=rule) as rec:
           try:
             cov_any = coverage_metrics(ctx, exp_instruments, strikes, index_symbol, rule, expiry_date)
-            cov_dict2: Dict[str, Any] | None = cov_any if isinstance(cov_any, dict) else None
+            cov_dict2: dict[str, Any] | None = cov_any if isinstance(cov_any, dict) else None
             if cov_dict2 is not None:
               _tmp_sc = cov_dict2.get('strike_coverage')
               if isinstance(_tmp_sc, (int, float)):
@@ -452,7 +470,7 @@ def run_pipeline(
             logger.debug('pipeline_strike_coverage_failed', exc_info=True)
           try:
             fcov_any = field_coverage_metrics(ctx, cleaned_enriched, index_symbol, rule, expiry_date)
-            fcov_dict2: Dict[str, Any] | None = fcov_any if isinstance(fcov_any, dict) else None
+            fcov_dict2: dict[str, Any] | None = fcov_any if isinstance(fcov_any, dict) else None
             if fcov_dict2 is not None:
               _tmp_fc = fcov_dict2.get('field_coverage')
               if isinstance(_tmp_fc, (int, float)):
@@ -594,7 +612,7 @@ def run_pipeline(
     _plogger = logging.getLogger('src.collectors.pipeline')
     try:
       from src.collectors.pipeline.parity import compute_parity_score, record_parity_score
-      pipeline_view: Dict[str, Any] = {'indices': indices_struct}
+      pipeline_view: dict[str, Any] = {'indices': indices_struct}
       try:
         if snapshot_summary and isinstance(snapshot_summary, dict) and 'alerts' in snapshot_summary:
           pipeline_view['alerts'] = snapshot_summary['alerts']
@@ -630,7 +648,7 @@ def run_pipeline(
         # Alert mismatch gauge
         try:
           details_block = parity_score.get('details') if isinstance(parity_score, dict) else None
-          alerts_dict: Dict[str, Any] | None = None
+          alerts_dict: dict[str, Any] | None = None
           if isinstance(details_block, dict):
             _alerts_tmp = details_block.get('alerts')
             if isinstance(_alerts_tmp, dict):
@@ -668,7 +686,7 @@ def run_pipeline(
               # ParityResult is a TypedDict-like dict; ensure plain dict for function expectation
               if isinstance(parity_score, dict):
                 from typing import cast as _cast
-                maybe_emit_alert_parity_anomaly(_cast(Dict[str, Any], parity_score))
+                maybe_emit_alert_parity_anomaly(_cast(dict[str, Any], parity_score))
             except Exception:
               _plogger.debug('pipeline_parity_anomaly_emit_failed', exc_info=True)
         except Exception:
@@ -701,7 +719,10 @@ def run_pipeline(
   total_cycle_s: float = time.time() - start_wall
   try:
     if metrics is not None:
-      from prometheus_client import Histogram as _H, Summary as _S, Counter as _C, Gauge as _G
+      from prometheus_client import Counter as _C
+      from prometheus_client import Gauge as _G
+      from prometheus_client import Histogram as _H
+      from prometheus_client import Summary as _S
       # Cycle duration histogram (bucket selection conservative)
       if not hasattr(metrics, 'pipeline_cycle_duration_seconds'):
         try:
@@ -795,7 +816,7 @@ def run_pipeline(
           # Fallback: parse /proc/self/status (Linux only)
           try:
             if os.path.exists('/proc/self/status'):
-              with open('/proc/self/status','r') as f:
+              with open('/proc/self/status') as f:
                 for line in f:
                   if line.startswith('VmRSS:'):
                     parts = line.split()
@@ -813,7 +834,7 @@ def run_pipeline(
   except Exception:
     logger.debug('pipeline_memory_gauge_failed', exc_info=True)
   # Compute percentile helper (local, no external deps)
-  def _pct(vals: List[float], p: float) -> float | None:
+  def _pct(vals: list[float], p: float) -> float | None:
     try:
       if not vals:
         return None
@@ -849,7 +870,7 @@ def run_pipeline(
   }
   try:
     if partial_reason_totals is not None:
-      from src.collectors.partial_reasons import group_reason_counts, STABLE_REASON_ORDER, STABLE_GROUP_ORDER
+      from src.collectors.partial_reasons import STABLE_GROUP_ORDER, STABLE_REASON_ORDER, group_reason_counts
       groups = group_reason_counts(partial_reason_totals)
       if groups:
         ret_obj['partial_reason_groups'] = groups

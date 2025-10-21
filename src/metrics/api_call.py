@@ -3,15 +3,16 @@
 Refactor only: metric names and semantics unchanged.
 """
 from __future__ import annotations
-from typing import TYPE_CHECKING
+
 import logging
+from typing import TYPE_CHECKING
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover
     from .metrics import MetricsRegistry
 
-def init_api_call_metrics(registry: "MetricsRegistry") -> None:
+def init_api_call_metrics(registry: MetricsRegistry) -> None:
     core = registry._core_reg  # type: ignore[attr-defined]
     # Gauges / histograms already initialized in performance module except success rate & latency metrics.
     # Success rate gauge & latency histogram delegated to performance module; this function ensures presence
@@ -33,7 +34,7 @@ def init_api_call_metrics(registry: "MetricsRegistry") -> None:
         pass
 
 
-def mark_api_call(registry: "MetricsRegistry", success: bool, latency_ms: float | None = None) -> None:
+def mark_api_call(registry: MetricsRegistry, success: bool, latency_ms: float | None = None) -> None:
     """Track API call statistics for success rate and latency EMA.
 
     Mirrors previous MetricsRegistry.mark_api_call behavior.

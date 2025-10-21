@@ -27,16 +27,17 @@ introduced; current design keeps surface minimal to accelerate iteration.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Protocol, Any, Mapping, Sequence, Optional, Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:  # pragma: no cover
-    from src.summary.unified.model import UnifiedStatusSnapshot  # pragma: no cover
     from scripts.summary.domain import SummaryDomainSnapshot  # pragma: no cover
-import time
+    from src.summary.unified.model import UnifiedStatusSnapshot  # pragma: no cover
+import json
 import logging
 import os
-import json
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -55,11 +56,11 @@ class SummarySnapshot:
     cycle: int
     errors: Sequence[str]
     # Phase 2 dual emission: unified model snapshot (authoritative structured representation)
-    model: 'UnifiedStatusSnapshot | None' = None  # populated by loop when available
+    model: UnifiedStatusSnapshot | None = None  # populated by loop when available
     # Phase 2: domain snapshot (new structured representation replacing ad-hoc derived/panels maps gradually)
-    domain: 'SummaryDomainSnapshot | None' = None
+    domain: SummaryDomainSnapshot | None = None
     # Phase 4 optimization: optional shared panel hash map (populated by first hashing plugin)
-    panel_hashes: Optional[Dict[str, str]] = None
+    panel_hashes: dict[str, str] | None = None
 
 class OutputPlugin(Protocol):
     """Contract each output writer/renderer implements."""
@@ -82,6 +83,9 @@ class OutputPlugin(Protocol):
 
 class TerminalRenderer(OutputPlugin):  # Phase 1 rich integration
     name = "terminal"
+    # Instance dicts used for timing metrics
+    _panel_timing_ns: dict[str, int]
+    _panel_timing_calls: dict[str, int]
 
     def __init__(self, rich_enabled: bool = True, *, compact: bool = False, low_contrast: bool = False, status_file: str | None = None, metrics_url: str | None = None) -> None:
         self._rich = rich_enabled
@@ -96,7 +100,9 @@ class TerminalRenderer(OutputPlugin):  # Phase 1 rich integration
         self._panel_hashes: dict[str,str] | None = None
         # Centralized config: prefer SummaryEnv parsed boolean; fallback to direct env read if loader fails
         try:
-            from scripts.summary.env_config import load_summary_env  # local import to avoid heavy startup cost if unused
+            from scripts.summary.env_config import (
+                load_summary_env,  # local import to avoid heavy startup cost if unused
+            )
             try:
                 _env = load_summary_env()
                 self._rich_diff_enabled = bool(getattr(_env, "rich_diff_demo_enabled", False))
@@ -120,9 +126,10 @@ class TerminalRenderer(OutputPlugin):  # Phase 1 rich integration
         try:
             from rich.console import Console  # type: ignore
             from rich.live import Live  # type: ignore
+
             from scripts.summary.layout import build_layout  # lazy import
             self._console = Console(force_terminal=True)
-            status = {}  # initial empty; first cycle will refresh
+            status: dict[str, Any] = {}  # initial empty; first cycle will refresh
             self._layout = build_layout(status, self._status_file, self._metrics_url, compact=self._compact, low_contrast=self._low_contrast)
             self._live = Live(self._layout, console=self._console, refresh_per_second=8, screen=False)
             self._live.__enter__()  # start live context
@@ -319,7 +326,7 @@ class PanelsWriter(OutputPlugin):  # placeholder + minimal JSON artifact writer
     def __init__(self, panels_dir: str) -> None:
         self._dir = panels_dir
         # Track last cycle content hashes to compute change deltas (file-level diff)
-        self._last_hashes: Dict[str, str] | None = None
+        self._last_hashes: dict[str, str] | None = None
         # Expanded mode can be disabled via env to reduce IO in constrained environments
         import os as _os
         # Centralize via SummaryEnv extension: fallback to direct env read while migration stabilizes
@@ -387,7 +394,7 @@ class PanelsWriter(OutputPlugin):  # placeholder + minimal JSON artifact writer
             # Use timezone-aware API (py311+) to avoid deprecated utcnow usage
             now_iso = _dt.datetime.now(_dt.UTC).replace(microsecond=0).isoformat().replace('+00:00','Z')
         except AttributeError:  # pragma: no cover - fallback for older runtimes
-            now_iso = _dt.datetime.now(_dt.timezone.utc).replace(microsecond=0).isoformat().replace('+00:00','Z')
+            now_iso = _dt.datetime.now(_dt.UTC).replace(microsecond=0).isoformat().replace('+00:00','Z')
         for name, payload in panels.items():
             # If payload already appears to be an envelope (meta + version keys), write as-is.
             if isinstance(payload, dict) and 'meta' in payload and 'version' in payload and 'data' in payload:
@@ -415,13 +422,14 @@ class PanelsWriter(OutputPlugin):  # placeholder + minimal JSON artifact writer
                     raise ValueError("runtime panel validation failed: missing 'updated_at'")
             self._write_json(name, wrapped)
         # Write manifest summarizing produced artifacts (excluding unified_snapshot.json)
-        import hashlib as _hashlib, json as _json
-        hashes: Dict[str,str] = {}
+        import hashlib as _hashlib
+        import json as _json
+        hashes: dict[str,str] = {}
         for fname in panels.keys():
             try:
                 # Reconstruct path and load just-written file to hash canonical 'data' portion deterministically
                 path = os.path.join(self._dir, fname)
-                with open(path, 'r', encoding='utf-8') as _f:
+                with open(path, encoding='utf-8') as _f:
                     obj = _json.load(_f)
                 data_obj = obj.get('data')
                 # Canonicalize via sorted keys JSON (ensure deterministic) then hash
@@ -480,7 +488,7 @@ class PanelsWriter(OutputPlugin):  # placeholder + minimal JSON artifact writer
                     if isinstance(snap.derived.get("alerts_total"), int)
                     else (
                         # Fallback: derive from alerts panel length
-                        (len(panels.get("alerts_enveloped.json", {}).get("data", [])) if isinstance(panels.get("alerts_enveloped.json"), dict) else None)
+                        len(panels.get("alerts_enveloped.json", {}).get("data", [])) if isinstance(panels.get("alerts_enveloped.json"), dict) else None
                     )
                 )
             ),
@@ -521,18 +529,21 @@ class PanelsWriter(OutputPlugin):  # placeholder + minimal JSON artifact writer
         except Exception:
             pass
 
-    def _extract_panels(self, status: Mapping[str, Any]) -> Dict[str, Any]:
+    def _extract_panels(self, status: Mapping[str, Any]) -> dict[str, Any]:
         """Map current status fields into panel JSON payloads (best-effort).
 
         This is a lightweight adapter; as unified snapshot evolves we may shift
         to building panels from the richer internal frame instead of raw status.
         """
-        panels: Dict[str, Any] = {}
+        panels: dict[str, Any] = {}
         legacy_compat = os.getenv('G6_PANELS_LEGACY_COMPAT','0').lower() in ('1','true','yes','on')
 
-        def _envelope(name: str, data: Any, source: str = 'summary') -> Dict[str, Any]:
+        def _envelope(name: str, data: Any, source: str = 'summary') -> dict[str, Any]:
             """Build envelope structure for panel output."""
-            import time, json, hashlib, datetime as _dt
+            import datetime as _dt
+            import hashlib
+            import json
+            import time
             # Data should be JSON-serializable; hash only data portion for cache busting
             try:
                 raw = json.dumps(data, sort_keys=True, separators=(',',':')) if data is not None else '{}'
@@ -551,9 +562,10 @@ class PanelsWriter(OutputPlugin):  # placeholder + minimal JSON artifact writer
             }
         # indices panel
         try:
-            indices_detail = status.get("indices_detail") if isinstance(status.get("indices_detail"), Mapping) else {}
-            items = []
-            for name, data in indices_detail.items():  # type: ignore[assignment]
+            raw_id = status.get("indices_detail")
+            indices_detail: Mapping[str, Any] = raw_id if isinstance(raw_id, Mapping) else {}
+            items: list[dict[str, Any]] = []
+            for name, data in indices_detail.items():
                 if not isinstance(data, Mapping):
                     continue
                 dq = None
@@ -663,12 +675,12 @@ class MetricsEmitter(OutputPlugin):  # placeholder
 
     def __init__(self) -> None:
         self._enabled = False
-        self._families: Dict[str, Any] = {}
+        self._families: dict[str, Any] = {}
         self._have_prom = False
 
     def _register(self) -> None:
         try:  # lazy import; tolerate missing dependency
-            from prometheus_client import Counter, Histogram, Gauge  # type: ignore
+            from prometheus_client import Counter, Gauge, Histogram  # type: ignore
         except Exception:  # noqa: BLE001
             logger.info("MetricsEmitter disabled (prometheus_client not available)")
             return

@@ -8,18 +8,31 @@ They are implemented as free functions so they can be reused without importing
 the heavy monolithic `metrics` module early.
 """
 from __future__ import annotations
-from prometheus_client.metrics import Counter as _C, Gauge as _G, Histogram as _H, Summary as _S  # type: ignore
+
 import os
+
+from prometheus_client.metrics import Counter as _C  # type: ignore
+from prometheus_client.metrics import Gauge as _G
+from prometheus_client.metrics import Histogram as _H
+from prometheus_client.metrics import Summary as _S
+
+from typing import Callable
+
+_env_str: Callable[[str, str], str]
 try:
     from src.collectors.env_adapter import get_str as _env_str  # type: ignore
 except Exception:  # pragma: no cover - fallback
-    _env_str = lambda k, d="": (os.getenv(k, d) or "")
-from typing import Any, Dict
+    def _fallback_env_str(name: str, default: str = "") -> str:
+        v = os.getenv(name, default)
+        return v or ""
+    _env_str = _fallback_env_str
+from collections.abc import Callable
+from typing import Any
 
 __all__ = ["reload_group_filters", "dump_metrics_metadata"]
 
 
-def reload_group_filters(reg) -> None:  # pragma: no cover - thin adapter
+def reload_group_filters(reg: Any) -> None:  # pragma: no cover - thin adapter
     reg._enabled_groups_raw = _env_str('G6_ENABLE_METRIC_GROUPS','')
     reg._disabled_groups_raw = _env_str('G6_DISABLE_METRIC_GROUPS','')
     reg._enabled_groups = {g.strip() for g in reg._enabled_groups_raw.split(',') if g.strip()} if reg._enabled_groups_raw else None
@@ -34,7 +47,7 @@ def reload_group_filters(reg) -> None:  # pragma: no cover - thin adapter
     reg._group_allowed = _group_allowed  # replace closure
 
 
-def dump_metrics_metadata(reg) -> Dict[str, object]:  # noqa: C901 - legacy complexity retained
+def dump_metrics_metadata(reg: Any) -> dict[str, object]:  # noqa: C901 - legacy complexity retained
     try:
         reload_group_filters(reg)
     except Exception:
@@ -71,15 +84,15 @@ def dump_metrics_metadata(reg) -> Dict[str, object]:  # noqa: C901 - legacy comp
 
     # Build filtered mapping of metric attribute -> group (preserve attribute names; prior regression produced only group name collisions)
     _mg = getattr(reg, '_metric_groups', {})
-    filtered_groups = {}
-    _allow = getattr(reg, '_group_allowed', lambda *_: True)
+    filtered_groups: dict[str, str] = {}
+    _allow: Callable[[str], bool] = getattr(reg, '_group_allowed', lambda *_: True)
     for attr, grp in _mg.items():
         try:
             if _allow(grp):
                 filtered_groups[attr] = grp
         except Exception:
             continue
-    if reg._enabled_groups is None:  # synthetic supplementation when no enable list
+    if getattr(reg, '_enabled_groups', None) is None:  # synthetic supplementation when no enable list
         synth = {
             'panel_diff_writes': 'panel_diff',
             'vol_surface_rows': 'analytics_vol_surface',
@@ -101,7 +114,7 @@ def dump_metrics_metadata(reg) -> Dict[str, object]:  # noqa: C901 - legacy comp
             pass
     # Strict filtering when enable/disable lists active
     try:
-        if reg._enabled_groups is not None:
+        if getattr(reg, '_enabled_groups', None) is not None:
             for a, g in list(filtered_groups.items()):
                 base = g[:-10] if g.endswith('_synthetic') else g
                 if base not in reg._enabled_groups:
@@ -109,7 +122,7 @@ def dump_metrics_metadata(reg) -> Dict[str, object]:  # noqa: C901 - legacy comp
             # Guarantee expected panel_diff_writes metric presence when panel_diff enabled
             if 'panel_diff' in reg._enabled_groups and 'panel_diff_writes' not in filtered_groups:
                 filtered_groups['panel_diff_writes'] = 'panel_diff_synthetic'
-        if reg._disabled_groups:
+        if getattr(reg, '_disabled_groups', None):
             for a, g in list(filtered_groups.items()):
                 base = g[:-10] if g.endswith('_synthetic') else g
                 if base in reg._disabled_groups:
@@ -117,7 +130,7 @@ def dump_metrics_metadata(reg) -> Dict[str, object]:  # noqa: C901 - legacy comp
     except Exception:
         pass
 
-    meta: Dict[str, object] = {
+    meta: dict[str, object] = {
         'groups': filtered_groups,
         'total_metrics': total,
         'type_counts': type_counts,

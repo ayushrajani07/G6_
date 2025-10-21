@@ -12,21 +12,20 @@ Deprecation Reference:
 """
 from __future__ import annotations
 
-import os
-import psutil  # type: ignore
 from pathlib import Path
-from typing import Optional, Tuple, List
+
+import psutil  # type: ignore
 
 _BRIDGE_TOKENS = {"status_to_panels.py", "scripts/status_to_panels.py"}
 
 _DEF_SENTINEL = "panels_bridge.lock"
 
-def panels_bridge_processes() -> List[int]:
+def panels_bridge_processes() -> list[int]:
     """Return PIDs that look like legacy panels bridge processes.
 
     Best-effort: parse process cmdline; ignore permission errors.
     """
-    pids: List[int] = []
+    pids: list[int] = []
     for proc in psutil.process_iter(attrs=["pid", "cmdline"]):
         try:
             cmd = proc.info.get("cmdline") or []
@@ -47,7 +46,7 @@ def create_sentinel(panels_dir: str) -> Path:
         pass
     return sp
 
-def legacy_bridge_active(panels_dir: str) -> Tuple[bool, str]:
+def legacy_bridge_active(panels_dir: str) -> tuple[bool, str]:
     """Detect if legacy bridge likely active.
 
     Returns (is_active, reason)

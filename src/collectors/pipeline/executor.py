@@ -5,13 +5,21 @@ captures timing and classifies exceptions using collectors.errors taxonomy.
 """
 from __future__ import annotations
 
-from typing import List, Callable, Protocol, Any, Optional, Deque, cast
-import time, logging, os, random
-from src.collectors.env_adapter import get_bool as _env_bool, get_int as _env_int, get_str as _env_str
+import logging
+import os
+import random
+import time
+from collections.abc import Callable
+from typing import Any, Protocol, cast
+
+from src.collectors.env_adapter import get_bool as _env_bool
+from src.collectors.env_adapter import get_int as _env_int
+from src.collectors.env_adapter import get_str as _env_str
+from src.collectors.errors import PhaseAbortError, PhaseFatalError, PhaseRecoverableError, classify_exception
+
+from .error_helpers import add_phase_error
 from .state import ExpiryState
 from .struct_events import emit_struct_event
-from .error_helpers import add_phase_error
-from src.collectors.errors import PhaseRecoverableError, PhaseAbortError, PhaseFatalError, classify_exception
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +27,7 @@ class Phase(Protocol):  # minimal structural contract
     def __call__(self, ctx: Any, state: ExpiryState, *extra: Any) -> ExpiryState: ...
 
 
-def execute_phases(ctx: Any, state: ExpiryState, phases: List[Callable[..., ExpiryState]]) -> ExpiryState:
+def execute_phases(ctx: Any, state: ExpiryState, phases: list[Callable[..., ExpiryState]]) -> ExpiryState:
     """Execute ordered phases with taxonomy-based control flow.
 
     Behavior:
@@ -42,7 +50,9 @@ def execute_phases(ctx: Any, state: ExpiryState, phases: List[Callable[..., Expi
     # Optional config snapshot (captures active pipeline-related flags)
     try:
         if _env_bool('G6_PIPELINE_CONFIG_SNAPSHOT', False):
-            import json as _json_cfg, time as _t_cfg, hashlib as _h_cfg
+            import hashlib as _h_cfg
+            import json as _json_cfg
+            import time as _t_cfg
             snapshot = {
                 'version': 1,
                 'exported_at': int(_t_cfg.time()),
@@ -265,7 +275,9 @@ def execute_phases(ctx: Any, state: ExpiryState, phases: List[Callable[..., Expi
     # Optional JSON export of structured errors (snapshot) when enabled
     try:
         if _env_bool('G6_PIPELINE_STRUCT_ERROR_EXPORT', False) and state.error_records:
-            import json, hashlib, time as _t
+            import hashlib
+            import json
+            import time as _t
             # Stable lightweight projection
             records = [
                 {
@@ -346,11 +358,11 @@ def execute_phases(ctx: Any, state: ExpiryState, phases: List[Callable[..., Expi
                     if _rw_size_env > 0:
                         try:
                             from collections import deque as _deque
-                            # Module-level cache (attribute on function object to avoid global) 
+                            # Module-level cache (attribute on function object to avoid global)
                             if not hasattr(execute_phases, '_rolling_window'):
                                 # attach deque lazily; use cast for type checker since attribute added dynamically
-                                setattr(execute_phases, '_rolling_window', _deque(maxlen=_rw_size_env))
-                            window = cast(Deque[int], getattr(execute_phases, '_rolling_window'))
+                                execute_phases._rolling_window = _deque(maxlen=_rw_size_env)
+                            window = cast(_deque[int], execute_phases._rolling_window)
                             window.append(1 if is_success else 0)
                             _pcsrw = getattr(_m, 'pipeline_cycle_success_rate_window', None)
                             if _pcsrw is not None:
@@ -368,7 +380,7 @@ def execute_phases(ctx: Any, state: ExpiryState, phases: List[Callable[..., Expi
                             panels_dir = _env_str('G6_PANELS_DIR', 'data/panels') or 'data/panels'
                             trend_path = os.path.join(panels_dir, 'pipeline_errors_trends.json')
                             import json as _json_trm
-                            with open(trend_path, 'r', encoding='utf-8') as _tfm:
+                            with open(trend_path, encoding='utf-8') as _tfm:
                                 _trend_doc = _json_trm.load(_tfm)
                             agg = (_trend_doc.get('aggregate') or {}) if isinstance(_trend_doc, dict) else {}
                             cycles = agg.get('cycles') or 0
@@ -389,7 +401,9 @@ def execute_phases(ctx: Any, state: ExpiryState, phases: List[Callable[..., Expi
                 try:
                     if _env_bool('G6_CYCLE_TABLES_PIPELINE_INTEGRATION', False):
                         try:
-                            from src.collectors.helpers.cycle_tables import record_pipeline_summary  # optional dependency
+                            from src.collectors.helpers.cycle_tables import (
+                                record_pipeline_summary,  # optional dependency
+                            )
                             record_pipeline_summary(summary)
                         except Exception:
                             pass
@@ -440,7 +454,9 @@ def execute_phases(ctx: Any, state: ExpiryState, phases: List[Callable[..., Expi
                             'error_count': len(state.error_records),
                             'version': 1,
                         }
-                        import json as _json2, time as _t2, hashlib as _hashlib
+                        import hashlib as _hashlib
+                        import json as _json2
+                        import time as _t2
                         export['exported_at'] = int(_t2.time())
                         if hash_enabled:
                             try:
@@ -502,7 +518,7 @@ def execute_phases(ctx: Any, state: ExpiryState, phases: List[Callable[..., Expi
                                     # Build mapping filename->hash by opening each (bounded by history_limit)
                                     for fname in all_hist:
                                         try:
-                                            with open(os.path.join(panels_dir, fname), 'r', encoding='utf-8') as _rf:
+                                            with open(os.path.join(panels_dir, fname), encoding='utf-8') as _rf:
                                                 _d = _json2.load(_rf)
                                             index_entries.append({'file': fname, 'hash': _d.get('content_hash'), 'ts': _d.get('exported_at')})
                                         except Exception:
@@ -529,7 +545,7 @@ def execute_phases(ctx: Any, state: ExpiryState, phases: List[Callable[..., Expi
                                 trend_path = os.path.join(panels_dir, 'pipeline_errors_trends.json')
                                 import json as _json_tr
                                 try:
-                                    with open(trend_path, 'r', encoding='utf-8') as _tf:
+                                    with open(trend_path, encoding='utf-8') as _tf:
                                         trend_doc = _json_tr.load(_tf)
                                 except Exception:
                                     trend_doc = {'version':1,'records':[]}
@@ -570,7 +586,7 @@ def execute_phases(ctx: Any, state: ExpiryState, phases: List[Callable[..., Expi
         pass
     return state
 
-    
+
 
 
 def _log_phase(name: str, started: float, state: ExpiryState, outcome: str) -> None:
@@ -685,7 +701,7 @@ def _record_final_metrics(phase: str, duration_ms: float, final_outcome: str) ->
                                 pass  # Documented limitation; cannot mutate buckets at runtime.
                         except Exception:
                             pass
-                    setattr(hist, '_g6_buckets_overridden', True)
+                    hist._g6_buckets_overridden = True
                 hist.labels(phase=phase, final_outcome=final_outcome).observe(duration_ms / 1000.0)
             except Exception:
                 pass

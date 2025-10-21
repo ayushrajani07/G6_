@@ -4,10 +4,9 @@ Provides structured lifecycle classification for a curated subset of env vars.
 This enables tooling & docs to reflect introduction/deprecation/removal status.
 """
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Optional, List, Dict
-import json
+
 import time
+from dataclasses import dataclass
 
 __all__ = [
     "EnvLifecycle",
@@ -25,7 +24,7 @@ class EnvLifecycle:
     replacement: str | None = None
     notes: str | None = None
 
-ENV_LIFECYCLE_REGISTRY: List[EnvLifecycle] = [
+ENV_LIFECYCLE_REGISTRY: list[EnvLifecycle] = [
     EnvLifecycle("G6_METRICS_ENABLED", "active", introduced="2024-Q4", notes="Canonical metrics enable flag"),
     EnvLifecycle("G6_METRICS_ENABLE", "deprecated", introduced="2024-Q2", deprecated="2025-Q1", removal_target="2025-Q4", replacement="G6_METRICS_ENABLED"),
     EnvLifecycle("G6_ALLOW_LEGACY_PANELS_BRIDGE", "deprecated", introduced="2024-Q3", deprecated="2025-Q2", removal_target="2025-Q4", notes="Panels bridge unification"),
@@ -33,7 +32,7 @@ ENV_LIFECYCLE_REGISTRY: List[EnvLifecycle] = [
     EnvLifecycle("G6_REFACTOR_DEBUG", "experimental", introduced="2025-Q2"),
 ]
 
-def to_json_snapshot() -> Dict[str, object]:
+def to_json_snapshot() -> dict[str, object]:
     return {
         "generated": time.time(),
         "vars": [e.__dict__ for e in ENV_LIFECYCLE_REGISTRY],

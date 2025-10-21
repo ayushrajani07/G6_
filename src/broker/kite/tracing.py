@@ -25,11 +25,11 @@ hot-path overhead minimal; provider/state objects are not required.
 """
 from __future__ import annotations
 
-import os
 import json
 import logging
+import os
 import time
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ _env_quiet_allow = _b(os.environ.get("G6_QUIET_ALLOW_TRACE"))
 _runtime_enabled: bool | None = None  # explicit override
 _force_disable: bool = False
 
-_last_emit: Dict[str, float] = {}
+_last_emit: dict[str, float] = {}
 
 MAX_CTX_LEN = 4000  # safeguard
 
@@ -79,7 +79,7 @@ def trace(event: str, **ctx: Any) -> None:
     except Exception:  # pragma: no cover
         logger.debug("trace_emit_failed", exc_info=True)
 
-def trace_kv(event: str, data: Dict[str, Any]) -> None:
+def trace_kv(event: str, data: dict[str, Any]) -> None:
     try:
         trace(event, **data)
     except Exception:

@@ -9,11 +9,12 @@ Use in pytest fixtures to ensure deterministic state across tests that mutate gr
 """
 from __future__ import annotations
 
-import os
 import logging
+import os
+
 from prometheus_client import REGISTRY  # type: ignore
 
-from .metrics import get_metrics, setup_metrics_server, MetricsRegistry
+from .metrics import MetricsRegistry, setup_metrics_server
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,29 @@ def force_new_metrics_registry(enable_resource_sampler: bool = False) -> Metrics
     _purge_default_registry()
     # Use reset path on server setup; disable resource sampler for test speed by default
     metrics, _ = setup_metrics_server(reset=True, enable_resource_sampler=enable_resource_sampler)
+    # Explicitly ensure SSE metric families exist in the default registry so
+    # any /metrics exposition includes at least zero-sample entries for them.
+    try:
+        from scripts.summary import sse_http as _sseh  # type: ignore
+        _ensure = getattr(_sseh, '_maybe_register_metrics', None)
+        if callable(_ensure):
+            try:
+                _ensure()
+            except Exception:
+                pass
+    except Exception:
+        pass
+    # Ensure SSE family injector is present after reset so scrapes include SSE names
+    try:
+        import sitecustomize as _g6_site  # type: ignore
+        _reg = getattr(_g6_site, 'g6_register_sse_injector', None)
+        if callable(_reg):
+            try:
+                _reg()
+            except Exception:
+                pass
+    except Exception:
+        pass
     # Trigger group re-registration explicitly (idempotent) in case tests rely on dynamic gating updates
     try:
         from .group_registry import register_group_metrics as _rgm  # type: ignore

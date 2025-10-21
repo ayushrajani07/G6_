@@ -5,9 +5,11 @@ appropriate to avoid behaviour changes. As components are migrated,
 this layer will switch to using `ProviderCore` subcomponents directly.
 """
 from __future__ import annotations
-from typing import Any, Iterable, List
+
 import logging
 import os
+from typing import Any
+
 from src.provider.config import get_provider_config
 
 from .core import ProviderCore
@@ -73,7 +75,7 @@ def get_monthly_expiries(index_symbol: str):
         key = (getattr(d, 'year', None), getattr(d, 'month', None))
         if None not in key:
             # mypy/pylance friendliness: cast tuple once validated
-            key_t = (int(getattr(d, 'year')), int(getattr(d, 'month')))  # type: ignore[arg-type]
+            key_t = (int(d.year), int(d.month))  # type: ignore[arg-type]
             by_month.setdefault(key_t, []).append(d)
     out: list[Any] = []
     for _, vals in sorted(by_month.items()):

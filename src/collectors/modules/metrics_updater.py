@@ -5,8 +5,11 @@ by unified collectors. Keeps unified_collectors lean while preserving all
 original semantics and fallbacks.
 """
 from __future__ import annotations
+
+import datetime
+import logging
+import time
 from typing import Any
-import time, datetime, logging
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +77,7 @@ def finalize_cycle_metrics(
     if not metrics:
         return
     try:
-        collection_time_elapsed = (datetime.datetime.now(datetime.timezone.utc) - cycle_start_ts).total_seconds()
+        collection_time_elapsed = (datetime.datetime.now(datetime.UTC) - cycle_start_ts).total_seconds()
         metrics.collection_duration.observe(collection_time_elapsed)
         metrics.collection_cycles.inc()
         try:

@@ -3,7 +3,7 @@
 
 Responsibilities:
 - Detect running Prometheus, Grafana, and InfluxDB on localhost.
-- Auto-resolve ports within small ranges (Grafana: 3000-3010, Influx: 8086-8096, Prometheus: 9090 only)
+- Auto-resolve ports within small ranges (Grafana: 3000-3010, Influx: 8086-8096, Prometheus: 9090-9100)
 - Validate health endpoints with sensible fallbacks:
   * Grafana: /api/health == 200
   * InfluxDB: /health == 200 or /ping in {200, 204}; also accept 401/403 (auth guarded). As a last resort, consider TCP connect + owner behavior (approx) as reachable.
@@ -17,11 +17,15 @@ Responsibilities:
 This module is intentionally self-contained (stdlib only) and safe to import.
 """
 from __future__ import annotations
-import os, sys, time, socket, ssl, subprocess
+
+import os
+import socket
+import ssl
+import subprocess
+import sys
+import time
 from dataclasses import dataclass
-from typing import Optional, Tuple
 from pathlib import Path
-from urllib.parse import urlparse
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = _SCRIPT_DIR.parent
@@ -29,7 +33,7 @@ _PROJECT_ROOT = _SCRIPT_DIR.parent
 @dataclass
 class ServiceStatus:
     ok: bool
-    url: Optional[str]
+    url: str | None
     details: str = ""
 
 @dataclass
@@ -47,7 +51,7 @@ def _tcp_check(host: str, port: int, timeout: float = 1.0) -> bool:
         return False
 
 
-def _http_get(url: str, timeout: float = 1.5, insecure: bool = True) -> Tuple[int, bytes]:
+def _http_get(url: str, timeout: float = 1.5, insecure: bool = True) -> tuple[int, bytes]:
     """Minimal HTTP(S) GET using stdlib with optional insecure TLS."""
     import urllib.request
     ctx = None
@@ -62,7 +66,7 @@ def _http_get(url: str, timeout: float = 1.5, insecure: bool = True) -> Tuple[in
     except Exception as e:
         # Try to capture HTTP error codes
         if hasattr(e, 'code'):
-            return int(getattr(e, 'code')), b""
+            return int(e.code), b""
         return -1, b""
 
 
@@ -100,18 +104,32 @@ def _detect_influx(hosts=("localhost","127.0.0.1"), ports=range(8086, 8097)) -> 
     return ServiceStatus(False, None, details="Influx not reachable on 8086-8096")
 
 
-def _detect_prometheus(hosts=("localhost","127.0.0.1"), port=9090) -> ServiceStatus:
-    for h in hosts:
-        if not _tcp_check(h, port, 0.5):
-            continue
-        # Prefer /-/ready then fallback runtimeinfo
-        code, _ = _http_get(f"http://{h}:{port}/-/ready", 1.2)
-        if code == 200:
-            return ServiceStatus(True, f"http://{h}:{port}")
-        code2, _ = _http_get(f"http://{h}:{port}/api/v1/status/runtimeinfo", 1.2)
-        if code2 == 200:
-            return ServiceStatus(True, f"http://{h}:{port}")
-    return ServiceStatus(False, None, details="Prometheus not ready on 9090")
+def _detect_prometheus(hosts=("localhost","127.0.0.1"), ports=range(9090, 9101)) -> ServiceStatus:
+    # First honor an explicit env override if present (useful for custom runs)
+    env_url = os.environ.get("G6_PROM_URL")
+    if env_url:
+        try:
+            code, _ = _http_get(f"{env_url}/-/ready", 1.2)
+            if code == 200:
+                return ServiceStatus(True, env_url)
+            code2, _ = _http_get(f"{env_url}/api/v1/status/runtimeinfo", 1.2)
+            if code2 == 200:
+                return ServiceStatus(True, env_url)
+        except Exception:
+            pass
+    # Scan common local ports (matches auto_stack.ps1 behavior which may choose next free port)
+    for p in ports:
+        for h in hosts:
+            if not _tcp_check(h, p, 0.5):
+                continue
+            # Prefer /-/ready then fallback runtimeinfo
+            code, _ = _http_get(f"http://{h}:{p}/-/ready", 1.2)
+            if code == 200:
+                return ServiceStatus(True, f"http://{h}:{p}")
+            code2, _ = _http_get(f"http://{h}:{p}/api/v1/status/runtimeinfo", 1.2)
+            if code2 == 200:
+                return ServiceStatus(True, f"http://{h}:{p}")
+    return ServiceStatus(False, None, details="Prometheus not ready on 9090-9100")
 
 
 def _is_windows() -> bool:

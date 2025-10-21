@@ -3,19 +3,20 @@
 Keeps semantics identical; returns original PersistResult.
 """
 from __future__ import annotations
-from typing import Any, Dict
+
 import logging
+from typing import Any
 
 from src.collectors.persist_result import PersistResult
-from src.utils.exceptions import CsvWriteError, InfluxWriteError
 from src.error_handling import handle_collector_error
+from src.utils.exceptions import CsvWriteError, InfluxWriteError
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["persist_and_metrics"]
 
 
-def persist_and_metrics(ctx, enriched_data: Dict[str, Dict[str, Any]], index_symbol: str, expiry_rule: str, expiry_date,
+def persist_and_metrics(ctx, enriched_data: dict[str, dict[str, Any]], index_symbol: str, expiry_rule: str, expiry_date,
                         collection_time, index_price, index_ohlc, allow_per_option_metrics: bool) -> PersistResult:
     try:
         metrics_payload = ctx.csv_sink.write_options_data(
@@ -24,12 +25,12 @@ def persist_and_metrics(ctx, enriched_data: Dict[str, Dict[str, Any]], index_sym
             suppress_overview=True, return_metrics=True,
             expiry_rule_tag=expiry_rule
         )
-    except (OSError, IOError, CsvWriteError) as e:
+    except (OSError, CsvWriteError) as e:
         # Emit CSV write error counter for Grafana wiring (best-effort)
         try:
             metrics = getattr(ctx, 'metrics', None) or getattr(getattr(ctx, 'csv_sink', None), 'metrics', None)
             if metrics is not None and hasattr(metrics, 'csv_write_errors'):
-                getattr(metrics, 'csv_write_errors').inc()  # type: ignore[call-arg]
+                metrics.csv_write_errors.inc()  # type: ignore[call-arg]
         except Exception:
             pass
         handle_collector_error(
@@ -123,7 +124,7 @@ def persist_and_metrics(ctx, enriched_data: Dict[str, Dict[str, Any]], index_sym
     return PersistResult(option_count=len(enriched_data), pcr=pcr_val, metrics_payload=metrics_payload, failed=False)
 
 
-def persist_with_context(ctx, enriched_data: Dict[str, Dict[str, Any]], expiry_ctx: Any, index_ohlc) -> PersistResult:
+def persist_with_context(ctx, enriched_data: dict[str, dict[str, Any]], expiry_ctx: Any, index_ohlc) -> PersistResult:
     """Wrapper using ExpiryContext to reduce call-site argument noise."""
     return persist_and_metrics(
         ctx,

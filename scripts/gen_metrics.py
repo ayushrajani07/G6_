@@ -8,7 +8,14 @@ Reads metrics/spec/base.yml and outputs:
 Adds SPEC_HASH constant + optional g6_metrics_spec_hash_info initialization.
 """
 from __future__ import annotations
-import yaml, pathlib, datetime as dt, json, sys, hashlib
+
+import datetime as dt
+import hashlib
+import json
+import pathlib
+from typing import Any
+
+import yaml  # type: ignore
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SPEC = ROOT / 'metrics' / 'spec' / 'base.yml'
@@ -18,16 +25,17 @@ OUT_CATALOG = ROOT / 'METRICS_CATALOG.md'
 HEADER = """# Auto-generated file\n# SOURCE OF TRUTH: metrics/spec/base.yml (YAML)\n# DO NOT EDIT MANUALLY - run scripts/gen_metrics.py after modifying the spec.\n"""
 
 
-def load_spec():
-    with open(SPEC, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
+def load_spec() -> dict[str, Any]:
+    with open(SPEC, encoding='utf-8') as f:
+        data = yaml.safe_load(f)
+        return data if isinstance(data, dict) else {}
 
 
 def compute_spec_hash(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()[:16]
 
 
-def gen_module(spec: dict, spec_hash: str) -> str:
+def gen_module(spec: dict[str, Any], spec_hash: str) -> str:
     families = spec.get('families', {})
     accessor_prefix = spec.get('codegen', {}).get('accessor_prefix', 'm_')
     lines = [HEADER, 'from __future__ import annotations', 'from .cardinality_guard import registry_guard', 'from typing import Any, Dict']
@@ -77,7 +85,7 @@ def gen_module(spec: dict, spec_hash: str) -> str:
     return '\n\n'.join(lines) + '\n'
 
 
-def gen_catalog(spec: dict) -> str:
+def gen_catalog(spec: dict[str, Any]) -> str:
     # Use timezone-aware UTC (utcnow deprecated)
     ts = dt.datetime.now(dt.UTC).isoformat(timespec='seconds').replace('+00:00','Z')
     out = [f"# Metrics Catalog\n\nGenerated: {ts}\n\n"]
@@ -92,7 +100,7 @@ def gen_catalog(spec: dict) -> str:
     return '\n'.join(out) + '\n'
 
 
-def main():
+def main() -> None:
     spec = load_spec()
     raw = SPEC.read_bytes()
     spec_hash = compute_spec_hash(raw)

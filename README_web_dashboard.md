@@ -21,3 +21,5 @@ Deprecation timeline: Archived 2025-10-01 (Release R). Planned removal after R+1
 Status: [D] Deprecated – superseded by panels JSON + summary + Grafana.
 
 Please update external links to point to the canonical README.
+
+Note (2025-10-15): A lightweight FastAPI app is still shipped for JSON endpoints used by Grafana Infinity. The baseline launcher starts it on http://127.0.0.1:9500, providing `/api/overlay` (weekday masters) and `/api/live_csv` (today's CSV time series: tp, avg_tp). See the generated dashboard “G6 Overlays – Live from CSV (Infinity)”.

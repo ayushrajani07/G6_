@@ -8,11 +8,12 @@ when disabled.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 import os
 import threading
 import time
-from typing import Dict, Tuple, Optional, Mapping, Any, TYPE_CHECKING
+from collections.abc import Mapping
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # pragma: no cover - typing only
     from prometheus_client import Counter as PromCounter  # noqa: F401
@@ -25,9 +26,9 @@ except Exception:  # pragma: no cover
         def labels(self, **l): return self
 
 # Internal singleton (module-level) managed via get_batcher()
-_BATCHER: Optional["EmissionBatcher"] = None
+_BATCHER: EmissionBatcher | None = None
 # Cache of counter objects by name so batch flush can resolve test-defined counters
-_COUNTERS: Dict[str, Any] = {}
+_COUNTERS: dict[str, Any] = {}
 
 @dataclass
 class _Config:
@@ -38,7 +39,7 @@ class _Config:
     max_interval: float = 0.5  # Hard ceiling between flushes (seconds)
 
     @staticmethod
-    def from_env() -> "_Config":
+    def from_env() -> _Config:
         def _get(name: str, default: str) -> str:
             return os.getenv(name, default)
         return _Config(
@@ -58,9 +59,9 @@ class EmissionBatcher:
         self._config = config
         self._lock = threading.Lock()
         # Key -> pending value
-        self._pending: Dict[Tuple[str, Tuple[Tuple[str, str], ...]], float] = {}
+        self._pending: dict[tuple[str, tuple[tuple[str, str], ...]], float] = {}
         self._stop_event = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         # Internal instrumentation bundle
         self._metrics = _InternalBatchMetrics()
         # --- Adaptive sizing state ---
@@ -124,7 +125,7 @@ class EmissionBatcher:
         except Exception:
             pass
 
-    def batch_increment(self, counter: "PromCounter", value: float = 1.0, labels: Optional[Mapping[str, str]] = None) -> None:
+    def batch_increment(self, counter: PromCounter, value: float = 1.0, labels: Mapping[str, str] | None = None) -> None:
         """Queue an increment (or apply directly if disabled)."""
         if not self._config.enabled:
             try:
@@ -133,7 +134,7 @@ class EmissionBatcher:
                 pass
             return
         # Normalize labels
-        label_items: Tuple[Tuple[str, str], ...]
+        label_items: tuple[tuple[str, str], ...]
         if labels:
             label_items = tuple(sorted(labels.items()))
         else:
@@ -253,7 +254,8 @@ class _InternalBatchMetrics:
 
     def __init__(self):
         try:
-            from prometheus_client import Gauge, Counter as PCounter, Histogram
+            from prometheus_client import Counter as PCounter
+            from prometheus_client import Gauge, Histogram
             self._Gauge = Gauge
             self._Counter = PCounter
             self._Histogram = Histogram
@@ -271,7 +273,7 @@ class _InternalBatchMetrics:
         self._flush_ms_hist = None
         self._utilization_gauge = None
         self._dropped_ratio_gauge = None
-        self._last_utilization: Optional[float] = None
+        self._last_utilization: float | None = None
 
     def _maybe_register(self):  # pragma: no cover - registration side effect
         if self._registered or not self._Gauge:
@@ -342,7 +344,7 @@ class _InternalBatchMetrics:
             except Exception:
                 pass
 
-    def last_utilization(self) -> Optional[float]:
+    def last_utilization(self) -> float | None:
         return self._last_utilization
 
     def total_merged(self) -> float:
@@ -394,9 +396,9 @@ def get_batcher() -> EmissionBatcher:
     return _BATCHER
 
 # --- Histogram pre-aggregation stub (future enhancement) ---
-_HISTOGRAMS: Dict[str, Any] = {}
+_HISTOGRAMS: dict[str, Any] = {}
 
-def register_histogram(name: str, buckets: Optional[list[float]] = None):  # pragma: no cover - stub
+def register_histogram(name: str, buckets: list[float] | None = None):  # pragma: no cover - stub
     """Placeholder for future histogram bucket coalescing registration.
 
     Currently returns a passthrough object with observe() writing directly to the underlying

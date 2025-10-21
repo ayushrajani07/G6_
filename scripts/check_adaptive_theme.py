@@ -7,13 +7,22 @@ Usage (ensure G6_CATALOG_HTTP=1 process running):
 Prints palette, active counts and recent ratios (if present).
 """
 from __future__ import annotations
-import argparse, json, sys, urllib.request
 
-def fetch(url: str) -> dict:
+import argparse
+import json
+import sys
+import urllib.request
+from typing import Any, cast
+
+
+def fetch(url: str) -> dict[str, Any]:
     with urllib.request.urlopen(url, timeout=2.5) as r:  # nosec: simple internal fetch
-        return json.loads(r.read().decode('utf-8'))
+        obj: Any = json.loads(r.read().decode('utf-8'))
+    if isinstance(obj, dict):
+        return cast(dict[str, Any], obj)
+    return cast(dict[str, Any], {})
 
-def main():
+def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument('--host', default='127.0.0.1')
     p.add_argument('--port', type=int, default=9315)

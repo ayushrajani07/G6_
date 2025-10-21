@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Typed provider interface for the G6 platform.
 
@@ -8,8 +7,8 @@ implementations may offer more methods; adapters can normalize them as needed.
 """
 from __future__ import annotations
 
-from typing import Protocol, Dict, List, Tuple, Any, Optional
 from datetime import date
+from typing import Any, Protocol
 
 
 class Provider(Protocol):
@@ -19,11 +18,11 @@ class Provider(Protocol):
         ...
 
     # Quotes / Prices
-    def get_quote(self, instruments: List[Tuple[str, str]]) -> Dict[str, Any]:
+    def get_quote(self, instruments: list[tuple[str, str]]) -> dict[str, Any]:
         """Return quotes keyed by "EXCHANGE:SYMBOL" with at least last_price/ohlc when available."""
         ...
 
-    def get_ltp(self, instruments: List[Tuple[str, str]]) -> Dict[str, Any]:
+    def get_ltp(self, instruments: list[tuple[str, str]]) -> dict[str, Any]:
         """Return last traded price mapping keyed by "EXCHANGE:SYMBOL" with last_price field."""
         ...
 
@@ -31,10 +30,10 @@ class Provider(Protocol):
     def resolve_expiry(self, index_symbol: str, expiry_rule: str) -> date:
         ...
 
-    def option_instruments(self, index_symbol: str, expiry_date: Any, strikes: List[int]) -> List[Dict[str, Any]]:
+    def option_instruments(self, index_symbol: str, expiry_date: Any, strikes: list[int]) -> list[dict[str, Any]]:
         ...
 
-    def get_option_instruments(self, index_symbol: str, expiry_date: Any, strikes: List[int]) -> List[Dict[str, Any]]:
+    def get_option_instruments(self, index_symbol: str, expiry_date: Any, strikes: list[int]) -> list[dict[str, Any]]:
         ...
 
 

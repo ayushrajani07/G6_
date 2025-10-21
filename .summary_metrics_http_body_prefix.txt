@@ -1,0 +1,4 @@
+# HELP g6_sse_http_active_connections Active SSE HTTP connections
+# TYPE g6_sse_http_active_connections gauge
+g6_sse_http_active_connections 0
+# HELP g6_sse_http_connections_total Total accepted SSE H

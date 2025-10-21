@@ -15,9 +15,10 @@ Long-term:
 """
 from __future__ import annotations
 
-from typing import Tuple, Callable  # noqa: F401 (retained for backward compat hints)
-from . import metrics as _legacy
+from collections.abc import Callable  # noqa: F401 (retained for backward compat hints)
+
 from . import _singleton as _anchor  # central anchor
+from . import metrics as _legacy
 
 MetricsRegistry = _legacy.MetricsRegistry  # re-export for compatibility
 

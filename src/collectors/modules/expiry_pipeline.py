@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """Experimental expiry collection pipeline (Phase Skeleton).
 
 Activated via env flag: G6_COLLECTOR_PIPELINE_V2=1
@@ -17,10 +16,10 @@ Shadow / Migration Strategy:
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Protocol, List, Dict, Optional, Sequence
-import os
 import logging
+import os
+from dataclasses import dataclass, field
+from typing import Any, Protocol
 
 from src.observability.log_emitter import log_event
 
@@ -31,19 +30,19 @@ class ExpiryState:
     index_symbol: str
     expiry_rule: str
     atm_strike: float
-    legacy_outcome: Optional[dict] = None  # capture legacy outcome until phases ported
+    legacy_outcome: dict | None = None  # capture legacy outcome until phases ported
     # Placeholder for eventual granular fields
     instruments: int = 0
     options: int = 0  # pre-legacy enrichment option count (raw enriched size)
-    errors: List[str] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
     # Newly tracked early phase artifacts
     expiry_date: Any | None = None  # resolved by ResolvePhase
-    strikes: List[float] = field(default_factory=list)
-    fetched_instruments: List[dict] = field(default_factory=list)
+    strikes: list[float] = field(default_factory=list)
+    fetched_instruments: list[dict] = field(default_factory=list)
     # Enrichment artifacts (pipeline-owned)
-    enriched_data: Dict[str, Any] = field(default_factory=dict)  # raw enriched quotes pre-validation
-    validated_enriched: Dict[str, Any] = field(default_factory=dict)  # post preventive validation cleaned quotes
-    preventive_report: Dict[str, Any] = field(default_factory=dict)
+    enriched_data: dict[str, Any] = field(default_factory=dict)  # raw enriched quotes pre-validation
+    validated_enriched: dict[str, Any] = field(default_factory=dict)  # post preventive validation cleaned quotes
+    preventive_report: dict[str, Any] = field(default_factory=dict)
     validation_options: int = 0  # count after preventive validation
     # Clamp metadata persistence (added for parity in direct finalize)
     clamp_applied: bool = False
@@ -95,7 +94,7 @@ class LegacyWrapperPhase:
                     atm_strike=state.atm_strike,
                     enriched_data=state.validated_enriched,
                     strikes=state.strikes,
-                    per_index_ts=getattr(ctx, 'per_index_ts'),
+                    per_index_ts=ctx.per_index_ts,
                     index_price=getattr(ctx, 'index_price', 0.0),
                     index_ohlc=getattr(ctx, 'index_ohlc', {}),
                     allowed_expiry_dates=getattr(ctx, 'allowed_expiry_dates', set()),
@@ -147,21 +146,21 @@ class LegacyWrapperPhase:
             if not hasattr(ctx, 'per_index_ts'):
                 try:
                     import datetime
-                    ts_fallback = getattr(ctx, 'start_ts', datetime.datetime.now(datetime.timezone.utc))
-                    setattr(ctx, 'per_index_ts', ts_fallback)
+                    ts_fallback = getattr(ctx, 'start_ts', datetime.datetime.now(datetime.UTC))
+                    ctx.per_index_ts = ts_fallback
                 except Exception:
                     pass
             # Ensure aggregation_state present for legacy metrics aggregation
-            if not hasattr(ctx, 'aggregation_state') or getattr(ctx, 'aggregation_state') is None:
+            if not hasattr(ctx, 'aggregation_state') or ctx.aggregation_state is None:
                 try:
                     from src.collectors.unified_collectors import AggregationState
-                    setattr(ctx, 'aggregation_state', AggregationState())
+                    ctx.aggregation_state = AggregationState()
                 except Exception:
                     class _AggStub:  # minimal stub
                         representative_day_width = 0
                         snapshot_base_time = None
                         def capture(self, *_a: object, **_k: object) -> None: return None
-                    setattr(ctx, 'aggregation_state', _AggStub())
+                    ctx.aggregation_state = _AggStub()
             out = self._legacy(
                 ctx=ctx,
                 index_symbol=state.index_symbol,
@@ -175,7 +174,7 @@ class LegacyWrapperPhase:
                 local_estimate_iv=getattr(ctx, 'local_estimate_iv', False),
                 greeks_calculator=getattr(ctx, 'greeks_calculator', None),
                 risk_free_rate=getattr(ctx, 'risk_free_rate', 0.05),
-                per_index_ts=getattr(ctx, 'per_index_ts'),
+                per_index_ts=ctx.per_index_ts,
                 index_price=getattr(ctx, 'index_price', 0.0),
                 index_ohlc=getattr(ctx, 'index_ohlc', {}),
                 metrics=getattr(ctx, 'metrics', None),
@@ -186,7 +185,7 @@ class LegacyWrapperPhase:
                 build_snapshots=getattr(ctx, 'build_snapshots', False),
                 allowed_expiry_dates=getattr(ctx, 'allowed_expiry_dates', set()),
                 pcr_snapshot=getattr(ctx, 'pcr_snapshot', {}),
-                aggregation_state=getattr(ctx, 'aggregation_state'),
+                aggregation_state=ctx.aggregation_state,
                 collector_settings=getattr(ctx, 'collector_settings', None),
             )
             state.legacy_outcome = out
@@ -216,7 +215,7 @@ class LegacyWrapperPhase:
                 pass
         return state
 
-PHASES: List[Phase] = []  # later phases appended dynamically for v2 work
+PHASES: list[Phase] = []  # later phases appended dynamically for v2 work
 
 class ResolvePhase:
     name = 'resolve'
@@ -251,8 +250,8 @@ class FetchPhase:
             return state
         try:
             from src.collectors.modules.expiry_helpers import fetch_option_instruments as _fetch
-            if getattr(ctx, 'expiry_universe_map', None) and state.expiry_date in getattr(ctx, 'expiry_universe_map'):
-                bucket = getattr(ctx, 'expiry_universe_map')[state.expiry_date]
+            if getattr(ctx, 'expiry_universe_map', None) and state.expiry_date in ctx.expiry_universe_map:
+                bucket = ctx.expiry_universe_map[state.expiry_date]
                 strike_set = set(state.strikes)
                 instruments = [inst for inst in bucket if inst.get('strike') in strike_set]
             else:
@@ -284,7 +283,7 @@ class EnrichPhase:
             # Normalize & capture for downstream validation phase
             if isinstance(enriched, list):
                 try:
-                    tmp_map: Dict[str, Dict[str, Any]] = {}
+                    tmp_map: dict[str, dict[str, Any]] = {}
                     for idx, i in enumerate(enriched):
                         if isinstance(i, dict):
                             key = str(i.get('symbol') or i.get('tradingsymbol') or idx)
@@ -369,7 +368,8 @@ class CoverageMetricsPhase:
         if state.expiry_date is None or not state.fetched_instruments:
             return state
         try:
-            from src.collectors.modules.coverage_eval import coverage_metrics as _cov, field_coverage_metrics as _field_cov
+            from src.collectors.modules.coverage_eval import coverage_metrics as _cov
+            from src.collectors.modules.coverage_eval import field_coverage_metrics as _field_cov
             strike_cov = None
             field_cov = None
             try:
@@ -402,7 +402,7 @@ class CoverageMetricsPhase:
             state.errors.append(f'coverage_metrics:{e}')
         return state
 
-def _build_phases(legacy_fn: Any) -> List[Phase]:
+def _build_phases(legacy_fn: Any) -> list[Phase]:
     if not PHASES:  # initialize once
         # Early phases first; legacy wrapper still executes full legacy path for parity.
         PHASES.extend([
@@ -416,7 +416,7 @@ def _build_phases(legacy_fn: Any) -> List[Phase]:
         ])
     return PHASES
 
-def process_expiry_v2(legacy_fn: Any, *, ctx: Any, index_symbol: str, expiry_rule: str, atm_strike: float, settings: Any | None = None) -> Dict[str, Any]:
+def process_expiry_v2(legacy_fn: Any, *, ctx: Any, index_symbol: str, expiry_rule: str, atm_strike: float, settings: Any | None = None) -> dict[str, Any]:
     phases = _build_phases(legacy_fn)
     state = ExpiryState(index_symbol=index_symbol, expiry_rule=expiry_rule, atm_strike=atm_strike)
     for phase in phases:

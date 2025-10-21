@@ -12,6 +12,7 @@
     "list": []
   },
   "g6_meta": {
+    "band_pct": 25,
     "description": "",
     "explorer": true,
     "families": [
@@ -33,7 +34,7 @@
       },
       "g6_meta": {
         "group": "explorer",
-        "panel_uuid": "c5956c1e13bdd96b",
+        "panel_uuid": "ebb2d599b1d1c502",
         "source": "explorer_template"
       },
       "gridPos": {
@@ -42,7 +43,7 @@
         "x": 0,
         "y": 0
       },
-      "id": 3314904094,
+      "id": 3954365849,
       "repeat": "metric",
       "repeatDirection": "h",
       "targets": [
@@ -53,6 +54,18 @@
         {
           "expr": "sum(rate($metric[5m]))",
           "refId": "B"
+        },
+        {
+          "expr": "sum(rate($metric[30s])) and ($overlay == 'fast')",
+          "refId": "C"
+        },
+        {
+          "expr": "sum(rate($metric[15s])) and ($overlay == 'ultra')",
+          "refId": "D"
+        },
+        {
+          "expr": "avg_over_time($metric[5m])",
+          "refId": "E"
         }
       ],
       "title": "$metric raw & 5m rate",
@@ -95,6 +108,175 @@
       ],
       "title": "$metric rate 1m vs 5m",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "group": "explorer",
+        "panel_uuid": "346d83a203dd5e59",
+        "source": "explorer_template"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 879592354,
+      "repeat": "metric",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "expr": "sum_over_time($metric[24h])",
+          "refId": "A"
+        }
+      ],
+      "title": "$metric cumulative total (24h)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": ".*D$"
+            },
+            "properties": []
+          }
+        ]
+      },
+      "g6_meta": {
+        "explorer_kind": "histogram_summary",
+        "group": "explorer",
+        "panel_uuid": "863c12c8304fef74",
+        "source": "explorer_template"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 2252083912,
+      "repeat": "metric_hist",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "expr": "$metric_hist:$q_5m",
+          "refId": "A"
+        },
+        {
+          "expr": "$metric_hist:$q_30m",
+          "refId": "B"
+        },
+        {
+          "expr": "$metric_hist:$q_ratio_5m_30m",
+          "refId": "C"
+        },
+        {
+          "expr": "($metric_hist:$q_5m - $metric_hist:$q_30m) / clamp_min($metric_hist:$q_30m, 0.000001)",
+          "refId": "D"
+        }
+      ],
+      "title": "Histogram Summary",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "explorer_kind": "histogram_window",
+        "group": "explorer",
+        "panel_uuid": "016484c107db245d",
+        "source": "explorer_template"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "id": 23364801,
+      "repeat": "metric_hist",
+      "repeatDirection": "h",
+      "targets": [
+        {
+          "expr": "$q_5m",
+          "refId": "A"
+        },
+        {
+          "expr": "$q_30m",
+          "refId": "B"
+        },
+        {
+          "expr": "$q_30m * (1 - 0.250000)",
+          "refId": "C"
+        },
+        {
+          "expr": "$q_30m * (1 + 0.250000)",
+          "refId": "D"
+        }
+      ],
+      "title": "Histogram Window",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "PROM"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "g6_meta": {
+        "explorer_kind": "alerts_context",
+        "group": "explorer",
+        "panel_uuid": "8e25450bcb1a61ef",
+        "source": "explorer_template"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "id": 2384807179,
+      "targets": [
+        {
+          "expr": "ALERTS{alertstate='firing'}",
+          "refId": "A"
+        }
+      ],
+      "title": "Alerts Context",
+      "type": "table"
     }
   ],
   "refresh": "30s",
@@ -112,9 +294,41 @@
           "uid": "PROM"
         },
         "label": "Metric",
+        "multi": true,
         "name": "metric",
         "query": "label_values(up, job)",
         "type": "query"
+      },
+      {
+        "datasource": {
+          "type": "prometheus",
+          "uid": "PROM"
+        },
+        "label": "Histogram Metric",
+        "multi": true,
+        "name": "metric_hist",
+        "query": "label_values(up, job)",
+        "type": "query"
+      },
+      {
+        "current": {
+          "text": "off",
+          "value": "off"
+        },
+        "label": "Overlay",
+        "name": "overlay",
+        "query": "off,fast,ultra",
+        "type": "custom"
+      },
+      {
+        "current": {
+          "text": "p95",
+          "value": "p95"
+        },
+        "label": "Quantile",
+        "name": "q",
+        "query": "p50,p90,p95,p99",
+        "type": "custom"
       }
     ]
   },

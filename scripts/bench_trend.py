@@ -19,8 +19,16 @@ Exit codes:
  0 success, 2 no artifacts found, 3 other error.
 """
 from __future__ import annotations
-import argparse, json, gzip, sys, pathlib, math, os
-from typing import List, Dict, Any, Sequence
+
+import argparse
+import gzip
+import json
+import math
+import os
+import pathlib
+import sys
+from collections.abc import Sequence
+from typing import Any
 
 # Optional local anomaly helper (robust z-score)
 try:  # pragma: no cover
@@ -57,16 +65,16 @@ def sparkline(values: Sequence[float]) -> str:
         out.append(_SPARK_CHARS[idx])
     return ''.join(out)
 
-def load_artifacts(root: pathlib.Path) -> List[Dict[str,Any]]:
+def load_artifacts(root: pathlib.Path) -> list[dict[str,Any]]:
     files = sorted([p for p in root.glob('benchmark_cycle_*.json*') if p.is_file()])
-    arts: List[Dict[str,Any]] = []
+    arts: list[dict[str,Any]] = []
     for fp in files:
         try:
             if fp.suffix == '.gz' or fp.name.endswith('.json.gz'):
                 with gzip.open(fp,'rt',encoding='utf-8') as f:
                     data = json.load(f)
             else:
-                with open(fp,'r',encoding='utf-8') as f:
+                with open(fp,encoding='utf-8') as f:
                     data = json.load(f)
             if isinstance(data, dict):
                 data['__file'] = str(fp)
@@ -75,13 +83,13 @@ def load_artifacts(root: pathlib.Path) -> List[Dict[str,Any]]:
             continue
     return arts
 
-def recompute_anomalies(seq: Sequence[float], threshold: float) -> List[bool]:
+def recompute_anomalies(seq: Sequence[float], threshold: float) -> list[bool]:
     if not _detect_anomalies or len(seq) < 5:
         return [False]*len(seq)
     flags, _scores = _detect_anomalies(seq, threshold=threshold)
     return flags
 
-def format_table(rows: List[Dict[str,Any]]) -> str:
+def format_table(rows: list[dict[str,Any]]) -> str:
     # Determine column widths (excluding sparkline which is fixed by limit)
     ts_w = max(15, *(len(r['ts']) for r in rows)) if rows else 15
     line_hdr = f"{'Timestamp':<{ts_w}}  Options  Dur(s)  o_spark  d_spark  oA dA"

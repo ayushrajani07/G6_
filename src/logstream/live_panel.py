@@ -7,10 +7,13 @@ Call build_live_panel with recent cycle stats; returns multiline string.
 We keep it lightweight: pure string ops + color codes.
 """
 from __future__ import annotations
+
+import os
+import sys
 import time
-from typing import Optional, Dict, Any
-from src.utils.color import colorize, FG_GREEN, FG_YELLOW, FG_RED, FG_MAGENTA, BOLD
-import sys, os
+from typing import Any
+
+from src.utils.color import FG_GREEN, FG_MAGENTA, FG_RED, FG_YELLOW, colorize
 
 BORDER_H = "─"
 BORDER_V = "│"
@@ -33,6 +36,7 @@ _LAST_RENDER_TS = 0.0
 
 # Simple ANSI strip to compute widths
 import re
+
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
 
 def strip_ansi(s: str) -> str:
@@ -67,7 +71,7 @@ def build_live_panel(*, cycle: int, cycle_time: float, success_rate: float | Non
                      options_processed: int, per_min: float | None,
                      api_success: float | None, api_latency_ms: float | None,
                      memory_mb: float | None, cpu_pct: float | None,
-                     indices: Dict[str, Dict[str, Any]] | None = None,
+                     indices: dict[str, dict[str, Any]] | None = None,
                      concise: bool = True) -> str:
     global _LAST_RENDER_TS
     _LAST_RENDER_TS = time.time()

@@ -3,6 +3,7 @@
 Defines tiers and actions to reduce memory footprint gracefully instead of hard killing processes.
 """
 from __future__ import annotations
+
 try:
     import psutil  # type: ignore
 except Exception as e:  # pragma: no cover
@@ -12,13 +13,14 @@ except Exception as e:  # pragma: no cover
         handle_api_error(e, component="utils.memory_pressure.import_psutil")
     except Exception:
         pass
-import time
 import logging
-from dataclasses import dataclass
-from typing import Callable, List, Optional, Dict
 import os
+import time
+from dataclasses import dataclass
+
 try:
-    from src.collectors.env_adapter import get_int as _env_get_int, get_str as _env_get_str  # type: ignore
+    from src.collectors.env_adapter import get_int as _env_get_int  # type: ignore
+    from src.collectors.env_adapter import get_str as _env_get_str
 except Exception:  # pragma: no cover
     def _env_get_int(name: str, default: int) -> int:
         try:
@@ -42,7 +44,7 @@ class PressureTier:
     name: str
     level: int  # 0 normal, 1 elevated, 2 high, 3 critical
     threshold_mb: float
-    actions: List[str]  # symbolic action names
+    actions: list[str]  # symbolic action names
 
 DEFAULT_TIERS = [
     PressureTier('normal', 0, 0, []),
@@ -52,10 +54,10 @@ DEFAULT_TIERS = [
 ]
 
 class MemoryPressureManager:
-    def __init__(self, 
+    def __init__(self,
                  metrics=None,
-                 total_physical_mb: Optional[float] = None,
-                 tiers: Optional[List[PressureTier]] = None,
+                 total_physical_mb: float | None = None,
+                 tiers: list[PressureTier] | None = None,
                  sample_interval: int = 10,
                  smoothing_alpha: float = 0.4):
         self.metrics = metrics

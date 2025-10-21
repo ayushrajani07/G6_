@@ -21,14 +21,14 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import os
+import sys
 from pathlib import Path
 
 _warned = False
 
 
-def _maybe_warn():
+def _maybe_warn() -> None:
     global _warned
     if _warned:
         return

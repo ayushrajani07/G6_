@@ -21,10 +21,13 @@ Design:
   - JSON parsing errors are ignored (atomic replace normally prevents partial reads).
 """
 from __future__ import annotations
-import os, json, asyncio, time
-from typing import Set, Optional
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+
+import asyncio
+import json
+import os
 from contextlib import asynccontextmanager
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 
 STATUS_FILE = os.environ.get("STATUS_FILE", "data/runtime_status.json")
@@ -46,10 +49,10 @@ app = FastAPI(title="G6 Runtime Status WebSocket Service", version="1.0.0", life
 class StatusBroadcaster:
     def __init__(self, path: str):
         self.path = path
-        self.clients: Set[WebSocket] = set()
+        self.clients: set[WebSocket] = set()
         self._last_mtime: float = 0.0
-        self._last_payload: Optional[dict] = None
-        self._task: Optional[asyncio.Task] = None
+        self._last_payload: dict | None = None
+        self._task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
 
     async def start(self):
@@ -83,7 +86,7 @@ class StatusBroadcaster:
                 if mtime != self._last_mtime:
                     self._last_mtime = mtime
                     try:
-                        with open(self.path, 'r') as f:
+                        with open(self.path) as f:
                             payload = json.load(f)
                         async with self._lock:
                             self._last_payload = payload
@@ -103,7 +106,7 @@ async def get_status():
     if broadcaster._last_payload is not None:
         return JSONResponse(broadcaster._last_payload)
     try:
-        with open(STATUS_FILE, 'r') as f:
+        with open(STATUS_FILE) as f:
             payload = json.load(f)
         return JSONResponse(payload)
     except Exception:

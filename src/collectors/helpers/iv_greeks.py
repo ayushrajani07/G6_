@@ -3,6 +3,7 @@
 Keeps original logic and metric side-effects identical.
 """
 from __future__ import annotations
+
 import logging
 
 logger = logging.getLogger(__name__)

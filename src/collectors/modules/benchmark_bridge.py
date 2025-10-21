@@ -36,15 +36,21 @@ Future (Phase 6+): Could be invoked from pipeline orchestrator; stateful anomaly
 could move to ring buffer avoiding disk scan if needed.
 """
 from __future__ import annotations
-from typing import Any, Callable, Dict, List, Optional
-import os, json, pathlib, datetime, gzip, hashlib
-import math
+
+import datetime
+import gzip
+import hashlib
+import json
+import os
+import pathlib
+from collections.abc import Callable
+from typing import Any
 
 # Type alias for anomaly detector (series, threshold) -> (flags, scores)
 # NOTE: Downstream `src.bench.anomaly.detect_anomalies` signature is
 #   detect_anomalies(series: Iterable[float], threshold: float = 3.5, min_points: int = 5)
 # so our injected callable must accept (series, threshold) and return (flags, scores).
-AnomalyDetector = Callable[[List[float], float], tuple[List[bool], List[float]]]
+AnomalyDetector = Callable[[list[float], float], tuple[list[bool], list[float]]]
 
 # Sentinel environment parsing helpers
 _BOOL_TRUE = {'1','true','yes','on'}
@@ -70,13 +76,13 @@ def _float_env(name: str, default: float) -> float:
     except Exception:
         return default
 
-def _make_payload(indices_struct: List[Dict[str, Any]], total_elapsed: float, ctx_like: Any) -> Dict[str, Any]:
+def _make_payload(indices_struct: list[dict[str, Any]], total_elapsed: float, ctx_like: Any) -> dict[str, Any]:
     phase_times = getattr(ctx_like, 'phase_times', {})
     phase_failures = getattr(ctx_like, 'phase_failures', {})
     # Sum options_total replicating legacy computation
     options_total = sum((ex.get('options') or 0) for ix in indices_struct for ex in (ix.get('expiries') or []))
-    ts = datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
-    payload: Dict[str, Any] = {
+    ts = datetime.datetime.now(datetime.UTC).strftime('%Y%m%dT%H%M%S%fZ')
+    payload: dict[str, Any] = {
         'version': 1,
         'timestamp': ts,
         'duration_s': total_elapsed,
@@ -104,14 +110,14 @@ def _make_payload(indices_struct: List[Dict[str, Any]], total_elapsed: float, ct
     # Caller will compute partial_reason_totals like legacy; we leave placeholder for parity
     return payload
 
-def _annotate_anomalies(payload: Dict[str, Any], dump_root: pathlib.Path, detect_fn: Callable[[List[float], float], tuple[List[bool], List[float]]], logger: Any) -> None:
+def _annotate_anomalies(payload: dict[str, Any], dump_root: pathlib.Path, detect_fn: Callable[[list[float], float], tuple[list[bool], list[float]]], logger: Any) -> None:
     if not _bool_env('G6_BENCHMARK_ANNOTATE_OUTLIERS'):
         return
     # History window (legacy default 60)
     hist_limit = _int_env('G6_BENCHMARK_ANOMALY_HISTORY', 60)
     threshold_val = _float_env('G6_BENCHMARK_ANOMALY_THRESHOLD', 3.5)
-    prev_opts: List[float] = []
-    prev_durs: List[float] = []
+    prev_opts: list[float] = []
+    prev_durs: list[float] = []
     try:
         files = sorted([p for p in dump_root.glob('benchmark_cycle_*.json*') if p.is_file()])
         if files:
@@ -125,7 +131,7 @@ def _annotate_anomalies(payload: Dict[str, Any], dump_root: pathlib.Path, detect
                     with gzip.open(fp, 'rt', encoding='utf-8') as fh:
                         data = json.load(fh)
                 else:
-                    with open(fp, 'r', encoding='utf-8') as fh:
+                    with open(fp, encoding='utf-8') as fh:
                         data = json.load(fh)
                 if isinstance(data, dict):
                     ot = data.get('options_total')
@@ -140,7 +146,7 @@ def _annotate_anomalies(payload: Dict[str, Any], dump_root: pathlib.Path, detect
         pass
     cur_opts_series = prev_opts + [float(payload.get('options_total') or 0)]
     cur_dur_series = prev_durs + [float(payload.get('duration_s') or 0.0)]
-    anomalies_struct: Dict[str, Any] = {}
+    anomalies_struct: dict[str, Any] = {}
     try:
         if len(cur_opts_series) >= 5:
             # Pass threshold explicitly; detector expected to apply robust z-score logic.
@@ -184,7 +190,7 @@ def _annotate_anomalies(payload: Dict[str, Any], dump_root: pathlib.Path, detect
             payload['anomalies'] = anomalies_struct
 
 
-def write_benchmark_artifact(indices_struct: List[Dict[str, Any]], total_elapsed: float, ctx_like: Any, metrics: Any, detect_anomalies_fn: Optional[Callable[[List[float], float], tuple[List[bool], List[float]]]] = None) -> None:
+def write_benchmark_artifact(indices_struct: list[dict[str, Any]], total_elapsed: float, ctx_like: Any, metrics: Any, detect_anomalies_fn: Callable[[list[float], float], tuple[list[bool], list[float]]] | None = None) -> None:
     """High-level entry to perform benchmark artifact lifecycle.
 
     Mirrors semantics of legacy inline block in `unified_collectors` for parity.
@@ -234,7 +240,9 @@ def write_benchmark_artifact(indices_struct: List[Dict[str, Any]], total_elapsed
         # Metrics (best-effort)
         if metrics is not None:
             try:
-                from prometheus_client import Gauge as _G, Summary as _S, Counter as _C
+                from prometheus_client import Counter as _C
+                from prometheus_client import Gauge as _G
+                from prometheus_client import Summary as _S
                 # Last options total gauge
                 if not hasattr(metrics, 'benchmark_last_options_total'):
                     try: metrics.benchmark_last_options_total = _G('g6_benchmark_last_options_total','Last cycle aggregate options_total')

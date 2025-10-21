@@ -31,11 +31,12 @@ Planned follow-ups (future phases):
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Mapping, Optional
-import os
 import json
+import os
 import re
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass, field
+from typing import Any
 
 __all__ = [
     "SummaryEnv",
@@ -49,7 +50,7 @@ TRUE_SET = {"1", "true", "yes", "on"}
 FALSE_SET = {"0", "false", "no", "off"}
 
 
-def _get(environ: Mapping[str, str], key: str) -> Optional[str]:  # small shim
+def _get(environ: Mapping[str, str], key: str) -> str | None:  # small shim
     v = environ.get(key)
     if v is None:
         return None
@@ -70,7 +71,7 @@ def _get_bool(environ: Mapping[str, str], key: str, default: bool = False) -> bo
 
 
 def _get_int(
-    environ: Mapping[str, str], key: str, default: int, *, min_v: Optional[int] = None, max_v: Optional[int] = None
+    environ: Mapping[str, str], key: str, default: int, *, min_v: int | None = None, max_v: int | None = None
 ) -> int:
     v = _get(environ, key)
     if v is None:
@@ -87,7 +88,7 @@ def _get_int(
 
 
 def _get_float(
-    environ: Mapping[str, str], key: str, default: float, *, min_v: Optional[float] = None, max_v: Optional[float] = None
+    environ: Mapping[str, str], key: str, default: float, *, min_v: float | None = None, max_v: float | None = None
 ) -> float:
     v = _get(environ, key)
     if v is None:
@@ -105,7 +106,7 @@ def _get_float(
 
 def _get_list(
     environ: Mapping[str, str], key: str, default: Iterable[str] = (), *, sep: str = ",", lower: bool = False
-) -> List[str]:
+) -> list[str]:
     v = _get(environ, key)
     if v is None:
         return list(default)
@@ -128,7 +129,7 @@ PANEL_H_RE = re.compile(r"^G6_PANEL_H_(?P<name>[A-Z0-9_]+)$")
 @dataclass(slots=True)
 class SummaryEnv:
     # Cadence / refresh
-    refresh_unified_sec: Optional[float]
+    refresh_unified_sec: float | None
     refresh_meta_sec: float
     refresh_res_sec: float
 
@@ -143,23 +144,23 @@ class SummaryEnv:
     sse_http_port: int
     metrics_http_enabled: bool
     metrics_http_port: int
-    resync_http_port: Optional[int]
+    resync_http_port: int | None
 
     # SSE client (terminal consumer) settings
-    client_sse_url: Optional[str]
-    client_sse_types: List[str]
+    client_sse_url: str | None
+    client_sse_types: list[str]
     client_sse_timeout_sec: float
 
     # SSE security / access
-    sse_token: Optional[str]
-    sse_allow_ips: List[str]
-    sse_connect_rate_spec: Optional[str]
-    sse_allow_user_agents: List[str]
-    sse_allow_origin: Optional[str]
+    sse_token: str | None
+    sse_allow_ips: list[str]
+    sse_connect_rate_spec: str | None
+    sse_allow_user_agents: list[str]
+    sse_allow_origin: str | None
 
     # Feature flags / modes
     curated_mode: bool
-    summary_mode: Optional[str]
+    summary_mode: str | None
     unified_model_init_debug: bool
     plain_diff_enabled: bool
     alt_screen: bool
@@ -167,12 +168,12 @@ class SummaryEnv:
     rich_diff_demo_enabled: bool
 
     # Dossier / snapshot extras
-    dossier_path: Optional[str]
+    dossier_path: str | None
     dossier_interval_sec: float
 
     # Thresholds / performance
-    threshold_overrides_raw: Optional[str]
-    threshold_overrides: Dict[str, Any]
+    threshold_overrides_raw: str | None
+    threshold_overrides: dict[str, Any]
     backoff_badge_window_ms: float
     provider_latency_warn_ms: float
     provider_latency_err_ms: float
@@ -180,18 +181,18 @@ class SummaryEnv:
     memory_level2_mb: float
 
     # Output / logging
-    output_sinks: List[str]
-    indices_panel_log: Optional[str]
+    output_sinks: list[str]
+    indices_panel_log: str | None
 
     # Panel layout overrides
     panel_clip: int
     panel_auto_fit: bool
-    panel_min_col_w: Optional[int]
-    panel_w_overrides: Dict[str, int] = field(default_factory=dict)
-    panel_h_overrides: Dict[str, int] = field(default_factory=dict)
+    panel_min_col_w: int | None
+    panel_w_overrides: dict[str, int] = field(default_factory=dict)
+    panel_h_overrides: dict[str, int] = field(default_factory=dict)
 
     # Deprecated envs encountered (for diagnostics only)
-    deprecated_seen: List[str] = field(default_factory=list)
+    deprecated_seen: list[str] = field(default_factory=list)
 
     # Raw metrics URL (for client polling fallback)
     metrics_url: str = "http://127.0.0.1:9108/metrics"
@@ -200,16 +201,15 @@ class SummaryEnv:
     output_sinks_raw: str = "stdout,logging"
 
     @classmethod
-    def from_environ(cls, environ: Mapping[str, str]) -> "SummaryEnv":  # noqa: C901 (complex but contained)
-        deprecated_seen: List[str] = [k for k in environ if k in DEPRECATED_ENV]
+    def from_environ(cls, environ: Mapping[str, str]) -> SummaryEnv:  # noqa: C901 (complex but contained)
+        deprecated_seen: list[str] = [k for k in environ if k in DEPRECATED_ENV]
 
         # Capture raw values to drive nuanced fallback semantics expected by tests.
         unified_raw = _get(environ, "G6_SUMMARY_REFRESH_SEC")
-        master_raw = _get(environ, "G6_MASTER_REFRESH_SEC")
         unified_parsed = _get_float(environ, "G6_SUMMARY_REFRESH_SEC", default=-1.0, min_v=0.0)
         unified_valid = unified_parsed >= 0
         if unified_valid:
-            unified_refresh: Optional[float] = unified_parsed  # type: ignore
+            unified_refresh: float | None = unified_parsed  # type: ignore
         else:
             legacy_master = _get_float(environ, "G6_MASTER_REFRESH_SEC", default=-1.0, min_v=0.0)
             if legacy_master >= 0:
@@ -240,7 +240,11 @@ class SummaryEnv:
             res_refresh = default_refresh
 
         panels_dir = _get(environ, "G6_PANELS_DIR") or os.path.join("data", "panels")
-        status_file = _get(environ, "G6_SUMMARY_STATUS_FILE") or _get(environ, "G6_STATUS_FILE") or "data/runtime_status.json"
+        status_file = (
+            _get(environ, "G6_SUMMARY_STATUS_FILE")
+            or _get(environ, "G6_STATUS_FILE")
+            or "data/runtime_status.json"
+        )
 
         # HTTP toggles
         unified_http_enabled = _get_bool(environ, "G6_UNIFIED_HTTP", False)
@@ -283,7 +287,7 @@ class SummaryEnv:
 
         # Threshold overrides
         threshold_overrides_raw = _get(environ, "G6_SUMMARY_THRESH_OVERRIDES")
-        threshold_overrides: Dict[str, Any] = {}
+        threshold_overrides: dict[str, Any] = {}
         if threshold_overrides_raw:
             try:
                 obj = json.loads(threshold_overrides_raw)
@@ -306,7 +310,7 @@ class SummaryEnv:
         panel_clip = _get_int(environ, "G6_PANEL_CLIP", 60, min_v=1)
         panel_auto_fit = _get_bool(environ, "G6_PANEL_AUTO_FIT", False)
         panel_min_col_w_env = _get(environ, "G6_PANEL_MIN_COL_W")
-        panel_min_col_w: Optional[int]
+        panel_min_col_w: int | None
         if panel_min_col_w_env is not None:
             try:
                 panel_min_col_w = max(1, int(float(panel_min_col_w_env)))
@@ -315,8 +319,8 @@ class SummaryEnv:
         else:
             panel_min_col_w = None
 
-        panel_w_overrides: Dict[str, int] = {}
-        panel_h_overrides: Dict[str, int] = {}
+        panel_w_overrides: dict[str, int] = {}
+        panel_h_overrides: dict[str, int] = {}
         for k, v in environ.items():
             m_w = PANEL_W_RE.match(k)
             if m_w:
@@ -383,7 +387,7 @@ class SummaryEnv:
         )
 
     # Convenience helpers -------------------------------------------------- #
-    def describe(self) -> Dict[str, Any]:
+    def describe(self) -> dict[str, Any]:
         """Return a JSON-serializable summary (safe for diagnostics)."""
         return {
             "refresh_unified_sec": self.refresh_unified_sec,
@@ -410,10 +414,10 @@ class SummaryEnv:
         }
 
 
-_CACHED: Optional[SummaryEnv] = None
+_CACHED: SummaryEnv | None = None
 
 
-def load_summary_env(*, force_reload: bool = False, environ: Optional[Mapping[str, str]] = None) -> SummaryEnv:
+def load_summary_env(*, force_reload: bool = False, environ: Mapping[str, str] | None = None) -> SummaryEnv:
     """Load (and cache) the effective SummaryEnv.
 
     Pass force_reload=True to rebuild cache (e.g., in tests that monkeypatch

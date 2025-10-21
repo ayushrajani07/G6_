@@ -3,9 +3,9 @@ Samples process CPU and memory every N seconds in a background thread.
 Falls back gracefully if psutil not available.
 """
 from __future__ import annotations
+
 import threading
-import time
-from typing import Optional, Dict, Any
+from typing import Any
 
 try:
     import psutil
@@ -15,9 +15,9 @@ except Exception:  # pragma: no cover
 class PerformanceMonitor:
     def __init__(self, interval: int = 5):
         self.interval = interval
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._stop = threading.Event()
-        self.latest: Dict[str, Any] = {}
+        self.latest: dict[str, Any] = {}
 
     def start(self):
         if self._thread and self._thread.is_alive():

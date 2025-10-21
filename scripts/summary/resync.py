@@ -1,12 +1,19 @@
-from __future__ import annotations
 """Resync snapshot helpers.
 
 Provides get_resync_snapshot used by HTTP handlers to materialize a JSON payload.
 """
-from typing import Any, Dict, Optional
+from __future__ import annotations
+
+from typing import Any
 
 
-def get_resync_snapshot(status: Optional[Dict[str, Any]] = None, *, cycle: int = 0, domain: Any = None, reuse_hashes: Any = None) -> Dict[str, Any]:
+def get_resync_snapshot(
+    status: dict[str, Any] | None = None,
+    *,
+    cycle: int = 0,
+    domain: Any = None,
+    reuse_hashes: Any = None,
+) -> dict[str, Any]:
     """Build a minimal resync snapshot payload.
 
     Contract expected by tests:
@@ -16,7 +23,7 @@ def get_resync_snapshot(status: Optional[Dict[str, Any]] = None, *, cycle: int =
         or SummarySnapshot.panel_hashes). If not provided, fall back to any shared hashes
         present under status.panel_push_meta.shared_hashes.
     """
-    panels: Dict[str, Any] = {}
+    panels: dict[str, Any] = {}
 
     # Priority 1: explicit reuse_hashes (e.g., from SSEPublisher or snapshot.panel_hashes)
     try:
@@ -35,7 +42,7 @@ def get_resync_snapshot(status: Optional[Dict[str, Any]] = None, *, cycle: int =
                     if isinstance(shared_hashes, dict):
                         # If provided as {key: hash}, normalize to {key: {hash: value}}
                         # or if already nested, keep as-is
-                        normalized: Dict[str, Any] = {}
+                        normalized: dict[str, Any] = {}
                         for k, v in shared_hashes.items():
                             if isinstance(v, dict) and 'hash' in v:
                                 normalized[str(k)] = v

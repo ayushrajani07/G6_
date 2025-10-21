@@ -5,18 +5,21 @@ Pure transformation helpers converting raw runtime structures into the
 collection/adaptive logic.
 """
 from __future__ import annotations
-from typing import Iterable, Dict, Any, List
+
 import time
-from .model import SummarySnapshot, AlertEntry, IndexHealth
+from collections.abc import Iterable
+from typing import Any
+
+from .model import AlertEntry, IndexHealth, SummarySnapshot
 
 __all__ = ["build_summary_snapshot"]
 
 def build_summary_snapshot(
     *,
     cycle: int | None,
-    raw_alerts: Iterable[Dict[str, Any]] | None,
-    raw_indices: Dict[str, Dict[str, Any]] | None,
-    meta: Dict[str, Any] | None = None,
+    raw_alerts: Iterable[dict[str, Any]] | None,
+    raw_indices: dict[str, dict[str, Any]] | None,
+    meta: dict[str, Any] | None = None,
 ) -> SummarySnapshot:
     """Construct a SummarySnapshot from untyped raw inputs.
 
@@ -29,7 +32,7 @@ def build_summary_snapshot(
     raw_indices : mapping index -> dict of fields (atm, iv, status, success_rate, options_last_cycle, last_update_epoch).
     meta : optional mapping of extra metadata.
     """
-    alert_entries: List[AlertEntry] = []
+    alert_entries: list[AlertEntry] = []
     for a in (raw_alerts or []):
         if not isinstance(a, dict):
             continue
@@ -46,7 +49,7 @@ def build_summary_snapshot(
             )
         )
 
-    index_entries: List[IndexHealth] = []
+    index_entries: list[IndexHealth] = []
     now = time.time()
     for name, spec in (raw_indices or {}).items():
         if not isinstance(spec, dict):

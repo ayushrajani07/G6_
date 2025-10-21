@@ -5,8 +5,10 @@ TypedDicts so adding fields later is non-breaking.
 """
 from __future__ import annotations
 
-from typing import TypedDict, NotRequired, Dict, Any, Protocol, Sequence, Mapping
 import datetime as _dt
+from collections.abc import Mapping, Sequence
+from typing import NotRequired, Protocol, TypedDict
+
 
 class InstrumentTD(TypedDict, total=False):
     tradingsymbol: str

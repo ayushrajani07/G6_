@@ -5,7 +5,7 @@ reduce size and prepare for further modularization. Behavior must remain
 IDENTICAL to pre-refactor semantics.
 """
 from __future__ import annotations
-from typing import List
+
 import datetime as _dt
 import logging
 
@@ -40,7 +40,7 @@ def resolve_expiry_rule(provider, index_symbol: str, expiry_rule: str):
         month_last = {}
         for d in expiries:
             month_last[(d.year, d.month)] = d
-        monthly_sorted: List[_dt.date] = sorted(month_last.values())
+        monthly_sorted: list[_dt.date] = sorted(month_last.values())
         this_month_date = monthly_sorted[0]
         next_month_date = monthly_sorted[1] if len(monthly_sorted) > 1 else this_month_date
         rule = (expiry_rule or '').lower()

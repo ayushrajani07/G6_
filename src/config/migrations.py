@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Config migration engine. Applies optional, non-breaking migrations to bring
 configs to the latest schema. By default, not used unless enabled via loader
@@ -9,13 +8,13 @@ from __future__ import annotations
 
 import copy
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from .schema_versions import (
-    SchemaVersion,
     MIGRATIONS,
-    register_migration,
+    SchemaVersion,
     get_required_migrations,
+    register_migration,
 )
 
 logger = logging.getLogger(__name__)
@@ -25,7 +24,7 @@ class MigrationError(Exception):
     pass
 
 
-def migrate_config(cfg: Dict[str, Any], target: Optional[SchemaVersion] = None) -> Dict[str, Any]:
+def migrate_config(cfg: dict[str, Any], target: SchemaVersion | None = None) -> dict[str, Any]:
     tgt = target or SchemaVersion.latest()
     work = copy.deepcopy(cfg)
     order = get_required_migrations(work, tgt)
@@ -49,7 +48,7 @@ def migrate_config(cfg: Dict[str, Any], target: Optional[SchemaVersion] = None) 
 
 
 @register_migration(SchemaVersion.V1_0)
-def _to_v1_0(cfg: Dict[str, Any]) -> Dict[str, Any]:
+def _to_v1_0(cfg: dict[str, Any]) -> dict[str, Any]:
     out = copy.deepcopy(cfg)
     out.setdefault("providers", {"primary": {}})
     out.setdefault("index_params", {})
@@ -57,7 +56,7 @@ def _to_v1_0(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @register_migration(SchemaVersion.V1_1)
-def _to_v1_1(cfg: Dict[str, Any]) -> Dict[str, Any]:
+def _to_v1_1(cfg: dict[str, Any]) -> dict[str, Any]:
     out = copy.deepcopy(cfg)
     out.setdefault("greeks", {
         "enabled": False,
@@ -72,7 +71,7 @@ def _to_v1_1(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @register_migration(SchemaVersion.V1_2)
-def _to_v1_2(cfg: Dict[str, Any]) -> Dict[str, Any]:
+def _to_v1_2(cfg: dict[str, Any]) -> dict[str, Any]:
     out = copy.deepcopy(cfg)
     storage = out.setdefault("storage", {})
     # Move top-level influx to storage.influx
@@ -102,7 +101,7 @@ def _to_v1_2(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
 
 @register_migration(SchemaVersion.V1_3)
-def _to_v1_3(cfg: Dict[str, Any]) -> Dict[str, Any]:
+def _to_v1_3(cfg: dict[str, Any]) -> dict[str, Any]:
     out = copy.deepcopy(cfg)
     health = out.setdefault("health", {})
     health.setdefault("api", {"enabled": False, "host": "127.0.0.1", "port": 8099})

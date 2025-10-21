@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 from collections import defaultdict
-from typing import List, Dict, Union
 
-def analyze_participant_flows(legs: List[Dict[str, Union[str, int, float]]]) -> Dict[str, Union[int, float]]:
+
+def analyze_participant_flows(legs: list[dict[str, str | int | float]]) -> dict[str, int | float]:
     """
     Aggregate net OI changes per participant type.
     """
@@ -17,7 +17,7 @@ def analyze_participant_flows(legs: List[Dict[str, Union[str, int, float]]]) -> 
     result["total_net"] = sum(result.values())
     return result
 
-def analyze_cash_flows(legs: List[Dict[str, Union[str, int, float]]]) -> Dict[str, Union[int, float]]:
+def analyze_cash_flows(legs: list[dict[str, str | int | float]]) -> dict[str, int | float]:
     """
     Aggregate net cash flows per participant type.
     """

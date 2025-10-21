@@ -10,9 +10,10 @@ Provides a single authoritative source for per-index configuration:
 Other modules should import from here instead of repeating literals.
 """
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import Dict
+
 import os
+from dataclasses import dataclass
+
 
 @dataclass(frozen=True)
 class IndexMeta:
@@ -24,7 +25,7 @@ class IndexMeta:
     synthetic_atm: int
 
 # Canonical registry
-_INDEXES: Dict[str, IndexMeta] = {
+_INDEXES: dict[str, IndexMeta] = {
     "NIFTY": IndexMeta("NIFTY", "Nifty 50", 50.0, "NFO", 3, 24800),
     "BANKNIFTY": IndexMeta("BANKNIFTY", "Bank Nifty", 100.0, "NFO", 3, 54000),
     "FINNIFTY": IndexMeta("FINNIFTY", "Fin Nifty", 50.0, "NFO", 1, 25950),

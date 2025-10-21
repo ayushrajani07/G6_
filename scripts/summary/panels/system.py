@@ -1,26 +1,35 @@
 from __future__ import annotations
-from typing import Any, Dict, List, Tuple, TYPE_CHECKING
+
+from datetime import UTC
+from typing import TYPE_CHECKING, Any
+
 from scripts.summary.env_config import load_summary_env
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rich.panel import Panel as _Panel
+    pass
 
-def health_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, compact: bool = False, show_title: bool = True) -> Any:
-    from rich.panel import Panel
-    from rich.table import Table
+def health_panel(
+    status: dict[str, Any] | None,
+    *,
+    low_contrast: bool = False,
+    compact: bool = False,
+    show_title: bool = True,
+) -> Any:
     from rich import box
     from rich.console import Group
+    from rich.panel import Panel
+    from rich.table import Table
+
     from scripts.summary.data_source import (
-        _use_panels_json,
         _read_panel_json,
+        _use_panels_json,
     )
     from scripts.summary.derive import (
         clip,
+        collect_resources,
+        derive_health,
         fmt_hms,
         fmt_timedelta_secs,
-        parse_iso,
-        derive_health,
-        collect_resources,
     )
     def _dot(st: str) -> str:
         s = (st or "").upper()
@@ -45,19 +54,18 @@ def health_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, c
                 # Compute recent backoff badge (yellow dot) if a WARN backoff_ms within window
                 backoff_badge = ""
                 try:
-                    import os
-                    from datetime import datetime, timezone
+                    from datetime import datetime
                     try:
-                        window_ms = load_summary_env().backoff_badge_window_ms
+                        window_ms: float = float(load_summary_env().backoff_badge_window_ms)
                     except Exception:
                         window_ms = 120000.0
-                    now = datetime.now(timezone.utc)
+                    now = datetime.now(UTC)
                     def _ts_in_window(ts: Any) -> bool:
                         if ts is None:
                             return False
                         try:
                             if isinstance(ts, (int, float)):
-                                dt2 = datetime.fromtimestamp(float(ts), tz=timezone.utc)
+                                dt2 = datetime.fromtimestamp(float(ts), tz=UTC)
                             else:
                                 # try ISO string
                                 from scripts.summary.derive import parse_iso as _parse_iso
@@ -66,7 +74,7 @@ def health_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, c
                                     return False
                                 dt2 = parsed
                             delta_ms = (now - dt2).total_seconds() * 1000.0
-                            return 0 <= delta_ms <= window_ms
+                            return bool(0 <= delta_ms <= window_ms)
                         except Exception:
                             return False
                     # pj_sys may be dict of categories or list of rows
@@ -114,7 +122,7 @@ def health_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, c
                             rtbl.add_row("", "", clip(str(it)), "")
                 # Append Provider & Resources content as rows (no duplicate header lines)
                 # Provider
-                prov: Dict[str, Any] = {}
+                prov: dict[str, Any] = {}
                 if _use_panels_json():
                     pj_prov = _read_panel_json("provider")
                     if isinstance(pj_prov, dict):
@@ -160,7 +168,7 @@ def health_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, c
                             lat_text = clip(f"{prov['latency_ms']} ms")
                         rtbl.add_row("", "Latency", clip(lat_text), _dot("OK"))
                 # Resources
-                res: Dict[str, Any] = {}
+                res: dict[str, Any] = {}
                 if _use_panels_json():
                     pj_res = _read_panel_json("resources")
                     if isinstance(pj_res, dict):
@@ -225,7 +233,7 @@ def health_panel(status: Dict[str, Any] | None, *, low_contrast: bool = False, c
     if _use_panels_json():
         pj = _read_panel_json("health")
         if isinstance(pj, dict):
-            its: List[Tuple[str, str]] = []
+            its: list[tuple[str, str]] = []
             for k, v in pj.items():
                 if isinstance(v, dict):
                     its.append((str(k), str(v.get("status", v))))

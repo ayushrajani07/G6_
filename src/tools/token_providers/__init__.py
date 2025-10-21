@@ -9,12 +9,13 @@ Environment overrides:
   G6_TOKEN_HEADLESS=1 to force headless (no browser / interactive flows)
 """
 
-from typing import Type, Dict, Optional, Callable
+from collections.abc import Callable
+from typing import Dict, Optional, Type
 
 from .base import TokenProvider
 from .fake import FakeTokenProvider
 
-_KiteProviderClass: Optional[Type[TokenProvider]]
+_KiteProviderClass: type[TokenProvider] | None
 try:  # Optional import: kite provider may have heavier deps
     from .kite import KiteTokenProvider as _KiteProviderClass  # pragma: no cover
 except Exception:  # pragma: no cover - missing optional deps
@@ -22,10 +23,10 @@ except Exception:  # pragma: no cover - missing optional deps
 
 ProviderFactory = Callable[[], TokenProvider]
 
-PROVIDER_REGISTRY: Dict[str, ProviderFactory] = {}
+PROVIDER_REGISTRY: dict[str, ProviderFactory] = {}
 
 if _KiteProviderClass is not None:
-    def _kite_factory(cls: Type[TokenProvider] = _KiteProviderClass) -> TokenProvider:  # default binds non-None
+    def _kite_factory(cls: type[TokenProvider] = _KiteProviderClass) -> TokenProvider:  # default binds non-None
         return cls()
     PROVIDER_REGISTRY['kite'] = _kite_factory
 

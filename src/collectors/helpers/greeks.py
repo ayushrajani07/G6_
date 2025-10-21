@@ -6,15 +6,16 @@ Maintains original semantics: only fill missing (==0) greek fields, normalizes I
 and emits success/fail/batch metrics when available.
 """
 from __future__ import annotations
-from typing import Dict, Any, Union
+
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
 __all__ = ["compute_greeks_block"]
 
 
-def compute_greeks_block(ctx, enriched_data: Dict[str, Dict[str, Any]], index_symbol: str, expiry_rule: str,
+def compute_greeks_block(ctx, enriched_data: dict[str, dict[str, Any]], index_symbol: str, expiry_rule: str,
                          expiry_date, index_price, greeks_calculator, risk_free_rate: float,
                          compute_greeks: bool, mp_manager, mem_flags):
     metrics = getattr(ctx, 'metrics', None)
@@ -77,7 +78,7 @@ def compute_greeks_block(ctx, enriched_data: Dict[str, Dict[str, Any]], index_sy
                 pass
 
 
-def compute_greeks(ctx, enriched_data: Dict[str, Dict[str, Any]], expiry_ctx: Any, greeks_calculator, mp_manager, mem_flags):
+def compute_greeks(ctx, enriched_data: dict[str, dict[str, Any]], expiry_ctx: Any, greeks_calculator, mp_manager, mem_flags):
     """Thin wrapper accepting ExpiryContext instance.
 
     Keeps original internal function untouched to minimize diff surface.

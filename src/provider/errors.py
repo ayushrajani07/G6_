@@ -16,7 +16,6 @@ lightweight so we can refactor broad except blocks incrementally.
 """
 from __future__ import annotations
 
-from typing import Type
 
 class ProviderError(Exception):
     """Base provider error (do not raise directly)."""
@@ -37,7 +36,7 @@ _AUTH_TOKENS = ("auth", "token", "unauthorized", "forbidden", "expired")
 _TIMEOUT_TOKENS = ("timeout", "timed out", "deadline")
 _TRANSIENT_TOKENS = ("temporarily", "rate limit", "throttle", "connection reset", "connection aborted")
 
-def classify_provider_exception(exc: BaseException) -> Type[ProviderError]:
+def classify_provider_exception(exc: BaseException) -> type[ProviderError]:
     """Best-effort classification of a raw exception instance.
 
     Heuristic order:

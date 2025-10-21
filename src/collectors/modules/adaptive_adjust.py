@@ -7,23 +7,24 @@ wrapping + explicit parameters).
 """
 from __future__ import annotations
 
+import logging
 import os
 import time
-import logging
-from typing import Any, Dict, MutableMapping, Mapping, Protocol, Optional
+from collections.abc import MutableMapping
+from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 
 OptionRecord = MutableMapping[str, Any]
-ExpiryRecordLike = Dict[str, Any]
-IndexParamsMap = Dict[str, Dict[str, Any]]
+ExpiryRecordLike = dict[str, Any]
+IndexParamsMap = dict[str, dict[str, Any]]
 
 class AdaptiveCtxLike(Protocol):  # minimal attribute surface we touch
     index_params: IndexParamsMap  # may be mutated
-    _adaptive_contraction_state: Dict[str, Dict[str, Any]]  # created lazily
-    _adaptive_retry_cache: Dict[str, Any]  # created lazily
+    _adaptive_contraction_state: dict[str, dict[str, Any]]  # created lazily
+    _adaptive_retry_cache: dict[str, Any]  # created lazily
     metrics: Any
-    flags: Dict[str, Any]
+    flags: dict[str, Any]
 
 __all__ = [
     "adaptive_strike_retry",
@@ -47,8 +48,8 @@ def adaptive_strike_retry(ctx: AdaptiveCtxLike | Any, index_symbol: str, expiry_
         return
     # Mark per-index cycle flags used by contraction logic
     if not hasattr(ctx, '_adaptive_contraction_state'):
-        setattr(ctx, '_adaptive_contraction_state', {})
-    _acs = getattr(ctx, '_adaptive_contraction_state')
+        ctx._adaptive_contraction_state = {}
+    _acs = ctx._adaptive_contraction_state
     if index_symbol not in _acs:
         base_cfg = (getattr(ctx, 'index_params', {}) or {}).get(index_symbol, {})
         _acs[index_symbol] = {
@@ -61,14 +62,8 @@ def adaptive_strike_retry(ctx: AdaptiveCtxLike | Any, index_symbol: str, expiry_
         }
     # One-time caching of adaptive retry env controls on context
     if not hasattr(ctx, '_adaptive_retry_cache'):
-        setattr(ctx, '_adaptive_retry_cache', {
-            'disable': os.environ.get('G6_DISABLE_ADAPTIVE_STRIKE_RETRY','').lower() in ('1','true','yes','on'),
-            'strike_ok_raw': os.environ.get('G6_STRIKE_COVERAGE_OK'),
-            'max_itm_raw': os.environ.get('G6_ADAPTIVE_STRIKE_MAX_ITM'),
-            'max_otm_raw': os.environ.get('G6_ADAPTIVE_STRIKE_MAX_OTM'),
-            'step_raw': os.environ.get('G6_ADAPTIVE_STRIKE_STEP'),
-        })
-    _arc = getattr(ctx, '_adaptive_retry_cache')
+        ctx._adaptive_retry_cache = {'disable': os.environ.get('G6_DISABLE_ADAPTIVE_STRIKE_RETRY', '').lower() in ('1', 'true', 'yes', 'on'), 'strike_ok_raw': os.environ.get('G6_STRIKE_COVERAGE_OK'), 'max_itm_raw': os.environ.get('G6_ADAPTIVE_STRIKE_MAX_ITM'), 'max_otm_raw': os.environ.get('G6_ADAPTIVE_STRIKE_MAX_OTM'), 'step_raw': os.environ.get('G6_ADAPTIVE_STRIKE_STEP')}
+    _arc = ctx._adaptive_retry_cache
     if _arc['disable']:
         return
     strike_cov_local = expiry_rec.get('strike_coverage')
@@ -172,7 +167,7 @@ def adaptive_contraction(ctx: AdaptiveCtxLike | Any, index_symbol: str, expiry_r
     cur_cycle_num = None
     try:
         if cycle_count and hasattr(cycle_count, 'count'):
-            cur_cycle_num = int(getattr(cycle_count, 'count'))
+            cur_cycle_num = int(cycle_count.count)
     except Exception:
         cur_cycle_num = None
     if cur_cycle_num is None:

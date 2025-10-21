@@ -5,11 +5,13 @@ and cache population. Mirrors original inline logic from quotes.get_quote.
 """
 from __future__ import annotations
 
-import os, logging
-from typing import Any, Iterable, List
+import logging
+import os
+from collections.abc import Iterable
+from typing import Any
 
-from .quotes import _normalize_instruments  # reuse helper
 from . import quote_cache
+from .quotes import _normalize_instruments  # reuse helper
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +54,7 @@ def fetch_real_quotes(provider, instruments: Iterable) -> dict | None:
         def get_batcher():  # type: ignore
             raise RuntimeError('batcher_unavailable')
     try:
-        from .rate_limit import build_default_rate_limiter, RateLimitedError  # type: ignore
+        from .rate_limit import RateLimitedError, build_default_rate_limiter  # type: ignore
     except Exception:  # pragma: no cover
         build_default_rate_limiter = None  # type: ignore
         class RateLimitedError(RuntimeError): ...  # type: ignore
@@ -61,7 +63,7 @@ def fetch_real_quotes(provider, instruments: Iterable) -> dict | None:
         if limiter is None:
             try:
                 limiter = build_default_rate_limiter()
-                setattr(provider, '_g6_quote_rate_limiter', limiter)
+                provider._g6_quote_rate_limiter = limiter
             except Exception:
                 limiter = None
 

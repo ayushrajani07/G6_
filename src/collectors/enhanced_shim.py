@@ -13,14 +13,17 @@ run_unified_collectors (persistence) or run_snapshot_collectors explicitly.
 This shim will be removed in a future major release.
 """
 from __future__ import annotations
-import os, logging
-from typing import Any, Optional, List, Dict
-from .unified_collectors import run_unified_collectors
+
+import logging
+import os
+from typing import Any
+
 from .snapshot_collectors import run_snapshot_collectors
+from .unified_collectors import run_unified_collectors
 
 logger = logging.getLogger(__name__)
 
-def run_enhanced_collectors(index_params: Dict[str, Any], providers, csv_sink, influx_sink, metrics, *_, **kw):  # signature kept lax
+def run_enhanced_collectors(index_params: dict[str, Any], providers, csv_sink, influx_sink, metrics, *_, **kw):  # signature kept lax
     # Determine snapshot intent: explicit kw flag or env overrides
     snapshot_intent = bool(kw.get('return_snapshots')) or os.environ.get('G6_RETURN_SNAPSHOTS','').lower() in ('1','true','yes','on')
     if os.environ.get('G6_ENHANCED_SNAPSHOT_MODE','').lower() in ('1','true','yes','on') or snapshot_intent:

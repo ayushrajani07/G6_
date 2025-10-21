@@ -16,8 +16,16 @@ Features:
 Exit codes: 0 ok, 2 no artifacts, 3 fatal error.
 """
 from __future__ import annotations
-import argparse, json, gzip, sys, pathlib, math, statistics
-from typing import List, Dict, Any, Sequence
+
+import argparse
+import gzip
+import json
+import math
+import pathlib
+import statistics
+import sys
+from collections.abc import Sequence
+from typing import Any
 
 _SPARK_CHARS = "▁▂▃▄▅▆▇█"
 _ASCII_SPARK_CHARS = "._-~=^*#"  # fallback approximate ordering
@@ -27,16 +35,16 @@ try:  # pragma: no cover
 except Exception:  # pragma: no cover
     _detect_anomalies = None  # type: ignore
 
-def load_artifacts(root: pathlib.Path) -> List[Dict[str,Any]]:
+def load_artifacts(root: pathlib.Path) -> list[dict[str,Any]]:
     files = sorted([p for p in root.glob('benchmark_cycle_*.json*') if p.is_file()])
-    arts: List[Dict[str,Any]] = []
+    arts: list[dict[str,Any]] = []
     for fp in files:
         try:
             if fp.suffix == '.gz' or fp.name.endswith('.json.gz'):
                 with gzip.open(fp,'rt',encoding='utf-8') as f:
                     data = json.load(f)
             else:
-                with open(fp,'r',encoding='utf-8') as f:
+                with open(fp,encoding='utf-8') as f:
                     data = json.load(f)
             if isinstance(data, dict):
                 data['__file'] = str(fp)
@@ -68,7 +76,7 @@ def recompute_flags(series, threshold):
     flags, scores = _detect_anomalies(series, threshold=threshold)
     return flags, scores
 
-def build_report(arts: List[Dict[str,Any]], limit: int, threshold: float, compute_anomalies: bool) -> Dict[str,Any]:
+def build_report(arts: list[dict[str,Any]], limit: int, threshold: float, compute_anomalies: bool) -> dict[str,Any]:
     arts = arts[-limit:]
     latest = arts[-1]
     prev = arts[-2] if len(arts) >= 2 else None
@@ -147,7 +155,7 @@ def build_report(arts: List[Dict[str,Any]], limit: int, threshold: float, comput
     }
     return report
 
-def format_markdown(report: Dict[str,Any]) -> str:
+def format_markdown(report: dict[str,Any]) -> str:
     lt = report['latest']
     ser = report['series']
     stats = report['stats']
@@ -175,7 +183,7 @@ def format_markdown(report: Dict[str,Any]) -> str:
     md.append(f"Latest artifact: `{lt['file']}`")
     return '\n'.join(md)
 
-def format_plain(report: Dict[str,Any]) -> str:
+def format_plain(report: dict[str,Any]) -> str:
     md = format_markdown(report)
     # Strip simple markdown formatting for plain mode
     lines = []

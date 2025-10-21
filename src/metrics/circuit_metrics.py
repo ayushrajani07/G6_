@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Circuit breaker metrics exporter (optional). Uses existing MetricsRegistry gauges/counters.
 This keeps a minimal view: per-breaker state and current timeout.
@@ -8,10 +7,9 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Dict
 
-from ..utils.circuit_registry import _REGISTRY  # internal map; safe read-only
 from ..utils.adaptive_circuit_breaker import CircuitState
+from ..utils.circuit_registry import _REGISTRY  # internal map; safe read-only
 
 
 class CircuitMetricsExporter:

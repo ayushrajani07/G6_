@@ -8,9 +8,12 @@ Future responsibilities:
 Current stub supplies empty lists to avoid implying completeness.
 """
 from __future__ import annotations
-from typing import List, Iterable, Any, Callable, Tuple
+
 import datetime as _dt
 import logging
+from collections.abc import Callable, Iterable
+from typing import Any
+
 from .logging_events import emit_event
 
 logger = logging.getLogger(__name__)
@@ -91,6 +94,11 @@ class ExpiryResolver:
     ) -> list[_dt.date]:
         import time
         now = (now_func or time.time)()
+        # Derive a deterministic 'today' from the provided clock when available
+        try:
+            today_dt = _dt.datetime.utcfromtimestamp(float(now)).date()
+        except Exception:
+            today_dt = _dt.date.today()
         cached = self._cache.get(index_symbol)
         meta = self._cache_meta.get(index_symbol, 0.0)
         if cached and (now - meta) < ttl:
@@ -102,10 +110,10 @@ class ExpiryResolver:
             atm = atm_provider(index_symbol)
         except Exception:
             atm = None
-        extracted = self.extract(index_symbol, instruments, atm_strike=atm)
+        extracted = self.extract(index_symbol, instruments, atm_strike=atm, today=today_dt)
         if not extracted:
             if instruments:
-                fabricated = self.fabricate()
+                fabricated = self.fabricate(today=today_dt)
                 if self._allow_log():
                     logger.debug("expiry.fabricated index=%s this_week=%s next_week=%s", index_symbol, fabricated[0], fabricated[1])
                 emit_event(logger, "provider.expiries.fabricated", index=index_symbol, count=len(fabricated))
@@ -121,11 +129,11 @@ class ExpiryResolver:
         # Later: replicate fabrication heuristic from legacy provider
         return self.list_expiries(index_symbol)
 
-    def weekly(self, index_symbol: str) -> List[_dt.date]:
+    def weekly(self, index_symbol: str) -> list[_dt.date]:
         expiries = self.list_expiries(index_symbol)
         return expiries[:2]
 
-    def monthly(self, index_symbol: str) -> List[_dt.date]:
+    def monthly(self, index_symbol: str) -> list[_dt.date]:
         expiries = self.list_expiries(index_symbol)
         by_month: dict[tuple[int,int], list[_dt.date]] = {}
         for d in expiries:

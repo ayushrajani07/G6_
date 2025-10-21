@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-import sys, re, pathlib
+import pathlib
+import re
+import sys
+
 # Detect datetime.now() not followed by (timezone.utc) or tz= and not part of allowed comment
 PATTERN = re.compile(r"datetime\.now\s*\(\s*\)")
 ALLOWED_COMMENT = '# fallback (tz-aware source)'
 
-def main():
+def main() -> int:
     offenders = []
     for path in sys.argv[1:]:
         p = pathlib.Path(path)

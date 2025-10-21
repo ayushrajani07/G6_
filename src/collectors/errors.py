@@ -16,7 +16,6 @@ Helper:
 """
 from __future__ import annotations
 
-from typing import Any
 
 class PhaseBaseError(Exception):
     """Base class for phase taxonomy (allows isinstance checks)."""
