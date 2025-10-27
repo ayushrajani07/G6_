@@ -33,7 +33,7 @@ jobs:
           python scripts/sse_soak.py --duration 900 --budget-max-reconnects 15 --budget-max-gap-p95 25 --budget-max-rss-growth-mb 120 > soak_out.txt 2>&1 || true
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: sse-soak-artifacts
           path: |

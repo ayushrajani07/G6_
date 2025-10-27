@@ -31,7 +31,7 @@ jobs:
           python scripts/pr_checklist.py --run-readiness --strict > PR_CHECKLIST.md
       - name: Upload checklist artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: pr-checklist
           path: PR_CHECKLIST.md

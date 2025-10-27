@@ -33,7 +33,7 @@ jobs:
           echo 'Extras (unreferenced catalog) logged.'
       - name: Upload extras artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: env-checker-extras
           path: env_checker_extras.txt
