@@ -37,7 +37,7 @@ jobs:
             python scripts/gen_sbom.py --output sbom_${{ steps.ver.outputs.version }}.json
 
       - name: Upload SBOM artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: sbom-${{ steps.ver.outputs.version }}
           path: sbom_${{ steps.ver.outputs.version }}.json
